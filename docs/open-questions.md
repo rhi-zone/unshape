@@ -64,7 +64,7 @@ Backend strategy resolved. Language design still open.
 | Modulation depth | ❓ Open | Every param modulatable (VCV)? Or explicit mod inputs (Pd)? |
 | Polyphony model | ❓ Open | Per-node (VCV poly cables)? Per-graph (Pd clone)? Explicit voice management? |
 | Control vs audio rate | ❓ Open | Automatic promotion? Explicit types like SuperCollider .kr/.ar? |
-| State management | ❓ Open | Recurrent graphs: feedback edges carry state. See [recurrent-graphs](./design/recurrent-graphs.md). Details TBD. |
+| State management | 🔶 Leaning | Recurrent graphs: feedback edges carry state, nodes stay pure. Open: delay granularity, stability, mixed rates. See [recurrent-graphs](./design/recurrent-graphs.md) |
 
 ## Textures
 
@@ -115,7 +115,7 @@ Backend strategy resolved. Language design still open.
 - 3D textures (same nodes, Vec3/Vec4 input)
 - Tiling (explicit operators)
 
-### 🔶 Leaning (11)
+### 🔶 Leaning (12)
 - Type system for slots (simpler than maki)
 - Parameter system (yes, first-class)
 - Modularity (very modular)
@@ -126,9 +126,10 @@ Backend strategy resolved. Language design still open.
 - Expression language direction (Cranelift for CPU)
 - Bevy integration (low priority, standalone first)
 - External references (IDs + context, maybe embed small assets)
+- Audio state management (recurrent graphs, feedback edges)
 
-### ❓ Open (20+)
-- **High impact**: Half-edge vs index mesh, Evaluation strategy, Audio state management, Time models
+### ❓ Open (19+)
+- **High impact**: Half-edge vs index mesh, Evaluation strategy, Time models
 - **Expression language**: AST scope, codegen details, built-in functions
 - **Cross-cutting**: Texture vs field unification
 - **Domain-specific**: Many audio questions, texture materialization, instancing
