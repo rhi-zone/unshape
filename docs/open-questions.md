@@ -55,6 +55,9 @@ Collected from domain design docs. To be resolved through design discussion and 
 1. **Modularity**: How granular should crates be? (Bevy philosophy: very modular)
 2. **Bevy integration**: Optional feature flags? Separate adapter crates?
 3. **Evaluation strategies**: Lazy vs eager? Pull vs push?
+4. **Ops as values**: Should operations be serializable structs? See [design/ops-as-values](./design/ops-as-values.md)
+5. **Expression language**: For serializable transforms (replaces closures). How powerful?
+6. **Plugin op registration**: How do plugins register new serializable operations?
 
 ---
 
