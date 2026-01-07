@@ -262,9 +262,15 @@ This could unify:
 - Interpolation (Lerp trait, easing functions)
 
 **Should NOT force:**
-- Single `Node` trait - data types differ too much between domains
+- Single `Node` trait with fixed signature - data types differ too much
 - Unified topology - legitimate structural differences
-- Single graph system - audio streaming vs batch evaluation
+- Identical evaluation model - audio streaming vs batch evaluation
+
+**Reconsidered - typed slots may enable:**
+- Single graph container with typed connections (like LiteGraph/ComfyUI)
+- Nodes declare slot types, graph validates connections
+- Different domains coexist in one graph, connected via conversion nodes
+- See prior-art.md for LiteGraph/Baklava patterns
 
 ## Next Steps
 
