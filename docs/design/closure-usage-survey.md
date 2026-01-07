@@ -211,7 +211,7 @@ If composition always works → no expression language needed, just a rich op li
 
 **Per-pixel textures:** MUST be GPU or generated code. Lua not viable (millions of pixels).
 
-**Audio real-time:** Must be fast. Lua per-sample not viable (44100 samples/sec).
+**Audio real-time:** Per-block, not per-sample. At 512-sample blocks = ~86 blocks/sec, LuaJIT may be viable for simple buffer transforms. Native still needed for stateful DSP (filters, delays).
 
 **Mesh ops:** Usually batch, less perf critical. LuaJIT viable (~0.6-1x C speed for numeric loops).
 
