@@ -349,6 +349,88 @@ let result: Value = pipeline.execute(input)?;
 let image: Image = result.into_image()?;
 ```
 
+### Op Author DX: Concrete Types, Not Value
+
+Op authors should never see Value enum. They write concrete types:
+
+```rust
+// What op author writes (nice DX)
+impl ImageOp for Blur {
+    fn apply(&self, input: &Image) -> Image {
+        // just blur, no wrapping/unwrapping
+    }
+}
+
+// NOT this (bad DX)
+impl DynOp for Blur {
+    fn apply(&self, input: Value) -> Result<Value> {
+        let img = input.into_image()?;  // boilerplate
+        Ok(Value::Image(...))            // boilerplate
+    }
+}
+```
+
+**Solution: Typed traits with blanket impls**
+
+```rust
+// Trait for Image -> Image ops
+trait ImageToImage: Serialize + DeserializeOwned {
+    fn apply(&self, input: &Image) -> Image;
+}
+
+// Library provides blanket impl - author never sees this
+impl<T: ImageToImage + 'static> DynOp for T {
+    fn input_type(&self) -> ValueType { ValueType::Image }
+    fn output_type(&self) -> ValueType { ValueType::Image }
+
+    fn apply_dyn(&self, input: Value) -> Result<Value> {
+        let img = input.into_image()?;
+        Ok(Value::Image(ImageToImage::apply(self, &img)))
+    }
+}
+
+// Op author just implements the nice trait
+#[derive(Serialize, Deserialize)]
+struct Blur { radius_uv: f32 }
+
+impl ImageToImage for Blur {
+    fn apply(&self, input: &Image) -> Image {
+        // clean implementation, no Value
+    }
+}
+```
+
+**Trade-off: Trait proliferation**
+
+Need a trait per type signature:
+
+```rust
+trait FieldToField { fn apply(&self, f: &dyn Field) -> Box<dyn Field>; }
+trait FieldToImage { fn apply(&self, f: &dyn Field, w: u32, h: u32) -> Image; }
+trait ImageToImage { fn apply(&self, img: &Image) -> Image; }
+trait ImageImageToImage { fn apply(&self, a: &Image, b: &Image) -> Image; }
+// ... more for each domain and arity
+```
+
+**Alternative: Derive macro for exotic signatures**
+
+```rust
+#[derive(Serialize, Deserialize, DynOp)]
+struct Blend { factor: f32 }
+
+impl Blend {
+    // Macro infers signature from method
+    fn apply(&self, a: &Image, b: &Image) -> Image { ... }
+}
+```
+
+| Approach | Use when |
+|----------|----------|
+| Typed traits | Common signatures (ImageToImage, FieldToField) |
+| Derive macro | Exotic signatures, multiple inputs |
+
+**Result:** Value enum is internal plumbing. Op authors work with concrete types.
+
 ### Type-Safe Wrappers (Optional)
 
 If you know expected types at load time:
