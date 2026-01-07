@@ -224,6 +224,33 @@ AI-powered knowledge canvas:
 
 **Relevance to Resin**: Limited. It's a note-taking tool, not media generation. The canvas/graph UI pattern is common but not novel. Mentioned for completeness.
 
+## Compute Abstraction
+
+### Burn / CubeCL
+
+[Burn GitHub](https://github.com/tracel-ai/burn) · [CubeCL GitHub](https://github.com/tracel-ai/cubecl)
+
+Rust framework abstracting over compute backends:
+- **Backend-agnostic**: same code runs on CPU, CUDA, wgpu, etc.
+- **CubeCL**: compute language compiling to multiple targets
+- **Backends**: `cubecl-cpu`, `cubecl-cuda`, `cubecl-wgpu`
+
+```rust
+// Write once, run anywhere
+#[cube(launch)]
+fn add_kernel(a: &Tensor<f32>, b: &Tensor<f32>, out: &mut Tensor<f32>) {
+    out[ABSOLUTE_POS] = a[ABSOLUTE_POS] + b[ABSOLUTE_POS];
+}
+```
+
+Key insight: abstract compute kernels over backends. No need to choose CPU vs GPU - support both.
+
+**Relevance to Resin**:
+- Texture operations (blur, noise, blend) are embarrassingly parallel
+- Mesh operations less so (topology is tricky on GPU)
+- Audio: typically CPU (real-time constraints, small blocks)
+- Could use CubeCL for texture/noise, CPU for mesh topology
+
 ## Common Themes
 
 1. **Small primitives, big results** - few building blocks, rich combinations

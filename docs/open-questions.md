@@ -62,4 +62,15 @@ Collected from domain design docs. To be resolved through design discussion and 
 
 | Question | Status | Decision |
 |----------|--------|----------|
-| (to be filled as we resolve) | | |
+| GPU vs CPU | ✅ Resolved | Abstract over both via burn/CubeCL. See [prior-art](./prior-art.md#burn--cubecl) |
+| Precision f32/f64 | ✅ Resolved | Support both via generic `T: Float` |
+| Winding rule | ✅ Resolved | Both, default non-zero. See [design/winding-rules](./design/winding-rules.md) |
+| Curve types | ✅ Resolved | All via traits. See [design/curve-types](./design/curve-types.md) |
+| Unified 2D/3D rig | 🔶 Leaning | Yes, some abstractions shareable (bones, constraints, skinning) |
+| Parameter system | 🔶 Leaning | Yes, first-class across all domains |
+| Deformer stacking | ✅ Resolved | List first, graph later if needed. See [design/deformer-stacking](./design/deformer-stacking.md) |
+| Animation blending | 🔶 Leaning | Separate crate, bevy-style modularity |
+| Type system for slots | 🔶 Leaning | Simpler than maki (types can be opaque). Generics maybe unnecessary for resin's use case |
+| Modularity | 🔶 Leaning | Very modular, bevy philosophy |
+| Vector networks | ❓ Open | Needs clarification on use cases |
+| Text | ❓ Open | Probably exclude layout, include outline extraction |
