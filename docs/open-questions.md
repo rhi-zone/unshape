@@ -21,6 +21,7 @@ Single source of truth for design decisions. Updated as we resolve questions.
 | Modularity | 🔶 Leaning | Very modular, bevy philosophy |
 | Bevy integration | ❓ Open | Optional feature flags? Separate adapter crates? |
 | Evaluation strategy | ❓ Open | Lazy vs eager? Pull vs push? |
+| Time models | ❓ Open | Stateless vs stateful vs streaming. See [time-models](./design/time-models.md) |
 
 ## Expression Language
 
@@ -72,7 +73,7 @@ Backend strategy resolved. Language design still open.
 | GPU vs CPU | ✅ Resolved | Abstract over both via burn/CubeCL. See [prior-art](./prior-art.md#burn--cubecl) |
 | Tiling | ❓ Open | Automatic seamless tiling? Explicit tile operator? |
 | Resolution/materialization | ❓ Open | When to materialize vs keep lazy? Blur/normal-from-height need neighbors |
-| 3D textures | ❓ Open | Volumetric noise for displacement, clouds. Same nodes with Vec3 input? |
+| 3D textures | ✅ Resolved | Same nodes, Vec3 input. Vec4 for looping animation (time as 4th dim). Memory/preview are host concerns. |
 | Texture vs field | ❓ Open | Unify texture sampling with mesh attribute evaluation? |
 
 ## Vector 2D
@@ -100,7 +101,7 @@ Backend strategy resolved. Language design still open.
 
 ## Summary by Status
 
-### ✅ Resolved (11)
+### ✅ Resolved (12)
 - GPU vs CPU abstraction (burn/CubeCL)
 - Precision f32/f64 (generic `T: Float`)
 - Winding rule (both, default non-zero)
@@ -111,6 +112,7 @@ Backend strategy resolved. Language design still open.
 - General internal, constrained APIs pattern
 - Plugin architecture (core = contract, host = loading)
 - Graph caching (hash-based at node boundaries)
+- 3D textures (same nodes, Vec3/Vec4 input)
 
 ### 🔶 Leaning (9)
 - Type system for slots (simpler than maki)
@@ -123,7 +125,7 @@ Backend strategy resolved. Language design still open.
 - Expression language direction (Cranelift for CPU)
 
 ### ❓ Open (23+)
-- **High impact**: Half-edge vs index mesh, Evaluation strategy, Audio state management
+- **High impact**: Half-edge vs index mesh, Evaluation strategy, Audio state management, Time models
 - **Expression language**: AST scope, codegen details, built-in functions
 - **Cross-cutting**: External refs, Bevy integration
 - **Domain-specific**: Many audio questions, texture materialization, instancing

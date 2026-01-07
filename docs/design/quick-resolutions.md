@@ -141,31 +141,23 @@ let weights = mesh.sample_field(&noise);              // eval at vertices
 
 ## Animation / Time
 
-**Question** (implicit): How do animated textures get time input?
+**Question**: How do animated/time-dependent computations work?
 
-**Likely answer**: Graph context provides time, not per-node input.
+**Initial answer**: Graph context provides time.
 
-```rust
-struct EvalContext {
-    time: f32,           // current time in seconds
-    frame: u64,          // current frame number
-    assets: AssetStore,  // for resolving refs
-    // ...
-}
+**Actual answer**: It's complicated. See [time-models.md](./time-models.md).
 
-// Nodes that need time access it from context
-impl TextureOp for AnimatedNoise {
-    fn eval(&self, ctx: &EvalContext) -> Image {
-        let t = ctx.time;
-        // use time as 3rd/4th dimension for noise
-    }
-}
-```
+Multiple time models exist:
+- **Stateless**: `f(inputs, time)` - can seek, parallelize (textures, synth, rigging)
+- **Stateful**: depends on history - must process sequentially (filters, physics)
+- **Streaming**: time = position in stream (audio)
+- **Baked**: pre-computed stateful → stateless lookup (caches)
 
-**Caveats**:
-- Some nodes are time-invariant (pure), some aren't
-- Caching: time-dependent nodes can't cache across frames
-- Should time-dependence be part of type system? Probably overkill.
+**Open questions**:
+- How to represent statefulness in type system (or not)?
+- Seeking stateful graphs?
+- State serialization for save/restore?
+- Audio block boundaries vs graph model?
 
 ---
 
@@ -178,4 +170,4 @@ impl TextureOp for AnimatedNoise {
 | 3D textures | Same nodes, Vec3/Vec4 input | High |
 | Tiling | Explicit ops, some natural tiling | Medium |
 | Texture vs field | Unified concept, maybe overkill | Medium |
-| Animation time | Graph context provides time | High |
+| Time models | Complicated - multiple models coexist | Low |
