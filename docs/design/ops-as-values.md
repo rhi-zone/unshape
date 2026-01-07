@@ -354,8 +354,11 @@ let image: Image = result.into_image()?;
 Op authors should never see Value enum. They write concrete types:
 
 ```rust
-// What op author writes (nice DX)
-impl ImageOp for Blur {
+// What op author writes (good DX)
+#[derive(Serialize, Deserialize, Op)]
+struct Blur { radius_uv: f32 }
+
+impl Blur {
     fn apply(&self, input: &Image) -> Image {
         // just blur, no wrapping/unwrapping
     }
@@ -370,66 +373,67 @@ impl DynOp for Blur {
 }
 ```
 
-**Solution: Typed traits with blanket impls**
+**Solution: Derive macro**
 
 ```rust
-// Trait for Image -> Image ops
-trait ImageToImage: Serialize + DeserializeOwned {
-    fn apply(&self, input: &Image) -> Image;
-}
-
-// Library provides blanket impl - author never sees this
-impl<T: ImageToImage + 'static> DynOp for T {
-    fn input_type(&self) -> ValueType { ValueType::Image }
-    fn output_type(&self) -> ValueType { ValueType::Image }
-
-    fn apply_dyn(&self, input: Value) -> Result<Value> {
-        let img = input.into_image()?;
-        Ok(Value::Image(ImageToImage::apply(self, &img)))
-    }
-}
-
-// Op author just implements the nice trait
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Op)]
 struct Blur { radius_uv: f32 }
 
-impl ImageToImage for Blur {
+impl Blur {
+    // Author writes normal method with concrete types
     fn apply(&self, input: &Image) -> Image {
-        // clean implementation, no Value
+        // actual blur implementation
     }
 }
+
+// Macro generates:
+// - DynOp impl with Value wrapping/unwrapping
+// - input_type() -> ValueType::Image
+// - output_type() -> ValueType::Image
+// - Registration with type name "resin::texture::Blur"
 ```
 
-**Trade-off: Trait proliferation**
-
-Need a trait per type signature:
+**Works for any signature:**
 
 ```rust
-trait FieldToField { fn apply(&self, f: &dyn Field) -> Box<dyn Field>; }
-trait FieldToImage { fn apply(&self, f: &dyn Field, w: u32, h: u32) -> Image; }
-trait ImageToImage { fn apply(&self, img: &Image) -> Image; }
-trait ImageImageToImage { fn apply(&self, a: &Image, b: &Image) -> Image; }
-// ... more for each domain and arity
-```
+#[derive(Serialize, Deserialize, Op)]
+struct Render { width: u32, height: u32 }
 
-**Alternative: Derive macro for exotic signatures**
+impl Render {
+    fn apply(&self, input: &dyn Field) -> Image { ... }
+}
 
-```rust
-#[derive(Serialize, Deserialize, DynOp)]
+#[derive(Serialize, Deserialize, Op)]
 struct Blend { factor: f32 }
 
 impl Blend {
-    // Macro infers signature from method
     fn apply(&self, a: &Image, b: &Image) -> Image { ... }
+}
+
+#[derive(Serialize, Deserialize, Op)]
+struct Displace { amount: f32 }
+
+impl Displace {
+    fn apply(&self, mesh: &Mesh, texture: &Image) -> Mesh { ... }
 }
 ```
 
-| Approach | Use when |
-|----------|----------|
-| Typed traits | Common signatures (ImageToImage, FieldToField) |
-| Derive macro | Exotic signatures, multiple inputs |
+**Macro responsibilities:**
+1. Find `apply` method on impl block
+2. Infer input/output types from signature
+3. Generate `DynOp` impl with Value wrapping
+4. Generate type name for serialization
 
-**Result:** Value enum is internal plumbing. Op authors work with concrete types.
+**Why derive macro over trait proliferation:**
+
+| Approach | DX | Maintenance |
+|----------|-----|-------------|
+| Trait per signature | Bad - many traits to know | Bad - grows with type combinations |
+| Derive macro | Good - one pattern | Good - macro handles all cases |
+
+Derive macros are standard Rust practice (serde, thiserror, clap). Minor compile-time cost, major DX win.
+
+**Result:** Value enum is internal plumbing. Op authors just write `#[derive(Op)]` and a normal `apply` method.
 
 ### Type-Safe Wrappers (Optional)
 
