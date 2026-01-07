@@ -199,15 +199,17 @@ If composition always works → no expression language needed, just a rich op li
 
 ## Performance Spectrum
 
-| Approach | Performance | Flexibility | Serializable |
-|----------|-------------|-------------|--------------|
-| Native Rust closure | Best | Full | No |
-| Cranelift JIT | Near-native | High | Yes |
-| Generated Rust (build.rs) | Best | Limited | Yes (source) |
-| WGSL/GLSL (GPU) | Best for parallel | Limited | Yes |
-| LuaJIT | Good | Full | Yes |
-| Interpreted expr | Slow | High | Yes |
-| Op composition (dyn dispatch) | Good | Medium | Yes |
+| Approach | Performance | Use case | Serializable |
+|----------|-------------|----------|--------------|
+| Native Rust closure | Best | Compile-time known | No |
+| Cranelift JIT | Near-native | Runtime hot paths | Yes |
+| WGSL (GPU) | Best for parallel | Textures, per-pixel | Yes |
+| Interpreted | Slow | One-shot, debugging | Yes |
+| Op composition | Good | Simple transforms | Yes |
+
+**Removed from consideration:**
+- LuaJIT: Cranelift gives native speed without another language
+- Generated Rust (build.rs): Build-time codegen is complex, Cranelift simpler
 
 ## Key Insight: Static vs Dynamic
 
@@ -227,48 +229,171 @@ mesh.map_vertices_dyn(&expr)
 | Source | Backend | When to use |
 |--------|---------|-------------|
 | Rust source | Native closure | Compile-time known |
-| Serialized graph, perf-critical | Cranelift JIT | Runtime, hot path |
-| Scripting, flexibility | LuaJIT | Runtime, cold path |
-| GPU parallel | WGSL | Textures |
+| Serialized graph | Cranelift JIT | Runtime hot paths |
+| Debugging/one-shot | Interpreted | When compile cost > benefit |
+| Textures | WGSL | GPU parallel ops |
 
 This means most users never need dynamic expressions - they write Rust. Only graph deserialization / live coding needs the dynamic path.
 
-**Per-pixel textures:** MUST be GPU or generated code. Lua not viable (millions of pixels).
+**But runtime should still be fast.** When expressions ARE constructed at runtime, we should still achieve native performance via JIT compilation. This is what Cranelift provides.
 
-**Audio real-time:** Per-block, not per-sample. At 512-sample blocks = ~86 blocks/sec, LuaJIT may be viable for simple buffer transforms. Native still needed for stateful DSP (filters, delays).
+## Cranelift JIT for Runtime Expressions
 
-**Mesh ops:** Usually batch, less perf critical. LuaJIT viable (~0.6-1x C speed for numeric loops).
+[Cranelift](https://github.com/bytecodealliance/wasmtime/tree/main/cranelift) is a code generator designed for JIT use cases. It's what Wasmtime uses internally.
 
-**Rigging:** Per-frame, Lua viable.
+**Why Cranelift:**
+- Compiles to native code (x86-64, AArch64)
+- Fast compilation (~10ms for small functions)
+- No external dependencies (pure Rust)
+- Designed for embedding
 
-**Note:** LuaJIT is surprisingly competitive with C for numeric array ops. Tracing JIT has runtime info static compilers lack. See [LuaJIT benchmarks](https://luajit.org/performance.html).
-
-## Multiple Backends?
-
-Maybe expressions compile to different backends:
+**How it works:**
 
 ```rust
-enum ExprBackend {
-    Interpreted,   // slow, always works
-    Lua,           // flexible, moderate speed
-    NativeRust,    // fast, requires codegen
-    Wgsl,          // GPU, parallel ops only
+use cranelift::prelude::*;
+use cranelift_jit::{JITBuilder, JITModule};
+
+// 1. Define expression AST
+enum Expr {
+    Var(usize),           // input variable by index
+    Const(f32),
+    Add(Box<Expr>, Box<Expr>),
+    Mul(Box<Expr>, Box<Expr>),
+    Sin(Box<Expr>),
+    // ...
 }
 
-impl Expr {
-    fn compile(&self, backend: ExprBackend) -> CompiledExpr;
+// 2. Compile to Cranelift IR
+fn compile_expr(expr: &Expr, builder: &mut FunctionBuilder, vars: &[Value]) -> Value {
+    match expr {
+        Expr::Var(i) => vars[*i],
+        Expr::Const(c) => builder.ins().f32const(*c),
+        Expr::Add(a, b) => {
+            let a = compile_expr(a, builder, vars);
+            let b = compile_expr(b, builder, vars);
+            builder.ins().fadd(a, b)
+        }
+        Expr::Sin(x) => {
+            let x = compile_expr(x, builder, vars);
+            // Call libm sin
+            builder.ins().call(sin_func, &[x])
+        }
+        // ...
+    }
+}
+
+// 3. Get native function pointer
+let code_ptr = module.get_finalized_function(func_id);
+let f: fn(f32, f32, f32) -> f32 = unsafe { std::mem::transmute(code_ptr) };
+
+// 4. Call at native speed
+let result = f(x, y, z);
+```
+
+**Compilation cost:**
+- ~1-10ms per function (depending on complexity)
+- Amortized over many calls
+- For mesh with 100k vertices, compile once, call 100k times
+
+**When to JIT vs interpret:**
+
+| Scenario | Strategy |
+|----------|----------|
+| Expression used once | Interpret (compile cost > benefit) |
+| Expression used in hot loop | JIT compile |
+| Expression used across frames | JIT compile, cache |
+| Texture shader (millions of pixels) | WGSL (GPU) |
+
+**Caching compiled expressions:**
+
+```rust
+struct ExprCache {
+    compiled: HashMap<ExprHash, CompiledFn>,
+}
+
+impl ExprCache {
+    fn get_or_compile(&mut self, expr: &Expr) -> &CompiledFn {
+        let hash = expr.hash();
+        self.compiled.entry(hash).or_insert_with(|| {
+            jit_compile(expr)
+        })
+    }
 }
 ```
 
-Or: different expression types per domain:
+**Compile-time option (zero overhead):**
 
-| Domain | Expression type | Backend |
-|--------|----------------|---------|
-| Mesh | MeshExpr | Lua / Native |
-| Texture | ShaderExpr | WGSL |
-| Audio | AudioExpr | Native (real-time) |
-| Vector | VectorExpr | Lua / Native |
-| Rigging | RigExpr | Lua |
+For users who know their expressions at compile time, provide a proc macro:
+
+```rust
+// Compile-time: expands to native Rust closure
+let f = resin_expr!(|v: Vec3| v * 2.0 + vec3(0.0, v.y, 0.0));
+
+// Runtime: JIT compiled
+let f = Expr::parse("v * 2.0 + vec3(0, v.y, 0)")?.compile()?;
+
+// Both have same performance when called
+```
+
+**Domain-specific considerations:**
+
+| Domain | Volume | Backend |
+|--------|--------|---------|
+| Textures | Millions of pixels | WGSL (GPU) |
+| Mesh | Thousands of vertices | Cranelift |
+| Audio | ~86 blocks/sec (512 samples) | Cranelift |
+| Rigging | Per-frame | Cranelift |
+| Vector | Thousands of points | Cranelift |
+
+All hot paths get native performance via Cranelift. GPU only for massively parallel (textures).
+
+## Backend Selection
+
+Unified `Expr` type, automatic backend selection based on context:
+
+```rust
+impl Expr {
+    /// Compile for best available backend
+    fn compile(&self) -> CompiledExpr {
+        // Auto-select based on expression characteristics
+    }
+
+    /// Force specific backend
+    fn compile_with(&self, backend: Backend) -> CompiledExpr;
+}
+
+enum Backend {
+    Cranelift,     // Native JIT - default for hot paths
+    Wgsl,          // GPU - for parallel pixel/vertex ops
+    Interpreted,   // Fallback - works everywhere
+}
+```
+
+**Automatic selection heuristics:**
+
+| Context | Default Backend | Reason |
+|---------|-----------------|--------|
+| `mesh.map_vertices_dyn(expr)` | Cranelift | Called per-vertex, benefits from native |
+| `texture.eval_dyn(expr)` | WGSL | Massively parallel, GPU wins |
+| `audio.process_block(expr)` | Cranelift | Real-time, needs predictable latency |
+| `rig.driver(expr)` | Cranelift | Per-frame, needs speed |
+| One-shot evaluation | Interpreted | Compile cost not worth it |
+
+**Same Expr, different backends:**
+
+```rust
+let expr = Expr::parse("position * 2.0 + noise(position * 4.0)")?;
+
+// Same expression, different compilation targets
+let cpu_fn = expr.compile_with(Backend::Cranelift)?;
+let gpu_shader = expr.compile_with(Backend::Wgsl)?;
+
+// Use CPU version for mesh
+mesh.map_vertices_dyn(&cpu_fn);
+
+// Use GPU version for texture
+texture.eval_dyn(&gpu_shader);
+```
 
 ## Pure Data Model
 

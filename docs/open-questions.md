@@ -77,3 +77,4 @@ Collected from domain design docs. To be resolved through design discussion and 
 | Modularity | 🔶 Leaning | Very modular, bevy philosophy |
 | Vector networks | ✅ Resolved | Network internally, both APIs as equals. See [design/vector-networks](./design/vector-networks.md) |
 | Text | 🔶 Leaning | Include outline extraction (`font.glyph_outline('A') -> Path`), exclude layout (harfbuzz territory) |
+| Expression language | 🔶 Leaning | Cranelift JIT for runtime, WGSL for GPU textures. See [design/closure-usage-survey](./design/closure-usage-survey.md) |
