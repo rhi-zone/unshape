@@ -34,6 +34,7 @@ export default withMermaid(
               { text: 'Philosophy', link: '/philosophy' },
               { text: 'Prior Art', link: '/prior-art' },
               { text: 'Architecture', link: '/architecture' },
+              { text: 'Cross-Domain Analysis', link: '/cross-domain-analysis' },
             ]
           },
           {

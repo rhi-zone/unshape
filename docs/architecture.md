@@ -46,6 +46,20 @@ All operations expose parameters:
 - Animated values (function of time)
 - Data-driven (from external sources)
 
+## Why glam?
+
+We use `glam` for math types (Vec2, Vec3, Quat, Mat4, etc.) because:
+
+- **Bevy compatible**: bevy uses glam internally, so types work directly without conversion
+- **Pure Rust**: no C dependencies, easy cross-compilation
+- **SIMD optimized**: good performance on supported platforms
+- **Minimal**: does one thing well, few dependencies
+
+Alternatives considered:
+- `nalgebra`: more features but heavier, different API than bevy
+- `ultraviolet`: similar to glam but less ecosystem adoption
+- `cgmath`: older, less maintained
+
 ## Bevy Integration
 
 Types implement standard conversion traits:
