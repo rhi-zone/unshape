@@ -72,5 +72,5 @@ Collected from domain design docs. To be resolved through design discussion and 
 | Animation blending | 🔶 Leaning | Separate crate, bevy-style modularity |
 | Type system for slots | 🔶 Leaning | Simpler than maki (types can be opaque). Generics maybe unnecessary for resin's use case |
 | Modularity | 🔶 Leaning | Very modular, bevy philosophy |
-| Vector networks | ❓ Open | Needs clarification on use cases |
-| Text | ❓ Open | Probably exclude layout, include outline extraction |
+| Vector networks | 🔶 Leaning | Paths first, network layer later if needed. See [design/vector-networks](./design/vector-networks.md) |
+| Text | 🔶 Leaning | Include outline extraction (`font.glyph_outline('A') -> Path`), exclude layout (harfbuzz territory) |

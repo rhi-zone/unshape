@@ -1,0 +1,263 @@
+# Vector Networks vs Paths
+
+Comparing traditional path-based vector graphics with Figma-style vector networks.
+
+## Definitions
+
+### Path (Traditional)
+
+A path is an **ordered sequence of segments** forming a chain:
+
+```
+A ──→ B ──→ C ──→ D
+```
+
+- Each point has at most 2 connections (previous, next)
+- May be open (A to D) or closed (D connects back to A)
+- No branching allowed
+
+```rust
+struct Path {
+    segments: Vec<Segment>,  // ordered
+    closed: bool,
+}
+```
+
+### Vector Network (Figma)
+
+A vector network is a **graph of vertices and edges**:
+
+```
+    A ───── B
+   /│\      │
+  / │ \     │
+ D  │  E    │
+  \ │ /     │
+   \│/      │
+    C ───── F
+```
+
+- Points can have any number of connections
+- Edges connect any two vertices
+- Regions (faces) are implicit from the topology
+- More like a 2D mesh than a path
+
+```rust
+struct VectorNetwork {
+    vertices: Vec<Vertex>,
+    edges: Vec<Edge>,
+    // faces derived from edges
+}
+
+struct Vertex {
+    position: Vec2,
+    // possibly: corner radius, etc.
+}
+
+struct Edge {
+    start: VertexId,
+    end: VertexId,
+    curve: CurveType,  // line, bezier, etc.
+}
+```
+
+## Visual Comparison
+
+### Simple shape: both work fine
+
+```
+Path:                    Network:
+┌───────────┐            ┌───────────┐
+│           │            │           │
+│           │            │           │
+└───────────┘            └───────────┘
+(4 segments, closed)     (4 vertices, 4 edges)
+```
+
+### 2D projection of cube: network required
+
+```
+Paths (need 3 separate paths):     Network (single structure):
+    ╱╲                                  A
+   ╱  ╲                                ╱│╲
+  ╱    ╲       Path 1: outer hex      B │ C
+ │      │      Path 2: line A→D       │╲│╱│
+ │      │      Path 3: line B→E        D─E
+  ╲    ╱       (or draw as strokes)    │╱│╲
+   ╲  ╱                                F │ G
+    ╲╱                                  ╲│╱
+                                        H
+
+With network: single unified structure
+Interior lines are edges, not separate paths
+```
+
+### Letter 'A': network might help
+
+```
+Path approach:              Network approach:
+Outer path + inner path     Single network with hole
+(compound path)             (hole is a face property)
+    ╱╲                          ╱╲
+   ╱  ╲                        ╱  ╲
+  ╱────╲                      A────B
+ ╱ ╱╲   ╲                    ╱│    │╲
+╱ ╱  ╲   ╲                  C─D    E─F
+
+2 paths                     6 vertices, multiple edges
+```
+
+## Trade-offs
+
+### Paths
+
+**Pros:**
+- Simpler mental model
+- Easier to iterate (just walk the array)
+- Clear ordering (start → end)
+- Maps directly to SVG, PostScript, PDF
+- Boolean operations well-understood
+- Most algorithms assume path input
+
+**Cons:**
+- Can't represent branching structures natively
+- Cube projection needs multiple paths or stroke hacks
+- Compound paths (holes) are separate concept
+- Shared vertices are duplicated
+
+### Vector Networks
+
+**Pros:**
+- More general (paths are a subset)
+- Natural for branching structures
+- Shared vertices are actually shared
+- Closer to mesh topology (2D mesh, essentially)
+- Regions/fills are topological, not winding-rule based
+- Edit any vertex/edge independently
+
+**Cons:**
+- More complex implementation
+- Need to derive regions from edges (face finding algorithm)
+- Fill rules become topology, not just math
+- Most file formats don't support (SVG needs conversion)
+- Most renderers expect paths
+- Boolean ops more complex
+
+## When Networks Win
+
+1. **Technical drawings**: circuit diagrams, floor plans, graphs
+2. **Geometric constructions**: projections, wireframes
+3. **Connected structures**: flowcharts, node diagrams
+4. **Shared vertices**: when you need "move this point, all connected edges follow"
+
+## When Paths Win
+
+1. **Artistic illustration**: most art is non-branching curves
+2. **Text/fonts**: glyphs are paths
+3. **Interoperability**: SVG, PDF, fonts all use paths
+4. **Simple shapes**: rectangles, circles, hand-drawn curves
+
+## Implementation Complexity
+
+| Operation | Path | Network |
+|-----------|------|---------|
+| Iterate points | O(n) trivial | O(n) trivial |
+| Find neighbors | index ± 1 | graph traversal |
+| Boolean union | well-studied | research territory |
+| Render/fill | direct | find regions first |
+| Export to SVG | direct | convert to paths |
+| Offset/stroke | well-studied | per-region? |
+
+## Conversion
+
+### Network → Paths
+
+Always possible by tracing each region boundary:
+
+```rust
+fn network_to_paths(net: &VectorNetwork) -> Vec<Path> {
+    let regions = find_regions(net);  // face-finding algorithm
+    regions.iter().map(|r| trace_boundary(net, r)).collect()
+}
+```
+
+Loses the "shared vertex" property - vertices get duplicated.
+
+### Paths → Network
+
+Possible but may not capture intent:
+
+```rust
+fn paths_to_network(paths: &[Path]) -> VectorNetwork {
+    // Add all vertices and edges
+    // Optionally: merge coincident vertices
+}
+```
+
+Multiple paths through same point become shared vertex.
+
+## Hybrid Approach?
+
+Could support both:
+
+```rust
+enum VectorGeometry {
+    Path(Path),
+    Network(VectorNetwork),
+}
+
+// Convert on demand
+impl VectorGeometry {
+    fn as_paths(&self) -> Vec<Path> { /* ... */ }
+    fn as_network(&self) -> VectorNetwork { /* ... */ }
+}
+```
+
+Or: use network internally, present path-like API for common cases.
+
+## Prior Art
+
+| Tool | Model | Notes |
+|------|-------|-------|
+| SVG | Paths | Industry standard |
+| PostScript/PDF | Paths | |
+| Figma | **Networks** | Primary innovation |
+| Illustrator | Paths | |
+| Inkscape | Paths | |
+| Paper.js | Paths | |
+| OpenType/TrueType | Paths | Fonts |
+
+Figma is the only major tool using networks natively.
+
+## Recommendation
+
+**Start with paths, consider network layer later.**
+
+Reasoning:
+1. Paths cover 90%+ of use cases
+2. Better interoperability (SVG, fonts, etc.)
+3. Simpler implementation
+4. Can add network support as optional layer
+5. Network → Path conversion is straightforward for export
+
+If we add networks later:
+- Keep as separate type, not replacement
+- Provide conversion both directions
+- Networks for editing/construction, paths for render/export
+
+## Open Questions
+
+1. Is Figma's network model documented anywhere? (Seems proprietary)
+2. Are there academic papers on vector network algorithms?
+3. What's the actual use case frequency for branching structures?
+4. Could we get 80% of the benefit with "paths + shared vertex references"?
+
+```rust
+// Lighter-weight alternative to full networks?
+struct PathWithSharedVertices {
+    vertices: Vec<Vertex>,
+    paths: Vec<Vec<VertexId>>,  // paths reference shared vertices
+}
+```
+
+This gets shared-vertex editing without full graph topology.
