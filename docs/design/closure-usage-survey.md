@@ -140,21 +140,142 @@ Cases where named ops aren't enough:
 
 ---
 
+## Use Case: Generative Art
+
+For generative art, **arbitrary code IS the point**. The artist's custom formula is the art.
+
+Examples:
+- Shadertoy: entire shader is custom GLSL
+- Processing: `draw()` is arbitrary code
+- Nannou: Rust closures everywhere
+- Context Free Art: custom rules
+
+**Implication:** Resin can't just offer "named ops" for this use case. Need real expressiveness.
+
+**Use case spectrum:**
+
+| Use case | Needs expressions? | Serialization? | Example |
+|----------|-------------------|----------------|---------|
+| Conventional modeling | No - named ops | Nice to have | "Make a box, bevel edges" |
+| Asset pipeline | Minimal | Required | Game assets, VFX |
+| Procedural content | Some | Required | Dungeon generator |
+| Generative art | Full | Less critical | Shadertoy, demos |
+
+**Implication:** Support all tiers. Named ops for simple cases, full code for artists.
+
+Or: the graph is the serializable part, nodes can contain arbitrary code for artists.
+
+```rust
+// Serializable graph structure
+let graph = TextureGraph::new()
+    .add(Noise::perlin(4.0))
+    .add(CustomShader::from_wgsl("..."))  // inline WGSL string
+    .add(Blend::multiply());
+
+// The WGSL string IS the serialized form of the custom part
+```
+
+## Alternative: Pure Composition
+
+Can we avoid expressions entirely via op composition?
+
+```rust
+// Expression
+|v| v * noise(v * 4.0) + vec3(0, v.y * 0.5, 0)
+
+// Composition (verbose but serializable)
+Compose::new([
+    Mul::new(Position, Noise::new(Scale::new(Position, 4.0))),
+    Add::new(Vec3::new(0.0, Mul::new(GetY::new(Position), 0.5), 0.0)),
+])
+```
+
+**Question: when does composition fail?**
+- Recursive definitions?
+- State/accumulation?
+- Complex control flow?
+
+If composition always works → no expression language needed, just a rich op library.
+
+## Performance Spectrum
+
+| Approach | Performance | Flexibility | Serializable |
+|----------|-------------|-------------|--------------|
+| Native Rust closure | Best | Full | No |
+| Generated Rust (build.rs) | Best | Limited | Yes (source) |
+| WGSL/GLSL (GPU) | Best for parallel | Limited | Yes |
+| JIT compiled expr | Good | High | Yes |
+| Interpreted expr | Slow | High | Yes |
+| Lua | Slow | Full | Yes |
+| Op composition (dyn dispatch) | Good | Medium | Yes |
+
+**Per-pixel textures:** MUST be GPU or generated code. Lua/interpreted not viable.
+
+**Audio real-time:** Must be fast. Lua per-sample not viable.
+
+**Mesh ops:** Usually batch, less perf critical. Lua viable.
+
+**Rigging:** Per-frame, Lua viable.
+
+## Multiple Backends?
+
+Maybe expressions compile to different backends:
+
+```rust
+enum ExprBackend {
+    Interpreted,   // slow, always works
+    Lua,           // flexible, moderate speed
+    NativeRust,    // fast, requires codegen
+    Wgsl,          // GPU, parallel ops only
+}
+
+impl Expr {
+    fn compile(&self, backend: ExprBackend) -> CompiledExpr;
+}
+```
+
+Or: different expression types per domain:
+
+| Domain | Expression type | Backend |
+|--------|----------------|---------|
+| Mesh | MeshExpr | Lua / Native |
+| Texture | ShaderExpr | WGSL |
+| Audio | AudioExpr | Native (real-time) |
+| Vector | VectorExpr | Lua / Native |
+| Rigging | RigExpr | Lua |
+
+## Pure Data Model
+
+Pd uses a minimal expression language inside `[expr]` object:
+
+```
+[expr $f1 * sin($f2 * 6.28)]
+```
+
+- `$f1`, `$f2` = float inlets
+- Basic math ops: + - * / sin cos pow etc.
+- No variables, no loops, no conditionals
+- Everything else: use objects and patch cords
+
+**Key insight:** Pd keeps expressions minimal. Complex logic = more objects, not bigger expressions.
+
+Could resin do the same? Expressions only for math, composition for logic.
+
 ## Notes
 
 (Space for investigation notes as we explore each domain)
 
 ### Mesh expressions
-TODO
+TODO: What can't be done with named ops?
 
 ### Texture expressions
-TODO
+TODO: Shadertoy patterns, what needs custom code?
 
 ### Audio expressions
-TODO
+TODO: Look at Pure Data, SuperCollider, FAUST
 
 ### Vector expressions
-TODO
+TODO: SVG filters? Path effects?
 
 ### Rigging expressions
-TODO
+TODO: Blender drivers, Maya expressions
