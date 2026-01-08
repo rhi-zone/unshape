@@ -1,99 +1,38 @@
-# Resin
+---
+layout: home
 
-Constructive generation and manipulation of media.
+hero:
+  name: "Resin"
+  text: "Constructive media generation"
+  tagline: "Procedural meshes, audio, textures, vector art, and rigging in Rust."
+  actions:
+    - theme: brand
+      text: Get Started
+      link: /getting-started
+    - theme: alt
+      text: Introduction
+      link: /introduction
+    - theme: alt
+      text: Philosophy
+      link: /philosophy
 
-## What is Resin?
+features:
+  - title: Meshes
+    details: Procedural 3D geometry - primitives, deformation, indexed mesh representation.
+  - title: Audio
+    details: Synthesis oscillators - sine, saw, square, triangle with anti-aliasing.
+  - title: Textures & Noise
+    details: Lazy Field trait - Perlin, Simplex, fBm with composable combinators.
+  - title: 2D Vector
+    details: SVG-like paths - bezier curves, shapes, boolean operations.
+  - title: Rigging
+    details: Skeletal animation - bones, poses, skinning with GPU-friendly weights.
+  - title: Node Graphs
+    details: Dynamic evaluation with type-safe connections and topological execution.
+---
 
-Resin is a Rust library for procedural generation and manipulation of media assets:
+## Quick Links
 
-- **3D Meshes** - geometry generation, primitives, indexed mesh representation
-- **2D Vector Art** - paths, shapes, bezier curves
-- **Audio** - oscillators, synthesis
-- **Textures/Noise** - Perlin, Simplex, fBm, lazy field evaluation
-- **Rigging** - skeletons, bones, skinning, poses
-
-## Design Goals
-
-- **Procedural first** - describe assets with parameters and expressions, not baked data
-- **Composable** - small primitives that combine into complex results
-- **Lazy evaluation** - build descriptions, evaluate on demand
-- **Bevy-compatible** - works with bevy ecosystem without requiring it
-
-## Quick Examples
-
-### Mesh Generation
-
-```rust
-use resin_mesh::{box_mesh, sphere};
-
-// Unit box centered at origin
-let cube = box_mesh();
-
-// UV sphere with 32 segments, 16 rings
-let ball = sphere();
-```
-
-### Noise Fields
-
-```rust
-use resin_core::{Field, Perlin2D, EvalContext};
-use glam::Vec2;
-
-// Lazy field - describes computation
-let noise = Perlin2D::new().scale(4.0);
-
-// Sample on demand
-let ctx = EvalContext::new();
-let value = noise.sample(Vec2::new(0.5, 0.5), &ctx);
-```
-
-### Audio Oscillators
-
-```rust
-use resin_audio::{sine, saw, freq_to_phase};
-
-let time = 0.5;  // seconds
-let freq = 440.0;  // Hz
-
-let phase = freq_to_phase(freq, time);
-let sample = sine(phase);  // -1.0 to 1.0
-```
-
-### 2D Paths
-
-```rust
-use resin_vector::{circle, rect, star, PathBuilder};
-use glam::Vec2;
-
-let c = circle(Vec2::ZERO, 1.0);
-let r = rect(Vec2::new(-1.0, -1.0), Vec2::new(1.0, 1.0));
-let s = star(Vec2::ZERO, 1.0, 0.5, 5);
-```
-
-### Skeletal Rigging
-
-```rust
-use resin_rig::{Skeleton, Bone, Transform};
-use glam::Vec3;
-
-let mut skel = Skeleton::new();
-let root = skel.add_bone(Bone::new("root")).id;
-let arm = skel.add_bone(
-    Bone::new("arm")
-        .with_parent(root)
-        .with_transform(Transform::from_translation(Vec3::Y))
-).id;
-```
-
-## Quick Start
-
-```toml
-[dependencies]
-resin-core = "0.1"
-resin-mesh = "0.1"
-resin-audio = "0.1"
-resin-vector = "0.1"
-resin-rig = "0.1"
-```
-
-See [Getting Started](./getting-started.md) for detailed setup instructions.
+- **Guide**: [Introduction](/introduction) | [Getting Started](/getting-started)
+- **Design**: [Philosophy](/philosophy) | [Architecture](/architecture) | [Prior Art](/prior-art)
+- **Domains**: [Meshes](/domains/meshes) | [Audio](/domains/audio) | [Textures](/domains/textures) | [Vector](/domains/vector-2d) | [Rigging](/domains/rigging)

@@ -38,7 +38,7 @@ export default withMermaid(
 
     themeConfig: {
       nav: [
-        { text: 'Guide', link: '/index' },
+        { text: 'Guide', link: '/introduction' },
         { text: 'Design', link: '/philosophy' },
       ],
 
@@ -47,7 +47,7 @@ export default withMermaid(
           {
             text: 'Guide',
             items: [
-              { text: 'Overview', link: '/index' },
+              { text: 'Introduction', link: '/introduction' },
               { text: 'Getting Started', link: '/getting-started' },
             ]
           },
