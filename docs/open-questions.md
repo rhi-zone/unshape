@@ -21,7 +21,7 @@ Single source of truth for design decisions. Updated as we resolve questions.
 | Modularity | 🔶 Leaning | Very modular, bevy philosophy |
 | Bevy integration | 🔶 Leaning | Low priority. Separate adapter crate if needed. Must not affect core design - resin is standalone first |
 | Evaluation strategy | 🔶 Leaning | Evaluator trait. Lazy default, others as needed. See [evaluation-strategy](./design/evaluation-strategy.md) |
-| Time models | 🔶 Leaning | Time via EvalContext (Shadertoy pattern). Seeking = user choice (resimulate/discontinuity/error). State = feedback edges. Open: mixed rates, audio blocks. See [time-models](./design/time-models.md) |
+| Time models | 🔶 Leaning | EvalContext for time, explicit baking API, numeric sample rates + explicit conversion nodes, block = audio iteration unit. See [time-models](./design/time-models.md) |
 
 ## Expression Language
 
@@ -146,6 +146,6 @@ See [expression-language](./design/expression-language.md) for full design.
 - Plugin function API (decompose or backend extension traits)
 - Constant folding (resin-expr-opt crate, AST transform)
 
-### ❓ Open (10+)
-- **Time models remaining**: Mixed rates (audio 48kHz vs control 60Hz), audio block boundaries
-- **Domain-specific**: Audio (polyphony, control vs audio rate), mesh instancing
+### ❓ Open (8+)
+- **Time models remaining**: Hybrid nodes, determinism, rate conversion quality
+- **Domain-specific**: Audio (polyphony), mesh instancing

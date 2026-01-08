@@ -354,17 +354,151 @@ Fields that don't need time simply ignore `ctx`. No overhead for static fields b
    }
    ```
 
+## Audio Block Processing
+
+Audio processes in blocks (128-1024 samples) for efficiency, not per-sample.
+
+```rust
+fn process_block(&mut self, input: &[f32; BLOCK_SIZE]) -> [f32; BLOCK_SIZE] {
+    // SIMD-friendly, cache-friendly
+}
+```
+
+**How this fits with recurrent graphs:**
+- Block = iteration unit
+- Feedback edges carry state between blocks
+- Within a block: samples can be parallel (SIMD)
+- Control-rate parameters: update once per block, not per-sample
+
+```rust
+struct AudioGraphState {
+    feedback_values: HashMap<EdgeId, Value>,
+    block_size: usize,
+}
+
+fn process_audio_block(
+    graph: &Graph,
+    input: &[f32],
+    state: &mut AudioGraphState,
+) -> Vec<f32> {
+    // 1. Read feedback from previous block
+    // 2. Process all samples in block (vectorized where possible)
+    // 3. Write feedback for next block
+}
+```
+
+**Block size considerations:**
+- Smaller blocks = lower latency, more overhead
+- Larger blocks = higher latency, better throughput
+- Typical: 128-512 for live, 1024+ for offline render
+
+## Mixed Sample Rates
+
+Different domains run at different rates:
+- Audio: 44.1kHz, 48kHz, 96kHz
+- Video: 24fps, 30fps, 60fps
+- Animation: 30-60Hz
+- Physics: 60-120Hz (fixed timestep)
+
+**Problem:** What happens when signals cross rate boundaries?
+
+```
+[LFO @ 60Hz] ──?──> [Filter @ 48kHz]
+[Audio @ 48kHz] ──?──> [Envelope display @ 60fps]
+```
+
+**Options:**
+
+### A: Explicit conversion nodes
+
+```
+[LFO] → [Upsample 60→48000] → [Filter]
+[Audio] → [Downsample 48000→60] → [Display]
+```
+
+Pros: Clear, no magic, user controls quality
+Cons: Verbose, easy to forget
+
+### B: Automatic conversion on edges
+
+```rust
+// Edge knows source and dest rates, converts automatically
+struct Edge {
+    from: NodeId,
+    to: NodeId,
+    rate_conversion: Option<RateConversion>,
+}
+
+enum RateConversion {
+    Upsample { method: Interpolation },
+    Downsample { method: Decimation },
+}
+```
+
+Pros: Less boilerplate
+Cons: Hidden behavior, quality not obvious
+
+### C: Rate as node property, graph validates
+
+```rust
+struct Node {
+    // ...
+    sample_rate: SampleRate,  // Hz as f64, not enum
+}
+
+// Graph checks edges, requires explicit conversion where rates differ
+fn validate(&self) -> Result<(), RateMismatch> { ... }
+```
+
+Pros: Flexible (any rate, not just enum), explicit where needed
+Cons: More validation logic
+
+**Leaning:** Option C - rates as numeric values, explicit conversion nodes, graph validates. No magic `enum Rate`, no hidden conversions.
+
+## Decisions
+
+1. **How time reaches fields**: EvalContext (Shadertoy pattern). See above.
+
+2. **State serialization**: Solved by recurrent graphs - feedback edges ARE the state. `GraphSnapshot { graph, feedback_state }` captures everything.
+
+3. **Seeking stateful graphs**: User choice via enum:
+   ```rust
+   enum SeekBehavior {
+       Resimulate,    // correct, slow - replay from start
+       Discontinuity, // fast, may glitch - jump directly
+       Error,         // fail-safe - refuse to seek
+   }
+   ```
+   Default: `Discontinuity` for interactive preview, `Resimulate` for final render.
+
+4. **Delay granularity**: Per-edge, configurable (from recurrent-graphs):
+   ```rust
+   enum Delay {
+       Samples(u32),     // audio: z⁻ⁿ
+       Frames(u32),      // animation: previous N frames
+       Duration(f32),    // explicit seconds
+   }
+   ```
+
+5. **Baking API**: Explicit, not automatic.
+   ```rust
+   // User controls when to bake (expensive operation)
+   let cache = graph.bake(0.0..10.0, dt: 1.0/60.0)?;
+   let value = cache.sample(4.5);  // now seekable
+   ```
+   Automatic baking on seek would hide expensive operations.
+
+6. **Audio blocks**: Block = iteration unit for audio graphs. Feedback edges carry inter-block state. SIMD within blocks.
+
+7. **Mixed rates**: Numeric sample rates (not enum), explicit conversion nodes, graph validates mismatches. No hidden up/downsampling.
+
 ## Open Questions
 
-1. **Audio block boundaries**: Processing happens in blocks (128-1024 samples), but graph model is conceptually per-sample. How to reconcile? See [recurrent-graphs](./recurrent-graphs.md) for related discussion.
+1. **Hybrid nodes**: Nodes that are "mostly stateless" with optional smoothing/filtering. Explicit state input, or implicit via context?
 
-2. **Mixed rates**: Audio at 48kHz, control/animation at 60Hz. How do feedback edges work across rate boundaries? Interpolation? Sample-and-hold?
+2. **Determinism**: Floating point reproducibility across platforms. Threading order. Probably punt to "best effort" with optional strict mode.
 
-3. **Hybrid nodes**: Nodes that are "mostly stateless" with optional smoothing/filtering. Explicit state input, or implicit via context?
-
-4. **Baking API**: How does user trigger simulation bake? Explicit `graph.bake(0.0..10.0, dt)` or automatic when seeking stateful graph?
-
-5. **Determinism**: Floating point reproducibility across platforms. Threading order. Probably punt to "best effort" with optional strict mode.
+3. **Rate conversion quality**: What interpolation methods for upsampling? What decimation/anti-aliasing for downsampling? Probably configurable per conversion node.
 
 ## Summary
 
