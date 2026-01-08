@@ -687,7 +687,17 @@ resin-expr-cranelift/ # Cranelift JIT codegen
 | `resin-expr-wgsl` | Optional - heavy dep (naga), not needed for CPU-only |
 | `resin-expr-cranelift` | Optional - very heavy dep (~50 crates) |
 
-**Core crate includes interpreter:** The interpreter is small (~200 LOC) and serves as the universal fallback. Keeping it in core means any crate that depends on `resin-expr` can always evaluate expressions.
+**Core crate includes interpreter:**
+
+The interpreter lives in core, not a separate crate. Reasons:
+
+1. **Universal fallback** - Any code using expressions can always evaluate them, even without JIT or GPU
+2. **Plugin development** - Plugin authors need `interpret()` for testing without setting up backends
+3. **Small footprint** - ~200 LOC, no heavy dependencies
+4. **Required by trait** - `PluginFn::interpret()` is mandatory, so interpreter must be available wherever plugins are defined
+5. **Validation** - Type checking and basic evaluation happen before backend compilation
+
+If interpreter were separate, every crate defining plugin functions would need to depend on it anyway.
 
 **Dependency flow:**
 
@@ -705,15 +715,15 @@ All optional crates depend on core. Core has no heavy deps.
 
 ## Open Questions
 
-1. **Matrix types** - Include Mat2/Mat3/Mat4 in expressions? Useful for transforms.
+1. **Matrix types** - Do we need `Mat4` as a primitive type, or just functions like `mat_mul(m, v)`? WGSL has matrix primitives with operator overloading (`mat4 * vec4`), but we could keep AST simpler with explicit functions. Trade-off: ergonomics vs simplicity.
 
-2. **Array/buffer access** - `buffer[i]` syntax? Needed for some algorithms.
+2. **Array/buffer access** - `buffer[i]` syntax for accessing arrays/buffers. Important for algorithms that need neighbor access (convolutions, sorting). Complicates GPU compilation (bounds checking, memory layout).
 
-3. **Compile-time evaluation** - Constant folding? `2.0 * 3.0` → `6.0` before compilation.
+3. **Constant folding** - Should live in separate `resin-expr-opt` crate as AST transformation. Not part of core.
 
-4. **Error messages** - How to report errors in user-written expressions? Source locations?
+4. **Error recovery** - Parser should support partial parsing for IDE integration. Source spans optional, stored separately from AST.
 
-5. **Debugging** - How to debug expressions? Step-through interpreter?
+5. **Debugging** - Step-through interpreter for development. Low priority, leave open.
 
 ## Summary
 
