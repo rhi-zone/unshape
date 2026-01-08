@@ -2,15 +2,15 @@
 
 ## Next Up
 
-- [ ] Wavetable oscillators
+- [ ] FM synthesis
 
 ## Backlog
-- [ ] FM synthesis
 - [ ] L-systems
 - [ ] MIDI support
 
 ## Done
 
+- [x] Wavetable oscillators (Wavetable, WavetableBank, WavetableOsc, additive_wavetable, supersaw_wavetable)
 - [x] Instancing/scattering (scatter_random, scatter_grid, scatter_sphere, scatter_poisson_2d, Instance)
 - [x] Text to paths (Font, text_to_path, text_to_paths_outlined, TextConfig, measure_text)
 - [x] Marching cubes (MarchingCubesConfig, sphere/box/torus SDFs, iso-value support)
