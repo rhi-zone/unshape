@@ -11,3 +11,6 @@ repository = "https://github.com/pterror/resin"
 [workspace.dependencies]
 # Math (bevy-compatible)
 glam = "0.29"
+
+# Error handling
+thiserror = "2"

@@ -7,3 +7,4 @@ description = "Core types and traits for resin"
 
 [dependencies]
 glam.workspace = true
+thiserror.workspace = true
