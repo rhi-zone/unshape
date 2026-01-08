@@ -1,5 +1,28 @@
 import { defineConfig } from 'vitepress'
 import { withMermaid } from 'vitepress-plugin-mermaid'
+import fs from 'node:fs'
+import path from 'node:path'
+
+// Auto-generate sidebar items from a directory
+function getSidebarItems(dir: string) {
+  const fullPath = path.join(__dirname, '..', dir)
+  if (!fs.existsSync(fullPath)) {
+    return []
+  }
+
+  return fs
+    .readdirSync(fullPath)
+    .filter((file) => file.endsWith('.md') && file !== 'index.md')
+    .map((file) => {
+      const name = path.basename(file, '.md')
+      // Convert kebab-case to Title Case
+      const text = name
+        .split('-')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ')
+      return { text, link: `/${dir}/${name}` }
+    })
+}
 
 export default withMermaid(
   defineConfig({
@@ -38,6 +61,11 @@ export default withMermaid(
               { text: 'Domain Differences', link: '/domain-differences' },
               { text: 'Open Questions', link: '/open-questions' },
             ]
+          },
+          {
+            text: 'Design Docs',
+            collapsed: true,
+            items: getSidebarItems('design'),
           },
           {
             text: 'Domains',
