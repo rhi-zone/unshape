@@ -1,0 +1,9 @@
+[package]
+name = "resin-mesh"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "3D mesh generation for resin"
+
+[dependencies]
+glam.workspace = true
