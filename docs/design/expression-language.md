@@ -421,25 +421,21 @@ Different domains bind different variables:
 | Texture field | uv, time |
 | Audio | time, sample_rate, phase |
 
-## Builder Ergonomics
+## Expression Construction
 
-Raw AST construction is verbose. Provide builders:
+Three ways to build expressions:
+
+### 1. Builder Functions (always available)
+
+Operator overloading + named constructors:
 
 ```rust
-// Raw (bad)
-Expr::Mul(
-    Box::new(Expr::Add(
-        Box::new(Expr::Var(var::POSITION)),
-        Box::new(Expr::Const(Scalar::F32(1.0))),
-    )),
-    Box::new(Expr::Const(Scalar::F32(2.0))),
-)
-
-// Builder (good)
 use resin_expr::prelude::*;
-(position() + 1.0) * 2.0
 
-// Implementation via operator overloading
+// Builds Expr AST via operators
+let e = (position() + 1.0) * sin(time());
+
+// Implementation
 impl Add<f32> for Expr {
     type Output = Expr;
     fn add(self, rhs: f32) -> Expr {
@@ -447,14 +443,100 @@ impl Add<f32> for Expr {
     }
 }
 
-// Named variables
 pub fn position() -> Expr { Expr::Var(var::POSITION) }
-pub fn uv() -> Expr { Expr::Var(var::UV) }
-pub fn time() -> Expr { Expr::Var(var::TIME) }
-
-// Built-in function calls
 pub fn sin(x: impl Into<Expr>) -> Expr {
     Expr::Builtin(BuiltinFn::Sin, vec![x.into()])
+}
+```
+
+**Pros:** Type-safe, IDE autocomplete, refactoring works
+**Cons:** Slightly verbose
+
+### 2. Proc Macro (compile-time parsing)
+
+```rust
+use resin_expr::expr;
+
+// Parsed at compile time, produces Expr AST
+let e = expr!(sin(position * 2.0) + time);
+
+// Let bindings
+let e = expr! {
+    let scaled = position * 2.0;
+    sin(scaled) + cos(scaled)
+};
+
+// Conditionals
+let e = expr!(if uv.x > 0.5 { 1.0 } else { 0.0 });
+```
+
+**Pros:** Readable, familiar syntax
+**Cons:** Proc macro compile time, custom syntax to learn
+
+**Implementation sketch:**
+
+```rust
+// resin-expr-macros crate
+#[proc_macro]
+pub fn expr(input: TokenStream) -> TokenStream {
+    let parsed = parse_expr_syntax(input);
+    let ast = to_expr_ast(parsed);
+    quote! { #ast }
+}
+```
+
+### 3. Runtime Parser (for loaded files, user input)
+
+```rust
+use resin_expr::parse;
+
+// Parsed at runtime
+let source = "sin(position * 2.0) + time";
+let e: Expr = parse::expr(source)?;
+
+// With custom variables
+let e = parse::expr_with_vars(source, &["position", "time"])?;
+```
+
+**Pros:** Dynamic, works with loaded pipelines, user-editable
+**Cons:** Runtime errors, parsing overhead
+
+**When to use each:**
+
+| Method | Use case |
+|--------|----------|
+| Builder functions | Library code, performance-critical |
+| Proc macro | Application code, readability matters |
+| Runtime parser | Config files, UI input, loaded pipelines |
+
+### Serialization Format
+
+Expressions serialize to JSON/MessagePack via serde:
+
+```json
+{
+  "Add": [
+    { "Builtin": ["Sin", [{ "Var": 0 }]] },
+    { "Var": 3 }
+  ]
+}
+```
+
+For human-readable configs, store the source string and parse at load:
+
+```json
+{
+  "vertex_offset": "sin(position.x * 10.0) * 0.1"
+}
+```
+
+Parse on deserialize:
+
+```rust
+#[derive(Deserialize)]
+struct Config {
+    #[serde(deserialize_with = "parse_expr")]
+    vertex_offset: Expr,
 }
 ```
 
