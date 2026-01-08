@@ -1,0 +1,10 @@
+[package]
+name = "resin-vector"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "2D vector graphics for resin"
+
+[dependencies]
+glam.workspace = true
+resin-core = { path = "../resin-core" }
