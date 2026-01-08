@@ -2,16 +2,18 @@
 
 ## Next Up
 
-- [ ] Implement basic mesh primitives (box, sphere)
-- [ ] Set up graph evaluation system
-- [ ] Define attribute traits
-
-## Backlog
-
 - [ ] Noise functions (Perlin, Simplex)
 - [ ] Basic oscillators
 - [ ] 2D path primitives
+
+## Backlog
+
 - [ ] Skeleton/bone types
+- [ ] Derive macro for DynNode
+- [ ] Expression language parser
+- [x] Implement basic mesh primitives (box, sphere)
+- [x] Set up graph evaluation system
+- [x] Define attribute traits
 - [x] Review all design decisions for consistency, extract patterns/philosophy to docs/philosophy.md
 
 ## Future
