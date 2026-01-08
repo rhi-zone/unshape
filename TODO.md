@@ -2,11 +2,11 @@
 
 ## Next Up
 
-- [ ] MIDI support
-
 ## Backlog
 
 ## Done
+
+- [x] MIDI support (MidiMessage parsing, note/freq conversion, CC constants, velocity/amplitude)
 
 - [x] L-systems (LSystem, Rule, TurtleConfig, interpret_turtle_2d/3d, presets)
 - [x] FM synthesis (FmOperator, FmOsc, FmSynth, FmAlgorithm, fm_presets)
