@@ -2,7 +2,7 @@
 
 ## Next Up
 
-- [ ] Mesh boolean operations (union, subtract, intersect)
+- [ ] Bevel operations (edges, vertices)
 
 ## Backlog
 
@@ -12,6 +12,7 @@
 
 ## Done
 
+- [x] Mesh boolean operations (BSP-based union, subtract, intersect)
 - [x] Vector network (node-based vector editing, region detection)
 - [x] Half-edge mesh representation (Catmull-Clark subdivision)
 - [x] Easing functions (quad, cubic, elastic, bounce, etc.)
