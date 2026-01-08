@@ -2,10 +2,9 @@
 
 ## Next Up
 
-- [ ] Mesh decimation (edge collapse)
+- [ ] Boolean operations on 2D paths
 
 ## Backlog
-- [ ] Boolean operations on 2D paths
 - [ ] Curve lofting (surface from profiles)
 - [ ] Mesh from curves (extrude, revolve, sweep)
 - [ ] glTF import
@@ -19,6 +18,7 @@
 
 ## Done
 
+- [x] Mesh decimation (edge collapse, DecimateConfig, boundary preservation, max error threshold)
 - [x] Image/texture loading as fields (ImageField, WrapMode, FilterMode, bilinear sampling)
 - [x] OBJ import/export (import_obj, export_obj, normals, UVs, quad triangulation)
 - [x] Laplacian mesh smoothing (smooth, smooth_taubin, preserve boundary, SmoothConfig)

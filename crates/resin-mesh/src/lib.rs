@@ -4,6 +4,7 @@
 
 mod bevel;
 mod boolean;
+mod decimate;
 mod halfedge;
 mod loops;
 mod mesh;
@@ -16,6 +17,7 @@ mod uv;
 
 pub use bevel::{BevelConfig, bevel_edges, bevel_mesh_edges, bevel_mesh_vertices, bevel_vertices};
 pub use boolean::{boolean_intersect, boolean_subtract, boolean_union};
+pub use decimate::{DecimateConfig, decimate};
 pub use halfedge::{
     Face, FaceId, HalfEdge, HalfEdgeId, HalfEdgeMesh, Vertex as HEVertex, VertexId,
 };

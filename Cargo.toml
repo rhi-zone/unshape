@@ -18,6 +18,9 @@ thiserror = "2"
 # Image loading
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
+# Float ordering for priority queues
+ordered-float = "4"
+
 # Proc macro support
 syn = { version = "2", features = ["full"] }
 quote = "1"
