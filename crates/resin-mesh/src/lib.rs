@@ -7,6 +7,7 @@ mod morph;
 mod ops;
 mod primitives;
 mod subdivision;
+mod uv;
 
 pub use mesh::{Mesh, MeshBuilder};
 pub use morph::{
@@ -20,3 +21,8 @@ pub use ops::{
 };
 pub use primitives::{box_mesh, sphere, uv_sphere};
 pub use subdivision::{subdivide_linear, subdivide_loop, subdivide_loop_n};
+pub use uv::{
+    BoxConfig, CylindricalConfig, ProjectionAxis, SphericalConfig, flip_u, flip_v, normalize_uvs,
+    project_box, project_box_per_face, project_cylindrical, project_planar, project_planar_axis,
+    project_spherical, rotate_uvs, scale_uvs, transform_uvs, translate_uvs,
+};

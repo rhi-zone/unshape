@@ -3,8 +3,8 @@
 ## Next Up
 
 - [ ] Quad mesh / half-edge representation (for Catmull-Clark, bevel)
-- [ ] Texture mapping (UV projection)
 - [ ] Spline / curve types (Bezier, Catmull-Rom)
+- [ ] Audio graph / signal chain
 
 ## Backlog
 
@@ -14,6 +14,7 @@
 
 ## Done
 
+- [x] UV projection (planar, cylindrical, spherical, box)
 - [x] Mesh ops (extrude, inset, solidify, weld, flip)
 - [x] Particle system (emitters, forces, turbulence)
 - [x] Path constraints (bones follow curves)
