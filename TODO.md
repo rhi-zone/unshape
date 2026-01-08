@@ -2,10 +2,9 @@
 
 ## Next Up
 
-- [ ] Boolean operations on 2D paths
+- [ ] Curve lofting (surface from profiles)
 
 ## Backlog
-- [ ] Curve lofting (surface from profiles)
 - [ ] Mesh from curves (extrude, revolve, sweep)
 - [ ] glTF import
 - [ ] Marching cubes (mesh from SDF)
@@ -18,6 +17,7 @@
 
 ## Done
 
+- [x] Boolean operations on 2D paths (union, intersect, subtract, xor via Sutherland-Hodgman)
 - [x] Mesh decimation (edge collapse, DecimateConfig, boundary preservation, max error threshold)
 - [x] Image/texture loading as fields (ImageField, WrapMode, FilterMode, bilinear sampling)
 - [x] OBJ import/export (import_obj, export_obj, normals, UVs, quad triangulation)
