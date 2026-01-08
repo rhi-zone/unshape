@@ -18,6 +18,7 @@ mod graph;
 mod node;
 pub mod noise;
 pub mod particle;
+pub mod spline;
 mod value;
 
 pub use attributes::{
@@ -113,4 +114,8 @@ pub use particle::{
     Wind,
 };
 pub use resin_macros::DynNode as DynNodeDerive;
+pub use spline::{
+    BSpline, BezierSpline, CatmullRom, CubicBezier, Interpolatable, cubic_bezier, quadratic_bezier,
+    smooth_through_points,
+};
 pub use value::{Value, ValueType};
