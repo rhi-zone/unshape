@@ -21,6 +21,7 @@ mod node;
 pub mod noise;
 pub mod particle;
 pub mod spline;
+pub mod surface;
 mod value;
 
 pub use attributes::{
@@ -131,5 +132,9 @@ pub use spline::{
     BSpline, BezierSpline, CatmullRom, CubicBezier, Interpolatable, Nurbs, WeightedPoint,
     cubic_bezier, nurbs_arc, nurbs_circle, nurbs_circle_2d, nurbs_ellipse, quadratic_bezier,
     smooth_through_points,
+};
+pub use surface::{
+    NurbsSurface, SurfacePoint, TessellatedSurface, nurbs_bilinear_patch, nurbs_cone,
+    nurbs_cylinder, nurbs_sphere, nurbs_torus,
 };
 pub use value::{Value, ValueType};

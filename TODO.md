@@ -2,15 +2,15 @@
 
 ## Next Up
 
-- [ ] NURBS surfaces (extend curves to 3D surfaces)
+- [ ] glTF export for meshes
 
 ## Backlog
 
-- [ ] glTF export for meshes
 - [ ] Animation blending and layering
 
 ## Done
 
+- [x] NURBS surfaces (tensor product surfaces, sphere/cylinder/torus/cone primitives, tessellation)
 - [x] SVG export for 2D vector graphics (paths, shapes, styles, viewBox)
 - [x] GPU compute backend for fields (wgpu compute shaders, noise generation)
 
