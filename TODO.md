@@ -4,7 +4,7 @@
 
 - [ ] Quad mesh / half-edge representation (for Catmull-Clark, bevel)
 - [ ] Audio graph / signal chain
-- [ ] Color types and gradients
+- [ ] Vector network (node-based vector editing)
 
 ## Backlog
 
@@ -14,6 +14,7 @@
 
 ## Done
 
+- [x] Color types and gradients (RGB, HSL, HSV, blend modes)
 - [x] Spline curves (Bezier, Catmull-Rom, B-spline)
 - [x] UV projection (planar, cylindrical, spherical, box)
 - [x] Mesh ops (extrude, inset, solidify, weld, flip)

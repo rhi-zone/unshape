@@ -10,6 +10,7 @@
 //! - [`expr::Expr`] - Expression language for field evaluation
 
 mod attributes;
+pub mod color;
 mod context;
 mod error;
 pub mod expr;
@@ -23,6 +24,10 @@ mod value;
 
 pub use attributes::{
     FullGeometry, Geometry, HasColors, HasIndices, HasNormals, HasPositions, HasUVs,
+};
+pub use color::{
+    BlendMode, ColorStop, Gradient, Hsl, Hsv, LinearRgb, Rgba, blend, blend_with_alpha,
+    presets as color_presets,
 };
 pub use context::EvalContext;
 pub use error::{GraphError, TypeError};
