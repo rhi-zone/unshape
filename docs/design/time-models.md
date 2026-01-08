@@ -267,16 +267,54 @@ impl Node for Noise {
 Pros: Explicit, state management is caller's problem
 Cons: Verbose for simple stateless nodes
 
-## EvalContext Design
+## How Time Reaches Fields
 
-Whatever we choose, context probably needs:
+Two options considered:
+
+**Option A: Time as extra dimension**
+```rust
+// Animated 2D = 3D field (x, y, t)
+impl Field<Vec3, Color> for AnimatedNoise { ... }
+```
+
+Pros: Pure, mathematically clean, seekable by definition
+Cons: Type changes for animated vs static, proliferates dimensions
+
+**Option B: Time in EvalContext (chosen)**
+```rust
+trait Field<I, O> {
+    fn sample(&self, input: I, ctx: &EvalContext) -> O;
+}
+```
+
+Pros: Same type for static/animated, extensible context, proven pattern
+Cons: Context parameter even when unused
+
+**Decision: EvalContext (Option B)**
+
+Shadertoy validates this pattern. Their shader inputs are essentially EvalContext:
+- `iTime` - time in seconds
+- `iTimeDelta` - dt
+- `iFrame` - frame number
+- `iResolution` - output resolution
+- `iSampleRate` - for audio shaders
+
+Time is context, not coordinate. Position (uv/fragCoord) is the input. Battle-tested in millions of shaders.
+
+## EvalContext Design
 
 ```rust
 struct EvalContext<'a> {
-    // Time info
-    time: f32,              // absolute time in seconds
-    dt: f32,                // delta time since last eval
-    frame: u64,             // frame number
+    // Time info (Shadertoy-style)
+    time: f32,              // absolute time in seconds (iTime)
+    dt: f32,                // delta time since last eval (iTimeDelta)
+    frame: u64,             // frame number (iFrame)
+
+    // Resolution (when materializing)
+    resolution: UVec2,      // output resolution (iResolution)
+
+    // Audio-specific
+    sample_rate: f32,       // samples per second (iSampleRate)
 
     // For stateful nodes
     state: &'a mut StateStore,
@@ -289,19 +327,44 @@ struct EvalContext<'a> {
 }
 ```
 
+Fields that don't need time simply ignore `ctx`. No overhead for static fields beyond the parameter.
+
+## Decisions
+
+1. **How time reaches fields**: EvalContext (Shadertoy pattern). See above.
+
+2. **State serialization**: Solved by recurrent graphs - feedback edges ARE the state. `GraphSnapshot { graph, feedback_state }` captures everything.
+
+3. **Seeking stateful graphs**: User choice via enum:
+   ```rust
+   enum SeekBehavior {
+       Resimulate,    // correct, slow - replay from start
+       Discontinuity, // fast, may glitch - jump directly
+       Error,         // fail-safe - refuse to seek
+   }
+   ```
+   Default: `Discontinuity` for interactive preview, `Resimulate` for final render.
+
+4. **Delay granularity**: Per-edge, configurable (from recurrent-graphs):
+   ```rust
+   enum Delay {
+       Samples(u32),     // audio: z⁻ⁿ
+       Frames(u32),      // animation: previous N frames
+       Duration(f32),    // explicit seconds
+   }
+   ```
+
 ## Open Questions
 
-1. **Seeking stateful graphs**: Error? Re-simulate? Accept discontinuity?
+1. **Audio block boundaries**: Processing happens in blocks (128-1024 samples), but graph model is conceptually per-sample. How to reconcile? See [recurrent-graphs](./recurrent-graphs.md) for related discussion.
 
-2. **State serialization**: Can we save/restore graph state? (For save games, undo)
+2. **Mixed rates**: Audio at 48kHz, control/animation at 60Hz. How do feedback edges work across rate boundaries? Interpolation? Sample-and-hold?
 
-3. **Determinism**: Same inputs + same initial state = same output? (Floating point, threading)
+3. **Hybrid nodes**: Nodes that are "mostly stateless" with optional smoothing/filtering. Explicit state input, or implicit via context?
 
-4. **Audio block boundaries**: State is per-block, not per-sample. How does this interact with graph model?
+4. **Baking API**: How does user trigger simulation bake? Explicit `graph.bake(0.0..10.0, dt)` or automatic when seeking stateful graph?
 
-5. **Hybrid nodes**: Some nodes are "mostly stateless" with optional state (e.g., smoothing). How to represent?
-
-6. **Baking API**: How does user trigger bake? Automatic or explicit?
+5. **Determinism**: Floating point reproducibility across platforms. Threading order. Probably punt to "best effort" with optional strict mode.
 
 ## Summary
 

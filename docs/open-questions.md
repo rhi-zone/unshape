@@ -21,7 +21,7 @@ Single source of truth for design decisions. Updated as we resolve questions.
 | Modularity | 🔶 Leaning | Very modular, bevy philosophy |
 | Bevy integration | 🔶 Leaning | Low priority. Separate adapter crate if needed. Must not affect core design - resin is standalone first |
 | Evaluation strategy | 🔶 Leaning | Evaluator trait. Lazy default, others as needed. See [evaluation-strategy](./design/evaluation-strategy.md) |
-| Time models | ❓ Open | Stateless vs stateful vs streaming. Recurrence = stateful. Also: how does time reach Fields? Extra dimension vs EvalContext. See [time-models](./design/time-models.md), [recurrent-graphs](./design/recurrent-graphs.md) |
+| Time models | 🔶 Leaning | Time via EvalContext (Shadertoy pattern). Seeking = user choice (resimulate/discontinuity/error). State = feedback edges. Open: mixed rates, audio blocks. See [time-models](./design/time-models.md) |
 
 ## Expression Language
 
@@ -127,9 +127,10 @@ See [expression-language](./design/expression-language.md) for full design.
 - Ops as values (derive macro for DynOp impl)
 - Texture vs field (Field<I,O> trait, time handling → Time models)
 
-### 🔶 Leaning (16)
+### 🔶 Leaning (17)
 - Type system for slots (simpler than maki)
 - Parameter system (yes, first-class)
+- Time models (EvalContext for time, seeking = user choice, state = feedback edges)
 - Modularity (very modular)
 - Text (outlines yes, layout no)
 - Unified 2D/3D rig (yes)
@@ -145,6 +146,6 @@ See [expression-language](./design/expression-language.md) for full design.
 - Plugin function API (decompose or backend extension traits)
 - Constant folding (resin-expr-opt crate, AST transform)
 
-### ❓ Open (11+)
-- **High impact**: Time models (delay granularity, mixed rates)
-- **Domain-specific**: Audio (sample rate, polyphony, control vs audio rate), mesh instancing
+### ❓ Open (10+)
+- **Time models remaining**: Mixed rates (audio 48kHz vs control 60Hz), audio block boundaries
+- **Domain-specific**: Audio (polyphony, control vs audio rate), mesh instancing
