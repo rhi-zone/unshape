@@ -101,7 +101,7 @@ See [expression-language](./design/expression-language.md) for full design.
 
 ## Summary by Status
 
-### ✅ Resolved (14)
+### ✅ Resolved (17)
 - GPU vs CPU abstraction (burn/CubeCL)
 - Precision f32/f64 (generic `T: Float`)
 - Winding rule (both, default non-zero)
@@ -109,6 +109,9 @@ See [expression-language](./design/expression-language.md) for full design.
 - Vector networks (network internal, both APIs)
 - Deformer stacking (graph internal, stack API)
 - Expression backend (Cranelift/WGSL/Interpreted)
+- Expression AST scope (math + conditionals + let, no loops)
+- Expression built-ins (WGSL as reference, plugin extensions)
+- Unified vs per-domain Expr (unified, domains bind different vars)
 - General internal, constrained APIs pattern
 - Plugin architecture (core = contract, host = loading)
 - Graph caching (hash-based at node boundaries)
@@ -116,23 +119,24 @@ See [expression-language](./design/expression-language.md) for full design.
 - Tiling (explicit operators)
 - Ops as values (derive macro for DynOp impl)
 
-### 🔶 Leaning (14)
+### 🔶 Leaning (15)
 - Type system for slots (simpler than maki)
 - Parameter system (yes, first-class)
 - Modularity (very modular)
 - Text (outlines yes, layout no)
 - Unified 2D/3D rig (yes)
 - Animation blending (separate crate)
-- Expression language direction (Cranelift for CPU)
 - Bevy integration (low priority, standalone first)
 - External references (IDs + context, maybe embed small assets)
 - Audio state management (recurrent graphs, feedback edges)
 - Mesh representation (half-edge internal, indexed export)
 - Evaluation strategy (Evaluator trait, lazy default)
 - Texture materialization (Field/Image split, explicit resolution)
+- Expr → WGSL codegen (string generation, decomposition-first)
+- Expr → Cranelift codegen (IR generation, external calls)
+- Plugin function API (decompose or backend extension traits)
 
-### ❓ Open (16+)
-- **High impact**: Time models
-- **Expression language**: AST scope, codegen details, built-in functions
+### ❓ Open (13+)
+- **High impact**: Time models (delay granularity, mixed rates)
 - **Cross-cutting**: Texture vs field unification
-- **Domain-specific**: Many audio questions, instancing
+- **Domain-specific**: Audio (sample rate, polyphony, control vs audio rate), mesh instancing
