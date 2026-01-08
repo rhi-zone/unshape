@@ -628,6 +628,543 @@ impl Field<Vec2, f32> for Radial2D {
     }
 }
 
+// ============================================================================
+// Texture patterns
+// ============================================================================
+
+/// Checkerboard pattern.
+#[derive(Debug, Clone, Copy)]
+pub struct Checkerboard {
+    pub scale: f32,
+}
+
+impl Default for Checkerboard {
+    fn default() -> Self {
+        Self { scale: 1.0 }
+    }
+}
+
+impl Checkerboard {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_scale(scale: f32) -> Self {
+        Self { scale }
+    }
+}
+
+impl Field<Vec2, f32> for Checkerboard {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input * self.scale;
+        let x = p.x.floor() as i32;
+        let y = p.y.floor() as i32;
+        if (x + y) % 2 == 0 { 1.0 } else { 0.0 }
+    }
+}
+
+impl Field<Vec3, f32> for Checkerboard {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        let p = input * self.scale;
+        let x = p.x.floor() as i32;
+        let y = p.y.floor() as i32;
+        let z = p.z.floor() as i32;
+        if (x + y + z) % 2 == 0 { 1.0 } else { 0.0 }
+    }
+}
+
+/// Stripe pattern (horizontal by default).
+#[derive(Debug, Clone, Copy)]
+pub struct Stripes {
+    pub frequency: f32,
+    pub direction: Vec2,
+}
+
+impl Default for Stripes {
+    fn default() -> Self {
+        Self {
+            frequency: 1.0,
+            direction: Vec2::Y,
+        }
+    }
+}
+
+impl Stripes {
+    pub fn horizontal() -> Self {
+        Self {
+            direction: Vec2::Y,
+            ..Self::default()
+        }
+    }
+
+    pub fn vertical() -> Self {
+        Self {
+            direction: Vec2::X,
+            ..Self::default()
+        }
+    }
+
+    pub fn with_frequency(mut self, frequency: f32) -> Self {
+        self.frequency = frequency;
+        self
+    }
+
+    pub fn with_direction(mut self, direction: Vec2) -> Self {
+        self.direction = direction.normalize();
+        self
+    }
+}
+
+impl Field<Vec2, f32> for Stripes {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let t = input.dot(self.direction) * self.frequency;
+        if (t.floor() as i32) % 2 == 0 {
+            1.0
+        } else {
+            0.0
+        }
+    }
+}
+
+/// Smooth stripe pattern (sine wave).
+#[derive(Debug, Clone, Copy)]
+pub struct SmoothStripes {
+    pub frequency: f32,
+    pub direction: Vec2,
+}
+
+impl Default for SmoothStripes {
+    fn default() -> Self {
+        Self {
+            frequency: 1.0,
+            direction: Vec2::Y,
+        }
+    }
+}
+
+impl SmoothStripes {
+    pub fn horizontal() -> Self {
+        Self {
+            direction: Vec2::Y,
+            ..Self::default()
+        }
+    }
+
+    pub fn vertical() -> Self {
+        Self {
+            direction: Vec2::X,
+            ..Self::default()
+        }
+    }
+
+    pub fn with_frequency(mut self, frequency: f32) -> Self {
+        self.frequency = frequency;
+        self
+    }
+}
+
+impl Field<Vec2, f32> for SmoothStripes {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let t = input.dot(self.direction) * self.frequency * std::f32::consts::TAU;
+        (t.sin() * 0.5 + 0.5).clamp(0.0, 1.0)
+    }
+}
+
+/// Brick pattern.
+#[derive(Debug, Clone, Copy)]
+pub struct Brick {
+    pub scale: Vec2,
+    pub mortar: f32,
+    pub offset: f32,
+}
+
+impl Default for Brick {
+    fn default() -> Self {
+        Self {
+            scale: Vec2::new(2.0, 1.0),
+            mortar: 0.05,
+            offset: 0.5,
+        }
+    }
+}
+
+impl Brick {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_scale(mut self, scale: Vec2) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    pub fn with_mortar(mut self, mortar: f32) -> Self {
+        self.mortar = mortar;
+        self
+    }
+}
+
+impl Field<Vec2, f32> for Brick {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input * self.scale;
+        let row = p.y.floor() as i32;
+        let x = if row % 2 == 0 { p.x } else { p.x + self.offset };
+
+        let fx = x.fract();
+        let fy = p.y.fract();
+
+        // Check if in mortar
+        if fx < self.mortar || fx > 1.0 - self.mortar || fy < self.mortar || fy > 1.0 - self.mortar
+        {
+            0.0
+        } else {
+            1.0
+        }
+    }
+}
+
+/// Polka dots pattern.
+#[derive(Debug, Clone, Copy)]
+pub struct Dots {
+    pub scale: f32,
+    pub radius: f32,
+}
+
+impl Default for Dots {
+    fn default() -> Self {
+        Self {
+            scale: 1.0,
+            radius: 0.3,
+        }
+    }
+}
+
+impl Dots {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    pub fn with_radius(mut self, radius: f32) -> Self {
+        self.radius = radius;
+        self
+    }
+}
+
+impl Field<Vec2, f32> for Dots {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input * self.scale;
+        let cell = Vec2::new(p.x.floor(), p.y.floor());
+        let center = cell + Vec2::splat(0.5);
+        let d = (p - center).length();
+        if d < self.radius { 1.0 } else { 0.0 }
+    }
+}
+
+/// Smooth dots (falloff from center).
+#[derive(Debug, Clone, Copy)]
+pub struct SmoothDots {
+    pub scale: f32,
+    pub radius: f32,
+}
+
+impl Default for SmoothDots {
+    fn default() -> Self {
+        Self {
+            scale: 1.0,
+            radius: 0.4,
+        }
+    }
+}
+
+impl SmoothDots {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    pub fn with_radius(mut self, radius: f32) -> Self {
+        self.radius = radius;
+        self
+    }
+}
+
+impl Field<Vec2, f32> for SmoothDots {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input * self.scale;
+        let cell = Vec2::new(p.x.floor(), p.y.floor());
+        let center = cell + Vec2::splat(0.5);
+        let d = (p - center).length();
+        (1.0 - d / self.radius).clamp(0.0, 1.0)
+    }
+}
+
+/// Voronoi/Cellular noise - returns distance to nearest cell center.
+#[derive(Debug, Clone, Copy)]
+pub struct Voronoi {
+    pub scale: f32,
+    pub seed: i32,
+}
+
+impl Default for Voronoi {
+    fn default() -> Self {
+        Self {
+            scale: 1.0,
+            seed: 0,
+        }
+    }
+}
+
+impl Voronoi {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    pub fn with_seed(mut self, seed: i32) -> Self {
+        self.seed = seed;
+        self
+    }
+
+    /// Hash function for cell randomization.
+    fn hash(x: i32, y: i32, seed: i32) -> Vec2 {
+        // Simple hash based on prime multipliers
+        let n = (x.wrapping_mul(374761393))
+            .wrapping_add(y.wrapping_mul(668265263))
+            .wrapping_add(seed.wrapping_mul(1013904223));
+        let n = (n ^ (n >> 13)).wrapping_mul(1274126177);
+        let fx = ((n & 0xFFFF) as f32) / 65535.0;
+        let fy = (((n >> 16) & 0xFFFF) as f32) / 65535.0;
+        Vec2::new(fx, fy)
+    }
+}
+
+impl Field<Vec2, f32> for Voronoi {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input * self.scale;
+        let cell = Vec2::new(p.x.floor(), p.y.floor());
+        let mut min_dist = f32::MAX;
+
+        // Check 3x3 neighborhood
+        for dy in -1..=1 {
+            for dx in -1..=1 {
+                let neighbor = cell + Vec2::new(dx as f32, dy as f32);
+                let offset = Self::hash(neighbor.x as i32, neighbor.y as i32, self.seed);
+                let point = neighbor + offset;
+                let dist = (p - point).length();
+                min_dist = min_dist.min(dist);
+            }
+        }
+
+        // Normalize roughly to 0-1 (max distance in a cell is ~sqrt(2))
+        (min_dist / 1.5).clamp(0.0, 1.0)
+    }
+}
+
+/// Voronoi that returns cell ID (for coloring).
+#[derive(Debug, Clone, Copy)]
+pub struct VoronoiId {
+    pub scale: f32,
+    pub seed: i32,
+}
+
+impl Default for VoronoiId {
+    fn default() -> Self {
+        Self {
+            scale: 1.0,
+            seed: 0,
+        }
+    }
+}
+
+impl VoronoiId {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+}
+
+impl Field<Vec2, f32> for VoronoiId {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input * self.scale;
+        let cell = Vec2::new(p.x.floor(), p.y.floor());
+        let mut min_dist = f32::MAX;
+        let mut closest_cell = cell;
+
+        for dy in -1..=1 {
+            for dx in -1..=1 {
+                let neighbor = cell + Vec2::new(dx as f32, dy as f32);
+                let offset = Voronoi::hash(neighbor.x as i32, neighbor.y as i32, self.seed);
+                let point = neighbor + offset;
+                let dist = (p - point).length();
+                if dist < min_dist {
+                    min_dist = dist;
+                    closest_cell = neighbor;
+                }
+            }
+        }
+
+        // Return a pseudo-random value based on cell coordinates
+        let h = Voronoi::hash(
+            closest_cell.x as i32,
+            closest_cell.y as i32,
+            self.seed + 12345,
+        );
+        h.x
+    }
+}
+
+/// Domain warping - distorts input coordinates using another field.
+pub struct Warp<F, D> {
+    pub field: F,
+    pub displacement: D,
+    pub amount: f32,
+}
+
+impl<F, D> Warp<F, D> {
+    pub fn new(field: F, displacement: D, amount: f32) -> Self {
+        Self {
+            field,
+            displacement,
+            amount,
+        }
+    }
+}
+
+impl<F, D> Field<Vec2, f32> for Warp<F, D>
+where
+    F: Field<Vec2, f32>,
+    D: Field<Vec2, Vec2>,
+{
+    fn sample(&self, input: Vec2, ctx: &EvalContext) -> f32 {
+        let offset = self.displacement.sample(input, ctx);
+        let warped = input + offset * self.amount;
+        self.field.sample(warped, ctx)
+    }
+}
+
+/// Creates displacement from two scalar fields (for x and y).
+pub struct Displacement<X, Y> {
+    pub x: X,
+    pub y: Y,
+}
+
+impl<X, Y> Displacement<X, Y> {
+    pub fn new(x: X, y: Y) -> Self {
+        Self { x, y }
+    }
+}
+
+impl<X, Y> Field<Vec2, Vec2> for Displacement<X, Y>
+where
+    X: Field<Vec2, f32>,
+    Y: Field<Vec2, f32>,
+{
+    fn sample(&self, input: Vec2, ctx: &EvalContext) -> Vec2 {
+        Vec2::new(self.x.sample(input, ctx), self.y.sample(input, ctx))
+    }
+}
+
+/// Distance field - returns distance from a point.
+#[derive(Debug, Clone, Copy)]
+pub struct DistancePoint {
+    pub point: Vec2,
+}
+
+impl DistancePoint {
+    pub fn new(point: Vec2) -> Self {
+        Self { point }
+    }
+}
+
+impl Field<Vec2, f32> for DistancePoint {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        (input - self.point).length()
+    }
+}
+
+/// Distance field - returns distance from a line segment.
+#[derive(Debug, Clone, Copy)]
+pub struct DistanceLine {
+    pub a: Vec2,
+    pub b: Vec2,
+}
+
+impl DistanceLine {
+    pub fn new(a: Vec2, b: Vec2) -> Self {
+        Self { a, b }
+    }
+}
+
+impl Field<Vec2, f32> for DistanceLine {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let pa = input - self.a;
+        let ba = self.b - self.a;
+        let t = (pa.dot(ba) / ba.dot(ba)).clamp(0.0, 1.0);
+        (pa - ba * t).length()
+    }
+}
+
+/// Distance field - returns distance from a circle.
+#[derive(Debug, Clone, Copy)]
+pub struct DistanceCircle {
+    pub center: Vec2,
+    pub radius: f32,
+}
+
+impl DistanceCircle {
+    pub fn new(center: Vec2, radius: f32) -> Self {
+        Self { center, radius }
+    }
+}
+
+impl Field<Vec2, f32> for DistanceCircle {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        (input - self.center).length() - self.radius
+    }
+}
+
+/// Distance field - returns distance from a box.
+#[derive(Debug, Clone, Copy)]
+pub struct DistanceBox {
+    pub center: Vec2,
+    pub half_size: Vec2,
+}
+
+impl DistanceBox {
+    pub fn new(center: Vec2, half_size: Vec2) -> Self {
+        Self { center, half_size }
+    }
+}
+
+impl Field<Vec2, f32> for DistanceBox {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = (input - self.center).abs();
+        let d = p - self.half_size;
+        d.max(Vec2::ZERO).length() + d.x.max(d.y).min(0.0)
+    }
+}
+
+// ============================================================================
+// Function adapter
+// ============================================================================
+
 /// Function adapter - wraps a closure as a field.
 pub struct FnField<I, O, F> {
     f: F,
@@ -795,6 +1332,179 @@ mod tests {
 
         let ctx = EvalContext::new();
         let _v = combined.sample(Vec2::new(0.5, 0.5), &ctx);
+        // Just verify it compiles and runs
+    }
+
+    // Texture pattern tests
+
+    #[test]
+    fn test_checkerboard() {
+        let field = Checkerboard::new();
+        let ctx = EvalContext::new();
+
+        // Origin is white (1.0)
+        assert_eq!(field.sample(Vec2::new(0.5, 0.5), &ctx), 1.0);
+        // Adjacent cell is black (0.0)
+        assert_eq!(field.sample(Vec2::new(1.5, 0.5), &ctx), 0.0);
+        // Diagonal is white again
+        assert_eq!(field.sample(Vec2::new(1.5, 1.5), &ctx), 1.0);
+    }
+
+    #[test]
+    fn test_checkerboard_3d() {
+        let field = Checkerboard::new();
+        let ctx = EvalContext::new();
+
+        assert_eq!(field.sample(Vec3::new(0.5, 0.5, 0.5), &ctx), 1.0);
+        assert_eq!(field.sample(Vec3::new(1.5, 0.5, 0.5), &ctx), 0.0);
+        assert_eq!(field.sample(Vec3::new(1.5, 1.5, 0.5), &ctx), 1.0);
+        assert_eq!(field.sample(Vec3::new(1.5, 1.5, 1.5), &ctx), 0.0);
+    }
+
+    #[test]
+    fn test_stripes() {
+        let field = Stripes::horizontal().with_frequency(1.0);
+        let ctx = EvalContext::new();
+
+        // Stripes alternate based on Y position
+        assert_eq!(field.sample(Vec2::new(0.5, 0.5), &ctx), 1.0);
+        assert_eq!(field.sample(Vec2::new(0.5, 1.5), &ctx), 0.0);
+        assert_eq!(field.sample(Vec2::new(0.5, 2.5), &ctx), 1.0);
+    }
+
+    #[test]
+    fn test_smooth_stripes() {
+        let field = SmoothStripes::horizontal();
+        let ctx = EvalContext::new();
+
+        // Should be smooth values in [0, 1]
+        let v = field.sample(Vec2::new(0.0, 0.25), &ctx);
+        assert!((0.0..=1.0).contains(&v));
+    }
+
+    #[test]
+    fn test_brick() {
+        let field = Brick::new(); // scale=(2.0, 1.0), mortar=0.05
+        let ctx = EvalContext::new();
+
+        // Center of first brick (scaled: 0.5, 0.5) -> input: (0.25, 0.5)
+        let v = field.sample(Vec2::new(0.25, 0.5), &ctx);
+        assert_eq!(v, 1.0);
+
+        // Near mortar edge (at cell boundary) should be 0.0
+        // Input (0.0, 0.5) -> scaled (0.0, 0.5), fx=0.0 < mortar
+        let v = field.sample(Vec2::new(0.0, 0.5), &ctx);
+        assert_eq!(v, 0.0);
+    }
+
+    #[test]
+    fn test_dots() {
+        let field = Dots::new().with_radius(0.3);
+        let ctx = EvalContext::new();
+
+        // Center of cell should be in dot
+        assert_eq!(field.sample(Vec2::new(0.5, 0.5), &ctx), 1.0);
+        // Corner of cell should be outside dot
+        assert_eq!(field.sample(Vec2::new(0.1, 0.1), &ctx), 0.0);
+    }
+
+    #[test]
+    fn test_smooth_dots() {
+        let field = SmoothDots::new();
+        let ctx = EvalContext::new();
+
+        // Center of cell should be max (1.0)
+        assert_eq!(field.sample(Vec2::new(0.5, 0.5), &ctx), 1.0);
+        // Between center and edge should be smooth value
+        let v = field.sample(Vec2::new(0.7, 0.5), &ctx);
+        assert!(v > 0.0 && v < 1.0);
+    }
+
+    #[test]
+    fn test_voronoi() {
+        let field = Voronoi::new();
+        let ctx = EvalContext::new();
+
+        // Should return values in [0, 1]
+        let v = field.sample(Vec2::new(0.5, 0.5), &ctx);
+        assert!((0.0..=1.0).contains(&v));
+
+        // Different positions should give different values
+        let v1 = field.sample(Vec2::new(0.1, 0.1), &ctx);
+        let v2 = field.sample(Vec2::new(0.9, 0.9), &ctx);
+        // Values should vary (not necessarily different, but usually)
+        assert!((0.0..=1.0).contains(&v1));
+        assert!((0.0..=1.0).contains(&v2));
+    }
+
+    #[test]
+    fn test_voronoi_id() {
+        let field = VoronoiId::new();
+        let ctx = EvalContext::new();
+
+        // Should return values in [0, 1]
+        let v = field.sample(Vec2::new(0.5, 0.5), &ctx);
+        assert!((0.0..=1.0).contains(&v));
+    }
+
+    #[test]
+    fn test_distance_point() {
+        let field = DistancePoint::new(Vec2::ZERO);
+        let ctx = EvalContext::new();
+
+        assert!((field.sample(Vec2::ZERO, &ctx) - 0.0).abs() < 0.001);
+        assert!((field.sample(Vec2::new(1.0, 0.0), &ctx) - 1.0).abs() < 0.001);
+        assert!((field.sample(Vec2::new(3.0, 4.0), &ctx) - 5.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_distance_circle() {
+        let field = DistanceCircle::new(Vec2::ZERO, 1.0);
+        let ctx = EvalContext::new();
+
+        // Inside circle: negative distance
+        assert!(field.sample(Vec2::ZERO, &ctx) < 0.0);
+        // On circle: zero
+        assert!((field.sample(Vec2::new(1.0, 0.0), &ctx) - 0.0).abs() < 0.001);
+        // Outside circle: positive
+        assert!(field.sample(Vec2::new(2.0, 0.0), &ctx) > 0.0);
+    }
+
+    #[test]
+    fn test_distance_line() {
+        let field = DistanceLine::new(Vec2::ZERO, Vec2::new(2.0, 0.0));
+        let ctx = EvalContext::new();
+
+        // On line: zero
+        assert!((field.sample(Vec2::new(1.0, 0.0), &ctx) - 0.0).abs() < 0.001);
+        // Above line: distance = 1.0
+        assert!((field.sample(Vec2::new(1.0, 1.0), &ctx) - 1.0).abs() < 0.001);
+        // Past endpoint: distance to endpoint
+        assert!((field.sample(Vec2::new(3.0, 0.0), &ctx) - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_distance_box() {
+        let field = DistanceBox::new(Vec2::ZERO, Vec2::new(1.0, 1.0));
+        let ctx = EvalContext::new();
+
+        // Inside box: negative
+        assert!(field.sample(Vec2::ZERO, &ctx) < 0.0);
+        // On edge: zero
+        assert!((field.sample(Vec2::new(1.0, 0.0), &ctx) - 0.0).abs() < 0.001);
+        // Outside: positive
+        assert!((field.sample(Vec2::new(2.0, 0.0), &ctx) - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_warp() {
+        let base = Checkerboard::new();
+        let displacement = Displacement::new(Constant::new(0.5f32), Constant::new(0.0f32));
+        let warped = Warp::new(base, displacement, 1.0);
+        let ctx = EvalContext::new();
+
+        // Warping should shift the pattern
+        let _v = warped.sample(Vec2::new(0.5, 0.5), &ctx);
         // Just verify it compiles and runs
     }
 }

@@ -7,10 +7,12 @@
 //! - [`Value`] - Runtime value type for graph data
 //! - [`EvalContext`] - Evaluation context (time, resolution, etc.)
 //! - Attribute traits ([`HasPositions`], [`HasNormals`], etc.)
+//! - [`expr::Expr`] - Expression language for field evaluation
 
 mod attributes;
 mod context;
 mod error;
+pub mod expr;
 pub mod field;
 mod graph;
 mod node;
@@ -23,8 +25,10 @@ pub use attributes::{
 pub use context::EvalContext;
 pub use error::{GraphError, TypeError};
 pub use field::{
-    Add, Constant, Coordinates, Fbm2D, Fbm3D, Field, FnField, Gradient2D, Map, Mix, Mul, Perlin2D,
-    Perlin3D, Radial2D, Scale, Simplex2D, Simplex3D, Translate, from_fn,
+    Add, Brick, Checkerboard, Constant, Coordinates, Displacement, DistanceBox, DistanceCircle,
+    DistanceLine, DistancePoint, Dots, Fbm2D, Fbm3D, Field, FnField, Gradient2D, Map, Mix, Mul,
+    Perlin2D, Perlin3D, Radial2D, Scale, Simplex2D, Simplex3D, SmoothDots, SmoothStripes, Stripes,
+    Translate, Voronoi, VoronoiId, Warp, from_fn,
 };
 pub use glam;
 pub use graph::{Edge, Graph, NodeId};
