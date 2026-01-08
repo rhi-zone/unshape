@@ -4,7 +4,7 @@
 
 - [x] Path constraints (bones follow curves) — sample curve, orient bone tangent
 - [x] Morph targets / blend shapes — vertex deltas + weight blending
-- [ ] Animation clips and tracks — keyframes, interpolation, property tracks
+- [x] Animation clips and tracks — keyframes, interpolation, property tracks
 - [ ] IK solvers (CCD, FABRIK) — iterative chain solving
 - [ ] Subdivision surfaces — Catmull-Clark, edge cases, creases
 
