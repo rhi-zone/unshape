@@ -2,6 +2,7 @@
 //!
 //! Provides mesh primitives and operations for procedural 3D geometry.
 
+mod halfedge;
 mod mesh;
 mod morph;
 mod ops;
@@ -9,6 +10,9 @@ mod primitives;
 mod subdivision;
 mod uv;
 
+pub use halfedge::{
+    Face, FaceId, HalfEdge, HalfEdgeId, HalfEdgeMesh, Vertex as HEVertex, VertexId,
+};
 pub use mesh::{Mesh, MeshBuilder};
 pub use morph::{
     MorphTarget, MorphTargetSet, MorphWeights, apply_morph_targets,

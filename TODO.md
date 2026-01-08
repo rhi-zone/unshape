@@ -2,7 +2,6 @@
 
 ## Next Up
 
-- [ ] Quad mesh / half-edge representation (for Catmull-Clark, bevel)
 - [ ] Vector network (node-based vector editing)
 - [ ] Mesh boolean operations (union, subtract, intersect)
 
@@ -14,6 +13,7 @@
 
 ## Done
 
+- [x] Half-edge mesh representation (Catmull-Clark subdivision)
 - [x] Easing functions (quad, cubic, elastic, bounce, etc.)
 - [x] Audio effects (reverb, chorus, phaser, flanger, distortion)
 - [x] Audio graph / signal chain (Chain, Mixer, nodes)
