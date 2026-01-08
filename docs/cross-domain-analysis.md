@@ -6,7 +6,7 @@ Comparing patterns across meshes, audio, textures, 2D vector, and rigging to fin
 
 | Aspect | Meshes | Audio | Textures | 2D Vector | Rigging |
 |--------|--------|-------|----------|-----------|---------|
-| **Primary data** | Vertices, edges, faces | Sample buffers | Pixel grids / UV→Color | Paths, segments | Bones, transforms |
+| **Primary data** | Vertices, edges, faces | Sample buffers | Pixel grids / UV->Color | Paths, segments | Bones, transforms |
 | **Evaluation** | Discrete ops | Continuous stream | Lazy sample or raster | Discrete ops | Parameter-driven |
 | **Time** | Static (usually) | Continuous | Static (usually) | Static/animated | Animated |
 | **Attributes** | Per-vertex/edge/face | Per-sample | Per-pixel | Per-point/path | Per-bone/vertex |
@@ -16,12 +16,12 @@ Comparing patterns across meshes, audio, textures, 2D vector, and rigging to fin
 
 ## Common Patterns
 
-### 1. Generator → Modifier → Output
+### 1. Generator -> Modifier -> Output
 
 Every domain follows this pattern:
 
 ```
-Generator → Modifier → Modifier → ... → Output
+Generator -> Modifier -> Modifier -> ... -> Output
 ```
 
 | Domain | Generators | Modifiers |
@@ -65,7 +65,7 @@ All domains parameterize operations:
 ```rust
 enum ParamValue<T> {
     Constant(T),
-    Expression(Box<dyn Fn(Context) → T>),
+    Expression(Box<dyn Fn(Context) -> T>),
     Animated(Track<T>),
     Modulated { base: T, modulator: Signal },
 }
@@ -151,7 +151,7 @@ trait Node {
     type Output;
     type Context;
 
-    fn evaluate(&mut self, input: Self::Input, ctx: &Self::Context) → Self::Output;
+    fn evaluate(&mut self, input: Self::Input, ctx: &Self::Context) -> Self::Output;
 }
 ```
 
@@ -200,7 +200,7 @@ struct ParamDef {
 enum ParamSource {
     Constant(f32),
     Animated(AnimationTrack),
-    Expression(Box<dyn Fn(&EvalContext) → f32>),
+    Expression(Box<dyn Fn(&EvalContext) -> f32>),
     Linked(ParamId),  // from another param
 }
 ```
@@ -216,7 +216,7 @@ Generalized:
 ```rust
 /// A field evaluates to T at each element
 trait Field<T> {
-    fn eval(&self, ctx: &FieldContext) → T;
+    fn eval(&self, ctx: &FieldContext) -> T;
 }
 
 struct FieldContext {
@@ -230,7 +230,7 @@ struct FieldContext {
 
 This could unify:
 - Mesh vertex expressions
-- Texture UV → color
+- Texture UV -> color
 - Audio sample computation
 - Path point expressions
 
@@ -240,14 +240,14 @@ This could unify:
 2. **Share utilities** - math, noise, interpolation, color
 3. **Unify parameters** - ParamDef, ParamSource work everywhere
 4. **Consider fields** - evaluate expressions over elements (powerful but complex)
-5. **Domain-specific graphs** - MeshGraph, AudioGraph, etc. rather than one Graph<T>
-6. **Cross-domain bridges** - explicit conversion points (texture → mesh displacement, path → mesh extrusion)
+5. **Domain-specific graphs** - MeshGraph, AudioGraph, etc. rather than one `Graph<T>`
+6. **Cross-domain bridges** - explicit conversion points (texture -> mesh displacement, path -> mesh extrusion)
 
 ## Summary
 
 | Pattern | Shared? | Notes |
 |---------|---------|-------|
-| Generator→Modifier→Output | **Yes** | All domains follow this |
+| Generator->Modifier->Output | **Yes** | All domains follow this |
 | Parameters/knobs | **Yes** | Universal - good unification target |
 | Attributes (per-element data) | Partially | Mesh has complex system, audio is trivial |
 | Topology | **No** | Fundamentally different (mesh adjacency vs audio stream vs bone tree) |

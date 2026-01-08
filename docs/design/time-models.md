@@ -205,7 +205,7 @@ impl PhysicsWorld {
 **Problem:** What happens when stateless and stateful nodes connect?
 
 ```
-[Noise (stateless)] → [Filter (stateful)] → [Output]
+[Noise (stateless)] -> [Filter (stateful)] -> [Output]
 ```
 
 The graph becomes stateful. Downstream of any stateful node inherits statefulness.
@@ -412,8 +412,8 @@ Different domains run at different rates:
 ### A: Explicit conversion nodes
 
 ```
-[LFO] → [Upsample 60→48000] → [Filter]
-[Audio] → [Downsample 48000→60] → [Display]
+[LFO] -> [Upsample 60->48000] -> [Filter]
+[Audio] -> [Downsample 48000->60] -> [Display]
 ```
 
 Pros: Clear, no magic, user controls quality
@@ -506,7 +506,7 @@ Cons: More validation logic
    }
 
    // Graph topology provides state via feedback:
-   // [Input] → [Smooth] → [Output]
+   // [Input] -> [Smooth] -> [Output]
    //              ↑   │
    //              └───┘  ← feedback edge
    ```

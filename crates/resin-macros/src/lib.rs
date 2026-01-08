@@ -4,7 +4,7 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Data, Fields, Ident, Type};
+use syn::{Data, DeriveInput, Fields, Ident, Type, parse_macro_input};
 
 /// Information about an input or output field.
 struct FieldInfo {
@@ -29,7 +29,11 @@ fn value_type_for(ty: &Type, crate_path: &proc_macro2::TokenStream) -> proc_macr
 }
 
 /// Generates the conversion from Value to the field type.
-fn value_extract_for(ty: &Type, idx: usize, _crate_path: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+fn value_extract_for(
+    ty: &Type,
+    idx: usize,
+    _crate_path: &proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
     let ty_str = quote!(#ty).to_string().replace(' ', "");
     match ty_str.as_str() {
         "f32" => quote!(inputs[#idx].as_f32().unwrap_or_default()),
@@ -44,7 +48,11 @@ fn value_extract_for(ty: &Type, idx: usize, _crate_path: &proc_macro2::TokenStre
 }
 
 /// Generates the conversion from a field to Value.
-fn value_wrap_for(ty: &Type, expr: proc_macro2::TokenStream, crate_path: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+fn value_wrap_for(
+    ty: &Type,
+    expr: proc_macro2::TokenStream,
+    crate_path: &proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
     let ty_str = quote!(#ty).to_string().replace(' ', "");
     match ty_str.as_str() {
         "f32" => quote!(#crate_path::Value::F32(#expr)),
@@ -101,20 +109,26 @@ pub fn derive_dyn_node(input: TokenStream) -> TokenStream {
         .iter()
         .find(|a| a.path().is_ident("node"))
         .and_then(|attr| {
-            attr.parse_args::<syn::MetaNameValue>().ok().and_then(|meta| {
-                if meta.path.is_ident("crate") {
-                    if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(s), .. }) = meta.value {
-                        let path = s.value();
-                        return Some(if path == "crate" {
-                            quote!(crate)
-                        } else {
-                            let ident = syn::Ident::new(&path, proc_macro2::Span::call_site());
-                            quote!(#ident)
-                        });
+            attr.parse_args::<syn::MetaNameValue>()
+                .ok()
+                .and_then(|meta| {
+                    if meta.path.is_ident("crate") {
+                        if let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(s),
+                            ..
+                        }) = meta.value
+                        {
+                            let path = s.value();
+                            return Some(if path == "crate" {
+                                quote!(crate)
+                            } else {
+                                let ident = syn::Ident::new(&path, proc_macro2::Span::call_site());
+                                quote!(#ident)
+                            });
+                        }
                     }
-                }
-                None
-            })
+                    None
+                })
         })
         .unwrap_or_else(|| quote!(::resin_core));
 

@@ -33,7 +33,7 @@ Skeletal animation, deformation, and motion systems.
 - **Path constraints**: bones follow Bézier paths
 
 ### Animation Principles
-- **Forward kinematics (FK)**: parent → child transforms
+- **Forward kinematics (FK)**: parent -> child transforms
 - **Inverse kinematics (IK)**: position end effector, solve chain
 - **Blend shapes / morph targets**: interpolate between poses
 - **Skinning**: vertices follow weighted bone influences
@@ -204,15 +204,15 @@ enum Interpolation {
 ## Data Flow Pattern
 
 ```
-Skeleton (rest) + Animation → Pose
-Pose + Constraints → Final Pose
-Mesh + Skin + Final Pose → Deformed Mesh
+Skeleton (rest) + Animation -> Pose
+Pose + Constraints -> Final Pose
+Mesh + Skin + Final Pose -> Deformed Mesh
 ```
 
 Or with deformers:
 
 ```
-Mesh → Deformer → Deformer → ... → Output
+Mesh -> Deformer -> Deformer -> ... -> Output
               ↑
          parameters
 ```

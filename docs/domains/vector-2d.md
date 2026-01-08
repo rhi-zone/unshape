@@ -29,7 +29,7 @@
 - **Transforms**: scale, rotate, translate in rules
 
 ### Potrace / Autotrace
-- **Bitmap → vector**: convert raster to paths
+- **Bitmap -> vector**: convert raster to paths
 - **Corner detection**: where to place anchors
 - **Curve fitting**: Bézier approximation of edges
 
@@ -133,7 +133,7 @@ struct Stroke {
 ## Data Flow Pattern
 
 ```
-Generator → Operation → Operation → ... → Output
+Generator -> Operation -> Operation -> ... -> Output
                 ↑
                 other path(s) for booleans
 ```
@@ -165,7 +165,7 @@ Converting vector to pixels:
 
 ```rust
 trait Rasterizer {
-    fn rasterize(&self, shape: &Shape, width: u32, height: u32) → Image;
+    fn rasterize(&self, shape: &Shape, width: u32, height: u32) -> Image;
 }
 ```
 
@@ -174,9 +174,9 @@ Options: CPU (tiny-skia), GPU (lyon + wgpu), external (cairo, skia).
 ## Relationship to Meshes
 
 2D paths can be:
-- **Extruded** → 3D mesh
-- **Revolved** → 3D mesh
-- **Triangulated** → 2D mesh (for rendering, physics)
+- **Extruded** -> 3D mesh
+- **Revolved** -> 3D mesh
+- **Triangulated** -> 2D mesh (for rendering, physics)
 
 Shared concepts with meshes:
 - Topology (vertices, edges)

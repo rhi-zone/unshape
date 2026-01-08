@@ -101,10 +101,7 @@ impl Skin {
 
     /// Gets influences for a vertex.
     pub fn influences(&self, vertex: usize) -> VertexInfluences {
-        self.influences
-            .get(vertex)
-            .copied()
-            .unwrap_or_default()
+        self.influences.get(vertex).copied().unwrap_or_default()
     }
 
     /// Returns all vertex influences.
@@ -178,12 +175,7 @@ impl Skin {
     }
 
     /// Deforms an array of positions in place.
-    pub fn deform_positions(
-        &self,
-        skeleton: &Skeleton,
-        pose: &Pose,
-        positions: &mut [Vec3],
-    ) {
+    pub fn deform_positions(&self, skeleton: &Skeleton, pose: &Pose, positions: &mut [Vec3]) {
         // Precompute bone matrices
         let bone_matrices: Vec<Mat4> = (0..skeleton.bone_count())
             .map(|i| self.bone_matrix(skeleton, pose, BoneId(i as u32)))

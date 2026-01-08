@@ -36,10 +36,10 @@ See [expression-language](./design/expression-language.md) for full design.
 | Value representation | ✅ Resolved | Enum (not dyn trait). Vectors/matrices feature-gated. Square matrices only |
 | Matrix operations | ✅ Resolved | `*` works on matrices (WGSL-style). Type inference dispatches |
 | Crate structure | ✅ Resolved | core + macros + parse + wgsl + cranelift. Interpreter in core |
-| Expr → WGSL codegen | ✅ Resolved | String generation from AST. Decomposition-first for plugins. |
-| Expr → Cranelift codegen | ✅ Resolved | IR generation, external calls for complex functions. |
+| Expr -> WGSL codegen | ✅ Resolved | String generation from AST. Decomposition-first for plugins. |
+| Expr -> Cranelift codegen | ✅ Resolved | IR generation, external calls for complex functions. |
 | Plugin function API | ✅ Resolved | Core trait + backend extension traits in backend crates. |
-| Constant folding | ✅ Resolved | Separate resin-expr-opt crate, AST → AST transform. |
+| Constant folding | ✅ Resolved | Separate resin-expr-opt crate, AST -> AST transform. |
 
 ## Ops & Serialization
 
@@ -47,7 +47,7 @@ See [expression-language](./design/expression-language.md) for full design.
 |----------|--------|-------|
 | Ops as values | ✅ Resolved | Yes, ops are serializable structs. Derive macro for DynOp impl. See [ops-as-values](./design/ops-as-values.md) |
 | Plugin op registration | ✅ Resolved | Core defines trait + serialization contract. Plugin *loading* is host's responsibility. Optional adapters (resin-wasm-plugins, etc.) for common cases. See [plugin-architecture](./design/plugin-architecture.md) |
-| Graph evaluation caching | ✅ Resolved | Hash-based caching at node boundaries (salsa-style). Inputs unchanged → return cached output |
+| Graph evaluation caching | ✅ Resolved | Hash-based caching at node boundaries (salsa-style). Inputs unchanged -> return cached output |
 | External references | ✅ Resolved | IDs + resolution context (ComfyUI pattern). Optional asset embedding for portability (any size). |
 
 ## Meshes
@@ -78,7 +78,7 @@ See [expression-language](./design/expression-language.md) for full design.
 | Tiling | ✅ Resolved | Explicit operators. Tiling isn't fundamental to most generators. `MakeSeamless`, `Tile`, etc. |
 | Resolution/materialization | ✅ Resolved | Separate Field (lazy) / Image (materialized). Resolution explicit at render(). No propagation. See [texture-materialization](./design/texture-materialization.md) |
 | 3D textures | ✅ Resolved | Same nodes, Vec3 input. Vec4 for looping animation (time as 4th dim). Memory/preview are host concerns. |
-| Texture vs field | ✅ Resolved | Unified via generic `Field<I, O>` trait. Same concept, different input types. Time handling → see Time models. |
+| Texture vs field | ✅ Resolved | Unified via generic `Field<I, O>` trait. Same concept, different input types. Time handling -> see Time models. |
 
 ## Vector 2D
 

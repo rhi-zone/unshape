@@ -5,8 +5,18 @@
 mod path;
 
 pub use path::{
-    Path, PathBuilder, PathCommand,
+    Path,
+    PathBuilder,
+    PathCommand,
     // Primitives
-    circle, ellipse, line, polygon, polyline,
-    rect, rect_centered, regular_polygon, rounded_rect, star,
+    circle,
+    ellipse,
+    line,
+    polygon,
+    polyline,
+    rect,
+    rect_centered,
+    regular_polygon,
+    rounded_rect,
+    star,
 };

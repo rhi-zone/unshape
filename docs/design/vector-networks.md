@@ -9,7 +9,7 @@ Comparing traditional path-based vector graphics with Figma-style vector network
 A path is an **ordered sequence of segments** forming a chain:
 
 ```
-A ──→ B ──→ C ──→ D
+A ──-> B ──-> C ──-> D
 ```
 
 - Each point has at most 2 connections (previous, next)
@@ -81,8 +81,8 @@ Paths (need 3 separate paths):     Network (single structure):
     ╱╲                                  A
    ╱  ╲                                ╱│╲
   ╱    ╲       Path 1: outer hex      B │ C
- │      │      Path 2: line A→D       │╲│╱│
- │      │      Path 3: line B→E        D─E
+ │      │      Path 2: line A->D       │╲│╱│
+ │      │      Path 3: line B->E        D─E
   ╲    ╱       (or draw as strokes)    │╱│╲
    ╲  ╱                                F │ G
     ╲╱                                  ╲│╱
@@ -114,7 +114,7 @@ Outer path + inner path     Single network with hole
 **Pros:**
 - Simpler mental model
 - Easier to iterate (just walk the array)
-- Clear ordering (start → end)
+- Clear ordering (start -> end)
 - Maps directly to SVG, PostScript, PDF
 - Boolean operations well-understood
 - Most algorithms assume path input
@@ -170,7 +170,7 @@ Outer path + inner path     Single network with hole
 
 ## Conversion
 
-### Network → Paths
+### Network -> Paths
 
 Always possible by tracing each region boundary:
 
@@ -183,7 +183,7 @@ fn network_to_paths(net: &VectorNetwork) -> Vec<Path> {
 
 Loses the "shared vertex" property - vertices get duplicated.
 
-### Paths → Network
+### Paths -> Network
 
 Possible but may not capture intent:
 
@@ -266,8 +266,8 @@ impl VectorNetwork {
 | `append(other)` concatenate | `merge(other)` union graphs |
 
 **Interoperability is just conversion at boundaries:**
-- Import SVG → parse as paths → store as network
-- Export → decompose to paths → write SVG
+- Import SVG -> parse as paths -> store as network
+- Export -> decompose to paths -> write SVG
 
 ## Open Questions
 

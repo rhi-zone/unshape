@@ -9,7 +9,7 @@ DAGs (directed acyclic graphs) can't express feedback:
 ```
        ┌──────────────┐
        │              ↓
-In ──→ Add ──→ Delay ──→ Out
+In ──-> Add ──-> Delay ──-> Out
        ↑              │
        └──────────────┘  ← cycle!
 ```
@@ -157,12 +157,12 @@ Classic feedback patterns:
 
 ```
 // Comb filter (creates resonance)
-In ──→ [+] ──→ [Delay N samples] ──→ Out
+In ──-> [+] ──-> [Delay N samples] ──-> Out
         ↑                        │
         └──── [* feedback] ←─────┘
 
 // Karplus-Strong (plucked string)
-Noise burst ──→ [+] ──→ [Delay] ──→ [LowPass] ──→ Out
+Noise burst ──-> [+] ──-> [Delay] ──-> [LowPass] ──-> Out
                 ↑                              │
                 └──────────────────────────────┘
 ```
@@ -175,7 +175,7 @@ Iterative constraint solving:
 
 ```
 // Verlet integration
-positions ──→ [Apply forces] ──→ [Integrate] ──→ [Solve constraints] ──→ new positions
+positions ──-> [Apply forces] ──-> [Integrate] ──-> [Solve constraints] ──-> new positions
     ↑                                                                        │
     └────────────────────────────────────────────────────────────────────────┘
 ```
@@ -188,7 +188,7 @@ Secondary motion (jiggle, cloth):
 
 ```
 // Simple spring simulation
-target ──→ [Spring force] ──→ [Integrate] ──→ position
+target ──-> [Spring force] ──-> [Integrate] ──-> position
                 ↑                               │
                 └───────────────────────────────┘
 ```
@@ -196,7 +196,7 @@ target ──→ [Spring force] ──→ [Integrate] ──→ position
 ### Reaction-Diffusion (Textures)
 
 ```
-concentration ──→ [Diffuse] ──→ [React] ──→ new concentration
+concentration ──-> [Diffuse] ──-> [React] ──-> new concentration
       ↑                                          │
       └──────────────────────────────────────────┘
 ```
@@ -239,7 +239,7 @@ But it's still deterministic - same inputs + same initial state = same outputs.
 DAG portions can still be cached. Only feedback edges carry state between iterations.
 
 ```
-[Noise] ──→ [Process] ──→ [+] ──→ Out
+[Noise] ──-> [Process] ──-> [+] ──-> Out
      cacheable           ↑  │
                          └──┘ stateful
 ```

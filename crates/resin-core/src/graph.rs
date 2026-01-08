@@ -168,7 +168,11 @@ impl Graph {
     /// # Arguments
     /// * `output_node` - The node whose outputs to return.
     /// * `ctx` - Evaluation context.
-    pub fn execute(&mut self, output_node: NodeId, ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+    pub fn execute(
+        &mut self,
+        output_node: NodeId,
+        ctx: &EvalContext,
+    ) -> Result<Vec<Value>, GraphError> {
         let order = self.topological_order()?.to_vec();
 
         // Storage for computed values: (node_id, port_index) -> Value
@@ -193,9 +197,12 @@ impl Graph {
                         let value = values
                             .get(&(e.from_node, e.from_port))
                             .cloned()
-                            .ok_or_else(|| GraphError::ExecutionError(
-                                format!("missing value for node {} port {}", e.from_node, e.from_port)
-                            ))?;
+                            .ok_or_else(|| {
+                                GraphError::ExecutionError(format!(
+                                    "missing value for node {} port {}",
+                                    e.from_node, e.from_port
+                                ))
+                            })?;
                         inputs.push(value);
                     }
                     None => {
@@ -225,12 +232,12 @@ impl Graph {
         let outputs_desc = node.outputs();
         let mut result = Vec::with_capacity(outputs_desc.len());
         for port in 0..outputs_desc.len() {
-            let value = values
-                .get(&(output_node, port))
-                .cloned()
-                .ok_or_else(|| GraphError::ExecutionError(
-                    format!("missing output for node {} port {}", output_node, port)
-                ))?;
+            let value = values.get(&(output_node, port)).cloned().ok_or_else(|| {
+                GraphError::ExecutionError(format!(
+                    "missing output for node {} port {}",
+                    output_node, port
+                ))
+            })?;
             result.push(value);
         }
 
@@ -274,8 +281,12 @@ mod tests {
         }
 
         fn execute(&self, inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
-            let a = inputs[0].as_f32().map_err(|e| GraphError::ExecutionError(e.to_string()))?;
-            let b = inputs[1].as_f32().map_err(|e| GraphError::ExecutionError(e.to_string()))?;
+            let a = inputs[0]
+                .as_f32()
+                .map_err(|e| GraphError::ExecutionError(e.to_string()))?;
+            let b = inputs[1]
+                .as_f32()
+                .map_err(|e| GraphError::ExecutionError(e.to_string()))?;
             Ok(vec![Value::F32(a + b)])
         }
     }
@@ -336,7 +347,11 @@ mod tests {
                 vec![PortDescriptor::new("value", ValueType::Bool)]
             }
 
-            fn execute(&self, _inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+            fn execute(
+                &self,
+                _inputs: &[Value],
+                _ctx: &EvalContext,
+            ) -> Result<Vec<Value>, GraphError> {
                 Ok(vec![Value::Bool(true)])
             }
         }
@@ -367,7 +382,11 @@ mod tests {
                 vec![PortDescriptor::new("out", ValueType::F32)]
             }
 
-            fn execute(&self, inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+            fn execute(
+                &self,
+                inputs: &[Value],
+                _ctx: &EvalContext,
+            ) -> Result<Vec<Value>, GraphError> {
                 Ok(vec![inputs[0].clone()])
             }
         }

@@ -31,8 +31,8 @@ struct IndexedMesh {
 - Standard export format
 
 **Cons:**
-- "Which faces share this edge?" → O(n) search
-- "Walk around vertex" → O(n) search
+- "Which faces share this edge?" -> O(n) search
+- "Walk around vertex" -> O(n) search
 - Topology ops require rebuilding adjacency each time
 
 ## Half-Edge Mesh
@@ -65,9 +65,9 @@ struct Face {
 
 **Pros:**
 - O(1) adjacency queries:
-  - `edge.twin` → opposite edge
-  - `edge.next` → next edge in face
-  - `edge.twin.next` → edges around vertex
+  - `edge.twin` -> opposite edge
+  - `edge.next` -> next edge in face
+  - `edge.twin.next` -> edges around vertex
 - Topology ops are natural
 - Supports ngons (face loop can have any length)
 
@@ -107,7 +107,7 @@ For a typical manifold mesh: E ≈ 3V, F ≈ 2V (Euler's formula)
 
 ## Conversion
 
-### Half-edge → Indexed
+### Half-edge -> Indexed
 
 Straightforward traversal:
 
@@ -130,7 +130,7 @@ impl HalfEdgeMesh {
 }
 ```
 
-### Indexed → Half-edge
+### Indexed -> Half-edge
 
 More complex - must build topology:
 
@@ -260,7 +260,7 @@ enum NonManifoldFix {
 T-junction before:          After split:
     ┌───┬───┐                  ┌───┐ ┌───┐
     │ A │ B │                  │ A │ │ B │
-    └───┼───┘        →         └───┘ └───┘
+    └───┼───┘        ->         └───┘ └───┘
         │ C │                      ┌───┐
         └───┘                      │ C │
                                    └───┘
@@ -272,7 +272,7 @@ T-junction before:          After split:
 ```
        ╱╲                          ╱╲
       ╱  ╲                        ╱  ╲
-     ◯────◯          →       ◯──◯    ◯──◯
+     ◯────◯          ->       ◯──◯    ◯──◯
       ╲  ╱                        ╲  ╱
        ╲╱                          ╲╱
 

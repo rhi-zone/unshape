@@ -282,7 +282,7 @@ impl WgslCompiler {
 | Core doesn't know about backends | Backend traits in separate crates |
 | Plugins don't need all backends | decompose() works everywhere |
 | Complex functions (noise) | Implement backend extension traits |
-| String → function lookup | Registry per scope |
+| String -> function lookup | Registry per scope |
 
 **Example: Simple function (decomposition only)**
 
@@ -816,7 +816,7 @@ All optional crates depend on core. Core has no heavy deps.
 
 1. **Matrix operations** - `*` operator works on matrices (like WGSL). Type inference dispatches: scalar×scalar, vec×vec (component-wise), mat×vec, mat×mat. No AST change needed.
 
-2. **Constant folding** - Separate `resin-expr-opt` crate. AST → AST transformation, not part of core.
+2. **Constant folding** - Separate `resin-expr-opt` crate. AST -> AST transformation, not part of core.
 
 3. **Square matrices only** - Mat2/3/4, no Mat3x4. Convert at domain boundaries.
 

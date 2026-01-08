@@ -13,7 +13,11 @@ pub enum PathCommand {
     /// Quadratic bezier curve to a point with one control point.
     QuadTo { control: Vec2, to: Vec2 },
     /// Cubic bezier curve to a point with two control points.
-    CubicTo { control1: Vec2, control2: Vec2, to: Vec2 },
+    CubicTo {
+        control1: Vec2,
+        control2: Vec2,
+        to: Vec2,
+    },
     /// Close the current subpath by drawing a line to the start.
     Close,
 }
@@ -60,7 +64,11 @@ impl Path {
                     *control = f(*control);
                     *to = f(*to);
                 }
-                PathCommand::CubicTo { control1, control2, to } => {
+                PathCommand::CubicTo {
+                    control1,
+                    control2,
+                    to,
+                } => {
                     *control1 = f(*control1);
                     *control2 = f(*control2);
                     *to = f(*to);
@@ -131,7 +139,11 @@ impl PathBuilder {
 
     /// Draws a cubic bezier curve.
     pub fn cubic_to(mut self, control1: Vec2, control2: Vec2, to: Vec2) -> Self {
-        self.path.commands.push(PathCommand::CubicTo { control1, control2, to });
+        self.path.commands.push(PathCommand::CubicTo {
+            control1,
+            control2,
+            to,
+        });
         self.current = to;
         self
     }
@@ -171,10 +183,7 @@ impl PathBuilder {
 
 /// Creates a line segment.
 pub fn line(from: Vec2, to: Vec2) -> Path {
-    PathBuilder::new()
-        .move_to(from)
-        .line_to(to)
-        .build()
+    PathBuilder::new().move_to(from).line_to(to).build()
 }
 
 /// Creates a polyline (connected line segments).
@@ -339,7 +348,11 @@ pub fn star(center: Vec2, outer_radius: f32, inner_radius: f32, points: u32) -> 
     let mut vertices = Vec::with_capacity((points * 2) as usize);
     for i in 0..(points * 2) {
         let angle = TAU * (i as f32) / (points as f32 * 2.0) - TAU / 4.0;
-        let r = if i % 2 == 0 { outer_radius } else { inner_radius };
+        let r = if i % 2 == 0 {
+            outer_radius
+        } else {
+            inner_radius
+        };
         vertices.push(center + Vec2::new(angle.cos(), angle.sin()) * r);
     }
     polygon(&vertices)

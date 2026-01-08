@@ -60,12 +60,12 @@ Visual dataflow programming for audio:
 - Everything is a signal or message
 - Real-time synthesis and processing
 
-Key insight: audio is naturally dataflow - sources → processors → output.
+Key insight: audio is naturally dataflow - sources -> processors -> output.
 
 ### Synths & Modular
 
 - Oscillators, filters, envelopes as composable units
-- Modulation routing (LFO → filter cutoff)
+- Modulation routing (LFO -> filter cutoff)
 - Polyphony as instance management
 
 Key insight: a small set of primitives (osc, filter, env, lfo) covers vast sonic territory.
@@ -149,7 +149,7 @@ Node-based interface for generative AI:
 - **Built on LiteGraph**: uses typed slot system (see below)
 
 ```
-[Load Image] → [VAE Encode] → [KSampler] → [VAE Decode] → [Save Image]
+[Load Image] -> [VAE Encode] -> [KSampler] -> [VAE Decode] -> [Save Image]
                     ↑
               [CLIP Text Encode] ← [Load Checkpoint]
 ```
@@ -198,7 +198,7 @@ Key insight: TypeScript enables stronger guarantees than LiteGraph's string-base
 Extension of Baklava with generic type inference:
 - **Schema-driven types**: JSON Schema defines slot types
 - **Generic parameters**: `map<T>` where T resolves at connection time
-- **Connection-time inference**: connecting `string` output to `T` input → T becomes string
+- **Connection-time inference**: connecting `string` output to `T` input -> T becomes string
 
 ```typescript
 // Generic tool
@@ -206,9 +206,9 @@ tool: map<T>
   input: list<T>
   output: list<T>
 
-// Connect list<Mesh> → map.input
-// → T resolves to Mesh
-// → map.output becomes list<Mesh>
+// Connect list<Mesh> -> map.input
+// -> T resolves to Mesh
+// -> map.output becomes list<Mesh>
 ```
 
 Key insight: static typing + generics gives full type safety with flexibility. Strictly stronger than Baklava alone.

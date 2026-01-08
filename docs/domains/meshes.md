@@ -16,12 +16,12 @@
 - **CSG**: boolean operations on meshes
 
 ### OpenSubdiv / Catmull-Clark
-- **Subdivision surfaces**: coarse cage → smooth limit surface
+- **Subdivision surfaces**: coarse cage -> smooth limit surface
 - **Creases**: edge weights controlling sharpness
 - **Face-varying data**: UVs that don't smooth across boundaries
 
 ### SDF Libraries (libfive, mTec)
-- **Implicit surfaces**: f(x,y,z) → distance
+- **Implicit surfaces**: f(x,y,z) -> distance
 - **CSG via min/max**: union = min(a,b), intersection = max(a,b)
 - **Meshing**: marching cubes, dual contouring
 
@@ -108,7 +108,7 @@ enum AttributeData {
 ## Data Flow Pattern
 
 ```
-Generator → Modifier → Modifier → ... → Output
+Generator -> Modifier -> Modifier -> ... -> Output
    ↑            ↑
    params       params (can be expressions)
 ```

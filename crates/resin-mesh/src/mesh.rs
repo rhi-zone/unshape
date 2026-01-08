@@ -124,7 +124,8 @@ impl Mesh {
         self.normals.extend_from_slice(&other.normals);
         self.uvs.extend_from_slice(&other.uvs);
 
-        self.indices.extend(other.indices.iter().map(|i| i + base_index));
+        self.indices
+            .extend(other.indices.iter().map(|i| i + base_index));
     }
 }
 

@@ -75,10 +75,7 @@ pub trait Field<I, O> {
         Self: Sized,
         F2: Field<I, O>,
     {
-        Add {
-            a: self,
-            b: other,
-        }
+        Add { a: self, b: other }
     }
 
     /// Multiplies this field by another.
@@ -87,10 +84,7 @@ pub trait Field<I, O> {
         Self: Sized,
         F2: Field<I, O>,
     {
-        Mul {
-            a: self,
-            b: other,
-        }
+        Mul { a: self, b: other }
     }
 
     /// Mixes this field with another using a blend factor field.
@@ -407,11 +401,12 @@ impl Perlin3D {
 
 impl Field<Vec3, f32> for Perlin3D {
     fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
-        let p = input + Vec3::new(
-            self.seed as f32 * 17.0,
-            self.seed as f32 * 31.0,
-            self.seed as f32 * 47.0,
-        );
+        let p = input
+            + Vec3::new(
+                self.seed as f32 * 17.0,
+                self.seed as f32 * 31.0,
+                self.seed as f32 * 47.0,
+            );
         crate::noise::perlin3(p.x, p.y, p.z)
     }
 }
@@ -457,11 +452,12 @@ impl Simplex3D {
 
 impl Field<Vec3, f32> for Simplex3D {
     fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
-        let p = input + Vec3::new(
-            self.seed as f32 * 17.0,
-            self.seed as f32 * 31.0,
-            self.seed as f32 * 47.0,
-        );
+        let p = input
+            + Vec3::new(
+                self.seed as f32 * 17.0,
+                self.seed as f32 * 31.0,
+                self.seed as f32 * 47.0,
+            );
         crate::noise::simplex3(p.x, p.y, p.z)
     }
 }
@@ -598,7 +594,10 @@ impl Gradient2D {
     }
 
     pub fn radial(center: Vec2) -> Radial2D {
-        Radial2D { center, radius: 1.0 }
+        Radial2D {
+            center,
+            radius: 1.0,
+        }
     }
 }
 
@@ -637,7 +636,10 @@ pub struct FnField<I, O, F> {
 
 impl<I, O, F: Fn(I, &EvalContext) -> O> FnField<I, O, F> {
     pub fn new(f: F) -> Self {
-        Self { f, _phantom: PhantomData }
+        Self {
+            f,
+            _phantom: PhantomData,
+        }
     }
 }
 

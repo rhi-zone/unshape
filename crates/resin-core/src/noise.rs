@@ -109,11 +109,7 @@ pub fn perlin3(x: f32, y: f32, z: f32) -> f32 {
     let bab = perm(perm(perm(xi + 1) as i32 + yi) as i32 + zi + 1);
     let bbb = perm(perm(perm(xi + 1) as i32 + yi + 1) as i32 + zi + 1);
 
-    let x1 = lerp(
-        grad3(aaa, xf, yf, zf),
-        grad3(baa, xf - 1.0, yf, zf),
-        u,
-    );
+    let x1 = lerp(grad3(aaa, xf, yf, zf), grad3(baa, xf - 1.0, yf, zf), u);
     let x2 = lerp(
         grad3(aba, xf, yf - 1.0, zf),
         grad3(bba, xf - 1.0, yf - 1.0, zf),
@@ -378,7 +374,13 @@ mod tests {
                 let x = i as f32 * 0.1;
                 let y = j as f32 * 0.1;
                 let v = perlin2(x, y);
-                assert!(v >= 0.0 && v <= 1.0, "perlin2({}, {}) = {} out of range", x, y, v);
+                assert!(
+                    v >= 0.0 && v <= 1.0,
+                    "perlin2({}, {}) = {} out of range",
+                    x,
+                    y,
+                    v
+                );
             }
         }
     }
@@ -405,7 +407,13 @@ mod tests {
                 let x = i as f32 * 0.1;
                 let y = j as f32 * 0.1;
                 let v = simplex2(x, y);
-                assert!(v >= 0.0 && v <= 1.0, "simplex2({}, {}) = {} out of range", x, y, v);
+                assert!(
+                    v >= 0.0 && v <= 1.0,
+                    "simplex2({}, {}) = {} out of range",
+                    x,
+                    y,
+                    v
+                );
             }
         }
     }

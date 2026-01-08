@@ -227,8 +227,16 @@ impl Pose {
         let mut result = Pose::rest(len);
 
         for i in 0..len {
-            let a = self.transforms.get(i).copied().unwrap_or(Transform::IDENTITY);
-            let b = other.transforms.get(i).copied().unwrap_or(Transform::IDENTITY);
+            let a = self
+                .transforms
+                .get(i)
+                .copied()
+                .unwrap_or(Transform::IDENTITY);
+            let b = other
+                .transforms
+                .get(i)
+                .copied()
+                .unwrap_or(Transform::IDENTITY);
             result.transforms[i] = a.lerp(&b, t);
         }
 
@@ -378,7 +386,10 @@ mod tests {
         let pose_a = skel.rest_pose();
         let mut pose_b = skel.rest_pose();
 
-        pose_b.set(upper, Transform::from_translation(Vec3::new(10.0, 0.0, 0.0)));
+        pose_b.set(
+            upper,
+            Transform::from_translation(Vec3::new(10.0, 0.0, 0.0)),
+        );
 
         let blended = pose_a.blend(&pose_b, 0.5);
         assert_eq!(blended.get(upper).translation, Vec3::new(5.0, 0.0, 0.0));

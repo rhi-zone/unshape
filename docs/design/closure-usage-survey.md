@@ -15,9 +15,9 @@ Goal: understand the problem space before designing an expression language.
 | `custom_subdivision` | `Fn(&Face) -> Vec<Face>` | Non-standard subdivision |
 
 **Common patterns:**
-- Position → Position (transforms)
-- Position → Scalar (selection, weighting)
-- Position → Color (procedural coloring)
+- Position -> Position (transforms)
+- Position -> Scalar (selection, weighting)
+- Position -> Color (procedural coloring)
 
 ## Textures
 
@@ -30,24 +30,24 @@ Goal: understand the problem space before designing an expression language.
 | `threshold_custom` | `Fn(f32) -> f32` | Custom transfer function |
 
 **Common patterns:**
-- Color → Color (adjustments)
-- UV → UV (warping)
-- UV → Color (sampling)
-- Scalar → Scalar (curves, transfer functions)
+- Color -> Color (adjustments)
+- UV -> UV (warping)
+- UV -> Color (sampling)
+- Scalar -> Scalar (curves, transfer functions)
 
 ## Audio
 
 | Operation | Closure signature | Example use case |
 |-----------|-------------------|------------------|
 | `map_samples` | `Fn(f32) -> f32` | Waveshaping, distortion |
-| `custom_oscillator` | `Fn(f32) -> f32` | Phase → amplitude |
-| `custom_envelope` | `Fn(f32) -> f32` | Time → amplitude |
+| `custom_oscillator` | `Fn(f32) -> f32` | Phase -> amplitude |
+| `custom_envelope` | `Fn(f32) -> f32` | Time -> amplitude |
 | `custom_filter` | `Fn(&[f32]) -> f32` | FIR filter with custom kernel |
 
 **Common patterns:**
-- Sample → Sample (waveshaping)
-- Phase → Sample (oscillators)
-- Time → Scalar (envelopes, LFOs)
+- Sample -> Sample (waveshaping)
+- Phase -> Sample (oscillators)
+- Time -> Scalar (envelopes, LFOs)
 
 ## Vector 2D
 
@@ -55,25 +55,25 @@ Goal: understand the problem space before designing an expression language.
 |-----------|-------------------|------------------|
 | `map_points` | `Fn(Vec2) -> Vec2` | Custom warping |
 | `filter_points` | `Fn(Vec2) -> bool` | Select points |
-| `vary_stroke` | `Fn(f32) -> f32` | t along path → stroke width |
-| `vary_color` | `Fn(f32) -> Color` | t along path → color |
+| `vary_stroke` | `Fn(f32) -> f32` | t along path -> stroke width |
+| `vary_color` | `Fn(f32) -> Color` | t along path -> color |
 
 **Common patterns:**
-- Position → Position
-- t (0-1) → Scalar (varying properties along path)
+- Position -> Position
+- t (0-1) -> Scalar (varying properties along path)
 
 ## Rigging
 
 | Operation | Closure signature | Example use case |
 |-----------|-------------------|------------------|
 | `custom_constraint` | `Fn(&Pose) -> Transform` | Procedural bone positioning |
-| `driver` | `Fn(f32) -> f32` | Parameter → parameter mapping |
+| `driver` | `Fn(f32) -> f32` | Parameter -> parameter mapping |
 | `blend_custom` | `Fn(Pose, Pose, f32) -> Pose` | Custom pose interpolation |
-| `physics_force` | `Fn(Vec3, Vec3) -> Vec3` | Position, velocity → force |
+| `physics_force` | `Fn(Vec3, Vec3) -> Vec3` | Position, velocity -> force |
 
 **Common patterns:**
-- Scalar → Scalar (drivers)
-- Pose → Pose (constraints)
+- Scalar -> Scalar (drivers)
+- Pose -> Pose (constraints)
 
 ---
 
@@ -195,7 +195,7 @@ Compose::new([
 - State/accumulation?
 - Complex control flow?
 
-If composition always works → no expression language needed, just a rich op library.
+If composition always works -> no expression language needed, just a rich op library.
 
 ## Performance Spectrum
 

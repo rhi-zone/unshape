@@ -138,10 +138,10 @@ Even materialized Images can defer point-wise ops:
 
 ```rust
 image              // materialized (has pixels)
-  .blur(5)         // neighbor op → must allocate
-  .brightness(0.1) // point-wise → defer
-  .contrast(1.2)   // point-wise → defer
-  .sharpen(2)      // neighbor op → fuse brightness+contrast into read
+  .blur(5)         // neighbor op -> must allocate
+  .brightness(0.1) // point-wise -> defer
+  .contrast(1.2)   // point-wise -> defer
+  .sharpen(2)      // neighbor op -> fuse brightness+contrast into read
 ```
 
 **Implementation:**
@@ -177,7 +177,7 @@ impl Image {
 
 | Without fusion | With fusion |
 |----------------|-------------|
-| `blur → brightness → contrast → sharpen` | Same pipeline |
+| `blur -> brightness -> contrast -> sharpen` | Same pipeline |
 | 4 allocations | 2 allocations |
 | 4 shader passes | 2 shader passes |
 
@@ -269,7 +269,7 @@ On GPU:
 - **Neighbor op** = shader that samples texture
 
 ```
-Field (shader) → render() → GPU texture → blur (shader samples texture)
+Field (shader) -> render() -> GPU texture -> blur (shader samples texture)
 ```
 
 Fusion on GPU = compose shader functions before compilation.
@@ -280,7 +280,7 @@ Fusion on GPU = compose shader functions before compilation.
 
 2. **Mipmap integration:** When to generate mipmaps? Affects blur quality at different scales.
 
-3. **Image → Field → Image roundtrip:** Any precision/quality concerns?
+3. **Image -> Field -> Image roundtrip:** Any precision/quality concerns?
 
 ## Summary
 

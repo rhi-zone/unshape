@@ -5,7 +5,7 @@ Deformers modify geometry (mesh vertices, path points, etc.). When multiple defo
 ## The Problem
 
 ```
-Mesh → Bend → Twist → Lattice → Output
+Mesh -> Bend -> Twist -> Lattice -> Output
 ```
 
 Order matters:
@@ -49,7 +49,7 @@ impl DeformerStack {
 ```rust
 struct DeformerGraph {
     nodes: Vec<DeformerNode>,
-    edges: Vec<(NodeId, NodeId)>,  // from → to
+    edges: Vec<(NodeId, NodeId)>,  // from -> to
 }
 
 impl DeformerGraph {
@@ -107,9 +107,9 @@ struct DeformerStack {
 ### 1. Do deformers need to branch?
 
 ```
-        ┌→ Deformer A ─┐
-Mesh ──→│              │──→ Merge ──→ Output
-        └→ Deformer B ─┘
+        ┌-> Deformer A ─┐
+Mesh ──->│              │──-> Merge ──-> Output
+        └-> Deformer B ─┘
 ```
 
 If yes, need graph. If no, list is fine.
@@ -122,7 +122,7 @@ If yes, need graph. If no, list is fine.
 
 In a list, order is explicit. In a graph, order is defined by dependencies. If two nodes have no edge between them, order is undefined (or implementation-defined).
 
-For deformers, **order almost always matters**, so we'd end up adding edges to force order anyway → might as well use a list.
+For deformers, **order almost always matters**, so we'd end up adding edges to force order anyway -> might as well use a list.
 
 ### 3. Consistency with rest of resin
 

@@ -90,7 +90,7 @@ struct Gate {
 - **ADSR**: attack, decay, sustain, release, gate input
 - **AR**: attack, release
 - **MultiStage**: arbitrary segments
-- **Function**: f(t) → value
+- **Function**: f(t) -> value
 
 ### Effects
 - **Delay**: time, feedback, mix
@@ -101,8 +101,8 @@ struct Gate {
 - **Compressor**: threshold, ratio, attack, release
 
 ### Modulation
-- **LFO**: frequency, shape → control signal
-- **EnvFollower**: audio → control (amplitude tracking)
+- **LFO**: frequency, shape -> control signal
+- **EnvFollower**: audio -> control (amplitude tracking)
 - **S&H**: sample and hold
 
 ### Mixing
@@ -114,7 +114,7 @@ struct Gate {
 ## Data Flow Pattern
 
 ```
-Generator → Processor → Processor → ... → Output
+Generator -> Processor -> Processor -> ... -> Output
     ↑           ↑
     param       param (can be audio-rate or control-rate)
 ```
@@ -126,7 +126,7 @@ Key distinction from meshes: **continuous streaming** vs discrete operations. Au
 ```
 LFO ──────────┐
               ↓
-Oscillator ──→ Filter ──→ Output
+Oscillator ──-> Filter ──-> Output
               ↑
 Envelope ─────┘
 ```

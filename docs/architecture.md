@@ -22,9 +22,9 @@ resin/
 Operations are composed as directed acyclic graphs (DAGs):
 
 ```
-Noise → Threshold → Displace
+Noise -> Threshold -> Displace
               ↓
-           Sphere → Output
+           Sphere -> Output
 ```
 
 Evaluation is lazy - the graph is a description, computed on demand.
@@ -65,7 +65,7 @@ Alternatives considered:
 Types implement standard conversion traits:
 
 ```rust
-// resin mesh → bevy mesh
+// resin mesh -> bevy mesh
 let bevy_mesh: bevy::render::mesh::Mesh = resin_mesh.into();
 
 // glam types used directly (shared with bevy)

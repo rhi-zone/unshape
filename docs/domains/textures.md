@@ -5,7 +5,7 @@ Procedural texture generation.
 ## Prior Art
 
 ### .kkrieger / Werkzeug (Farbrausch)
-- **Operator stacks**: generators → filters → combiners
+- **Operator stacks**: generators -> filters -> combiners
 - **Resolution-independent**: operators work at any size
 - **Tiny code**: complex textures from ~50 operators
 - **Realtime generation**: textures built at load time
@@ -18,7 +18,7 @@ Procedural texture generation.
 - **Exposed parameters**: knobs for artist control
 
 ### Shadertoy / GLSL
-- **Per-pixel functions**: f(uv, time) → color
+- **Per-pixel functions**: f(uv, time) -> color
 - **Raymarching**: SDFs for 3D procedural geometry
 - **Domain warping**: distort coordinates recursively
 - **GPU-native**: embarrassingly parallel
@@ -48,7 +48,7 @@ enum TextureFormat {
 
 /// Procedural texture - evaluated lazily
 trait TextureNode {
-    fn sample(&self, uv: Vec2) → Color;
+    fn sample(&self, uv: Vec2) -> Color;
     // Or: fn evaluate(&self, output: &mut Texture);
 }
 
@@ -111,7 +111,7 @@ struct Color {
 - **Levels**: input/output range mapping
 - **Curves**: arbitrary transfer function
 - **HSV adjust**: hue, saturation, value shift
-- **Gradient map**: grayscale → color ramp
+- **Gradient map**: grayscale -> color ramp
 - **Invert**: 1 - x
 - **Threshold**: binary cutoff
 
@@ -134,9 +134,9 @@ struct Color {
 ## Data Flow Pattern
 
 ```
-Generator → Filter → Combiner → Filter → ... → Output
+Generator -> Filter -> Combiner -> Filter -> ... -> Output
                         ↑
-Generator → Filter ─────┘
+Generator -> Filter ─────┘
 ```
 
 Textures naturally form DAGs - multiple generators feed into combiners.
@@ -147,7 +147,7 @@ Two approaches:
 1. **Rasterized**: evaluate at specific resolution, pass pixel buffers
 2. **Continuous**: evaluate at arbitrary UV, resolution-independent
 
-Continuous is more flexible but some operations (blur, convolution) need neighborhood → require resolution.
+Continuous is more flexible but some operations (blur, convolution) need neighborhood -> require resolution.
 
 **Hybrid**: lazy nodes that can be sampled at any UV, materialized to buffer when needed.
 
@@ -156,15 +156,15 @@ Continuous is more flexible but some operations (blur, convolution) need neighbo
 Typical outputs for game/render assets:
 
 ```
-Noise ──→ Height
+Noise ──-> Height
               │
-              ├──→ Normal (from height)
+              ├──-> Normal (from height)
               │
-              └──→ Roughness (inverted/curved height)
+              └──-> Roughness (inverted/curved height)
 
-Pattern ──→ Albedo (gradient mapped)
+Pattern ──-> Albedo (gradient mapped)
 
-Mask ──→ Metallic (binary/gradient)
+Mask ──-> Metallic (binary/gradient)
 ```
 
 ## Open Questions

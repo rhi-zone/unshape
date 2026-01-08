@@ -202,7 +202,7 @@ struct MeshNode {
     params: serde_json::Value,  // or similar
 }
 
-// Registry resolves type_name → deserializer
+// Registry resolves type_name -> deserializer
 ```
 
 ## Recommendation
@@ -467,8 +467,8 @@ impl<In: IntoValue, Out: FromValue> TypedPipeline<In, Out> {
 ## Open Questions
 
 1. **Expression language scope**: How powerful? Just math, or control flow too?
-2. ~~**Plugin ops**: How do plugins register serializable op types?~~ → Resolved, see [plugin-architecture](./plugin-architecture.md)
-3. ~~**Graph evaluation caching**: If input changes, re-evaluate only affected nodes?~~ → Resolved, hash-based caching
+2. ~~**Plugin ops**: How do plugins register serializable op types?~~ -> Resolved, see [plugin-architecture](./plugin-architecture.md)
+3. ~~**Graph evaluation caching**: If input changes, re-evaluate only affected nodes?~~ -> Resolved, hash-based caching
 4. **Lazy vs eager**: Does method API evaluate immediately, or build implicit graph?
 5. **Value enum exhaustiveness**: How many types in Value? Extensible or fixed?
 

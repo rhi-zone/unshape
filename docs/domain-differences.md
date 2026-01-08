@@ -193,7 +193,7 @@ let result = graph.evaluate();
 ```
 
 **Characteristics:**
-- Input → Output (functional)
+- Input -> Output (functional)
 - No time dimension
 - Can evaluate lazily or eagerly
 - No internal state (usually)

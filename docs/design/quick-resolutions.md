@@ -113,7 +113,7 @@ let seamless = texture.apply(MakeSeamless::new());
 
 **Likely answer**: Unified concept, different evaluation contexts.
 
-Both are: `position → value`. Difference is where positions come from.
+Both are: `position -> value`. Difference is where positions come from.
 
 ```rust
 trait Field<In, Out> {
@@ -151,7 +151,7 @@ Multiple time models exist:
 - **Stateless**: `f(inputs, time)` - can seek, parallelize (textures, synth, rigging)
 - **Stateful**: depends on history - must process sequentially (filters, physics)
 - **Streaming**: time = position in stream (audio)
-- **Baked**: pre-computed stateful → stateless lookup (caches)
+- **Baked**: pre-computed stateful -> stateless lookup (caches)
 
 **Open questions**:
 - How to represent statefulness in type system (or not)?

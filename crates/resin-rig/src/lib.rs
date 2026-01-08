@@ -7,5 +7,5 @@ mod skin;
 mod transform;
 
 pub use skeleton::{AddBoneResult, Bone, BoneId, Pose, Skeleton};
-pub use skin::{Skin, VertexInfluences, MAX_INFLUENCES};
+pub use skin::{MAX_INFLUENCES, Skin, VertexInfluences};
 pub use transform::Transform;
