@@ -2,13 +2,13 @@
 
 ## Next Up
 
-- [ ] NURBS / B-spline curves
+- [ ] GPU compute backend for fields
 
 ## Backlog
-- [ ] GPU compute backend for fields
 
 ## Done
 
+- [x] NURBS curves (rational B-splines with weights, circle/ellipse/arc primitives)
 - [x] Bevy integration examples (mesh generation, skeletal animation with IK)
 - [x] Path offset/stroke operations (offset, stroke-to-path, dash patterns, point/tangent at length)
 - [x] Edge loop/ring selection and loop cut

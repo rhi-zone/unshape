@@ -415,6 +415,376 @@ impl<T: Interpolatable> Default for BezierSpline<T> {
 }
 
 // ============================================================================
+// NURBS (Non-Uniform Rational B-Splines)
+// ============================================================================
+
+/// A weighted control point for NURBS curves.
+#[derive(Debug, Clone, Copy)]
+pub struct WeightedPoint<T: Interpolatable> {
+    /// The control point position.
+    pub point: T,
+    /// The weight (typically > 0).
+    pub weight: f32,
+}
+
+impl<T: Interpolatable> WeightedPoint<T> {
+    /// Creates a new weighted point.
+    pub fn new(point: T, weight: f32) -> Self {
+        Self { point, weight }
+    }
+
+    /// Creates a weighted point with weight 1.0.
+    pub fn unweighted(point: T) -> Self {
+        Self { point, weight: 1.0 }
+    }
+}
+
+/// A NURBS (Non-Uniform Rational B-Spline) curve.
+///
+/// NURBS curves extend B-splines with weights, enabling:
+/// - Exact representation of conic sections (circles, ellipses, parabolas)
+/// - Greater control over curve shape
+/// - Industry-standard curve representation (CAD, modeling)
+#[derive(Debug, Clone)]
+pub struct Nurbs<T: Interpolatable> {
+    /// Weighted control points.
+    pub points: Vec<WeightedPoint<T>>,
+    /// Degree of the spline (typically 2 for conics, 3 for cubic).
+    pub degree: usize,
+    /// Knot vector.
+    knots: Vec<f32>,
+}
+
+impl<T: Interpolatable> Nurbs<T> {
+    /// Creates a NURBS curve with uniform knots.
+    pub fn new(points: Vec<WeightedPoint<T>>, degree: usize) -> Self {
+        let knots = Self::uniform_clamped_knots(points.len(), degree);
+        Self {
+            points,
+            degree,
+            knots,
+        }
+    }
+
+    /// Creates a NURBS curve with custom knots.
+    pub fn with_knots(points: Vec<WeightedPoint<T>>, degree: usize, knots: Vec<f32>) -> Self {
+        Self {
+            points,
+            degree,
+            knots,
+        }
+    }
+
+    /// Creates a quadratic NURBS (degree 2, good for conics).
+    pub fn quadratic(points: Vec<WeightedPoint<T>>) -> Self {
+        Self::new(points, 2)
+    }
+
+    /// Creates a cubic NURBS (degree 3).
+    pub fn cubic(points: Vec<WeightedPoint<T>>) -> Self {
+        Self::new(points, 3)
+    }
+
+    /// Creates from unweighted points (equivalent to regular B-spline).
+    pub fn from_points(points: Vec<T>, degree: usize) -> Self {
+        let weighted = points.into_iter().map(WeightedPoint::unweighted).collect();
+        Self::new(weighted, degree)
+    }
+
+    /// Generates uniform clamped knots for n control points and degree k.
+    fn uniform_clamped_knots(n: usize, k: usize) -> Vec<f32> {
+        let num_knots = n + k + 1;
+        let mut knots = Vec::with_capacity(num_knots);
+
+        for i in 0..num_knots {
+            if i <= k {
+                knots.push(0.0);
+            } else if i >= n {
+                knots.push((n - k) as f32);
+            } else {
+                knots.push((i - k) as f32);
+            }
+        }
+
+        knots
+    }
+
+    /// Returns the parameter range [t_min, t_max].
+    pub fn domain(&self) -> (f32, f32) {
+        (self.knots[self.degree], self.knots[self.points.len()])
+    }
+
+    /// Evaluates the NURBS curve at parameter t using the rational De Boor algorithm.
+    pub fn evaluate(&self, t: f32) -> T {
+        if self.points.is_empty() {
+            panic!("Cannot evaluate empty NURBS curve");
+        }
+        if self.points.len() == 1 {
+            return self.points[0].point;
+        }
+
+        let n = self.points.len();
+        let k = self.degree;
+
+        // Clamp t to valid range
+        let (t_min, t_max) = self.domain();
+        let t_clamped = t.clamp(t_min, t_max - 0.0001);
+
+        // Find the knot span
+        let mut span = k;
+        for i in k..n {
+            if t_clamped < self.knots[i + 1] {
+                span = i;
+                break;
+            }
+        }
+
+        // Rational De Boor's algorithm
+        // Work in homogeneous coordinates: (w*x, w*y, w*z, w)
+        let mut d: Vec<(T, f32)> = (0..=k)
+            .map(|j| {
+                let wp = &self.points[span - k + j];
+                (wp.point * wp.weight, wp.weight)
+            })
+            .collect();
+
+        for r in 1..=k {
+            for j in (r..=k).rev() {
+                let i = span - k + j;
+                let denom = self.knots[i + k + 1 - r] - self.knots[i];
+                let alpha = if denom.abs() < 1e-10 {
+                    0.0
+                } else {
+                    (t_clamped - self.knots[i]) / denom
+                };
+
+                let (p_prev, w_prev) = d[j - 1];
+                let (p_curr, w_curr) = d[j];
+
+                // Linear interpolation in homogeneous space
+                d[j] = (
+                    p_prev * (1.0 - alpha) + p_curr * alpha,
+                    w_prev * (1.0 - alpha) + w_curr * alpha,
+                );
+            }
+        }
+
+        // Project back from homogeneous coordinates
+        let (p, w) = d[k];
+        if w.abs() < 1e-10 { p } else { p * (1.0 / w) }
+    }
+
+    /// Evaluates the derivative at parameter t.
+    pub fn derivative(&self, t: f32) -> T {
+        // Numerical derivative using central differences
+        let h = 0.001;
+        let (t_min, t_max) = self.domain();
+
+        let t_lo = (t - h).max(t_min);
+        let t_hi = (t + h).min(t_max - 0.0001);
+
+        let p_lo = self.evaluate(t_lo);
+        let p_hi = self.evaluate(t_hi);
+
+        (p_hi - p_lo) * (1.0 / (t_hi - t_lo))
+    }
+
+    /// Samples the curve at regular intervals.
+    pub fn sample(&self, num_samples: usize) -> Vec<T> {
+        if num_samples == 0 || self.points.is_empty() {
+            return Vec::new();
+        }
+
+        let (t_min, t_max) = self.domain();
+
+        (0..num_samples)
+            .map(|i| {
+                let t = t_min + (i as f32 / (num_samples.max(2) - 1) as f32) * (t_max - t_min);
+                self.evaluate(t)
+            })
+            .collect()
+    }
+
+    /// Inserts a knot at parameter t (knot insertion for refinement).
+    pub fn insert_knot(&mut self, t: f32) {
+        let n = self.points.len();
+        let k = self.degree;
+
+        // Find the knot span
+        let mut span = k;
+        for i in k..n {
+            if t < self.knots[i + 1] {
+                span = i;
+                break;
+            }
+        }
+
+        // Calculate new control points
+        let mut new_points = Vec::with_capacity(n + 1);
+
+        for i in 0..=n {
+            if i <= span - k {
+                new_points.push(self.points[i].clone());
+            } else if i > span {
+                new_points.push(self.points[i - 1].clone());
+            } else {
+                let alpha = (t - self.knots[i]) / (self.knots[i + k] - self.knots[i]);
+                let wp_prev = &self.points[i - 1];
+                let wp_curr = &self.points[i];
+
+                let new_point = wp_prev.point * (1.0 - alpha) + wp_curr.point * alpha;
+                let new_weight = wp_prev.weight * (1.0 - alpha) + wp_curr.weight * alpha;
+
+                new_points.push(WeightedPoint::new(new_point, new_weight));
+            }
+        }
+
+        // Insert the knot
+        let mut new_knots = Vec::with_capacity(self.knots.len() + 1);
+        for (i, &knot) in self.knots.iter().enumerate() {
+            if i == span + 1 {
+                new_knots.push(t);
+            }
+            new_knots.push(knot);
+        }
+
+        self.points = new_points;
+        self.knots = new_knots;
+    }
+}
+
+// ============================================================================
+// NURBS Primitive Curves
+// ============================================================================
+
+/// Creates a NURBS circle in the XY plane.
+pub fn nurbs_circle(center: Vec3, radius: f32) -> Nurbs<Vec3> {
+    // 9-point NURBS representation of a circle using degree 2
+    let w = std::f32::consts::FRAC_1_SQRT_2; // 1/sqrt(2) for 45-degree arcs
+
+    let points = vec![
+        WeightedPoint::new(center + Vec3::new(radius, 0.0, 0.0), 1.0),
+        WeightedPoint::new(center + Vec3::new(radius, radius, 0.0), w),
+        WeightedPoint::new(center + Vec3::new(0.0, radius, 0.0), 1.0),
+        WeightedPoint::new(center + Vec3::new(-radius, radius, 0.0), w),
+        WeightedPoint::new(center + Vec3::new(-radius, 0.0, 0.0), 1.0),
+        WeightedPoint::new(center + Vec3::new(-radius, -radius, 0.0), w),
+        WeightedPoint::new(center + Vec3::new(0.0, -radius, 0.0), 1.0),
+        WeightedPoint::new(center + Vec3::new(radius, -radius, 0.0), w),
+        WeightedPoint::new(center + Vec3::new(radius, 0.0, 0.0), 1.0),
+    ];
+
+    // Knot vector for a closed periodic curve with 90-degree arcs
+    let knots = vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 4.0];
+
+    Nurbs::with_knots(points, 2, knots)
+}
+
+/// Creates a NURBS arc in the XY plane.
+pub fn nurbs_arc(center: Vec3, radius: f32, start_angle: f32, end_angle: f32) -> Nurbs<Vec3> {
+    let angle_span = end_angle - start_angle;
+
+    // For small arcs, use a single segment
+    if angle_span.abs() <= std::f32::consts::FRAC_PI_2 + 0.01 {
+        let mid_angle = (start_angle + end_angle) / 2.0;
+        let w = (angle_span / 2.0).cos();
+
+        let p0 = center + Vec3::new(radius * start_angle.cos(), radius * start_angle.sin(), 0.0);
+        let p2 = center + Vec3::new(radius * end_angle.cos(), radius * end_angle.sin(), 0.0);
+
+        // Middle control point on the tangent lines
+        let tan_factor = radius / (angle_span / 2.0).cos();
+        let p1 = center
+            + Vec3::new(
+                tan_factor * mid_angle.cos(),
+                tan_factor * mid_angle.sin(),
+                0.0,
+            );
+
+        let points = vec![
+            WeightedPoint::new(p0, 1.0),
+            WeightedPoint::new(p1, w),
+            WeightedPoint::new(p2, 1.0),
+        ];
+
+        return Nurbs::quadratic(points);
+    }
+
+    // For larger arcs, split into multiple segments
+    let num_segments = ((angle_span.abs() / std::f32::consts::FRAC_PI_2).ceil() as usize).max(1);
+    let segment_angle = angle_span / num_segments as f32;
+    let w = (segment_angle / 2.0).cos();
+
+    let mut points = Vec::new();
+
+    for i in 0..=num_segments {
+        let angle = start_angle + i as f32 * segment_angle;
+        let p = center + Vec3::new(radius * angle.cos(), radius * angle.sin(), 0.0);
+        points.push(WeightedPoint::new(p, 1.0));
+
+        if i < num_segments {
+            let mid_angle = angle + segment_angle / 2.0;
+            let tan_factor = radius / (segment_angle / 2.0).cos();
+            let p_mid = center
+                + Vec3::new(
+                    tan_factor * mid_angle.cos(),
+                    tan_factor * mid_angle.sin(),
+                    0.0,
+                );
+            points.push(WeightedPoint::new(p_mid, w));
+        }
+    }
+
+    // Generate knots
+    let n = points.len();
+    let knots = Nurbs::<Vec3>::uniform_clamped_knots(n, 2);
+
+    Nurbs::with_knots(points, 2, knots)
+}
+
+/// Creates a NURBS ellipse in the XY plane.
+pub fn nurbs_ellipse(center: Vec3, radius_x: f32, radius_y: f32) -> Nurbs<Vec3> {
+    let w = std::f32::consts::FRAC_1_SQRT_2;
+
+    let points = vec![
+        WeightedPoint::new(center + Vec3::new(radius_x, 0.0, 0.0), 1.0),
+        WeightedPoint::new(center + Vec3::new(radius_x, radius_y, 0.0), w),
+        WeightedPoint::new(center + Vec3::new(0.0, radius_y, 0.0), 1.0),
+        WeightedPoint::new(center + Vec3::new(-radius_x, radius_y, 0.0), w),
+        WeightedPoint::new(center + Vec3::new(-radius_x, 0.0, 0.0), 1.0),
+        WeightedPoint::new(center + Vec3::new(-radius_x, -radius_y, 0.0), w),
+        WeightedPoint::new(center + Vec3::new(0.0, -radius_y, 0.0), 1.0),
+        WeightedPoint::new(center + Vec3::new(radius_x, -radius_y, 0.0), w),
+        WeightedPoint::new(center + Vec3::new(radius_x, 0.0, 0.0), 1.0),
+    ];
+
+    let knots = vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 4.0];
+
+    Nurbs::with_knots(points, 2, knots)
+}
+
+/// Creates a 2D NURBS circle in the XY plane.
+pub fn nurbs_circle_2d(center: Vec2, radius: f32) -> Nurbs<Vec2> {
+    let w = std::f32::consts::FRAC_1_SQRT_2;
+
+    let points = vec![
+        WeightedPoint::new(center + Vec2::new(radius, 0.0), 1.0),
+        WeightedPoint::new(center + Vec2::new(radius, radius), w),
+        WeightedPoint::new(center + Vec2::new(0.0, radius), 1.0),
+        WeightedPoint::new(center + Vec2::new(-radius, radius), w),
+        WeightedPoint::new(center + Vec2::new(-radius, 0.0), 1.0),
+        WeightedPoint::new(center + Vec2::new(-radius, -radius), w),
+        WeightedPoint::new(center + Vec2::new(0.0, -radius), 1.0),
+        WeightedPoint::new(center + Vec2::new(radius, -radius), w),
+        WeightedPoint::new(center + Vec2::new(radius, 0.0), 1.0),
+    ];
+
+    let knots = vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 4.0];
+
+    Nurbs::with_knots(points, 2, knots)
+}
+
+// ============================================================================
 // Helper functions
 // ============================================================================
 
@@ -619,5 +989,191 @@ mod tests {
 
         let mid = curve.evaluate(0.5);
         assert!(mid.length() > 0.0);
+    }
+
+    // NURBS tests
+    #[test]
+    fn test_nurbs_basic() {
+        let points = vec![
+            WeightedPoint::new(Vec3::new(0.0, 0.0, 0.0), 1.0),
+            WeightedPoint::new(Vec3::new(1.0, 2.0, 0.0), 1.0),
+            WeightedPoint::new(Vec3::new(2.0, 2.0, 0.0), 1.0),
+            WeightedPoint::new(Vec3::new(3.0, 0.0, 0.0), 1.0),
+        ];
+
+        let nurbs = Nurbs::cubic(points);
+        let samples = nurbs.sample(10);
+
+        assert_eq!(samples.len(), 10);
+    }
+
+    #[test]
+    fn test_nurbs_endpoints() {
+        let points = vec![
+            WeightedPoint::new(Vec3::new(0.0, 0.0, 0.0), 1.0),
+            WeightedPoint::new(Vec3::new(1.0, 1.0, 0.0), 1.0),
+            WeightedPoint::new(Vec3::new(2.0, 0.0, 0.0), 1.0),
+        ];
+
+        let nurbs = Nurbs::quadratic(points);
+        let (t_min, t_max) = nurbs.domain();
+
+        // Should pass through first and last control points
+        let start = nurbs.evaluate(t_min);
+        let end = nurbs.evaluate(t_max - 0.0001);
+
+        assert!((start - Vec3::new(0.0, 0.0, 0.0)).length() < 0.01);
+        assert!((end - Vec3::new(2.0, 0.0, 0.0)).length() < 0.01);
+    }
+
+    #[test]
+    fn test_nurbs_weights_affect_shape() {
+        // Same control points, different weights
+        let p0 = Vec3::new(0.0, 0.0, 0.0);
+        let p1 = Vec3::new(1.0, 2.0, 0.0);
+        let p2 = Vec3::new(2.0, 0.0, 0.0);
+
+        // Uniform weights
+        let nurbs_uniform = Nurbs::quadratic(vec![
+            WeightedPoint::new(p0, 1.0),
+            WeightedPoint::new(p1, 1.0),
+            WeightedPoint::new(p2, 1.0),
+        ]);
+
+        // Higher weight on middle point pulls curve toward it
+        let nurbs_weighted = Nurbs::quadratic(vec![
+            WeightedPoint::new(p0, 1.0),
+            WeightedPoint::new(p1, 3.0),
+            WeightedPoint::new(p2, 1.0),
+        ]);
+
+        let (t_min, t_max) = nurbs_uniform.domain();
+        let t_mid = (t_min + t_max) / 2.0;
+
+        let mid_uniform = nurbs_uniform.evaluate(t_mid);
+        let mid_weighted = nurbs_weighted.evaluate(t_mid);
+
+        // Weighted version should be closer to the middle control point
+        let dist_to_p1_uniform = (mid_uniform - p1).length();
+        let dist_to_p1_weighted = (mid_weighted - p1).length();
+
+        assert!(
+            dist_to_p1_weighted < dist_to_p1_uniform,
+            "Higher weight should pull curve closer to control point"
+        );
+    }
+
+    #[test]
+    fn test_nurbs_circle_is_circular() {
+        let circle = nurbs_circle(Vec3::ZERO, 1.0);
+        let samples = circle.sample(100);
+
+        // All points should be at distance ~1 from center
+        for sample in &samples {
+            let dist = sample.length();
+            assert!(
+                (dist - 1.0).abs() < 0.001,
+                "Point {:?} is at distance {} from center, expected 1.0",
+                sample,
+                dist
+            );
+        }
+    }
+
+    #[test]
+    fn test_nurbs_ellipse() {
+        let ellipse = nurbs_ellipse(Vec3::ZERO, 2.0, 1.0);
+        let samples = ellipse.sample(100);
+
+        // All points should satisfy ellipse equation: (x/a)² + (y/b)² = 1
+        for sample in &samples {
+            let val = (sample.x / 2.0).powi(2) + (sample.y / 1.0).powi(2);
+            assert!(
+                (val - 1.0).abs() < 0.001,
+                "Point {:?} doesn't satisfy ellipse equation: {}",
+                sample,
+                val
+            );
+        }
+    }
+
+    #[test]
+    fn test_nurbs_arc() {
+        use std::f32::consts::FRAC_PI_2;
+
+        // Quarter circle arc
+        let arc = nurbs_arc(Vec3::ZERO, 1.0, 0.0, FRAC_PI_2);
+        let samples = arc.sample(20);
+
+        // All points should be at distance 1 from center
+        for sample in &samples {
+            let dist = (sample.x.powi(2) + sample.y.powi(2)).sqrt();
+            assert!(
+                (dist - 1.0).abs() < 0.01,
+                "Arc point {:?} at distance {}",
+                sample,
+                dist
+            );
+        }
+
+        // Start should be at (1, 0)
+        assert!((samples[0].x - 1.0).abs() < 0.01);
+        assert!(samples[0].y.abs() < 0.01);
+
+        // End should be at (0, 1)
+        let last = samples.last().unwrap();
+        assert!(last.x.abs() < 0.01);
+        assert!((last.y - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_nurbs_circle_2d() {
+        let circle = nurbs_circle_2d(Vec2::ZERO, 1.0);
+        let samples = circle.sample(50);
+
+        for sample in &samples {
+            let dist = sample.length();
+            assert!((dist - 1.0).abs() < 0.001);
+        }
+    }
+
+    #[test]
+    fn test_nurbs_from_unweighted() {
+        let points = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 1.0, 0.0),
+            Vec3::new(2.0, 0.0, 0.0),
+            Vec3::new(3.0, 1.0, 0.0),
+        ];
+
+        let nurbs = Nurbs::from_points(points.clone(), 3);
+
+        // Should behave like a regular B-spline
+        let bspline = BSpline::cubic(points);
+
+        let nurbs_samples = nurbs.sample(10);
+        let bspline_samples = bspline.sample(10);
+
+        for (n, b) in nurbs_samples.iter().zip(bspline_samples.iter()) {
+            assert!((*n - *b).length() < 0.001);
+        }
+    }
+
+    #[test]
+    fn test_nurbs_derivative() {
+        let points = vec![
+            WeightedPoint::new(Vec3::new(0.0, 0.0, 0.0), 1.0),
+            WeightedPoint::new(Vec3::new(1.0, 1.0, 0.0), 1.0),
+            WeightedPoint::new(Vec3::new(2.0, 0.0, 0.0), 1.0),
+        ];
+
+        let nurbs = Nurbs::quadratic(points);
+        let (t_min, t_max) = nurbs.domain();
+        let t_mid = (t_min + t_max) / 2.0;
+
+        let deriv = nurbs.derivative(t_mid);
+
+        // Derivative should be non-zero and tangent to curve
+        assert!(deriv.length() > 0.0);
     }
 }

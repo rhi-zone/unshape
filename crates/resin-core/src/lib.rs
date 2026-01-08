@@ -128,7 +128,8 @@ pub use particle::{
 };
 pub use resin_macros::DynNode as DynNodeDerive;
 pub use spline::{
-    BSpline, BezierSpline, CatmullRom, CubicBezier, Interpolatable, cubic_bezier, quadratic_bezier,
+    BSpline, BezierSpline, CatmullRom, CubicBezier, Interpolatable, Nurbs, WeightedPoint,
+    cubic_bezier, nurbs_arc, nurbs_circle, nurbs_circle_2d, nurbs_ellipse, quadratic_bezier,
     smooth_through_points,
 };
 pub use value::{Value, ValueType};
