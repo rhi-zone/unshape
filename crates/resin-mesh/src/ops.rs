@@ -431,6 +431,212 @@ pub fn recalculate_normals(mesh: &Mesh, mode: NormalMode) -> Mesh {
     result
 }
 
+/// Configuration for Laplacian smoothing.
+#[derive(Debug, Clone)]
+pub struct SmoothConfig {
+    /// Smoothing factor per iteration (0.0 = no change, 1.0 = move to average).
+    /// Values between 0.3-0.5 are typical.
+    pub lambda: f32,
+    /// Number of smoothing iterations.
+    pub iterations: usize,
+    /// Whether to preserve boundary vertices (don't move them).
+    pub preserve_boundary: bool,
+}
+
+impl Default for SmoothConfig {
+    fn default() -> Self {
+        Self {
+            lambda: 0.5,
+            iterations: 1,
+            preserve_boundary: true,
+        }
+    }
+}
+
+/// Applies Laplacian smoothing to a mesh.
+///
+/// Moves each vertex towards the centroid of its neighbors, creating
+/// a smoother surface. Multiple iterations increase the smoothing effect.
+///
+/// # Example
+///
+/// ```ignore
+/// use resin_mesh::{box_mesh, smooth};
+///
+/// let cube = box_mesh();
+/// let smoothed = smooth(&cube, 0.5, 3);
+/// ```
+pub fn smooth(mesh: &Mesh, lambda: f32, iterations: usize) -> Mesh {
+    smooth_with_config(
+        mesh,
+        SmoothConfig {
+            lambda,
+            iterations,
+            ..Default::default()
+        },
+    )
+}
+
+/// Applies Laplacian smoothing with full configuration.
+pub fn smooth_with_config(mesh: &Mesh, config: SmoothConfig) -> Mesh {
+    if config.iterations == 0 || config.lambda == 0.0 {
+        return mesh.clone();
+    }
+
+    let mut result = mesh.clone();
+
+    // Build adjacency list: for each vertex, which vertices are connected to it
+    let adjacency = build_adjacency(&result);
+
+    // Find boundary vertices if we need to preserve them
+    let boundary = if config.preserve_boundary {
+        find_boundary_vertices(&result)
+    } else {
+        vec![false; result.positions.len()]
+    };
+
+    // Apply smoothing iterations
+    for _ in 0..config.iterations {
+        let mut new_positions = result.positions.clone();
+
+        for (i, neighbors) in adjacency.iter().enumerate() {
+            // Skip boundary vertices if preserving them
+            if config.preserve_boundary && boundary[i] {
+                continue;
+            }
+
+            // Skip vertices with no neighbors
+            if neighbors.is_empty() {
+                continue;
+            }
+
+            // Compute centroid of neighbors
+            let mut centroid = Vec3::ZERO;
+            for &neighbor in neighbors {
+                centroid += result.positions[neighbor];
+            }
+            centroid /= neighbors.len() as f32;
+
+            // Move vertex towards centroid
+            new_positions[i] = result.positions[i].lerp(centroid, config.lambda);
+        }
+
+        result.positions = new_positions;
+    }
+
+    // Recalculate normals after smoothing
+    result.compute_smooth_normals();
+
+    result
+}
+
+/// Applies Taubin smoothing (avoids shrinkage).
+///
+/// Taubin smoothing alternates between positive and negative lambda values
+/// to smooth the mesh while minimizing volume loss.
+pub fn smooth_taubin(mesh: &Mesh, lambda: f32, mu: f32, iterations: usize) -> Mesh {
+    if iterations == 0 {
+        return mesh.clone();
+    }
+
+    let mut result = mesh.clone();
+    let adjacency = build_adjacency(&result);
+    let boundary = find_boundary_vertices(&result);
+
+    for _ in 0..iterations {
+        // Forward pass with positive lambda
+        result = smooth_pass(&result, &adjacency, &boundary, lambda);
+        // Backward pass with negative mu (typically mu = -lambda - small_value)
+        result = smooth_pass(&result, &adjacency, &boundary, mu);
+    }
+
+    result.compute_smooth_normals();
+    result
+}
+
+/// Single smoothing pass (used by Taubin smoothing).
+fn smooth_pass(mesh: &Mesh, adjacency: &[Vec<usize>], boundary: &[bool], lambda: f32) -> Mesh {
+    let mut result = mesh.clone();
+    let mut new_positions = mesh.positions.clone();
+
+    for (i, neighbors) in adjacency.iter().enumerate() {
+        if boundary[i] || neighbors.is_empty() {
+            continue;
+        }
+
+        let mut centroid = Vec3::ZERO;
+        for &neighbor in neighbors {
+            centroid += mesh.positions[neighbor];
+        }
+        centroid /= neighbors.len() as f32;
+
+        new_positions[i] = mesh.positions[i].lerp(centroid, lambda);
+    }
+
+    result.positions = new_positions;
+    result
+}
+
+/// Builds an adjacency list for the mesh vertices.
+fn build_adjacency(mesh: &Mesh) -> Vec<Vec<usize>> {
+    let mut adjacency: Vec<Vec<usize>> = vec![Vec::new(); mesh.positions.len()];
+
+    for tri in mesh.indices.chunks(3) {
+        let [i0, i1, i2] = [tri[0] as usize, tri[1] as usize, tri[2] as usize];
+
+        // Add bidirectional connections
+        if !adjacency[i0].contains(&i1) {
+            adjacency[i0].push(i1);
+        }
+        if !adjacency[i1].contains(&i0) {
+            adjacency[i1].push(i0);
+        }
+
+        if !adjacency[i1].contains(&i2) {
+            adjacency[i1].push(i2);
+        }
+        if !adjacency[i2].contains(&i1) {
+            adjacency[i2].push(i1);
+        }
+
+        if !adjacency[i2].contains(&i0) {
+            adjacency[i2].push(i0);
+        }
+        if !adjacency[i0].contains(&i2) {
+            adjacency[i0].push(i2);
+        }
+    }
+
+    adjacency
+}
+
+/// Finds boundary vertices (vertices on edges that only belong to one face).
+fn find_boundary_vertices(mesh: &Mesh) -> Vec<bool> {
+    let mut edge_count: HashMap<(usize, usize), usize> = HashMap::new();
+
+    // Count edge occurrences
+    for tri in mesh.indices.chunks(3) {
+        let [i0, i1, i2] = [tri[0] as usize, tri[1] as usize, tri[2] as usize];
+        let edges = [(i0, i1), (i1, i2), (i2, i0)];
+
+        for (a, b) in edges {
+            let key = if a < b { (a, b) } else { (b, a) };
+            *edge_count.entry(key).or_insert(0) += 1;
+        }
+    }
+
+    // Mark vertices on boundary edges
+    let mut boundary = vec![false; mesh.positions.len()];
+    for ((a, b), count) in edge_count {
+        if count == 1 {
+            boundary[a] = true;
+            boundary[b] = true;
+        }
+    }
+
+    boundary
+}
+
 // ============================================================================
 // Helper functions
 // ============================================================================
@@ -602,5 +808,98 @@ mod tests {
         // Should have the expected structure
         assert!(inseted.triangle_count() > cube.triangle_count());
         assert!(inseted.has_normals());
+    }
+
+    #[test]
+    fn test_smooth_basic() {
+        let cube = box_mesh();
+        // Use preserve_boundary: false since box_mesh has split vertices
+        let smoothed = smooth_with_config(
+            &cube,
+            SmoothConfig {
+                lambda: 0.5,
+                iterations: 1,
+                preserve_boundary: false,
+            },
+        );
+
+        // Same vertex count, positions changed
+        assert_eq!(smoothed.vertex_count(), cube.vertex_count());
+
+        // At least some vertices should have moved
+        let mut any_moved = false;
+        for (orig, new) in cube.positions.iter().zip(smoothed.positions.iter()) {
+            if orig.distance(*new) > 0.001 {
+                any_moved = true;
+                break;
+            }
+        }
+        assert!(any_moved, "Smoothing should move some vertices");
+    }
+
+    #[test]
+    fn test_smooth_zero_iterations() {
+        let cube = box_mesh();
+        let smoothed = smooth(&cube, 0.5, 0);
+
+        // Zero iterations should return identical mesh
+        for (orig, new) in cube.positions.iter().zip(smoothed.positions.iter()) {
+            assert_eq!(*orig, *new);
+        }
+    }
+
+    #[test]
+    fn test_smooth_zero_lambda() {
+        let cube = box_mesh();
+        let smoothed = smooth(&cube, 0.0, 5);
+
+        // Zero lambda should return identical mesh
+        for (orig, new) in cube.positions.iter().zip(smoothed.positions.iter()) {
+            assert_eq!(*orig, *new);
+        }
+    }
+
+    #[test]
+    fn test_smooth_with_config() {
+        let cube = box_mesh();
+        let smoothed = smooth_with_config(
+            &cube,
+            SmoothConfig {
+                lambda: 0.3,
+                iterations: 2,
+                preserve_boundary: false,
+            },
+        );
+
+        // More iterations = more smoothing
+        assert_eq!(smoothed.vertex_count(), cube.vertex_count());
+        assert!(smoothed.has_normals());
+    }
+
+    #[test]
+    fn test_smooth_taubin() {
+        let cube = box_mesh();
+        // Typical Taubin parameters: lambda = 0.5, mu = -0.53
+        let smoothed = smooth_taubin(&cube, 0.5, -0.53, 3);
+
+        // Same vertex count
+        assert_eq!(smoothed.vertex_count(), cube.vertex_count());
+        assert!(smoothed.has_normals());
+    }
+
+    #[test]
+    fn test_smooth_preserves_normals() {
+        let cube = box_mesh();
+        let smoothed = smooth(&cube, 0.5, 2);
+
+        // Should still have valid normals
+        assert_eq!(smoothed.normals.len(), smoothed.positions.len());
+        for normal in &smoothed.normals {
+            let len = normal.length();
+            assert!(
+                (len - 1.0).abs() < 0.001 || len < 0.001,
+                "Normal should be normalized or zero"
+            );
+        }
     }
 }

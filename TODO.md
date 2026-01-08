@@ -2,14 +2,26 @@
 
 ## Next Up
 
-(backlog is empty - suggest new features!)
+- [ ] OBJ import/export
 
 ## Backlog
-
-(empty)
+- [ ] Image/texture loading as fields
+- [ ] Mesh decimation (edge collapse)
+- [ ] Boolean operations on 2D paths
+- [ ] Curve lofting (surface from profiles)
+- [ ] Mesh from curves (extrude, revolve, sweep)
+- [ ] glTF import
+- [ ] Marching cubes (mesh from SDF)
+- [ ] Text to paths (font rendering)
+- [ ] Instancing/scattering system
+- [ ] Wavetable oscillators
+- [ ] FM synthesis
+- [ ] L-systems
+- [ ] MIDI support
 
 ## Done
 
+- [x] Laplacian mesh smoothing (smooth, smooth_taubin, preserve boundary, SmoothConfig)
 - [x] Animation blending and layering (layers, crossfade, 1D/2D blend trees, additive blending)
 - [x] glTF export for meshes (GLB binary, embedded base64, PBR materials)
 

@@ -28,9 +28,9 @@ pub use morph::{
     apply_morph_targets_with_normals, blend_positions,
 };
 pub use ops::{
-    ExtrudeConfig, InsetConfig, NormalMode, extrude, extrude_with_config, flip_normals, inset,
-    inset_with_config, make_double_sided, recalculate_normals, solidify, split_faces,
-    weld_vertices,
+    ExtrudeConfig, InsetConfig, NormalMode, SmoothConfig, extrude, extrude_with_config,
+    flip_normals, inset, inset_with_config, make_double_sided, recalculate_normals, smooth,
+    smooth_taubin, smooth_with_config, solidify, split_faces, weld_vertices,
 };
 pub use primitives::{box_mesh, sphere, uv_sphere};
 pub use subdivision::{subdivide_linear, subdivide_loop, subdivide_loop_n};
