@@ -29,13 +29,17 @@ See [expression-language](./design/expression-language.md) for full design.
 
 | Question | Status | Notes |
 |----------|--------|-------|
-| Backend selection | ✅ Resolved | Cranelift JIT (CPU hot paths), WGSL (GPU), Interpreted (fallback). See [closure-usage-survey](./design/closure-usage-survey.md) |
-| Expression AST scope | ✅ Resolved | Math + conditionals + let bindings. No loops (use graph recurrence). |
+| Backend selection | ✅ Resolved | Cranelift JIT (CPU hot paths), WGSL (GPU), Interpreted (fallback) |
+| Expression AST scope | ✅ Resolved | Math + conditionals + let bindings. No loops (use graph recurrence) |
 | Per-domain or unified | ✅ Resolved | Unified Expr, domains bind different variables (position, uv, time, etc.) |
-| Built-in functions | ✅ Resolved | WGSL built-ins as reference set. Plugin functions decompose or provide backend impls. |
-| Expr → WGSL codegen | 🔶 Leaning | String generation from AST. Decomposition-first for plugins. |
-| Expr → Cranelift codegen | 🔶 Leaning | IR generation, external calls for complex functions. |
-| Plugin function API | 🔶 Leaning | decompose() to primitives, or provide interpret/wgsl/cranelift impls |
+| Built-in functions | ✅ Resolved | WGSL built-ins as reference set. Plugin functions decompose or backend traits |
+| Value representation | ✅ Resolved | Enum (not dyn trait). Vectors/matrices feature-gated. Square matrices only |
+| Matrix operations | ✅ Resolved | `*` works on matrices (WGSL-style). Type inference dispatches |
+| Crate structure | ✅ Resolved | core + macros + parse + wgsl + cranelift. Interpreter in core |
+| Expr → WGSL codegen | 🔶 Leaning | String generation from AST. Decomposition-first for plugins |
+| Expr → Cranelift codegen | 🔶 Leaning | IR generation, external calls for complex functions |
+| Plugin function API | 🔶 Leaning | Core trait + backend extension traits in backend crates |
+| Constant folding | 🔶 Leaning | Separate resin-expr-opt crate, AST → AST transform |
 
 ## Ops & Serialization
 
@@ -101,7 +105,7 @@ See [expression-language](./design/expression-language.md) for full design.
 
 ## Summary by Status
 
-### ✅ Resolved (17)
+### ✅ Resolved (19)
 - GPU vs CPU abstraction (burn/CubeCL)
 - Precision f32/f64 (generic `T: Float`)
 - Winding rule (both, default non-zero)
@@ -111,6 +115,9 @@ See [expression-language](./design/expression-language.md) for full design.
 - Expression backend (Cranelift/WGSL/Interpreted)
 - Expression AST scope (math + conditionals + let, no loops)
 - Expression built-ins (WGSL as reference, plugin extensions)
+- Expression Value enum (not dyn trait, vectors/matrices feature-gated)
+- Expression matrix ops (`*` works on matrices, type inference dispatches)
+- Expression crate structure (core + macros + parse + wgsl + cranelift)
 - Unified vs per-domain Expr (unified, domains bind different vars)
 - General internal, constrained APIs pattern
 - Plugin architecture (core = contract, host = loading)
@@ -119,7 +126,7 @@ See [expression-language](./design/expression-language.md) for full design.
 - Tiling (explicit operators)
 - Ops as values (derive macro for DynOp impl)
 
-### 🔶 Leaning (15)
+### 🔶 Leaning (16)
 - Type system for slots (simpler than maki)
 - Parameter system (yes, first-class)
 - Modularity (very modular)
@@ -135,8 +142,9 @@ See [expression-language](./design/expression-language.md) for full design.
 - Expr → WGSL codegen (string generation, decomposition-first)
 - Expr → Cranelift codegen (IR generation, external calls)
 - Plugin function API (decompose or backend extension traits)
+- Constant folding (resin-expr-opt crate, AST transform)
 
-### ❓ Open (13+)
+### ❓ Open (12+)
 - **High impact**: Time models (delay granularity, mixed rates)
 - **Cross-cutting**: Texture vs field unification
 - **Domain-specific**: Audio (sample rate, polyphony, control vs audio rate), mesh instancing
