@@ -4,7 +4,7 @@
 
 - [ ] Quad mesh / half-edge representation (for Catmull-Clark, bevel)
 - [ ] Vector network (node-based vector editing)
-- [ ] Easing functions / animation curves
+- [ ] Mesh boolean operations (union, subtract, intersect)
 
 ## Backlog
 
@@ -14,6 +14,7 @@
 
 ## Done
 
+- [x] Easing functions (quad, cubic, elastic, bounce, etc.)
 - [x] Audio effects (reverb, chorus, phaser, flanger, distortion)
 - [x] Audio graph / signal chain (Chain, Mixer, nodes)
 - [x] Color types and gradients (RGB, HSL, HSV, blend modes)

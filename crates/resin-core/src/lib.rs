@@ -12,6 +12,7 @@
 mod attributes;
 pub mod color;
 mod context;
+pub mod easing;
 mod error;
 pub mod expr;
 pub mod field;
@@ -30,6 +31,13 @@ pub use color::{
     presets as color_presets,
 };
 pub use context::EvalContext;
+pub use easing::{
+    Easing, back_in, back_in_out, back_out, bounce_in, bounce_in_out, bounce_out, circ_in,
+    circ_in_out, circ_out, cubic_in, cubic_in_out, cubic_out, ease_between, ease_value, elastic_in,
+    elastic_in_out, elastic_out, expo_in, expo_in_out, expo_out, linear, quad_in, quad_in_out,
+    quad_out, quart_in, quart_in_out, quart_out, quint_in, quint_in_out, quint_out, sine_in,
+    sine_in_out, sine_out, smootherstep, smoothstep, stepped,
+};
 pub use error::{GraphError, TypeError};
 pub use field::{
     // Combinators
