@@ -784,7 +784,7 @@ All optional crates depend on core. Core has no heavy deps.
 
 ## Open Questions
 
-1. **Array/buffer access** - Do expressions need `buffer[i]` syntax? Most use cases are per-element (no neighbor access). Convolutions etc. are materialized image ops, not expressions. Probably unnecessary, but worth revisiting if patterns emerge.
+1. **Array/buffer access** - Do expressions need `buffer[i]` syntax? Most use cases are per-element. For textures, neighbor access is a materialized image op. For audio, recurrence handles simple delays but not: variable-tap reverb, pitch shifting (variable read rate), convolution, granular synthesis. Options: (a) dedicated ops for these patterns, (b) buffer access as power-user escape hatch. Probably ops first, revisit if patterns emerge that need expression-level access.
 
 2. **Error recovery** - Parser should support partial parsing for IDE integration. Source spans optional, stored separately from AST. Low priority.
 
