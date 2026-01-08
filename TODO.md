@@ -4,7 +4,7 @@
 
 - [ ] Quad mesh / half-edge representation (for Catmull-Clark)
 - [ ] More mesh ops (extrude, bevel)
-- [ ] Particle system
+- [ ] Texture mapping (UV projection)
 
 ## Backlog
 
@@ -14,6 +14,7 @@
 
 ## Done
 
+- [x] Particle system (emitters, forces, turbulence)
 - [x] Path constraints (bones follow curves)
 - [x] Morph targets / blend shapes
 - [x] Animation clips and tracks

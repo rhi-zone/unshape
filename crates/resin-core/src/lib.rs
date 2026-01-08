@@ -17,6 +17,7 @@ pub mod field;
 mod graph;
 mod node;
 pub mod noise;
+pub mod particle;
 mod value;
 
 pub use attributes::{
@@ -89,6 +90,27 @@ pub use node::{BoxedNode, DynNode, PortDescriptor};
 pub use noise::{
     fbm_perlin2, fbm_perlin3, fbm_simplex2, fbm_simplex3, fbm2, fbm3, perlin2, perlin2v, perlin3,
     perlin3v, simplex2, simplex2v, simplex3, simplex3v,
+};
+pub use particle::{
+    // Forces
+    Attractor,
+    // Emitters
+    ConeEmitter,
+    CurlNoise,
+    Drag,
+    // Traits
+    Emitter,
+    Force,
+    Gravity,
+    // Core types
+    Particle,
+    ParticleRng,
+    ParticleSystem,
+    PointEmitter,
+    SphereEmitter,
+    Turbulence,
+    Vortex,
+    Wind,
 };
 pub use resin_macros::DynNode as DynNodeDerive;
 pub use value::{Value, ValueType};

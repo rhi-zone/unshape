@@ -1,0 +1,916 @@
+//! Particle system for procedural effects.
+//!
+//! Provides particles, emitters, and forces for creating dynamic effects.
+//! Integrates with the Field system for spatial forces.
+
+use glam::{Vec2, Vec3};
+
+/// A single particle with position, velocity, and lifetime.
+#[derive(Debug, Clone)]
+pub struct Particle {
+    /// Position in world space.
+    pub position: Vec3,
+    /// Velocity in units per second.
+    pub velocity: Vec3,
+    /// Current age in seconds.
+    pub age: f32,
+    /// Total lifetime in seconds.
+    pub lifetime: f32,
+    /// Size (can be used for rendering).
+    pub size: f32,
+    /// Color (RGBA).
+    pub color: [f32; 4],
+    /// Custom data slot.
+    pub custom: f32,
+}
+
+impl Default for Particle {
+    fn default() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            velocity: Vec3::ZERO,
+            age: 0.0,
+            lifetime: 1.0,
+            size: 1.0,
+            color: [1.0, 1.0, 1.0, 1.0],
+            custom: 0.0,
+        }
+    }
+}
+
+impl Particle {
+    /// Creates a new particle at the given position.
+    pub fn new(position: Vec3) -> Self {
+        Self {
+            position,
+            ..Default::default()
+        }
+    }
+
+    /// Returns the normalized age (0.0 to 1.0).
+    pub fn normalized_age(&self) -> f32 {
+        if self.lifetime <= 0.0 {
+            1.0
+        } else {
+            (self.age / self.lifetime).clamp(0.0, 1.0)
+        }
+    }
+
+    /// Returns true if the particle is still alive.
+    pub fn is_alive(&self) -> bool {
+        self.age < self.lifetime
+    }
+}
+
+/// Describes how particles are spawned.
+pub trait Emitter: Send + Sync {
+    /// Spawns a new particle with initial properties.
+    fn emit(&self, rng: &mut ParticleRng) -> Particle;
+}
+
+/// Modifies particles over time.
+pub trait Force: Send + Sync {
+    /// Applies force to a particle, modifying its velocity.
+    fn apply(&self, particle: &mut Particle, dt: f32);
+}
+
+/// Simple random number generator for particle systems.
+#[derive(Debug, Clone)]
+pub struct ParticleRng {
+    state: u64,
+}
+
+impl Default for ParticleRng {
+    fn default() -> Self {
+        Self::new(12345)
+    }
+}
+
+impl ParticleRng {
+    /// Creates a new RNG with the given seed.
+    pub fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
+
+    /// Returns a random u64.
+    fn next_u64(&mut self) -> u64 {
+        // xorshift64
+        self.state ^= self.state << 13;
+        self.state ^= self.state >> 7;
+        self.state ^= self.state << 17;
+        self.state
+    }
+
+    /// Returns a random f32 in [0, 1).
+    pub fn next_f32(&mut self) -> f32 {
+        (self.next_u64() as f32) / (u64::MAX as f32)
+    }
+
+    /// Returns a random f32 in [min, max).
+    pub fn range(&mut self, min: f32, max: f32) -> f32 {
+        min + self.next_f32() * (max - min)
+    }
+
+    /// Returns a random point on a unit sphere.
+    pub fn unit_sphere(&mut self) -> Vec3 {
+        // Use rejection sampling for uniform distribution
+        loop {
+            let x = self.range(-1.0, 1.0);
+            let y = self.range(-1.0, 1.0);
+            let z = self.range(-1.0, 1.0);
+            let len_sq = x * x + y * y + z * z;
+            if len_sq > 0.0001 && len_sq <= 1.0 {
+                return Vec3::new(x, y, z).normalize();
+            }
+        }
+    }
+
+    /// Returns a random point inside a unit sphere.
+    pub fn inside_unit_sphere(&mut self) -> Vec3 {
+        self.unit_sphere() * self.next_f32().powf(1.0 / 3.0)
+    }
+
+    /// Returns a random point on a unit circle (XY plane).
+    pub fn unit_circle(&mut self) -> Vec2 {
+        let angle = self.next_f32() * std::f32::consts::TAU;
+        Vec2::new(angle.cos(), angle.sin())
+    }
+}
+
+/// Particle system that manages particles and their simulation.
+#[derive(Debug)]
+pub struct ParticleSystem {
+    /// Active particles.
+    particles: Vec<Particle>,
+    /// Maximum number of particles.
+    max_particles: usize,
+    /// Random number generator.
+    rng: ParticleRng,
+}
+
+impl Default for ParticleSystem {
+    fn default() -> Self {
+        Self::new(10000)
+    }
+}
+
+impl ParticleSystem {
+    /// Creates a new particle system with the given capacity.
+    pub fn new(max_particles: usize) -> Self {
+        Self {
+            particles: Vec::with_capacity(max_particles),
+            max_particles,
+            rng: ParticleRng::default(),
+        }
+    }
+
+    /// Sets the random seed.
+    pub fn with_seed(mut self, seed: u64) -> Self {
+        self.rng = ParticleRng::new(seed);
+        self
+    }
+
+    /// Returns the current particle count.
+    pub fn count(&self) -> usize {
+        self.particles.len()
+    }
+
+    /// Returns true if the system is at capacity.
+    pub fn is_full(&self) -> bool {
+        self.particles.len() >= self.max_particles
+    }
+
+    /// Returns a slice of all active particles.
+    pub fn particles(&self) -> &[Particle] {
+        &self.particles
+    }
+
+    /// Returns a mutable slice of all active particles.
+    pub fn particles_mut(&mut self) -> &mut [Particle] {
+        &mut self.particles
+    }
+
+    /// Emits particles from the given emitter.
+    pub fn emit(&mut self, emitter: &dyn Emitter, count: usize) {
+        let available = self.max_particles - self.particles.len();
+        let to_emit = count.min(available);
+
+        for _ in 0..to_emit {
+            let particle = emitter.emit(&mut self.rng);
+            self.particles.push(particle);
+        }
+    }
+
+    /// Updates all particles with the given time delta.
+    pub fn update(&mut self, dt: f32) {
+        // Update positions based on velocity
+        for particle in &mut self.particles {
+            particle.position += particle.velocity * dt;
+            particle.age += dt;
+        }
+
+        // Remove dead particles
+        self.particles.retain(|p| p.is_alive());
+    }
+
+    /// Updates all particles and applies forces.
+    pub fn update_with_forces(&mut self, dt: f32, forces: &[&dyn Force]) {
+        // Apply forces
+        for particle in &mut self.particles {
+            for force in forces {
+                force.apply(particle, dt);
+            }
+        }
+
+        // Update positions
+        self.update(dt);
+    }
+
+    /// Clears all particles.
+    pub fn clear(&mut self) {
+        self.particles.clear();
+    }
+}
+
+// ============================================================================
+// Built-in Emitters
+// ============================================================================
+
+/// Emits particles from a single point.
+#[derive(Debug, Clone)]
+pub struct PointEmitter {
+    /// Emission position.
+    pub position: Vec3,
+    /// Initial velocity direction.
+    pub direction: Vec3,
+    /// Velocity spread angle in radians.
+    pub spread: f32,
+    /// Minimum initial speed.
+    pub speed_min: f32,
+    /// Maximum initial speed.
+    pub speed_max: f32,
+    /// Minimum lifetime.
+    pub lifetime_min: f32,
+    /// Maximum lifetime.
+    pub lifetime_max: f32,
+    /// Initial size.
+    pub size: f32,
+    /// Initial color.
+    pub color: [f32; 4],
+}
+
+impl Default for PointEmitter {
+    fn default() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            direction: Vec3::Y,
+            spread: 0.5,
+            speed_min: 1.0,
+            speed_max: 2.0,
+            lifetime_min: 1.0,
+            lifetime_max: 2.0,
+            size: 1.0,
+            color: [1.0, 1.0, 1.0, 1.0],
+        }
+    }
+}
+
+impl Emitter for PointEmitter {
+    fn emit(&self, rng: &mut ParticleRng) -> Particle {
+        // Create a random direction within the spread cone
+        let dir = if self.spread > 0.0 {
+            let random_dir = rng.unit_sphere();
+            let spread_amount = rng.next_f32() * self.spread;
+            self.direction
+                .normalize()
+                .lerp(random_dir, spread_amount)
+                .normalize()
+        } else {
+            self.direction.normalize()
+        };
+
+        let speed = rng.range(self.speed_min, self.speed_max);
+        let lifetime = rng.range(self.lifetime_min, self.lifetime_max);
+
+        Particle {
+            position: self.position,
+            velocity: dir * speed,
+            age: 0.0,
+            lifetime,
+            size: self.size,
+            color: self.color,
+            custom: 0.0,
+        }
+    }
+}
+
+/// Emits particles from a sphere surface or volume.
+#[derive(Debug, Clone)]
+pub struct SphereEmitter {
+    /// Center position.
+    pub center: Vec3,
+    /// Sphere radius.
+    pub radius: f32,
+    /// If true, emit from volume; if false, emit from surface.
+    pub volume: bool,
+    /// Initial speed (outward from center).
+    pub speed_min: f32,
+    /// Maximum initial speed.
+    pub speed_max: f32,
+    /// Minimum lifetime.
+    pub lifetime_min: f32,
+    /// Maximum lifetime.
+    pub lifetime_max: f32,
+    /// Initial size.
+    pub size: f32,
+    /// Initial color.
+    pub color: [f32; 4],
+}
+
+impl Default for SphereEmitter {
+    fn default() -> Self {
+        Self {
+            center: Vec3::ZERO,
+            radius: 1.0,
+            volume: false,
+            speed_min: 1.0,
+            speed_max: 2.0,
+            lifetime_min: 1.0,
+            lifetime_max: 2.0,
+            size: 1.0,
+            color: [1.0, 1.0, 1.0, 1.0],
+        }
+    }
+}
+
+impl Emitter for SphereEmitter {
+    fn emit(&self, rng: &mut ParticleRng) -> Particle {
+        let dir = rng.unit_sphere();
+        let dist = if self.volume {
+            self.radius * rng.next_f32().powf(1.0 / 3.0)
+        } else {
+            self.radius
+        };
+
+        let speed = rng.range(self.speed_min, self.speed_max);
+        let lifetime = rng.range(self.lifetime_min, self.lifetime_max);
+
+        Particle {
+            position: self.center + dir * dist,
+            velocity: dir * speed,
+            age: 0.0,
+            lifetime,
+            size: self.size,
+            color: self.color,
+            custom: 0.0,
+        }
+    }
+}
+
+/// Emits particles in a cone shape.
+#[derive(Debug, Clone)]
+pub struct ConeEmitter {
+    /// Cone apex position.
+    pub position: Vec3,
+    /// Cone direction (axis).
+    pub direction: Vec3,
+    /// Cone angle in radians (half-angle).
+    pub angle: f32,
+    /// Minimum initial speed.
+    pub speed_min: f32,
+    /// Maximum initial speed.
+    pub speed_max: f32,
+    /// Minimum lifetime.
+    pub lifetime_min: f32,
+    /// Maximum lifetime.
+    pub lifetime_max: f32,
+    /// Initial size.
+    pub size: f32,
+    /// Initial color.
+    pub color: [f32; 4],
+}
+
+impl Default for ConeEmitter {
+    fn default() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            direction: Vec3::Y,
+            angle: std::f32::consts::FRAC_PI_4,
+            speed_min: 1.0,
+            speed_max: 2.0,
+            lifetime_min: 1.0,
+            lifetime_max: 2.0,
+            size: 1.0,
+            color: [1.0, 1.0, 1.0, 1.0],
+        }
+    }
+}
+
+impl Emitter for ConeEmitter {
+    fn emit(&self, rng: &mut ParticleRng) -> Particle {
+        // Generate a random direction within the cone
+        let cos_angle = self.angle.cos();
+        let z = rng.range(cos_angle, 1.0);
+        let phi = rng.next_f32() * std::f32::consts::TAU;
+        let sin_theta = (1.0 - z * z).sqrt();
+
+        // Local direction (cone along Z)
+        let local_dir = Vec3::new(sin_theta * phi.cos(), sin_theta * phi.sin(), z);
+
+        // Rotate to match cone direction
+        let dir = rotate_to_direction(local_dir, self.direction.normalize());
+
+        let speed = rng.range(self.speed_min, self.speed_max);
+        let lifetime = rng.range(self.lifetime_min, self.lifetime_max);
+
+        Particle {
+            position: self.position,
+            velocity: dir * speed,
+            age: 0.0,
+            lifetime,
+            size: self.size,
+            color: self.color,
+            custom: 0.0,
+        }
+    }
+}
+
+/// Rotates a vector from Z-up to the given direction.
+fn rotate_to_direction(v: Vec3, dir: Vec3) -> Vec3 {
+    if dir.z.abs() > 0.999 {
+        // Direction is close to Z axis
+        if dir.z > 0.0 {
+            v
+        } else {
+            Vec3::new(v.x, -v.y, -v.z)
+        }
+    } else {
+        // Build rotation basis
+        let up = Vec3::Z;
+        let right = up.cross(dir).normalize();
+        let new_up = dir.cross(right);
+
+        right * v.x + new_up * v.y + dir * v.z
+    }
+}
+
+// ============================================================================
+// Built-in Forces
+// ============================================================================
+
+/// Constant directional force (like gravity).
+#[derive(Debug, Clone)]
+pub struct Gravity {
+    /// Acceleration vector (units per second squared).
+    pub acceleration: Vec3,
+}
+
+impl Default for Gravity {
+    fn default() -> Self {
+        Self {
+            acceleration: Vec3::new(0.0, -9.81, 0.0),
+        }
+    }
+}
+
+impl Force for Gravity {
+    fn apply(&self, particle: &mut Particle, dt: f32) {
+        particle.velocity += self.acceleration * dt;
+    }
+}
+
+/// Constant wind force.
+#[derive(Debug, Clone)]
+pub struct Wind {
+    /// Wind velocity (target velocity particles are pushed toward).
+    pub velocity: Vec3,
+    /// How strongly particles are pushed (0 = no effect, 1 = instant).
+    pub strength: f32,
+}
+
+impl Default for Wind {
+    fn default() -> Self {
+        Self {
+            velocity: Vec3::new(1.0, 0.0, 0.0),
+            strength: 0.1,
+        }
+    }
+}
+
+impl Force for Wind {
+    fn apply(&self, particle: &mut Particle, dt: f32) {
+        let diff = self.velocity - particle.velocity;
+        particle.velocity += diff * self.strength * dt;
+    }
+}
+
+/// Drag force that slows particles.
+#[derive(Debug, Clone, Copy)]
+pub struct Drag {
+    /// Drag coefficient (0 = no drag, higher = more drag).
+    pub coefficient: f32,
+}
+
+impl Default for Drag {
+    fn default() -> Self {
+        Self { coefficient: 0.1 }
+    }
+}
+
+impl Force for Drag {
+    fn apply(&self, particle: &mut Particle, dt: f32) {
+        let factor = 1.0 - self.coefficient * dt;
+        particle.velocity *= factor.max(0.0);
+    }
+}
+
+/// Attractor/repulsor force.
+#[derive(Debug, Clone)]
+pub struct Attractor {
+    /// Attractor position.
+    pub position: Vec3,
+    /// Strength (positive = attract, negative = repel).
+    pub strength: f32,
+    /// Minimum distance (to prevent extreme forces).
+    pub min_distance: f32,
+}
+
+impl Default for Attractor {
+    fn default() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            strength: 10.0,
+            min_distance: 0.1,
+        }
+    }
+}
+
+impl Force for Attractor {
+    fn apply(&self, particle: &mut Particle, dt: f32) {
+        let to_attractor = self.position - particle.position;
+        let dist = to_attractor.length().max(self.min_distance);
+        let dir = to_attractor / dist;
+
+        // Inverse square falloff
+        let force = self.strength / (dist * dist);
+        particle.velocity += dir * force * dt;
+    }
+}
+
+/// Vortex force that creates spinning motion.
+#[derive(Debug, Clone)]
+pub struct Vortex {
+    /// Vortex axis origin.
+    pub position: Vec3,
+    /// Vortex axis direction.
+    pub axis: Vec3,
+    /// Rotational strength.
+    pub strength: f32,
+    /// How quickly force falls off with distance.
+    pub falloff: f32,
+}
+
+impl Default for Vortex {
+    fn default() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            axis: Vec3::Y,
+            strength: 5.0,
+            falloff: 1.0,
+        }
+    }
+}
+
+impl Force for Vortex {
+    fn apply(&self, particle: &mut Particle, dt: f32) {
+        let to_particle = particle.position - self.position;
+        let axis = self.axis.normalize();
+
+        // Project onto plane perpendicular to axis
+        let on_axis = axis * to_particle.dot(axis);
+        let radial = to_particle - on_axis;
+        let dist = radial.length();
+
+        if dist > 0.001 {
+            // Tangent direction (perpendicular to radial and axis)
+            let tangent = axis.cross(radial).normalize();
+
+            // Force falls off with distance
+            let force = self.strength / (1.0 + dist * self.falloff);
+            particle.velocity += tangent * force * dt;
+        }
+    }
+}
+
+/// Turbulence force using noise.
+#[derive(Debug, Clone)]
+pub struct Turbulence {
+    /// Strength of the turbulence.
+    pub strength: f32,
+    /// Frequency (scale of noise).
+    pub frequency: f32,
+    /// Animation speed.
+    pub speed: f32,
+    /// Current time offset.
+    time: f32,
+}
+
+impl Default for Turbulence {
+    fn default() -> Self {
+        Self {
+            strength: 5.0,
+            frequency: 1.0,
+            speed: 1.0,
+            time: 0.0,
+        }
+    }
+}
+
+impl Turbulence {
+    /// Creates turbulence with the given strength.
+    pub fn new(strength: f32) -> Self {
+        Self {
+            strength,
+            ..Default::default()
+        }
+    }
+
+    /// Advances the internal time.
+    pub fn advance(&mut self, dt: f32) {
+        self.time += dt * self.speed;
+    }
+}
+
+impl Force for Turbulence {
+    fn apply(&self, particle: &mut Particle, dt: f32) {
+        use crate::noise::simplex3v;
+
+        let p = particle.position * self.frequency;
+
+        // Use 3D noise with time offset for each axis
+        let fx = simplex3v(Vec3::new(p.x, p.y, p.z + self.time));
+        let fy = simplex3v(Vec3::new(p.x + 100.0, p.y, p.z + self.time));
+        let fz = simplex3v(Vec3::new(p.x, p.y + 100.0, p.z + self.time));
+
+        let force = Vec3::new(fx, fy, fz) * self.strength;
+        particle.velocity += force * dt;
+    }
+}
+
+/// Curl noise force for divergence-free turbulence.
+#[derive(Debug, Clone)]
+pub struct CurlNoise {
+    /// Strength of the force.
+    pub strength: f32,
+    /// Frequency (scale of noise).
+    pub frequency: f32,
+    /// Small offset for gradient computation.
+    epsilon: f32,
+}
+
+impl Default for CurlNoise {
+    fn default() -> Self {
+        Self {
+            strength: 5.0,
+            frequency: 1.0,
+            epsilon: 0.001,
+        }
+    }
+}
+
+impl CurlNoise {
+    /// Creates curl noise with the given strength.
+    pub fn new(strength: f32) -> Self {
+        Self {
+            strength,
+            ..Default::default()
+        }
+    }
+}
+
+impl Force for CurlNoise {
+    fn apply(&self, particle: &mut Particle, dt: f32) {
+        use crate::noise::simplex3v;
+
+        let p = particle.position * self.frequency;
+        let e = self.epsilon;
+
+        // Compute curl of noise field
+        // curl(F) = (dFz/dy - dFy/dz, dFx/dz - dFz/dx, dFy/dx - dFx/dy)
+
+        // Sample noise at offset positions
+        let n_x0 = simplex3v(p - Vec3::X * e);
+        let n_x1 = simplex3v(p + Vec3::X * e);
+        let n_y0 = simplex3v(p - Vec3::Y * e);
+        let n_y1 = simplex3v(p + Vec3::Y * e);
+        let n_z0 = simplex3v(p - Vec3::Z * e);
+        let n_z1 = simplex3v(p + Vec3::Z * e);
+
+        let dx = (n_x1 - n_x0) / (2.0 * e);
+        let dy = (n_y1 - n_y0) / (2.0 * e);
+        let dz = (n_z1 - n_z0) / (2.0 * e);
+
+        // Use noise value as potential, compute curl
+        let curl = Vec3::new(dy - dz, dz - dx, dx - dy);
+
+        particle.velocity += curl * self.strength * dt;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_particle_lifetime() {
+        let mut p = Particle::new(Vec3::ZERO);
+        p.lifetime = 2.0;
+
+        assert!(p.is_alive());
+        assert_eq!(p.normalized_age(), 0.0);
+
+        p.age = 1.0;
+        assert!(p.is_alive());
+        assert!((p.normalized_age() - 0.5).abs() < 0.001);
+
+        p.age = 2.0;
+        assert!(!p.is_alive());
+        assert!((p.normalized_age() - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_particle_rng() {
+        let mut rng = ParticleRng::new(42);
+
+        // Should produce values in [0, 1)
+        for _ in 0..100 {
+            let v = rng.next_f32();
+            assert!(v >= 0.0 && v < 1.0);
+        }
+
+        // Range should work
+        for _ in 0..100 {
+            let v = rng.range(5.0, 10.0);
+            assert!(v >= 5.0 && v < 10.0);
+        }
+    }
+
+    #[test]
+    fn test_particle_rng_unit_sphere() {
+        let mut rng = ParticleRng::new(42);
+
+        for _ in 0..100 {
+            let v = rng.unit_sphere();
+            let len = v.length();
+            assert!((len - 1.0).abs() < 0.001);
+        }
+    }
+
+    #[test]
+    fn test_particle_system_emit() {
+        let mut system = ParticleSystem::new(100);
+        let emitter = PointEmitter::default();
+
+        system.emit(&emitter, 10);
+        assert_eq!(system.count(), 10);
+
+        system.emit(&emitter, 50);
+        assert_eq!(system.count(), 60);
+    }
+
+    #[test]
+    fn test_particle_system_capacity() {
+        let mut system = ParticleSystem::new(10);
+        let emitter = PointEmitter::default();
+
+        system.emit(&emitter, 100);
+        assert_eq!(system.count(), 10);
+        assert!(system.is_full());
+    }
+
+    #[test]
+    fn test_particle_system_update() {
+        let mut system = ParticleSystem::new(100);
+
+        let emitter = PointEmitter {
+            lifetime_min: 1.0,
+            lifetime_max: 1.0,
+            ..Default::default()
+        };
+
+        system.emit(&emitter, 10);
+        assert_eq!(system.count(), 10);
+
+        // Update for half lifetime
+        system.update(0.5);
+        assert_eq!(system.count(), 10);
+
+        // Update past lifetime
+        system.update(0.6);
+        assert_eq!(system.count(), 0);
+    }
+
+    #[test]
+    fn test_gravity_force() {
+        let gravity = Gravity::default();
+        let mut p = Particle::new(Vec3::ZERO);
+
+        assert_eq!(p.velocity, Vec3::ZERO);
+
+        gravity.apply(&mut p, 1.0);
+        assert!((p.velocity.y - (-9.81)).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_drag_force() {
+        let drag = Drag { coefficient: 0.5 };
+        let mut p = Particle::new(Vec3::ZERO);
+        p.velocity = Vec3::new(10.0, 0.0, 0.0);
+
+        drag.apply(&mut p, 1.0);
+        assert!(p.velocity.x < 10.0);
+        assert!(p.velocity.x > 0.0);
+    }
+
+    #[test]
+    fn test_attractor_force() {
+        let attractor = Attractor {
+            position: Vec3::new(10.0, 0.0, 0.0),
+            strength: 10.0,
+            min_distance: 0.1,
+        };
+
+        let mut p = Particle::new(Vec3::ZERO);
+        attractor.apply(&mut p, 1.0);
+
+        // Should be pulled toward attractor
+        assert!(p.velocity.x > 0.0);
+    }
+
+    #[test]
+    fn test_sphere_emitter() {
+        let mut system = ParticleSystem::new(100);
+        let emitter = SphereEmitter {
+            center: Vec3::ZERO,
+            radius: 1.0,
+            volume: false,
+            ..Default::default()
+        };
+
+        system.emit(&emitter, 50);
+
+        // All particles should be at radius distance from center
+        for p in system.particles() {
+            let dist = p.position.length();
+            assert!((dist - 1.0).abs() < 0.001);
+        }
+    }
+
+    #[test]
+    fn test_cone_emitter() {
+        let mut system = ParticleSystem::new(100);
+        let emitter = ConeEmitter {
+            direction: Vec3::Y,
+            angle: std::f32::consts::FRAC_PI_4,
+            ..Default::default()
+        };
+
+        system.emit(&emitter, 50);
+
+        // All velocities should have positive Y component within cone angle
+        for p in system.particles() {
+            let cos_angle = p.velocity.normalize().dot(Vec3::Y);
+            assert!(cos_angle >= emitter.angle.cos() - 0.001);
+        }
+    }
+
+    #[test]
+    fn test_vortex_force() {
+        let vortex = Vortex {
+            position: Vec3::ZERO,
+            axis: Vec3::Y,
+            strength: 5.0,
+            falloff: 1.0,
+        };
+
+        let mut p = Particle::new(Vec3::new(1.0, 0.0, 0.0));
+        vortex.apply(&mut p, 1.0);
+
+        // Should spin around Y axis (negative Z direction from +X)
+        assert!(p.velocity.z < 0.0);
+    }
+
+    #[test]
+    fn test_wind_force() {
+        let wind = Wind {
+            velocity: Vec3::new(5.0, 0.0, 0.0),
+            strength: 1.0,
+        };
+
+        let mut p = Particle::new(Vec3::ZERO);
+        wind.apply(&mut p, 1.0);
+
+        // Should be pushed toward wind velocity
+        assert!(p.velocity.x > 0.0);
+    }
+}
