@@ -11,6 +11,7 @@
 mod attributes;
 mod context;
 mod error;
+pub mod field;
 mod graph;
 mod node;
 pub mod noise;
@@ -19,11 +20,16 @@ mod value;
 pub use attributes::{
     FullGeometry, Geometry, HasColors, HasIndices, HasNormals, HasPositions, HasUVs,
 };
+pub use field::{
+    Add, Constant, Coordinates, Fbm2D, Fbm3D, Field, FnField, Gradient2D, Map, Mix, Mul,
+    Perlin2D, Perlin3D, Radial2D, Scale, Simplex2D, Simplex3D, Translate, from_fn,
+};
 pub use context::EvalContext;
 pub use error::{GraphError, TypeError};
 pub use glam;
 pub use graph::{Edge, Graph, NodeId};
 pub use node::{BoxedNode, DynNode, PortDescriptor};
+pub use resin_macros::DynNode as DynNodeDerive;
 pub use noise::{
     fbm2, fbm3, fbm_perlin2, fbm_perlin3, fbm_simplex2, fbm_simplex3,
     perlin2, perlin2v, perlin3, perlin3v,

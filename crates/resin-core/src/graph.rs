@@ -383,4 +383,81 @@ mod tests {
         let result = graph.execute(a, &ctx);
         assert!(matches!(result, Err(GraphError::CycleDetected)));
     }
+
+    #[test]
+    fn test_derive_macro() {
+        use crate::DynNodeDerive;
+
+        #[derive(DynNodeDerive, Clone, Default)]
+        #[node(crate = "crate")]
+        struct DerivedAdd {
+            #[input]
+            a: f32,
+            #[input]
+            b: f32,
+            #[output]
+            result: f32,
+        }
+
+        impl DerivedAdd {
+            fn compute(&mut self, _ctx: &EvalContext) {
+                self.result = self.a + self.b;
+            }
+        }
+
+        // Test the derived implementation
+        let node = DerivedAdd::default();
+        assert_eq!(node.type_name(), "DerivedAdd");
+
+        let inputs = node.inputs();
+        assert_eq!(inputs.len(), 2);
+        assert_eq!(inputs[0].name, "a");
+        assert_eq!(inputs[1].name, "b");
+
+        let outputs = node.outputs();
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(outputs[0].name, "result");
+
+        // Test execution
+        let ctx = EvalContext::new();
+        let result = node
+            .execute(&[Value::F32(10.0), Value::F32(5.0)], &ctx)
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].as_f32().unwrap(), 15.0);
+    }
+
+    #[test]
+    fn test_derived_node_in_graph() {
+        use crate::DynNodeDerive;
+
+        #[derive(DynNodeDerive, Clone, Default)]
+        #[node(crate = "crate")]
+        struct Multiply {
+            #[input]
+            a: f32,
+            #[input]
+            b: f32,
+            #[output]
+            result: f32,
+        }
+
+        impl Multiply {
+            fn compute(&mut self, _ctx: &EvalContext) {
+                self.result = self.a * self.b;
+            }
+        }
+
+        let mut graph = Graph::new();
+        let c1 = graph.add_node(ConstNode(3.0));
+        let c2 = graph.add_node(ConstNode(4.0));
+        let mul = graph.add_node(Multiply::default());
+
+        graph.connect(c1, 0, mul, 0).unwrap();
+        graph.connect(c2, 0, mul, 1).unwrap();
+
+        let ctx = EvalContext::new();
+        let outputs = graph.execute(mul, &ctx).unwrap();
+        assert_eq!(outputs[0].as_f32().unwrap(), 12.0);
+    }
 }

@@ -2,15 +2,21 @@
 
 ## Next Up
 
-- [ ] Noise functions (Perlin, Simplex)
-- [ ] Basic oscillators
-- [ ] 2D path primitives
+- [ ] Expression language parser
+- [ ] Basic texture nodes
+- [ ] Audio effects (filters)
 
 ## Backlog
 
-- [ ] Skeleton/bone types
-- [ ] Derive macro for DynNode
-- [ ] Expression language parser
+- [ ] IK solvers (CCD, FABRIK)
+- [ ] Morph targets / blend shapes
+- [ ] Animation clips and tracks
+- [x] Skeleton/bone types
+- [x] Derive macro for DynNode
+- [x] Field<I, O> trait for lazy evaluation
+- [x] Noise functions (Perlin, Simplex)
+- [x] Basic oscillators
+- [x] 2D path primitives
 - [x] Implement basic mesh primitives (box, sphere)
 - [x] Set up graph evaluation system
 - [x] Define attribute traits
@@ -21,4 +27,4 @@
 - Bevy integration examples
 - Subdivision surfaces
 - Audio effects
-- IK solvers
+- Path constraints (bones follow curves)
