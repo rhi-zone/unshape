@@ -2,15 +2,15 @@
 
 ## Next Up
 
-- [ ] IK solvers (CCD, FABRIK)
-- [ ] Morph targets / blend shapes
-- [ ] Animation clips and tracks
+- [x] Path constraints (bones follow curves) — sample curve, orient bone tangent
+- [ ] Morph targets / blend shapes — vertex deltas + weight blending
+- [ ] Animation clips and tracks — keyframes, interpolation, property tracks
+- [ ] IK solvers (CCD, FABRIK) — iterative chain solving
+- [ ] Subdivision surfaces — Catmull-Clark, edge cases, creases
 
 ## Backlog
 
 - [ ] Bevy integration examples
-- [ ] Subdivision surfaces
-- [ ] Path constraints (bones follow curves)
 - [x] Expression language parser (expr::Expr)
 - [x] Basic texture nodes (Checkerboard, Voronoi, Stripes, Brick, Dots, SDFs)
 - [x] Audio effects/filters (LowPass, HighPass, Biquad, Delay, FeedbackDelay)
