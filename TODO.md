@@ -2,16 +2,16 @@
 
 ## Next Up
 
-- [ ] Instancing/scattering system
+- [ ] Wavetable oscillators
 
 ## Backlog
-- [ ] Wavetable oscillators
 - [ ] FM synthesis
 - [ ] L-systems
 - [ ] MIDI support
 
 ## Done
 
+- [x] Instancing/scattering (scatter_random, scatter_grid, scatter_sphere, scatter_poisson_2d, Instance)
 - [x] Text to paths (Font, text_to_path, text_to_paths_outlined, TextConfig, measure_text)
 - [x] Marching cubes (MarchingCubesConfig, sphere/box/torus SDFs, iso-value support)
 - [x] glTF import (import_gltf, import_gltf_from_bytes, GltfScene with merge)

@@ -21,6 +21,7 @@ pub mod image_field;
 mod node;
 pub mod noise;
 pub mod particle;
+pub mod scatter;
 pub mod spline;
 pub mod surface;
 mod value;
@@ -130,6 +131,11 @@ pub use particle::{
     Wind,
 };
 pub use resin_macros::DynNode as DynNodeDerive;
+pub use scatter::{
+    Instance, ScatterConfig, jitter_positions, randomize_rotation, randomize_scale, scatter_circle,
+    scatter_grid, scatter_grid_2d, scatter_line, scatter_poisson_2d, scatter_random,
+    scatter_random_with_config, scatter_sphere,
+};
 pub use spline::{
     BSpline, BezierSpline, CatmullRom, CubicBezier, Interpolatable, Nurbs, WeightedPoint,
     cubic_bezier, nurbs_arc, nurbs_circle, nurbs_circle_2d, nurbs_ellipse, quadratic_bezier,
