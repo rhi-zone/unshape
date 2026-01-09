@@ -5,6 +5,14 @@
 //! - `Collider` - collision shapes (sphere, box, plane)
 //! - `PhysicsWorld` - simulation container with gravity and constraints
 
+pub mod cloth;
+
+pub use cloth::{
+    Cloth, ClothCollider, ClothConfig, ClothParticle, CollisionResult,
+    DistanceConstraint as ClothDistanceConstraint, SelfCollisionGrid, query_collision,
+    solve_self_collision,
+};
+
 use glam::{Mat3, Quat, Vec3};
 
 // ============================================================================
