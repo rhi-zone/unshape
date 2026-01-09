@@ -10,6 +10,7 @@ pub mod graph;
 pub mod midi;
 pub mod osc;
 pub mod physical;
+pub mod wav;
 
 pub use effects::{Chorus, Distortion, DistortionMode, Flanger, Phaser, Reverb, Tremolo};
 pub use envelope::{Adsr, AdsrState, Ar, Lfo, LfoWaveform};
@@ -37,3 +38,6 @@ pub use osc::{
     sine, square, square_blep, supersaw_wavetable, triangle,
 };
 pub use physical::{ExtendedKarplusStrong, KarplusStrong, PluckConfig, PolyStrings};
+pub use wav::{
+    WavError, WavFile, WavFormat, WavResult, from_bytes as wav_from_bytes, to_bytes as wav_to_bytes,
+};
