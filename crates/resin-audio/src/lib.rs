@@ -15,7 +15,10 @@ pub mod spectral;
 pub mod vocoder;
 pub mod wav;
 
-pub use effects::{Chorus, Distortion, DistortionMode, Flanger, Phaser, Reverb, Tremolo};
+pub use effects::{
+    Chorus, ConvolutionConfig, ConvolutionReverb, Distortion, DistortionMode, Flanger, Phaser,
+    Reverb, Tremolo, convolution_reverb, generate_room_ir,
+};
 pub use envelope::{Adsr, AdsrState, Ar, Lfo, LfoWaveform};
 pub use filter::{
     Biquad, BiquadCoeffs, Delay, FeedbackDelay, HighPass, LowPass, highpass_coeff, highpass_sample,
