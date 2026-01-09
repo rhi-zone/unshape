@@ -2,7 +2,6 @@
 
 use crate::error::GraphError;
 use crate::value::{Value, ValueType};
-use resin_field::EvalContext;
 
 /// Port descriptor for a node input or output.
 #[derive(Debug, Clone)]
@@ -38,11 +37,10 @@ pub trait DynNode: Send + Sync {
     ///
     /// # Arguments
     /// * `inputs` - Input values, one per input port in order.
-    /// * `ctx` - Evaluation context with time, resolution, etc.
     ///
     /// # Returns
     /// Output values, one per output port in order.
-    fn execute(&self, inputs: &[Value], ctx: &EvalContext) -> Result<Vec<Value>, GraphError>;
+    fn execute(&self, inputs: &[Value]) -> Result<Vec<Value>, GraphError>;
 }
 
 /// A boxed dynamic node.

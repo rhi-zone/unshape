@@ -72,7 +72,7 @@ fn value_wrap_for(
 ///
 /// ```ignore
 /// use resin_macros::DynNode;
-/// use resin_core::{EvalContext, Value};
+/// use resin_core::Value;
 ///
 /// #[derive(DynNode, Default)]
 /// struct AddNode {
@@ -85,7 +85,7 @@ fn value_wrap_for(
 /// }
 ///
 /// impl AddNode {
-///     fn compute(&mut self, _ctx: &EvalContext) {
+///     fn compute(&mut self) {
 ///         self.result = self.a + self.b;
 ///     }
 /// }
@@ -219,11 +219,10 @@ pub fn derive_dyn_node(input: TokenStream) -> TokenStream {
             fn execute(
                 &self,
                 inputs: &[#crate_path::Value],
-                ctx: &#crate_path::EvalContext,
             ) -> Result<Vec<#crate_path::Value>, #crate_path::GraphError> {
                 let mut node = self.clone();
                 #(#input_extractions)*
-                node.compute(ctx);
+                node.compute();
                 Ok(vec![#(#output_collections),*])
             }
         }

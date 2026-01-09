@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use crate::error::GraphError;
 use crate::node::{BoxedNode, DynNode};
 use crate::value::Value;
-use resin_field::EvalContext;
 
 /// Unique identifier for a node in a graph.
 pub type NodeId = u32;
@@ -167,12 +166,7 @@ impl Graph {
     ///
     /// # Arguments
     /// * `output_node` - The node whose outputs to return.
-    /// * `ctx` - Evaluation context.
-    pub fn execute(
-        &mut self,
-        output_node: NodeId,
-        ctx: &EvalContext,
-    ) -> Result<Vec<Value>, GraphError> {
+    pub fn execute(&mut self, output_node: NodeId) -> Result<Vec<Value>, GraphError> {
         let order = self.topological_order()?.to_vec();
 
         // Storage for computed values: (node_id, port_index) -> Value
@@ -215,7 +209,7 @@ impl Graph {
             }
 
             // Execute node
-            let outputs = node.execute(&inputs, ctx)?;
+            let outputs = node.execute(&inputs)?;
 
             // Store outputs
             for (port, value) in outputs.into_iter().enumerate() {
@@ -280,7 +274,7 @@ mod tests {
             vec![PortDescriptor::new("result", ValueType::F32)]
         }
 
-        fn execute(&self, inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+        fn execute(&self, inputs: &[Value]) -> Result<Vec<Value>, GraphError> {
             let a = inputs[0]
                 .as_f32()
                 .map_err(|e| GraphError::ExecutionError(e.to_string()))?;
@@ -307,7 +301,7 @@ mod tests {
             vec![PortDescriptor::new("value", ValueType::F32)]
         }
 
-        fn execute(&self, _inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+        fn execute(&self, _inputs: &[Value]) -> Result<Vec<Value>, GraphError> {
             Ok(vec![Value::F32(self.0)])
         }
     }
@@ -323,8 +317,7 @@ mod tests {
         graph.connect(const_a, 0, add, 0).unwrap();
         graph.connect(const_b, 0, add, 1).unwrap();
 
-        let ctx = EvalContext::new();
-        let outputs = graph.execute(add, &ctx).unwrap();
+        let outputs = graph.execute(add).unwrap();
 
         assert_eq!(outputs.len(), 1);
         assert_eq!(outputs[0].as_f32().unwrap(), 5.0);
@@ -347,11 +340,7 @@ mod tests {
                 vec![PortDescriptor::new("value", ValueType::Bool)]
             }
 
-            fn execute(
-                &self,
-                _inputs: &[Value],
-                _ctx: &EvalContext,
-            ) -> Result<Vec<Value>, GraphError> {
+            fn execute(&self, _inputs: &[Value]) -> Result<Vec<Value>, GraphError> {
                 Ok(vec![Value::Bool(true)])
             }
         }
@@ -382,11 +371,7 @@ mod tests {
                 vec![PortDescriptor::new("out", ValueType::F32)]
             }
 
-            fn execute(
-                &self,
-                inputs: &[Value],
-                _ctx: &EvalContext,
-            ) -> Result<Vec<Value>, GraphError> {
+            fn execute(&self, inputs: &[Value]) -> Result<Vec<Value>, GraphError> {
                 Ok(vec![inputs[0].clone()])
             }
         }
@@ -398,8 +383,7 @@ mod tests {
         graph.connect(a, 0, b, 0).unwrap();
         graph.connect(b, 0, a, 0).unwrap(); // Creates cycle
 
-        let ctx = EvalContext::new();
-        let result = graph.execute(a, &ctx);
+        let result = graph.execute(a);
         assert!(matches!(result, Err(GraphError::CycleDetected)));
     }
 
@@ -419,7 +403,7 @@ mod tests {
         }
 
         impl DerivedAdd {
-            fn compute(&mut self, _ctx: &EvalContext) {
+            fn compute(&mut self) {
                 self.result = self.a + self.b;
             }
         }
@@ -438,10 +422,7 @@ mod tests {
         assert_eq!(outputs[0].name, "result");
 
         // Test execution
-        let ctx = EvalContext::new();
-        let result = node
-            .execute(&[Value::F32(10.0), Value::F32(5.0)], &ctx)
-            .unwrap();
+        let result = node.execute(&[Value::F32(10.0), Value::F32(5.0)]).unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].as_f32().unwrap(), 15.0);
     }
@@ -462,7 +443,7 @@ mod tests {
         }
 
         impl Multiply {
-            fn compute(&mut self, _ctx: &EvalContext) {
+            fn compute(&mut self) {
                 self.result = self.a * self.b;
             }
         }
@@ -475,8 +456,7 @@ mod tests {
         graph.connect(c1, 0, mul, 0).unwrap();
         graph.connect(c2, 0, mul, 1).unwrap();
 
-        let ctx = EvalContext::new();
-        let outputs = graph.execute(mul, &ctx).unwrap();
+        let outputs = graph.execute(mul).unwrap();
         assert_eq!(outputs[0].as_f32().unwrap(), 12.0);
     }
 }

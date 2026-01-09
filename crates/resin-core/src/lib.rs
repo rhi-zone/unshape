@@ -5,7 +5,6 @@
 //! - [`Graph`] - Node graph container and execution engine
 //! - [`DynNode`] - Trait for dynamic node execution
 //! - [`Value`] - Runtime value type for graph data
-//! - [`EvalContext`] - Evaluation context (time, resolution, etc.)
 //! - Attribute traits ([`HasPositions`], [`HasNormals`], etc.)
 
 mod attributes;
@@ -21,6 +20,5 @@ pub use error::{GraphError, TypeError};
 pub use glam;
 pub use graph::{Edge, Graph, NodeId};
 pub use node::{BoxedNode, DynNode, PortDescriptor};
-pub use resin_field::EvalContext;
 pub use resin_macros::DynNode as DynNodeDerive;
 pub use value::{Value, ValueType};

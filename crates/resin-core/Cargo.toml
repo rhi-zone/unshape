@@ -9,4 +9,3 @@ description = "Core types and traits for resin"
 glam.workspace = true
 thiserror.workspace = true
 resin-macros = { path = "../resin-macros" }
-resin-field = { path = "../resin-field" }
