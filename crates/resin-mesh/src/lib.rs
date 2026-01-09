@@ -2,6 +2,7 @@
 //!
 //! Provides mesh primitives and operations for procedural 3D geometry.
 
+mod ao;
 mod architecture;
 mod bevel;
 mod boolean;
@@ -25,6 +26,10 @@ mod sdf;
 mod subdivision;
 mod uv;
 
+pub use ao::{
+    AoAccelerator, AoBakeConfig, AoTexture, ao_to_vertex_colors, bake_ao_texture, bake_ao_vertices,
+    blur_ao_texture,
+};
 pub use architecture::{
     Building, DoorConfig, FloorPoint, RoofConfig, RoofStyle, WallConfig, WindowConfig,
     generate_building, generate_stairs, generate_wall_with_door, generate_wall_with_window,
