@@ -15,9 +15,11 @@ pub mod svg;
 mod text;
 
 pub use boolean::{
-    CurveIntersection, CurveSegment, closest_point_on_curve, cubic_self_intersections,
-    curve_intersections, line_curve_intersections, path_intersect, path_subtract, path_union,
-    path_xor,
+    CurveIntersection, CurveSegment, FillRule, closest_point_on_curve, cubic_self_intersections,
+    curve_intersections, line_curve_intersections, path_contains_point, path_intersect,
+    path_intersect_with_fill, path_subtract, path_subtract_with_fill, path_union,
+    path_union_with_fill, path_winding_number, path_xor, path_xor_multi,
+    polygon_contains_point_with_rule, winding_number,
 };
 pub use delaunay::{
     Triangle, VoronoiCell, VoronoiDiagram, delaunay_triangulation, triangles_to_indices,

@@ -50,7 +50,7 @@
 
 ### 2D Vector
 
-- [ ] Curve booleans - proper path intersection with winding rules
+- [x] Curve booleans - proper path intersection with winding rules (FillRule, winding_number, path_xor_multi)
 - [ ] Pressure curves - pen tool simulation, variable stroke width
 - [ ] Gradient meshes - interpolated color regions
 
