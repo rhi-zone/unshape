@@ -121,12 +121,14 @@ impl<T: Interpolatable> CatmullRom<T> {
     }
 
     /// Evaluates the spline at parameter t (0 to segment_count).
-    pub fn evaluate(&self, t: f32) -> T {
+    ///
+    /// Returns `None` if the spline has no control points.
+    pub fn evaluate(&self, t: f32) -> Option<T> {
         if self.points.is_empty() {
-            panic!("Cannot evaluate empty spline");
+            return None;
         }
         if self.points.len() == 1 {
-            return self.points[0];
+            return Some(self.points[0]);
         }
 
         let segment_count = self.segment_count() as f32;
@@ -135,7 +137,7 @@ impl<T: Interpolatable> CatmullRom<T> {
         let segment = (t_clamped.floor() as usize).min(self.segment_count() - 1);
         let local_t = t_clamped - segment as f32;
 
-        self.evaluate_segment(segment, local_t)
+        Some(self.evaluate_segment(segment, local_t))
     }
 
     /// Evaluates a specific segment at local parameter t (0 to 1).
@@ -162,12 +164,12 @@ impl<T: Interpolatable> CatmullRom<T> {
             return Vec::new();
         }
         if num_samples == 1 {
-            return vec![self.evaluate(0.0)];
+            return self.evaluate(0.0).into_iter().collect();
         }
 
         let segment_count = self.segment_count() as f32;
         (0..num_samples)
-            .map(|i| {
+            .filter_map(|i| {
                 let t = (i as f32 / (num_samples - 1) as f32) * segment_count;
                 self.evaluate(t)
             })
@@ -243,12 +245,14 @@ impl<T: Interpolatable> BSpline<T> {
     }
 
     /// Evaluates the B-spline at parameter t.
-    pub fn evaluate(&self, t: f32) -> T {
+    ///
+    /// Returns `None` if the spline has no control points.
+    pub fn evaluate(&self, t: f32) -> Option<T> {
         if self.points.is_empty() {
-            panic!("Cannot evaluate empty spline");
+            return None;
         }
         if self.points.len() == 1 {
-            return self.points[0];
+            return Some(self.points[0]);
         }
 
         let knots = self.get_knots();
@@ -279,7 +283,7 @@ impl<T: Interpolatable> BSpline<T> {
             }
         }
 
-        d[k]
+        Some(d[k])
     }
 
     /// Samples the spline at regular intervals.
@@ -292,7 +296,7 @@ impl<T: Interpolatable> BSpline<T> {
         let t_max = knots[self.points.len()];
 
         (0..num_samples)
-            .map(|i| {
+            .filter_map(|i| {
                 let t = (i as f32 / (num_samples.max(2) - 1) as f32) * t_max;
                 self.evaluate(t)
             })
@@ -367,29 +371,33 @@ impl<T: Interpolatable> BezierSpline<T> {
     }
 
     /// Evaluates the spline at parameter t (0 to len).
-    pub fn evaluate(&self, t: f32) -> T {
+    ///
+    /// Returns `None` if the spline has no segments.
+    pub fn evaluate(&self, t: f32) -> Option<T> {
         if self.segments.is_empty() {
-            panic!("Cannot evaluate empty spline");
+            return None;
         }
 
         let t_clamped = t.clamp(0.0, self.segments.len() as f32);
         let segment = (t_clamped.floor() as usize).min(self.segments.len() - 1);
         let local_t = t_clamped - segment as f32;
 
-        self.segments[segment].evaluate(local_t)
+        Some(self.segments[segment].evaluate(local_t))
     }
 
     /// Evaluates the derivative at parameter t.
-    pub fn derivative(&self, t: f32) -> T {
+    ///
+    /// Returns `None` if the spline has no segments.
+    pub fn derivative(&self, t: f32) -> Option<T> {
         if self.segments.is_empty() {
-            panic!("Cannot evaluate empty spline");
+            return None;
         }
 
         let t_clamped = t.clamp(0.0, self.segments.len() as f32);
         let segment = (t_clamped.floor() as usize).min(self.segments.len() - 1);
         let local_t = t_clamped - segment as f32;
 
-        self.segments[segment].derivative(local_t)
+        Some(self.segments[segment].derivative(local_t))
     }
 
     /// Samples the spline at regular intervals.
@@ -400,7 +408,7 @@ impl<T: Interpolatable> BezierSpline<T> {
 
         let len = self.segments.len() as f32;
         (0..num_samples)
-            .map(|i| {
+            .filter_map(|i| {
                 let t = (i as f32 / (num_samples.max(2) - 1) as f32) * len;
                 self.evaluate(t)
             })
@@ -515,12 +523,14 @@ impl<T: Interpolatable> Nurbs<T> {
     }
 
     /// Evaluates the NURBS curve at parameter t using the rational De Boor algorithm.
-    pub fn evaluate(&self, t: f32) -> T {
+    ///
+    /// Returns `None` if the curve has no control points.
+    pub fn evaluate(&self, t: f32) -> Option<T> {
         if self.points.is_empty() {
-            panic!("Cannot evaluate empty NURBS curve");
+            return None;
         }
         if self.points.len() == 1 {
-            return self.points[0].point;
+            return Some(self.points[0].point);
         }
 
         let n = self.points.len();
@@ -571,11 +581,13 @@ impl<T: Interpolatable> Nurbs<T> {
 
         // Project back from homogeneous coordinates
         let (p, w) = d[k];
-        if w.abs() < 1e-10 { p } else { p * (1.0 / w) }
+        Some(if w.abs() < 1e-10 { p } else { p * (1.0 / w) })
     }
 
     /// Evaluates the derivative at parameter t.
-    pub fn derivative(&self, t: f32) -> T {
+    ///
+    /// Returns `None` if the curve has no control points.
+    pub fn derivative(&self, t: f32) -> Option<T> {
         // Numerical derivative using central differences
         let h = 0.001;
         let (t_min, t_max) = self.domain();
@@ -583,10 +595,10 @@ impl<T: Interpolatable> Nurbs<T> {
         let t_lo = (t - h).max(t_min);
         let t_hi = (t + h).min(t_max - 0.0001);
 
-        let p_lo = self.evaluate(t_lo);
-        let p_hi = self.evaluate(t_hi);
+        let p_lo = self.evaluate(t_lo)?;
+        let p_hi = self.evaluate(t_hi)?;
 
-        (p_hi - p_lo) * (1.0 / (t_hi - t_lo))
+        Some((p_hi - p_lo) * (1.0 / (t_hi - t_lo)))
     }
 
     /// Samples the curve at regular intervals.
@@ -598,7 +610,7 @@ impl<T: Interpolatable> Nurbs<T> {
         let (t_min, t_max) = self.domain();
 
         (0..num_samples)
-            .map(|i| {
+            .filter_map(|i| {
                 let t = t_min + (i as f32 / (num_samples.max(2) - 1) as f32) * (t_max - t_min);
                 self.evaluate(t)
             })
@@ -895,7 +907,7 @@ mod tests {
         // Should pass through all control points
         for (i, point) in points.iter().enumerate() {
             let t = i as f32;
-            let eval = spline.evaluate(t);
+            let eval = spline.evaluate(t).unwrap();
             assert!(
                 (eval - *point).length() < 0.001,
                 "Point {} mismatch: {:?} vs {:?}",
@@ -952,8 +964,8 @@ mod tests {
         assert_eq!(spline.len(), 2);
 
         // Should pass through endpoints
-        assert!((spline.evaluate(0.0) - points[0]).length() < 0.001);
-        assert!((spline.evaluate(2.0) - points[2]).length() < 0.001);
+        assert!((spline.evaluate(0.0).unwrap() - points[0]).length() < 0.001);
+        assert!((spline.evaluate(2.0).unwrap() - points[2]).length() < 0.001);
     }
 
     #[test]
@@ -1019,8 +1031,8 @@ mod tests {
         let (t_min, t_max) = nurbs.domain();
 
         // Should pass through first and last control points
-        let start = nurbs.evaluate(t_min);
-        let end = nurbs.evaluate(t_max - 0.0001);
+        let start = nurbs.evaluate(t_min).unwrap();
+        let end = nurbs.evaluate(t_max - 0.0001).unwrap();
 
         assert!((start - Vec3::new(0.0, 0.0, 0.0)).length() < 0.01);
         assert!((end - Vec3::new(2.0, 0.0, 0.0)).length() < 0.01);
@@ -1050,8 +1062,8 @@ mod tests {
         let (t_min, t_max) = nurbs_uniform.domain();
         let t_mid = (t_min + t_max) / 2.0;
 
-        let mid_uniform = nurbs_uniform.evaluate(t_mid);
-        let mid_weighted = nurbs_weighted.evaluate(t_mid);
+        let mid_uniform = nurbs_uniform.evaluate(t_mid).unwrap();
+        let mid_weighted = nurbs_weighted.evaluate(t_mid).unwrap();
 
         // Weighted version should be closer to the middle control point
         let dist_to_p1_uniform = (mid_uniform - p1).length();
@@ -1171,7 +1183,7 @@ mod tests {
         let (t_min, t_max) = nurbs.domain();
         let t_mid = (t_min + t_max) / 2.0;
 
-        let deriv = nurbs.derivative(t_mid);
+        let deriv = nurbs.derivative(t_mid).unwrap();
 
         // Derivative should be non-zero and tangent to curve
         assert!(deriv.length() > 0.0);

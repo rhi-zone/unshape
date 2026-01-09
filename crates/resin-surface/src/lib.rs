@@ -42,6 +42,24 @@ impl SurfacePoint {
     }
 }
 
+/// Parameter domain for a NURBS surface.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SurfaceDomain {
+    /// Minimum and maximum u parameter values.
+    pub u: ParameterRange,
+    /// Minimum and maximum v parameter values.
+    pub v: ParameterRange,
+}
+
+/// A parameter range (min, max).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ParameterRange {
+    /// Minimum parameter value.
+    pub min: f32,
+    /// Maximum parameter value.
+    pub max: f32,
+}
+
 /// A NURBS surface (tensor product of NURBS curves).
 ///
 /// Control points are arranged in a 2D grid with dimensions (num_u, num_v).
@@ -143,20 +161,25 @@ impl NurbsSurface {
         &self.points[u_idx * self.num_v + v_idx]
     }
 
-    /// Returns the parameter domain [(u_min, u_max), (v_min, v_max)].
-    pub fn domain(&self) -> ((f32, f32), (f32, f32)) {
-        let u_min = self.knots_u[self.degree_u];
-        let u_max = self.knots_u[self.num_u];
-        let v_min = self.knots_v[self.degree_v];
-        let v_max = self.knots_v[self.num_v];
-        ((u_min, u_max), (v_min, v_max))
+    /// Returns the parameter domain.
+    pub fn domain(&self) -> SurfaceDomain {
+        SurfaceDomain {
+            u: ParameterRange {
+                min: self.knots_u[self.degree_u],
+                max: self.knots_u[self.num_u],
+            },
+            v: ParameterRange {
+                min: self.knots_v[self.degree_v],
+                max: self.knots_v[self.num_v],
+            },
+        }
     }
 
     /// Evaluates the surface at parameter (u, v).
     pub fn evaluate(&self, u: f32, v: f32) -> Vec3 {
-        let ((u_min, u_max), (v_min, v_max)) = self.domain();
-        let u = u.clamp(u_min, u_max - 0.0001);
-        let v = v.clamp(v_min, v_max - 0.0001);
+        let domain = self.domain();
+        let u = u.clamp(domain.u.min, domain.u.max - 0.0001);
+        let v = v.clamp(domain.v.min, domain.v.max - 0.0001);
 
         // Find knot spans
         let span_u = find_span(u, &self.knots_u, self.num_u, self.degree_u);
@@ -191,18 +214,18 @@ impl NurbsSurface {
     /// Evaluates the partial derivative with respect to u.
     pub fn derivative_u(&self, u: f32, v: f32) -> Vec3 {
         let h = 0.001;
-        let ((u_min, u_max), _) = self.domain();
-        let u_lo = (u - h).max(u_min);
-        let u_hi = (u + h).min(u_max - 0.0001);
+        let domain = self.domain();
+        let u_lo = (u - h).max(domain.u.min);
+        let u_hi = (u + h).min(domain.u.max - 0.0001);
         (self.evaluate(u_hi, v) - self.evaluate(u_lo, v)) / (u_hi - u_lo)
     }
 
     /// Evaluates the partial derivative with respect to v.
     pub fn derivative_v(&self, u: f32, v: f32) -> Vec3 {
         let h = 0.001;
-        let (_, (v_min, v_max)) = self.domain();
-        let v_lo = (v - h).max(v_min);
-        let v_hi = (v + h).min(v_max - 0.0001);
+        let domain = self.domain();
+        let v_lo = (v - h).max(domain.v.min);
+        let v_hi = (v + h).min(domain.v.max - 0.0001);
         (self.evaluate(u, v_hi) - self.evaluate(u, v_lo)) / (v_hi - v_lo)
     }
 
@@ -217,7 +240,7 @@ impl NurbsSurface {
     ///
     /// Returns (positions, normals, uvs, indices).
     pub fn tessellate(&self, divisions_u: usize, divisions_v: usize) -> TessellatedSurface {
-        let ((u_min, u_max), (v_min, v_max)) = self.domain();
+        let domain = self.domain();
 
         let num_verts = (divisions_u + 1) * (divisions_v + 1);
         let mut positions = Vec::with_capacity(num_verts);
@@ -226,9 +249,10 @@ impl NurbsSurface {
 
         // Generate vertices
         for i in 0..=divisions_u {
-            let u = u_min + (i as f32 / divisions_u as f32) * (u_max - u_min);
+            let u = domain.u.min + (i as f32 / divisions_u as f32) * (domain.u.max - domain.u.min);
             for j in 0..=divisions_v {
-                let v = v_min + (j as f32 / divisions_v as f32) * (v_max - v_min);
+                let v =
+                    domain.v.min + (j as f32 / divisions_v as f32) * (domain.v.max - domain.v.min);
 
                 positions.push(self.evaluate(u, v));
                 normals.push(self.normal(u, v));
@@ -572,9 +596,9 @@ mod tests {
     #[test]
     fn test_domain() {
         let patch = nurbs_bilinear_patch(Vec3::ZERO, Vec3::X, Vec3::Y, Vec3::new(1.0, 1.0, 0.0));
-        let ((u_min, u_max), (v_min, v_max)) = patch.domain();
-        assert!(u_min < u_max);
-        assert!(v_min < v_max);
+        let domain = patch.domain();
+        assert!(domain.u.min < domain.u.max);
+        assert!(domain.v.min < domain.v.max);
     }
 
     #[test]
@@ -668,10 +692,10 @@ mod tests {
     #[test]
     fn test_torus() {
         let torus = nurbs_torus(Vec3::ZERO, 2.0, 0.5);
-        let ((u_min, _), (v_min, v_max)) = torus.domain();
+        let domain = torus.domain();
 
         // Sample a point on the outer edge (major + minor radius)
-        let outer = torus.evaluate(u_min, v_min);
+        let outer = torus.evaluate(domain.u.min, domain.v.min);
         let outer_dist = outer.length();
         // Should be at major_radius + minor_radius = 2.5
         assert!(
@@ -681,8 +705,8 @@ mod tests {
         );
 
         // Sample a point on inner edge
-        let inner_v = (v_min + v_max) / 2.0;
-        let inner = torus.evaluate(u_min, inner_v);
+        let inner_v = (domain.v.min + domain.v.max) / 2.0;
+        let inner = torus.evaluate(domain.u.min, inner_v);
         // At v=0.5, should be at major_radius - minor_radius = 1.5 (roughly)
         let inner_dist = (inner.x * inner.x + inner.z * inner.z).sqrt();
         assert!(
@@ -695,10 +719,10 @@ mod tests {
     #[test]
     fn test_sphere_poles() {
         let sphere = nurbs_sphere(Vec3::ZERO, 1.0);
-        let ((u_min, _), (v_min, v_max)) = sphere.domain();
+        let domain = sphere.domain();
 
         // North pole (v_min)
-        let north = sphere.evaluate(u_min, v_min);
+        let north = sphere.evaluate(domain.u.min, domain.v.min);
         assert!(
             (north - Vec3::new(0.0, 1.0, 0.0)).length() < 0.15,
             "North pole {:?} should be at (0, 1, 0)",
@@ -706,7 +730,7 @@ mod tests {
         );
 
         // South pole (v_max)
-        let south = sphere.evaluate(u_min, v_max - 0.001);
+        let south = sphere.evaluate(domain.u.min, domain.v.max - 0.001);
         assert!(
             (south - Vec3::new(0.0, -1.0, 0.0)).length() < 0.15,
             "South pole {:?} should be at (0, -1, 0)",
@@ -717,10 +741,10 @@ mod tests {
     #[test]
     fn test_cylinder_height() {
         let cylinder = nurbs_cylinder(Vec3::ZERO, 1.0, 4.0);
-        let ((u_min, _), (v_min, v_max)) = cylinder.domain();
+        let domain = cylinder.domain();
 
         // Bottom
-        let bottom = cylinder.evaluate(u_min, v_min);
+        let bottom = cylinder.evaluate(domain.u.min, domain.v.min);
         assert!(
             (bottom.y - (-2.0)).abs() < 0.1,
             "Bottom y {} should be -2.0",
@@ -728,7 +752,7 @@ mod tests {
         );
 
         // Top
-        let top = cylinder.evaluate(u_min, v_max - 0.001);
+        let top = cylinder.evaluate(domain.u.min, domain.v.max - 0.001);
         assert!((top.y - 2.0).abs() < 0.1, "Top y {} should be 2.0", top.y);
     }
 
@@ -793,15 +817,15 @@ mod tests {
         );
 
         // Corners should match control points
-        let ((u_min, u_max), (v_min, v_max)) = patch.domain();
+        let domain = patch.domain();
 
-        let p00 = patch.evaluate(u_min, v_min);
+        let p00 = patch.evaluate(domain.u.min, domain.v.min);
         assert!((p00 - Vec3::new(0.0, 0.0, 0.0)).length() < 0.01);
 
-        let p10 = patch.evaluate(u_max - 0.001, v_min);
+        let p10 = patch.evaluate(domain.u.max - 0.001, domain.v.min);
         assert!((p10 - Vec3::new(1.0, 0.0, 0.0)).length() < 0.01);
 
-        let p01 = patch.evaluate(u_min, v_max - 0.001);
+        let p01 = patch.evaluate(domain.u.min, domain.v.max - 0.001);
         assert!((p01 - Vec3::new(0.0, 1.0, 0.0)).length() < 0.01);
 
         // Center should be average
@@ -812,13 +836,13 @@ mod tests {
     #[test]
     fn test_nurbs_sphere() {
         let sphere = nurbs_sphere(Vec3::ZERO, 1.0);
+        let domain = sphere.domain();
 
         // Sample points should be on the sphere surface
         for i in 0..10 {
             for j in 0..10 {
-                let ((u_min, u_max), (v_min, v_max)) = sphere.domain();
-                let u = u_min + (i as f32 / 9.0) * (u_max - u_min - 0.001);
-                let v = v_min + (j as f32 / 9.0) * (v_max - v_min - 0.001);
+                let u = domain.u.min + (i as f32 / 9.0) * (domain.u.max - domain.u.min - 0.001);
+                let v = domain.v.min + (j as f32 / 9.0) * (domain.v.max - domain.v.min - 0.001);
 
                 let point = sphere.evaluate(u, v);
                 let dist = point.length();
@@ -838,13 +862,12 @@ mod tests {
     #[test]
     fn test_nurbs_cylinder() {
         let cylinder = nurbs_cylinder(Vec3::ZERO, 1.0, 2.0);
+        let domain = cylinder.domain();
 
         // Sample points should have correct radius
-        let ((u_min, u_max), (v_min, v_max)) = cylinder.domain();
-
         for i in 0..8 {
-            let u = u_min + (i as f32 / 7.0) * (u_max - u_min - 0.001);
-            let point = cylinder.evaluate(u, (v_min + v_max) / 2.0);
+            let u = domain.u.min + (i as f32 / 7.0) * (domain.u.max - domain.u.min - 0.001);
+            let point = cylinder.evaluate(u, (domain.v.min + domain.v.max) / 2.0);
 
             let horizontal_dist = (point.x * point.x + point.z * point.z).sqrt();
             assert!(
@@ -890,16 +913,15 @@ mod tests {
     #[test]
     fn test_cone() {
         let cone = nurbs_cone(Vec3::new(0.0, 2.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 1.0);
-
-        let ((u_min, u_max), (v_min, v_max)) = cone.domain();
+        let domain = cone.domain();
 
         // Base should have radius 1
-        let base_point = cone.evaluate((u_min + u_max) / 2.0, v_min);
+        let base_point = cone.evaluate((domain.u.min + domain.u.max) / 2.0, domain.v.min);
         let base_radius = (base_point.x * base_point.x + base_point.z * base_point.z).sqrt();
         assert!((base_radius - 1.0).abs() < 0.2);
 
         // Apex should be at (0, 2, 0)
-        let apex = cone.evaluate((u_min + u_max) / 2.0, v_max - 0.001);
+        let apex = cone.evaluate((domain.u.min + domain.u.max) / 2.0, domain.v.max - 0.001);
         assert!((apex - Vec3::new(0.0, 2.0, 0.0)).length() < 0.2);
     }
 }

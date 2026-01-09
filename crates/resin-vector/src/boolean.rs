@@ -81,6 +81,33 @@ pub struct CurveIntersection {
     pub t2: f32,
 }
 
+/// Bounding box with named min/max fields.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Bounds2D {
+    /// Minimum corner of the bounding box.
+    pub min: Vec2,
+    /// Maximum corner of the bounding box.
+    pub max: Vec2,
+}
+
+/// Result of splitting a curve at a parameter.
+#[derive(Debug, Clone, Copy)]
+pub struct SplitCurve {
+    /// The curve segment before the split point.
+    pub before: CurveSegment,
+    /// The curve segment after the split point.
+    pub after: CurveSegment,
+}
+
+/// Result of finding the closest point on a curve.
+#[derive(Debug, Clone, Copy)]
+pub struct ClosestPoint {
+    /// The closest point on the curve.
+    pub point: Vec2,
+    /// The parameter t (0-1) at the closest point.
+    pub t: f32,
+}
+
 impl CurveSegment {
     /// Evaluates the curve at parameter t (0-1).
     pub fn evaluate(&self, t: f32) -> Vec2 {
@@ -129,46 +156,47 @@ impl CurveSegment {
     }
 
     /// Returns the bounding box of the curve.
-    pub fn bounds(&self) -> (Vec2, Vec2) {
+    pub fn bounds(&self) -> Bounds2D {
         match self {
-            CurveSegment::Line { start, end } => (start.min(*end), start.max(*end)),
+            CurveSegment::Line { start, end } => Bounds2D {
+                min: start.min(*end),
+                max: start.max(*end),
+            },
             CurveSegment::Quadratic {
                 start,
                 control,
                 end,
-            } => {
-                let min = start.min(*control).min(*end);
-                let max = start.max(*control).max(*end);
-                (min, max)
-            }
+            } => Bounds2D {
+                min: start.min(*control).min(*end),
+                max: start.max(*control).max(*end),
+            },
             CurveSegment::Cubic {
                 start,
                 control1,
                 control2,
                 end,
-            } => {
-                let min = start.min(*control1).min(*control2).min(*end);
-                let max = start.max(*control1).max(*control2).max(*end);
-                (min, max)
-            }
+            } => Bounds2D {
+                min: start.min(*control1).min(*control2).min(*end),
+                max: start.max(*control1).max(*control2).max(*end),
+            },
         }
     }
 
     /// Splits the curve at parameter t, returning two subcurves.
-    pub fn split(&self, t: f32) -> (CurveSegment, CurveSegment) {
+    pub fn split(&self, t: f32) -> SplitCurve {
         match self {
             CurveSegment::Line { start, end } => {
                 let mid = *start + (*end - *start) * t;
-                (
-                    CurveSegment::Line {
+                SplitCurve {
+                    before: CurveSegment::Line {
                         start: *start,
                         end: mid,
                     },
-                    CurveSegment::Line {
+                    after: CurveSegment::Line {
                         start: mid,
                         end: *end,
                     },
-                )
+                }
             }
             CurveSegment::Quadratic {
                 start,
@@ -176,18 +204,18 @@ impl CurveSegment {
                 end,
             } => {
                 let (left, right) = split_quadratic(*start, *control, *end, t);
-                (
-                    CurveSegment::Quadratic {
+                SplitCurve {
+                    before: CurveSegment::Quadratic {
                         start: left.0,
                         control: left.1,
                         end: left.2,
                     },
-                    CurveSegment::Quadratic {
+                    after: CurveSegment::Quadratic {
                         start: right.0,
                         control: right.1,
                         end: right.2,
                     },
-                )
+                }
             }
             CurveSegment::Cubic {
                 start,
@@ -196,20 +224,20 @@ impl CurveSegment {
                 end,
             } => {
                 let (left, right) = split_cubic(*start, *control1, *control2, *end, t);
-                (
-                    CurveSegment::Cubic {
+                SplitCurve {
+                    before: CurveSegment::Cubic {
                         start: left.0,
                         control1: left.1,
                         control2: left.2,
                         end: left.3,
                     },
-                    CurveSegment::Cubic {
+                    after: CurveSegment::Cubic {
                         start: right.0,
                         control1: right.1,
                         control2: right.2,
                         end: right.3,
                     },
-                )
+                }
             }
         }
     }
@@ -246,13 +274,13 @@ fn split_cubic(
 }
 
 /// Checks if two bounding boxes overlap.
-fn bounds_overlap(a: (Vec2, Vec2), b: (Vec2, Vec2)) -> bool {
-    a.0.x <= b.1.x && a.1.x >= b.0.x && a.0.y <= b.1.y && a.1.y >= b.0.y
+fn bounds_overlap(a: Bounds2D, b: Bounds2D) -> bool {
+    a.min.x <= b.max.x && a.max.x >= b.min.x && a.min.y <= b.max.y && a.max.y >= b.min.y
 }
 
 /// Bounding box diagonal length.
-fn bounds_size(bounds: (Vec2, Vec2)) -> f32 {
-    (bounds.1 - bounds.0).length()
+fn bounds_size(bounds: Bounds2D) -> f32 {
+    (bounds.max - bounds.min).length()
 }
 
 // ============================================================================
@@ -321,10 +349,10 @@ fn find_intersections_recursive(
 
     // Subdivide the larger curve
     if size1 > size2 {
-        let (left, right) = c1.split(0.5);
+        let split = c1.split(0.5);
         let t1_mid = (t1_min + t1_max) / 2.0;
         find_intersections_recursive(
-            &left,
+            &split.before,
             c2,
             t1_min,
             t1_mid,
@@ -335,7 +363,7 @@ fn find_intersections_recursive(
             depth + 1,
         );
         find_intersections_recursive(
-            &right,
+            &split.after,
             c2,
             t1_mid,
             t1_max,
@@ -346,11 +374,11 @@ fn find_intersections_recursive(
             depth + 1,
         );
     } else {
-        let (left, right) = c2.split(0.5);
+        let split = c2.split(0.5);
         let t2_mid = (t2_min + t2_max) / 2.0;
         find_intersections_recursive(
             c1,
-            &left,
+            &split.before,
             t1_min,
             t1_max,
             t2_min,
@@ -361,7 +389,7 @@ fn find_intersections_recursive(
         );
         find_intersections_recursive(
             c1,
-            &right,
+            &split.after,
             t1_min,
             t1_max,
             t2_mid,
@@ -405,10 +433,10 @@ pub fn cubic_self_intersections(
     };
 
     // Split curve in half and check if the two halves intersect
-    let (left, right) = curve.split(0.5);
+    let split = curve.split(0.5);
 
     // Exclude the common endpoint
-    let mut intersections = curve_intersections(&left, &right, tolerance);
+    let mut intersections = curve_intersections(&split.before, &split.after, tolerance);
     intersections.retain(|i| (i.t1 - 0.5).abs() > 0.01 || (i.t2 - 0.5).abs() > 0.01);
 
     // Adjust t values to full curve range
@@ -421,7 +449,7 @@ pub fn cubic_self_intersections(
 }
 
 /// Finds the closest point on a curve to a given point.
-pub fn closest_point_on_curve(curve: &CurveSegment, point: Vec2, samples: usize) -> (Vec2, f32) {
+pub fn closest_point_on_curve(curve: &CurveSegment, point: Vec2, samples: usize) -> ClosestPoint {
     let mut best_t = 0.0;
     let mut best_dist = f32::MAX;
     let mut best_point = curve.evaluate(0.0);
@@ -455,7 +483,10 @@ pub fn closest_point_on_curve(curve: &CurveSegment, point: Vec2, samples: usize)
     }
 
     best_point = curve.evaluate(best_t);
-    (best_point, best_t)
+    ClosestPoint {
+        point: best_point,
+        t: best_t,
+    }
 }
 
 /// Computes the union of two paths.
@@ -1407,15 +1438,15 @@ mod tests {
             end: Vec2::new(10.0, 0.0),
         };
 
-        let (left, right) = line.split(0.5);
+        let split = line.split(0.5);
 
-        // Check left segment
-        assert_eq!(left.evaluate(0.0), Vec2::ZERO);
-        assert_eq!(left.evaluate(1.0), Vec2::new(5.0, 0.0));
+        // Check before segment
+        assert_eq!(split.before.evaluate(0.0), Vec2::ZERO);
+        assert_eq!(split.before.evaluate(1.0), Vec2::new(5.0, 0.0));
 
-        // Check right segment
-        assert_eq!(right.evaluate(0.0), Vec2::new(5.0, 0.0));
-        assert_eq!(right.evaluate(1.0), Vec2::new(10.0, 0.0));
+        // Check after segment
+        assert_eq!(split.after.evaluate(0.0), Vec2::new(5.0, 0.0));
+        assert_eq!(split.after.evaluate(1.0), Vec2::new(10.0, 0.0));
     }
 
     #[test]
@@ -1427,9 +1458,9 @@ mod tests {
             end: Vec2::new(2.0, 0.0),
         };
 
-        let (min, max) = cubic.bounds();
-        assert_eq!(min, Vec2::ZERO);
-        assert_eq!(max, Vec2::new(2.0, 2.0));
+        let bounds = cubic.bounds();
+        assert_eq!(bounds.min, Vec2::ZERO);
+        assert_eq!(bounds.max, Vec2::new(2.0, 2.0));
     }
 
     #[test]
@@ -1530,10 +1561,10 @@ mod tests {
         };
 
         // Point above the middle of the line
-        let (closest, t) = closest_point_on_curve(&line, Vec2::new(5.0, 3.0), 10);
-        assert!((closest.x - 5.0).abs() < 0.1);
-        assert!(closest.y.abs() < 0.1);
-        assert!((t - 0.5).abs() < 0.1);
+        let result = closest_point_on_curve(&line, Vec2::new(5.0, 3.0), 10);
+        assert!((result.point.x - 5.0).abs() < 0.1);
+        assert!(result.point.y.abs() < 0.1);
+        assert!((result.t - 0.5).abs() < 0.1);
     }
 
     #[test]
@@ -1545,11 +1576,11 @@ mod tests {
         };
 
         // Point above the curve
-        let (closest, t) = closest_point_on_curve(&quad, Vec2::new(1.0, 3.0), 20);
+        let result = closest_point_on_curve(&quad, Vec2::new(1.0, 3.0), 20);
         // Closest should be near the peak of the curve
-        assert!((closest.x - 1.0).abs() < 0.2);
-        assert!(closest.y > 0.5);
-        assert!((t - 0.5).abs() < 0.2);
+        assert!((result.point.x - 1.0).abs() < 0.2);
+        assert!(result.point.y > 0.5);
+        assert!((result.t - 0.5).abs() < 0.2);
     }
 
     #[test]
