@@ -3,10 +3,8 @@
 ## Next Up
 
 ## Backlog
-- [ ] SVG import (parsing)
 - [ ] Reaction-diffusion
 - [ ] Spring physics / Verlet integration
-- [ ] Delaunay triangulation
 - [ ] Mesh repair (hole filling)
 - [ ] Geodesic distance
 - [ ] Wave function collapse
@@ -15,6 +13,7 @@
 
 ## Done
 
+- [x] SVG import/parsing (parse_path_data, M/L/H/V/C/S/Q/T/A/Z commands, arc to cubic conversion)
 - [x] WAV import/export (WavFile, PCM 8/16/24/32-bit, Float32, resampling)
 - [x] Granular synthesis (GrainCloud, GrainConfig, GrainScheduler, Hann envelope)
 - [x] Hatching patterns (HatchConfig, hatch_rect, cross_hatch_rect, hatch_polygon)

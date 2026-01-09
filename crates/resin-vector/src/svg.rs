@@ -514,6 +514,405 @@ pub fn path_to_svg(path: &Path, width: f32, height: f32, style: SvgStyle) -> Str
     doc.to_svg_string()
 }
 
+// ============================================================================
+// SVG Import / Parsing
+// ============================================================================
+
+/// Error type for SVG parsing.
+#[derive(Debug)]
+pub enum SvgParseError {
+    /// Invalid path data.
+    InvalidPath(String),
+    /// Invalid number format.
+    InvalidNumber(String),
+    /// Unexpected end of input.
+    UnexpectedEnd,
+    /// Unknown command.
+    UnknownCommand(char),
+}
+
+impl std::fmt::Display for SvgParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SvgParseError::InvalidPath(s) => write!(f, "Invalid path: {}", s),
+            SvgParseError::InvalidNumber(s) => write!(f, "Invalid number: {}", s),
+            SvgParseError::UnexpectedEnd => write!(f, "Unexpected end of path data"),
+            SvgParseError::UnknownCommand(c) => write!(f, "Unknown command: {}", c),
+        }
+    }
+}
+
+impl std::error::Error for SvgParseError {}
+
+/// Result type for SVG parsing.
+pub type SvgParseResult<T> = Result<T, SvgParseError>;
+
+/// Parses SVG path data (d attribute) into a Path.
+///
+/// Supports the following commands:
+/// - M/m: moveto
+/// - L/l: lineto
+/// - H/h: horizontal lineto
+/// - V/v: vertical lineto
+/// - C/c: cubic bezier
+/// - Q/q: quadratic bezier
+/// - S/s: smooth cubic bezier
+/// - T/t: smooth quadratic bezier
+/// - A/a: arc (approximated with cubic beziers)
+/// - Z/z: closepath
+///
+/// # Example
+///
+/// ```
+/// use resin_vector::svg::parse_path_data;
+///
+/// let path = parse_path_data("M0,0 L100,100 Z").unwrap();
+/// assert!(!path.is_empty());
+/// ```
+pub fn parse_path_data(data: &str) -> SvgParseResult<Path> {
+    let mut builder = crate::PathBuilder::new();
+    let mut current = Vec2::ZERO;
+    let mut start = Vec2::ZERO;
+    let mut last_control: Option<Vec2> = None;
+    let mut last_command: Option<char> = None;
+
+    let mut chars = data.chars().peekable();
+
+    while let Some(&c) = chars.peek() {
+        // Skip whitespace and commas
+        if c.is_whitespace() || c == ',' {
+            chars.next();
+            continue;
+        }
+
+        // Determine command
+        let command = if c.is_alphabetic() {
+            chars.next();
+            c
+        } else if let Some(lc) = last_command {
+            // Implicit command (repeat last command)
+            match lc {
+                'M' => 'L',
+                'm' => 'l',
+                _ => lc,
+            }
+        } else {
+            return Err(SvgParseError::InvalidPath("Expected command".to_string()));
+        };
+
+        let is_relative = command.is_lowercase();
+        let base = if is_relative { current } else { Vec2::ZERO };
+
+        match command.to_ascii_uppercase() {
+            'M' => {
+                let x = parse_number(&mut chars)?;
+                let y = parse_number(&mut chars)?;
+                current = base + Vec2::new(x, y);
+                start = current;
+                builder = builder.move_to(current);
+                last_control = None;
+            }
+            'L' => {
+                let x = parse_number(&mut chars)?;
+                let y = parse_number(&mut chars)?;
+                current = base + Vec2::new(x, y);
+                builder = builder.line_to(current);
+                last_control = None;
+            }
+            'H' => {
+                let x = parse_number(&mut chars)?;
+                current.x = if is_relative { current.x + x } else { x };
+                builder = builder.line_to(current);
+                last_control = None;
+            }
+            'V' => {
+                let y = parse_number(&mut chars)?;
+                current.y = if is_relative { current.y + y } else { y };
+                builder = builder.line_to(current);
+                last_control = None;
+            }
+            'C' => {
+                let x1 = parse_number(&mut chars)?;
+                let y1 = parse_number(&mut chars)?;
+                let x2 = parse_number(&mut chars)?;
+                let y2 = parse_number(&mut chars)?;
+                let x = parse_number(&mut chars)?;
+                let y = parse_number(&mut chars)?;
+
+                let cp1 = base + Vec2::new(x1, y1);
+                let cp2 = base + Vec2::new(x2, y2);
+                current = base + Vec2::new(x, y);
+
+                builder = builder.cubic_to(cp1, cp2, current);
+                last_control = Some(cp2);
+            }
+            'S' => {
+                // Smooth cubic - reflect last control point
+                let cp1 = match last_control {
+                    Some(lc) => current * 2.0 - lc,
+                    None => current,
+                };
+
+                let x2 = parse_number(&mut chars)?;
+                let y2 = parse_number(&mut chars)?;
+                let x = parse_number(&mut chars)?;
+                let y = parse_number(&mut chars)?;
+
+                let cp2 = base + Vec2::new(x2, y2);
+                current = base + Vec2::new(x, y);
+
+                builder = builder.cubic_to(cp1, cp2, current);
+                last_control = Some(cp2);
+            }
+            'Q' => {
+                let x1 = parse_number(&mut chars)?;
+                let y1 = parse_number(&mut chars)?;
+                let x = parse_number(&mut chars)?;
+                let y = parse_number(&mut chars)?;
+
+                let cp = base + Vec2::new(x1, y1);
+                current = base + Vec2::new(x, y);
+
+                builder = builder.quad_to(cp, current);
+                last_control = Some(cp);
+            }
+            'T' => {
+                // Smooth quadratic - reflect last control point
+                let cp = match last_control {
+                    Some(lc) => current * 2.0 - lc,
+                    None => current,
+                };
+
+                let x = parse_number(&mut chars)?;
+                let y = parse_number(&mut chars)?;
+                current = base + Vec2::new(x, y);
+
+                builder = builder.quad_to(cp, current);
+                last_control = Some(cp);
+            }
+            'A' => {
+                // Arc command - convert to cubic bezier approximation
+                let rx = parse_number(&mut chars)?;
+                let ry = parse_number(&mut chars)?;
+                let x_rotation = parse_number(&mut chars)?;
+                let large_arc = parse_number(&mut chars)? != 0.0;
+                let sweep = parse_number(&mut chars)? != 0.0;
+                let x = parse_number(&mut chars)?;
+                let y = parse_number(&mut chars)?;
+
+                let end = base + Vec2::new(x, y);
+
+                // Convert arc to cubic beziers
+                builder =
+                    arc_to_cubics(builder, current, end, rx, ry, x_rotation, large_arc, sweep);
+                current = end;
+                last_control = None;
+            }
+            'Z' => {
+                builder = builder.close();
+                current = start;
+                last_control = None;
+            }
+            _ => {
+                return Err(SvgParseError::UnknownCommand(command));
+            }
+        }
+
+        last_command = Some(command);
+    }
+
+    Ok(builder.build())
+}
+
+/// Parses a number from the character stream.
+fn parse_number(chars: &mut std::iter::Peekable<std::str::Chars>) -> SvgParseResult<f32> {
+    // Skip whitespace and commas
+    while let Some(&c) = chars.peek() {
+        if c.is_whitespace() || c == ',' {
+            chars.next();
+        } else {
+            break;
+        }
+    }
+
+    let mut s = String::new();
+
+    // Handle sign
+    if let Some(&c) = chars.peek() {
+        if c == '-' || c == '+' {
+            s.push(chars.next().unwrap());
+        }
+    }
+
+    // Handle digits and decimal point
+    let mut has_dot = false;
+    let mut has_exp = false;
+
+    while let Some(&c) = chars.peek() {
+        if c.is_ascii_digit() {
+            s.push(chars.next().unwrap());
+        } else if c == '.' && !has_dot && !has_exp {
+            has_dot = true;
+            s.push(chars.next().unwrap());
+        } else if (c == 'e' || c == 'E') && !has_exp {
+            has_exp = true;
+            s.push(chars.next().unwrap());
+            // Handle exponent sign
+            if let Some(&c2) = chars.peek() {
+                if c2 == '-' || c2 == '+' {
+                    s.push(chars.next().unwrap());
+                }
+            }
+        } else {
+            break;
+        }
+    }
+
+    if s.is_empty() || s == "-" || s == "+" {
+        return Err(SvgParseError::UnexpectedEnd);
+    }
+
+    s.parse::<f32>()
+        .map_err(|_| SvgParseError::InvalidNumber(s))
+}
+
+/// Converts an arc to cubic bezier curves.
+fn arc_to_cubics(
+    mut builder: crate::PathBuilder,
+    start: Vec2,
+    end: Vec2,
+    rx: f32,
+    ry: f32,
+    x_rotation: f32,
+    large_arc: bool,
+    sweep: bool,
+) -> crate::PathBuilder {
+    // Handle degenerate cases
+    if (start - end).length() < 1e-6 {
+        return builder;
+    }
+
+    if rx.abs() < 1e-6 || ry.abs() < 1e-6 {
+        return builder.line_to(end);
+    }
+
+    let mut rx = rx.abs();
+    let mut ry = ry.abs();
+
+    // Convert to center parameterization
+    let phi = x_rotation.to_radians();
+    let cos_phi = phi.cos();
+    let sin_phi = phi.sin();
+
+    // Transform to unit circle space
+    let dx = (start.x - end.x) / 2.0;
+    let dy = (start.y - end.y) / 2.0;
+    let x1p = cos_phi * dx + sin_phi * dy;
+    let y1p = -sin_phi * dx + cos_phi * dy;
+
+    // Correct out-of-range radii
+    let lambda = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
+    if lambda > 1.0 {
+        let sqrt_lambda = lambda.sqrt();
+        rx *= sqrt_lambda;
+        ry *= sqrt_lambda;
+    }
+
+    // Compute center point
+    let rxsq = rx * rx;
+    let rysq = ry * ry;
+    let x1psq = x1p * x1p;
+    let y1psq = y1p * y1p;
+
+    let radicand =
+        ((rxsq * rysq) - (rxsq * y1psq) - (rysq * x1psq)) / ((rxsq * y1psq) + (rysq * x1psq));
+    let radicand = radicand.max(0.0);
+    let coef = if large_arc != sweep { 1.0 } else { -1.0 } * radicand.sqrt();
+
+    let cxp = coef * rx * y1p / ry;
+    let cyp = -coef * ry * x1p / rx;
+
+    // Transform back from unit circle space
+    let cx = cos_phi * cxp - sin_phi * cyp + (start.x + end.x) / 2.0;
+    let cy = sin_phi * cxp + cos_phi * cyp + (start.y + end.y) / 2.0;
+
+    // Compute angles
+    fn angle(ux: f32, uy: f32, vx: f32, vy: f32) -> f32 {
+        let n = (ux * ux + uy * uy).sqrt() * (vx * vx + vy * vy).sqrt();
+        if n < 1e-6 {
+            return 0.0;
+        }
+        let c = (ux * vx + uy * vy) / n;
+        let c = c.clamp(-1.0, 1.0);
+        let sign = if ux * vy - uy * vx < 0.0 { -1.0 } else { 1.0 };
+        sign * c.acos()
+    }
+
+    let theta1 = angle(1.0, 0.0, (x1p - cxp) / rx, (y1p - cyp) / ry);
+    let mut dtheta = angle(
+        (x1p - cxp) / rx,
+        (y1p - cyp) / ry,
+        (-x1p - cxp) / rx,
+        (-y1p - cyp) / ry,
+    );
+
+    if !sweep && dtheta > 0.0 {
+        dtheta -= std::f32::consts::TAU;
+    } else if sweep && dtheta < 0.0 {
+        dtheta += std::f32::consts::TAU;
+    }
+
+    // Split into segments of at most 90 degrees
+    let n_segs = (dtheta.abs() / (std::f32::consts::FRAC_PI_2)).ceil() as i32;
+    let n_segs = n_segs.max(1);
+    let d_theta = dtheta / n_segs as f32;
+
+    for i in 0..n_segs {
+        let theta = theta1 + d_theta * i as f32;
+        let theta_end = theta + d_theta;
+
+        // Compute bezier control points for this arc segment
+        let t = (d_theta / 4.0).tan();
+        let alpha = (d_theta.sin()) * ((4.0 + 3.0 * t * t).sqrt() - 1.0) / 3.0;
+
+        let cos_t = theta.cos();
+        let sin_t = theta.sin();
+        let cos_te = theta_end.cos();
+        let sin_te = theta_end.sin();
+
+        let p1x = rx * cos_t;
+        let p1y = ry * sin_t;
+        let p2x = rx * cos_te;
+        let p2y = ry * sin_te;
+
+        let cp1x = p1x - alpha * rx * sin_t;
+        let cp1y = p1y + alpha * ry * cos_t;
+        let cp2x = p2x + alpha * rx * sin_te;
+        let cp2y = p2y - alpha * ry * cos_te;
+
+        // Transform back from unit circle space
+        let transform = |x: f32, y: f32| -> Vec2 {
+            Vec2::new(
+                cos_phi * x - sin_phi * y + cx,
+                sin_phi * x + cos_phi * y + cy,
+            )
+        };
+
+        let cp1 = transform(cp1x, cp1y);
+        let cp2 = transform(cp2x, cp2y);
+        let p2 = transform(p2x, p2y);
+
+        builder = builder.cubic_to(cp1, cp2, p2);
+    }
+
+    builder
+}
+
+/// Parses multiple path data strings and returns a vector of Paths.
+pub fn parse_paths_data(data: &[&str]) -> SvgParseResult<Vec<Path>> {
+    data.iter().map(|d| parse_path_data(d)).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -643,5 +1042,111 @@ mod tests {
         assert!(svg.contains("<svg"));
         assert!(svg.contains("<path"));
         assert!(svg.contains("</svg>"));
+    }
+
+    // ========== SVG Import Tests ==========
+
+    #[test]
+    fn test_parse_simple_line() {
+        let path = parse_path_data("M0,0 L100,100").unwrap();
+        assert!(!path.is_empty());
+    }
+
+    #[test]
+    fn test_parse_closed_path() {
+        let path = parse_path_data("M0,0 L100,0 L100,100 L0,100 Z").unwrap();
+        assert!(!path.is_empty());
+    }
+
+    #[test]
+    fn test_parse_relative_commands() {
+        let path = parse_path_data("m10,10 l50,0 l0,50 l-50,0 z").unwrap();
+        assert!(!path.is_empty());
+    }
+
+    #[test]
+    fn test_parse_horizontal_vertical() {
+        let path = parse_path_data("M0,0 H100 V100 H0 V0 Z").unwrap();
+        assert!(!path.is_empty());
+    }
+
+    #[test]
+    fn test_parse_cubic_bezier() {
+        let path = parse_path_data("M0,0 C25,50 75,50 100,0").unwrap();
+        assert!(!path.is_empty());
+    }
+
+    #[test]
+    fn test_parse_smooth_cubic() {
+        let path = parse_path_data("M0,0 C25,50 75,50 100,0 S175,-50 200,0").unwrap();
+        assert!(!path.is_empty());
+    }
+
+    #[test]
+    fn test_parse_quadratic_bezier() {
+        let path = parse_path_data("M0,0 Q50,50 100,0").unwrap();
+        assert!(!path.is_empty());
+    }
+
+    #[test]
+    fn test_parse_smooth_quadratic() {
+        let path = parse_path_data("M0,0 Q50,50 100,0 T200,0").unwrap();
+        assert!(!path.is_empty());
+    }
+
+    #[test]
+    fn test_parse_arc() {
+        let path = parse_path_data("M0,50 A50,50 0 1,1 100,50").unwrap();
+        assert!(!path.is_empty());
+    }
+
+    #[test]
+    fn test_parse_implicit_lineto() {
+        // After M, subsequent coordinate pairs are treated as L
+        let path = parse_path_data("M0,0 10,10 20,20").unwrap();
+        assert!(!path.is_empty());
+    }
+
+    #[test]
+    fn test_parse_whitespace_variants() {
+        // Various whitespace separators
+        let path1 = parse_path_data("M0,0L100,100").unwrap();
+        let path2 = parse_path_data("M0 0 L100 100").unwrap();
+        let path3 = parse_path_data("M 0 , 0 L 100 , 100").unwrap();
+
+        assert!(!path1.is_empty());
+        assert!(!path2.is_empty());
+        assert!(!path3.is_empty());
+    }
+
+    #[test]
+    fn test_parse_negative_numbers() {
+        let path = parse_path_data("M-10,-10 L-50,-50").unwrap();
+        assert!(!path.is_empty());
+    }
+
+    #[test]
+    fn test_parse_scientific_notation() {
+        let path = parse_path_data("M1e2,1e2 L2e2,2e2").unwrap();
+        assert!(!path.is_empty());
+    }
+
+    #[test]
+    fn test_parse_error_unknown_command() {
+        let result = parse_path_data("M0,0 X100,100");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_error_missing_coordinates() {
+        let result = parse_path_data("M0,0 L100");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_multiple_paths() {
+        let paths = parse_paths_data(&["M0,0 L100,100", "M50,50 L150,150"]).unwrap();
+
+        assert_eq!(paths.len(), 2);
     }
 }
