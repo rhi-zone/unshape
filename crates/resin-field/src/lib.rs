@@ -322,10 +322,12 @@ where
 /// A constant field that always returns the same value.
 #[derive(Debug, Clone, Copy)]
 pub struct Constant<O> {
+    /// The constant value to return.
     pub value: O,
 }
 
 impl<O> Constant<O> {
+    /// Create a new constant field.
     pub fn new(value: O) -> Self {
         Self { value }
     }
@@ -362,14 +364,17 @@ impl Field<f32, f32> for Coordinates {
 /// Perlin noise field (2D).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Perlin2D {
+    /// Random seed.
     pub seed: i32,
 }
 
 impl Perlin2D {
+    /// Create a new Perlin noise field.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Create with a specific seed.
     pub fn with_seed(seed: i32) -> Self {
         Self { seed }
     }
@@ -386,14 +391,17 @@ impl Field<Vec2, f32> for Perlin2D {
 /// Perlin noise field (3D).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Perlin3D {
+    /// Random seed.
     pub seed: i32,
 }
 
 impl Perlin3D {
+    /// Create a new Perlin noise field.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Create with a specific seed.
     pub fn with_seed(seed: i32) -> Self {
         Self { seed }
     }
@@ -414,14 +422,17 @@ impl Field<Vec3, f32> for Perlin3D {
 /// Simplex noise field (2D).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Simplex2D {
+    /// Random seed.
     pub seed: i32,
 }
 
 impl Simplex2D {
+    /// Create a new Simplex noise field.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Create with a specific seed.
     pub fn with_seed(seed: i32) -> Self {
         Self { seed }
     }
@@ -437,14 +448,17 @@ impl Field<Vec2, f32> for Simplex2D {
 /// Simplex noise field (3D).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Simplex3D {
+    /// Random seed.
     pub seed: i32,
 }
 
 impl Simplex3D {
+    /// Create a new Simplex noise field.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Create with a specific seed.
     pub fn with_seed(seed: i32) -> Self {
         Self { seed }
     }
@@ -465,13 +479,18 @@ impl Field<Vec3, f32> for Simplex3D {
 /// Fractal Brownian Motion field (2D).
 #[derive(Debug, Clone, Copy)]
 pub struct Fbm2D<F> {
+    /// Base noise field.
     pub base: F,
+    /// Number of octaves (layers).
     pub octaves: u32,
+    /// Frequency multiplier between octaves.
     pub lacunarity: f32,
+    /// Amplitude multiplier between octaves.
     pub gain: f32,
 }
 
 impl<F> Fbm2D<F> {
+    /// Create a new FBM field from a base noise.
     pub fn new(base: F) -> Self {
         Self {
             base,
@@ -481,16 +500,19 @@ impl<F> Fbm2D<F> {
         }
     }
 
+    /// Set the number of octaves.
     pub fn octaves(mut self, octaves: u32) -> Self {
         self.octaves = octaves;
         self
     }
 
+    /// Set the lacunarity (frequency multiplier).
     pub fn lacunarity(mut self, lacunarity: f32) -> Self {
         self.lacunarity = lacunarity;
         self
     }
 
+    /// Set the gain (amplitude multiplier).
     pub fn gain(mut self, gain: f32) -> Self {
         self.gain = gain;
         self
@@ -518,13 +540,18 @@ impl<F: Field<Vec2, f32>> Field<Vec2, f32> for Fbm2D<F> {
 /// Fractal Brownian Motion field (3D).
 #[derive(Debug, Clone, Copy)]
 pub struct Fbm3D<F> {
+    /// Base noise field.
     pub base: F,
+    /// Number of octaves (layers).
     pub octaves: u32,
+    /// Frequency multiplier between octaves.
     pub lacunarity: f32,
+    /// Amplitude multiplier between octaves.
     pub gain: f32,
 }
 
 impl<F> Fbm3D<F> {
+    /// Create a new FBM field from a base noise.
     pub fn new(base: F) -> Self {
         Self {
             base,
@@ -534,16 +561,19 @@ impl<F> Fbm3D<F> {
         }
     }
 
+    /// Set the number of octaves.
     pub fn octaves(mut self, octaves: u32) -> Self {
         self.octaves = octaves;
         self
     }
 
+    /// Set the lacunarity (frequency multiplier).
     pub fn lacunarity(mut self, lacunarity: f32) -> Self {
         self.lacunarity = lacunarity;
         self
     }
 
+    /// Set the gain (amplitude multiplier).
     pub fn gain(mut self, gain: f32) -> Self {
         self.gain = gain;
         self
@@ -571,12 +601,16 @@ impl<F: Field<Vec3, f32>> Field<Vec3, f32> for Fbm3D<F> {
 /// Gradient field - returns gradient based on coordinates.
 #[derive(Debug, Clone, Copy)]
 pub struct Gradient2D {
+    /// Start value.
     pub start: f32,
+    /// End value.
     pub end: f32,
+    /// Gradient direction.
     pub direction: Vec2,
 }
 
 impl Gradient2D {
+    /// Create a horizontal gradient (left to right).
     pub fn horizontal() -> Self {
         Self {
             start: 0.0,
@@ -585,6 +619,7 @@ impl Gradient2D {
         }
     }
 
+    /// Create a vertical gradient (bottom to top).
     pub fn vertical() -> Self {
         Self {
             start: 0.0,
@@ -593,6 +628,7 @@ impl Gradient2D {
         }
     }
 
+    /// Create a radial gradient.
     pub fn radial(center: Vec2) -> Radial2D {
         Radial2D {
             center,
@@ -611,11 +647,14 @@ impl Field<Vec2, f32> for Gradient2D {
 /// Radial gradient field.
 #[derive(Debug, Clone, Copy)]
 pub struct Radial2D {
+    /// Center point.
     pub center: Vec2,
+    /// Radius of the gradient.
     pub radius: f32,
 }
 
 impl Radial2D {
+    /// Create a new radial gradient.
     pub fn new(center: Vec2, radius: f32) -> Self {
         Self { center, radius }
     }
@@ -635,6 +674,7 @@ impl Field<Vec2, f32> for Radial2D {
 /// Checkerboard pattern.
 #[derive(Debug, Clone, Copy)]
 pub struct Checkerboard {
+    /// Pattern scale.
     pub scale: f32,
 }
 
@@ -645,10 +685,12 @@ impl Default for Checkerboard {
 }
 
 impl Checkerboard {
+    /// Create a new checkerboard pattern.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Create with a specific scale.
     pub fn with_scale(scale: f32) -> Self {
         Self { scale }
     }
@@ -676,7 +718,9 @@ impl Field<Vec3, f32> for Checkerboard {
 /// Stripe pattern (horizontal by default).
 #[derive(Debug, Clone, Copy)]
 pub struct Stripes {
+    /// Stripe frequency.
     pub frequency: f32,
+    /// Stripe direction.
     pub direction: Vec2,
 }
 
@@ -690,6 +734,7 @@ impl Default for Stripes {
 }
 
 impl Stripes {
+    /// Create horizontal stripes.
     pub fn horizontal() -> Self {
         Self {
             direction: Vec2::Y,
@@ -697,6 +742,7 @@ impl Stripes {
         }
     }
 
+    /// Create vertical stripes.
     pub fn vertical() -> Self {
         Self {
             direction: Vec2::X,
@@ -704,11 +750,13 @@ impl Stripes {
         }
     }
 
+    /// Set the frequency.
     pub fn with_frequency(mut self, frequency: f32) -> Self {
         self.frequency = frequency;
         self
     }
 
+    /// Set the direction.
     pub fn with_direction(mut self, direction: Vec2) -> Self {
         self.direction = direction.normalize();
         self
@@ -729,7 +777,9 @@ impl Field<Vec2, f32> for Stripes {
 /// Smooth stripe pattern (sine wave).
 #[derive(Debug, Clone, Copy)]
 pub struct SmoothStripes {
+    /// Stripe frequency.
     pub frequency: f32,
+    /// Stripe direction.
     pub direction: Vec2,
 }
 
@@ -743,6 +793,7 @@ impl Default for SmoothStripes {
 }
 
 impl SmoothStripes {
+    /// Create horizontal stripes.
     pub fn horizontal() -> Self {
         Self {
             direction: Vec2::Y,
@@ -750,6 +801,7 @@ impl SmoothStripes {
         }
     }
 
+    /// Create vertical stripes.
     pub fn vertical() -> Self {
         Self {
             direction: Vec2::X,
@@ -757,6 +809,7 @@ impl SmoothStripes {
         }
     }
 
+    /// Set the frequency.
     pub fn with_frequency(mut self, frequency: f32) -> Self {
         self.frequency = frequency;
         self
@@ -773,8 +826,11 @@ impl Field<Vec2, f32> for SmoothStripes {
 /// Brick pattern.
 #[derive(Debug, Clone, Copy)]
 pub struct Brick {
+    /// Brick size.
     pub scale: Vec2,
+    /// Mortar width.
     pub mortar: f32,
+    /// Row offset (0.5 for standard brick).
     pub offset: f32,
 }
 
@@ -789,15 +845,18 @@ impl Default for Brick {
 }
 
 impl Brick {
+    /// Create a new brick pattern.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Set the brick scale.
     pub fn with_scale(mut self, scale: Vec2) -> Self {
         self.scale = scale;
         self
     }
 
+    /// Set the mortar width.
     pub fn with_mortar(mut self, mortar: f32) -> Self {
         self.mortar = mortar;
         self
@@ -826,7 +885,9 @@ impl Field<Vec2, f32> for Brick {
 /// Polka dots pattern.
 #[derive(Debug, Clone, Copy)]
 pub struct Dots {
+    /// Grid scale.
     pub scale: f32,
+    /// Dot radius.
     pub radius: f32,
 }
 
