@@ -70,15 +70,52 @@ impl Direction {
     }
 }
 
+// ============================================================================
+// TileId - Type-safe tile identifier
+// ============================================================================
+
+/// A type-safe identifier for a tile in a tileset.
+///
+/// Using `TileId` instead of raw `usize` prevents accidentally mixing tile
+/// indices with other integer values (like grid positions or body indices).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TileId(pub usize);
+
+impl TileId {
+    /// Returns the underlying index.
+    #[inline]
+    pub fn index(self) -> usize {
+        self.0
+    }
+}
+
+// ============================================================================
+// TileSet - Base type-safe tileset
+// ============================================================================
+
 /// A set of tiles with adjacency rules.
+///
+/// This is the base tileset type that uses `TileId` for type safety and
+/// zero-overhead tile references. For a more ergonomic string-based API,
+/// see [`NamedTileSet`].
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_procgen::{TileSet, TileId, Direction};
+///
+/// let mut ts = TileSet::new();
+/// let grass = ts.add_tile();
+/// let dirt = ts.add_tile();
+///
+/// ts.add_rule(grass, Direction::Down, dirt);
+/// ```
 #[derive(Debug, Clone)]
 pub struct TileSet {
-    /// Tile names.
-    tiles: Vec<String>,
-    /// Map from name to index.
-    tile_indices: HashMap<String, usize>,
+    /// Number of tiles.
+    tile_count: usize,
     /// Adjacency rules: (tile_a, direction) -> set of valid tiles for that neighbor.
-    rules: HashMap<(usize, Direction), HashSet<usize>>,
+    rules: HashMap<(TileId, Direction), HashSet<TileId>>,
     /// Tile weights for biased selection.
     weights: Vec<f32>,
 }
@@ -87,80 +124,70 @@ impl TileSet {
     /// Creates a new empty tileset.
     pub fn new() -> Self {
         Self {
-            tiles: Vec::new(),
-            tile_indices: HashMap::new(),
+            tile_count: 0,
             rules: HashMap::new(),
             weights: Vec::new(),
         }
     }
 
-    /// Adds a tile to the tileset.
-    pub fn add_tile(&mut self, name: &str) -> usize {
-        if let Some(&idx) = self.tile_indices.get(name) {
-            return idx;
-        }
-
-        let idx = self.tiles.len();
-        self.tiles.push(name.to_string());
-        self.tile_indices.insert(name.to_string(), idx);
+    /// Adds a tile to the tileset with default weight 1.0.
+    pub fn add_tile(&mut self) -> TileId {
+        let id = TileId(self.tile_count);
+        self.tile_count += 1;
         self.weights.push(1.0);
-        idx
+        id
     }
 
     /// Adds a tile with a custom weight.
-    pub fn add_tile_weighted(&mut self, name: &str, weight: f32) -> usize {
-        let idx = self.add_tile(name);
-        self.weights[idx] = weight;
-        idx
+    pub fn add_tile_weighted(&mut self, weight: f32) -> TileId {
+        let id = self.add_tile();
+        self.weights[id.0] = weight;
+        id
     }
 
     /// Sets the weight of a tile.
-    pub fn set_weight(&mut self, name: &str, weight: f32) {
-        if let Some(&idx) = self.tile_indices.get(name) {
-            self.weights[idx] = weight;
+    pub fn set_weight(&mut self, id: TileId, weight: f32) {
+        if id.0 < self.tile_count {
+            self.weights[id.0] = weight;
         }
     }
 
-    /// Adds an adjacency rule: `from` tile can have `to` tile in the given direction.
-    pub fn add_rule(&mut self, from: &str, direction: Direction, to: &str) {
-        let from_idx = self.add_tile(from);
-        let to_idx = self.add_tile(to);
+    /// Gets the weight of a tile.
+    pub fn weight(&self, id: TileId) -> f32 {
+        self.weights.get(id.0).copied().unwrap_or(1.0)
+    }
 
-        self.rules
-            .entry((from_idx, direction))
-            .or_default()
-            .insert(to_idx);
+    /// Adds an adjacency rule: `from` tile can have `to` tile in the given direction.
+    ///
+    /// Automatically adds the reverse rule (to can have from in opposite direction).
+    pub fn add_rule(&mut self, from: TileId, direction: Direction, to: TileId) {
+        self.rules.entry((from, direction)).or_default().insert(to);
 
         // Add reverse rule automatically
         self.rules
-            .entry((to_idx, direction.opposite()))
+            .entry((to, direction.opposite()))
             .or_default()
-            .insert(from_idx);
+            .insert(from);
     }
 
     /// Adds a bidirectional rule (tiles can be adjacent in both orders).
-    pub fn add_symmetric_rule(&mut self, a: &str, direction: Direction, b: &str) {
+    pub fn add_symmetric_rule(&mut self, a: TileId, direction: Direction, b: TileId) {
         self.add_rule(a, direction, b);
         self.add_rule(b, direction, a);
     }
 
     /// Returns the number of tiles.
     pub fn tile_count(&self) -> usize {
-        self.tiles.len()
+        self.tile_count
     }
 
-    /// Gets a tile name by index.
-    pub fn tile_name(&self, idx: usize) -> Option<&str> {
-        self.tiles.get(idx).map(|s| s.as_str())
-    }
-
-    /// Gets a tile index by name.
-    pub fn tile_index(&self, name: &str) -> Option<usize> {
-        self.tile_indices.get(name).copied()
+    /// Returns all tile IDs in this tileset.
+    pub fn tile_ids(&self) -> impl Iterator<Item = TileId> {
+        (0..self.tile_count).map(TileId)
     }
 
     /// Returns valid neighbors for a tile in a direction.
-    fn valid_neighbors(&self, tile: usize, direction: Direction) -> Option<&HashSet<usize>> {
+    pub fn valid_neighbors(&self, tile: TileId, direction: Direction) -> Option<&HashSet<TileId>> {
         self.rules.get(&(tile, direction))
     }
 }
@@ -171,21 +198,136 @@ impl Default for TileSet {
     }
 }
 
+// ============================================================================
+// NamedTileSet - Ergonomic string-based wrapper
+// ============================================================================
+
+/// A tileset with string names for ergonomic tile definition.
+///
+/// This wraps [`TileSet`] and adds a string-to-ID mapping for convenience.
+/// Use this when defining tilesets manually or loading from config files.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_procgen::{NamedTileSet, Direction};
+///
+/// let mut ts = NamedTileSet::new();
+/// ts.add_tile("grass");
+/// ts.add_tile("dirt");
+///
+/// ts.add_rule("grass", Direction::Down, "dirt");
+///
+/// // Get the underlying TileSet for use with WfcSolver
+/// let tileset = ts.into_inner();
+/// ```
+#[derive(Debug, Clone)]
+pub struct NamedTileSet {
+    /// The underlying tileset.
+    inner: TileSet,
+    /// Tile names by ID.
+    names: Vec<String>,
+    /// Map from name to ID.
+    name_to_id: HashMap<String, TileId>,
+}
+
+impl NamedTileSet {
+    /// Creates a new empty named tileset.
+    pub fn new() -> Self {
+        Self {
+            inner: TileSet::new(),
+            names: Vec::new(),
+            name_to_id: HashMap::new(),
+        }
+    }
+
+    /// Adds a tile with the given name. Returns existing ID if name already exists.
+    pub fn add_tile(&mut self, name: &str) -> TileId {
+        if let Some(&id) = self.name_to_id.get(name) {
+            return id;
+        }
+
+        let id = self.inner.add_tile();
+        self.names.push(name.to_string());
+        self.name_to_id.insert(name.to_string(), id);
+        id
+    }
+
+    /// Adds a tile with a custom weight.
+    pub fn add_tile_weighted(&mut self, name: &str, weight: f32) -> TileId {
+        let id = self.add_tile(name);
+        self.inner.set_weight(id, weight);
+        id
+    }
+
+    /// Sets the weight of a tile by name.
+    pub fn set_weight(&mut self, name: &str, weight: f32) {
+        if let Some(&id) = self.name_to_id.get(name) {
+            self.inner.set_weight(id, weight);
+        }
+    }
+
+    /// Adds an adjacency rule using tile names.
+    pub fn add_rule(&mut self, from: &str, direction: Direction, to: &str) {
+        let from_id = self.add_tile(from);
+        let to_id = self.add_tile(to);
+        self.inner.add_rule(from_id, direction, to_id);
+    }
+
+    /// Adds a bidirectional rule using tile names.
+    pub fn add_symmetric_rule(&mut self, a: &str, direction: Direction, b: &str) {
+        let a_id = self.add_tile(a);
+        let b_id = self.add_tile(b);
+        self.inner.add_symmetric_rule(a_id, direction, b_id);
+    }
+
+    /// Returns the number of tiles.
+    pub fn tile_count(&self) -> usize {
+        self.inner.tile_count()
+    }
+
+    /// Gets a tile ID by name.
+    pub fn get_id(&self, name: &str) -> Option<TileId> {
+        self.name_to_id.get(name).copied()
+    }
+
+    /// Gets a tile name by ID.
+    pub fn get_name(&self, id: TileId) -> Option<&str> {
+        self.names.get(id.0).map(|s| s.as_str())
+    }
+
+    /// Returns a reference to the underlying tileset.
+    pub fn inner(&self) -> &TileSet {
+        &self.inner
+    }
+
+    /// Consumes this wrapper and returns the underlying tileset.
+    pub fn into_inner(self) -> TileSet {
+        self.inner
+    }
+}
+
+impl Default for NamedTileSet {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// A cell in the WFC grid.
 #[derive(Debug, Clone)]
 struct Cell {
     /// Possible tiles for this cell.
-    possibilities: HashSet<usize>,
+    possibilities: HashSet<TileId>,
     /// Whether this cell has been collapsed.
     collapsed: bool,
     /// The final tile (if collapsed).
-    tile: Option<usize>,
+    tile: Option<TileId>,
 }
 
 impl Cell {
     fn new(tile_count: usize) -> Self {
         Self {
-            possibilities: (0..tile_count).collect(),
+            possibilities: (0..tile_count).map(TileId).collect(),
             collapsed: false,
             tile: None,
         }
@@ -199,7 +341,7 @@ impl Cell {
         self.collapsed
     }
 
-    fn collapse(&mut self, tile: usize) {
+    fn collapse(&mut self, tile: TileId) {
         self.possibilities.clear();
         self.possibilities.insert(tile);
         self.collapsed = true;
@@ -254,14 +396,9 @@ impl WfcSolver {
     }
 
     /// Sets a cell to a specific tile (constraint).
-    pub fn set_cell(&mut self, x: usize, y: usize, tile: &str) -> Result<(), WfcError> {
+    pub fn set_cell(&mut self, x: usize, y: usize, tile: TileId) -> Result<(), WfcError> {
         let idx = self.cell_index(x, y)?;
-        let tile_idx = self
-            .tileset
-            .tile_index(tile)
-            .ok_or_else(|| WfcError::InvalidTile(tile.to_string()))?;
-
-        self.cells[idx].collapse(tile_idx);
+        self.cells[idx].collapse(tile);
         self.propagate(x, y)?;
         Ok(())
     }
@@ -294,8 +431,8 @@ impl WfcSolver {
         }
     }
 
-    /// Gets the result grid as tile indices.
-    pub fn get_result(&self) -> Vec<Vec<Option<usize>>> {
+    /// Gets the result grid as tile IDs.
+    pub fn get_result(&self) -> Vec<Vec<Option<TileId>>> {
         let mut result = vec![vec![None; self.width]; self.height];
 
         for y in 0..self.height {
@@ -308,29 +445,10 @@ impl WfcSolver {
         result
     }
 
-    /// Gets the result grid as tile names.
-    pub fn get_result_names(&self) -> Vec<Vec<Option<String>>> {
-        let mut result = vec![vec![None; self.width]; self.height];
-
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let idx = y * self.width + x;
-                result[y][x] = self.cells[idx]
-                    .tile
-                    .and_then(|t| self.tileset.tile_name(t).map(|s| s.to_string()));
-            }
-        }
-
-        result
-    }
-
-    /// Gets the tile at a specific position.
-    pub fn get_tile(&self, x: usize, y: usize) -> Option<&str> {
+    /// Gets the tile ID at a specific position.
+    pub fn get_tile(&self, x: usize, y: usize) -> Option<TileId> {
         let idx = y * self.width + x;
-        self.cells
-            .get(idx)?
-            .tile
-            .and_then(|t| self.tileset.tile_name(t))
+        self.cells.get(idx)?.tile
     }
 
     /// Gets the entropy (number of possibilities) at a position.
@@ -401,14 +519,14 @@ impl WfcSolver {
         }
 
         // Weighted random selection
-        let possibilities: Vec<usize> = cell.possibilities.iter().copied().collect();
-        let total_weight: f32 = possibilities.iter().map(|&t| self.tileset.weights[t]).sum();
+        let possibilities: Vec<TileId> = cell.possibilities.iter().copied().collect();
+        let total_weight: f32 = possibilities.iter().map(|&t| self.tileset.weight(t)).sum();
 
         let mut r = self.random_f32() * total_weight;
         let mut selected = possibilities[0];
 
         for &tile in &possibilities {
-            r -= self.tileset.weights[tile];
+            r -= self.tileset.weight(tile);
             if r <= 0.0 {
                 selected = tile;
                 break;
@@ -445,10 +563,10 @@ impl WfcSolver {
                 }
 
                 // Compute valid tiles for neighbor based on current cell
-                let mut valid_neighbors: HashSet<usize> = HashSet::new();
+                let mut valid_neighbors: HashSet<TileId> = HashSet::new();
                 for &tile in &current_possibilities {
                     if let Some(neighbors) = self.tileset.valid_neighbors(tile, direction) {
-                        valid_neighbors.extend(neighbors);
+                        valid_neighbors.extend(neighbors.iter().copied());
                     }
                 }
 
@@ -499,8 +617,6 @@ pub enum WfcError {
     Contradiction,
     /// Position out of bounds.
     OutOfBounds(usize, usize),
-    /// Invalid tile name.
-    InvalidTile(String),
 }
 
 impl std::fmt::Display for WfcError {
@@ -508,7 +624,6 @@ impl std::fmt::Display for WfcError {
         match self {
             WfcError::Contradiction => write!(f, "WFC reached a contradiction"),
             WfcError::OutOfBounds(x, y) => write!(f, "Position ({}, {}) out of bounds", x, y),
-            WfcError::InvalidTile(name) => write!(f, "Invalid tile: {}", name),
         }
     }
 }
@@ -516,8 +631,8 @@ impl std::fmt::Display for WfcError {
 impl std::error::Error for WfcError {}
 
 /// Creates a simple platformer tileset.
-pub fn platformer_tileset() -> TileSet {
-    let mut ts = TileSet::new();
+pub fn platformer_tileset() -> NamedTileSet {
+    let mut ts = NamedTileSet::new();
 
     ts.add_tile("empty");
     ts.add_tile("ground");
@@ -557,8 +672,8 @@ pub fn platformer_tileset() -> TileSet {
 }
 
 /// Creates a maze tileset.
-pub fn maze_tileset() -> TileSet {
-    let mut ts = TileSet::new();
+pub fn maze_tileset() -> NamedTileSet {
+    let mut ts = NamedTileSet::new();
 
     ts.add_tile("wall");
     ts.add_tile("floor");
@@ -591,8 +706,8 @@ pub fn maze_tileset() -> TileSet {
 mod tests {
     use super::*;
 
-    fn simple_tileset() -> TileSet {
-        let mut ts = TileSet::new();
+    fn simple_named_tileset() -> NamedTileSet {
+        let mut ts = NamedTileSet::new();
         ts.add_tile("A");
         ts.add_tile("B");
 
@@ -613,20 +728,38 @@ mod tests {
 
     #[test]
     fn test_tileset_creation() {
-        let ts = simple_tileset();
+        let ts = simple_named_tileset();
         assert_eq!(ts.tile_count(), 2);
-        assert_eq!(ts.tile_name(0), Some("A"));
-        assert_eq!(ts.tile_name(1), Some("B"));
+        assert_eq!(ts.get_name(TileId(0)), Some("A"));
+        assert_eq!(ts.get_name(TileId(1)), Some("B"));
     }
 
     #[test]
     fn test_tileset_weights() {
-        let mut ts = TileSet::new();
+        let mut ts = NamedTileSet::new();
         ts.add_tile_weighted("common", 10.0);
         ts.add_tile_weighted("rare", 1.0);
 
-        assert_eq!(ts.weights[0], 10.0);
-        assert_eq!(ts.weights[1], 1.0);
+        assert_eq!(ts.inner().weight(TileId(0)), 10.0);
+        assert_eq!(ts.inner().weight(TileId(1)), 1.0);
+    }
+
+    #[test]
+    fn test_base_tileset() {
+        let mut ts = TileSet::new();
+        let a = ts.add_tile();
+        let b = ts.add_tile_weighted(2.0);
+
+        assert_eq!(ts.tile_count(), 2);
+        assert_eq!(ts.weight(a), 1.0);
+        assert_eq!(ts.weight(b), 2.0);
+
+        ts.add_rule(a, Direction::Right, b);
+        assert!(
+            ts.valid_neighbors(a, Direction::Right)
+                .unwrap()
+                .contains(&b)
+        );
     }
 
     #[test]
@@ -637,8 +770,8 @@ mod tests {
 
     #[test]
     fn test_wfc_solver_creation() {
-        let ts = simple_tileset();
-        let solver = WfcSolver::new(5, 5, ts);
+        let ts = simple_named_tileset();
+        let solver = WfcSolver::new(5, 5, ts.into_inner());
 
         assert_eq!(solver.width(), 5);
         assert_eq!(solver.height(), 5);
@@ -646,8 +779,8 @@ mod tests {
 
     #[test]
     fn test_wfc_run() {
-        let ts = simple_tileset();
-        let mut solver = WfcSolver::new(3, 3, ts);
+        let ts = simple_named_tileset();
+        let mut solver = WfcSolver::new(3, 3, ts.into_inner());
 
         let result = solver.run(12345);
         assert!(result.is_ok());
@@ -656,8 +789,8 @@ mod tests {
 
     #[test]
     fn test_wfc_get_result() {
-        let ts = simple_tileset();
-        let mut solver = WfcSolver::new(2, 2, ts);
+        let ts = simple_named_tileset();
+        let mut solver = WfcSolver::new(2, 2, ts.into_inner());
         solver.run(12345).unwrap();
 
         let result = solver.get_result();
@@ -674,27 +807,28 @@ mod tests {
 
     #[test]
     fn test_wfc_get_tile() {
-        let ts = simple_tileset();
-        let mut solver = WfcSolver::new(2, 2, ts);
+        let ts = simple_named_tileset();
+        let mut solver = WfcSolver::new(2, 2, ts.into_inner());
         solver.run(12345).unwrap();
 
         let tile = solver.get_tile(0, 0);
-        assert!(tile == Some("A") || tile == Some("B"));
+        assert!(tile == Some(TileId(0)) || tile == Some(TileId(1)));
     }
 
     #[test]
     fn test_wfc_set_cell() {
-        let ts = simple_tileset();
-        let mut solver = WfcSolver::new(3, 3, ts);
+        let ts = simple_named_tileset();
+        let tile_a = ts.get_id("A").unwrap();
+        let mut solver = WfcSolver::new(3, 3, ts.into_inner());
 
-        solver.set_cell(1, 1, "A").unwrap();
-        assert_eq!(solver.get_tile(1, 1), Some("A"));
+        solver.set_cell(1, 1, tile_a).unwrap();
+        assert_eq!(solver.get_tile(1, 1), Some(tile_a));
     }
 
     #[test]
     fn test_wfc_step() {
-        let ts = simple_tileset();
-        let mut solver = WfcSolver::new(3, 3, ts);
+        let ts = simple_named_tileset();
+        let mut solver = WfcSolver::new(3, 3, ts.into_inner());
 
         // Should make progress
         let stepped = solver.step().unwrap();
@@ -703,8 +837,8 @@ mod tests {
 
     #[test]
     fn test_wfc_reset() {
-        let ts = simple_tileset();
-        let mut solver = WfcSolver::new(3, 3, ts);
+        let ts = simple_named_tileset();
+        let mut solver = WfcSolver::new(3, 3, ts.into_inner());
 
         solver.run(12345).unwrap();
         assert!(solver.is_complete());
@@ -728,7 +862,7 @@ mod tests {
     #[test]
     fn test_wfc_with_platformer() {
         let ts = platformer_tileset();
-        let mut solver = WfcSolver::new(5, 5, ts);
+        let mut solver = WfcSolver::new(5, 5, ts.into_inner());
 
         // Should complete without error
         let result = solver.run(99999);
@@ -740,8 +874,8 @@ mod tests {
 
     #[test]
     fn test_entropy() {
-        let ts = simple_tileset();
-        let solver = WfcSolver::new(2, 2, ts);
+        let ts = simple_named_tileset();
+        let solver = WfcSolver::new(2, 2, ts.into_inner());
 
         // Initially all cells have max entropy (2 possibilities)
         assert_eq!(solver.get_entropy(0, 0), 2);

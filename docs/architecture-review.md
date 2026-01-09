@@ -11,7 +11,7 @@ Review of patterns, inconsistencies, and code smells across the workspace.
 | API Design | Tuple returns violate CLAUDE.md rule | `resin-vector/boolean.rs`, `resin-surface/lib.rs` | HIGH | ✅ Fixed |
 | Error Handling | `panic!()` in library code | `resin-spline/lib.rs` (4 instances) | HIGH | ✅ Fixed |
 | Code Duplication | Collision response pattern repeats | `resin-physics/lib.rs` | MEDIUM | ✅ Fixed |
-| Type Safety | String-based tile IDs instead of enums | `resin-procgen/lib.rs` | MEDIUM | Deferred |
+| Type Safety | String-based tile IDs instead of enums | `resin-procgen/lib.rs` | MEDIUM | ✅ Fixed |
 | Consistency | Trait implementations vary between similar types | `resin-spline/lib.rs` | MEDIUM | ✅ Fixed |
 | Complexity | Large functions handle multiple concerns | `resin-physics/lib.rs::step()` | MEDIUM | ✅ Fixed |
 
@@ -65,12 +65,13 @@ impl Contact {
 }
 ```
 
-### 4. String-Based Tile IDs (Deferred)
+### 4. String-Based Tile IDs ✅
 
-In `resin-procgen/src/lib.rs`, WFC tiles use string names with HashMap lookups.
-This is acceptable for the current use case - string IDs provide good ergonomics
-for procedural content. Newtype `TileId(usize)` would add complexity without
-significant benefit for this domain.
+**Fixed:** Implemented layered design:
+- `TileId(usize)` newtype for type-safe, zero-overhead tile references
+- `TileSet` base type uses `TileId` for rules and weights
+- `NamedTileSet` wrapper provides ergonomic string-based API
+- Users can start with strings, drop to IDs for hot paths via `into_inner()`
 
 ### 5. Inconsistent Trait Implementations ✅
 
