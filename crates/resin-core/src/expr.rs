@@ -42,7 +42,7 @@ impl ExprFn for Noise {
     }
     fn call(&self, args: &[f32]) -> f32 {
         let [x, y] = args else { return 0.0 };
-        noise::perlin2(*x, *y)
+        resin_noise::perlin2(*x, *y)
     }
 }
 
@@ -57,7 +57,7 @@ impl ExprFn for Perlin {
     }
     fn call(&self, args: &[f32]) -> f32 {
         let [x, y] = args else { return 0.0 };
-        noise::perlin2(*x, *y)
+        resin_noise::perlin2(*x, *y)
     }
 }
 
@@ -72,7 +72,7 @@ impl ExprFn for Perlin3 {
     }
     fn call(&self, args: &[f32]) -> f32 {
         let [x, y, z] = args else { return 0.0 };
-        noise::perlin3(*x, *y, *z)
+        resin_noise::perlin3(*x, *y, *z)
     }
 }
 
@@ -87,7 +87,7 @@ impl ExprFn for Simplex {
     }
     fn call(&self, args: &[f32]) -> f32 {
         let [x, y] = args else { return 0.0 };
-        noise::simplex2(*x, *y)
+        resin_noise::simplex2(*x, *y)
     }
 }
 
@@ -102,7 +102,7 @@ impl ExprFn for Simplex3 {
     }
     fn call(&self, args: &[f32]) -> f32 {
         let [x, y, z] = args else { return 0.0 };
-        noise::simplex3(*x, *y, *z)
+        resin_noise::simplex3(*x, *y, *z)
     }
 }
 
@@ -117,7 +117,7 @@ impl ExprFn for Fbm {
     }
     fn call(&self, args: &[f32]) -> f32 {
         let [x, y, octaves] = args else { return 0.0 };
-        noise::fbm_perlin2(*x, *y, *octaves as u32)
+        resin_noise::fbm_perlin2(*x, *y, *octaves as u32)
     }
 }
 

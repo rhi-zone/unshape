@@ -8,7 +8,7 @@
 //! use resin_mesh::{Mesh, geodesic::{compute_geodesic_distance, GeodesicConfig}};
 //!
 //! // Create a simple mesh
-//! let mesh = resin_mesh::uv_sphere(1.0, 16, 8);
+//! let mesh = resin_mesh::uv_sphere(16, 8);
 //!
 //! // Compute geodesic distance from vertex 0
 //! let distances = compute_geodesic_distance(&mesh, &[0], GeodesicConfig::default());

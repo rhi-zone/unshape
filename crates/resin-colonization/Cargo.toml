@@ -1,0 +1,10 @@
+[package]
+name = "resin-colonization"
+version = "0.1.0"
+edition = "2024"
+description = "Space colonization algorithm for branching structures"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rhizome-lab/resin"
+
+[dependencies]
+glam.workspace = true

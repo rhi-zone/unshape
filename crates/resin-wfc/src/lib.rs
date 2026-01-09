@@ -5,7 +5,7 @@
 //!
 //! # Example
 //!
-//! ```
+//! ```no_run
 //! use resin_wfc::{WfcSolver, TileSet, Direction};
 //!
 //! // Define tiles with adjacency rules

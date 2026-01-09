@@ -5,7 +5,7 @@
 //! # Example
 //!
 //! ```
-//! use resin_core::spring::{SpringSystem, SpringConfig};
+//! use resin_spring::{SpringSystem, SpringConfig};
 //! use glam::Vec3;
 //!
 //! // Create a simple rope

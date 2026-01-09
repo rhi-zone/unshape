@@ -16,14 +16,7 @@ pub mod expr;
 pub mod field;
 mod graph;
 pub mod image_field;
-pub mod lsystem;
 mod node;
-pub mod particle;
-pub mod scatter;
-pub mod space_colonization;
-pub mod spline;
-pub mod spring;
-pub mod surface;
 mod value;
 
 pub use attributes::{
@@ -99,53 +92,6 @@ pub use field::{
 pub use glam;
 pub use graph::{Edge, Graph, NodeId};
 pub use image_field::{FilterMode, ImageField, ImageFieldError, WrapMode};
-pub use lsystem::{
-    LSystem, Rule, TurtleConfig, TurtleSegment2D, TurtleSegment3D, TurtleState2D, TurtleState3D,
-    interpret_turtle_2d, interpret_turtle_3d, presets as lsystem_presets, segments_to_paths_2d,
-};
 pub use node::{BoxedNode, DynNode, PortDescriptor};
-pub use particle::{
-    // Forces
-    Attractor,
-    // Emitters
-    ConeEmitter,
-    CurlNoise,
-    Drag,
-    // Traits
-    Emitter,
-    Force,
-    Gravity,
-    // Core types
-    Particle,
-    ParticleRng,
-    ParticleSystem,
-    PointEmitter,
-    SphereEmitter,
-    Turbulence,
-    Vortex,
-    Wind,
-};
 pub use resin_macros::DynNode as DynNodeDerive;
-pub use scatter::{
-    Instance, ScatterConfig, jitter_positions, randomize_rotation, randomize_scale, scatter_circle,
-    scatter_grid, scatter_grid_2d, scatter_line, scatter_poisson_2d, scatter_random,
-    scatter_random_with_config, scatter_sphere,
-};
-pub use space_colonization::{
-    BranchEdge, BranchNode, SpaceColonization, SpaceColonizationConfig, generate_lightning,
-    generate_tree,
-};
-pub use spline::{
-    BSpline, BezierSpline, CatmullRom, CubicBezier, Interpolatable, Nurbs, WeightedPoint,
-    cubic_bezier, nurbs_arc, nurbs_circle, nurbs_circle_2d, nurbs_ellipse, quadratic_bezier,
-    smooth_through_points,
-};
-pub use spring::{
-    DistanceConstraint, Particle as SpringParticle, Spring, SpringConfig, SpringSystem,
-    VerletParticle, create_cloth, create_rope, create_soft_sphere, solve_distance_constraint,
-};
-pub use surface::{
-    NurbsSurface, SurfacePoint, TessellatedSurface, nurbs_bilinear_patch, nurbs_cone,
-    nurbs_cylinder, nurbs_sphere, nurbs_torus,
-};
 pub use value::{Value, ValueType};

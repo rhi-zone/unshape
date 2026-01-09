@@ -6,7 +6,7 @@
 //!
 //! ```
 //! use resin_vector::rasterize::{Rasterizer, FillRule};
-//! use resin_vector::path::{PathBuilder, polygon};
+//! use resin_vector::polygon;
 //! use glam::Vec2;
 //!
 //! // Create a triangle path
