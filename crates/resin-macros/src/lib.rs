@@ -95,7 +95,7 @@ fn value_wrap_for(
 ///
 /// The macro generates a DynNode implementation that:
 /// - Returns the struct name as type_name
-/// - Creates PortDescriptors for #[input] and #[output] fields
+/// - Creates PortDescriptors for `#[input]` and `#[output]` fields
 /// - In execute(), extracts inputs, calls compute(), and returns outputs
 #[proc_macro_derive(DynNode, attributes(input, output, node))]
 pub fn derive_dyn_node(input: TokenStream) -> TokenStream {

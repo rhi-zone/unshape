@@ -320,7 +320,7 @@ impl StftConfig {
 /// Result of STFT analysis.
 #[derive(Debug, Clone)]
 pub struct StftResult {
-    /// Complex spectrogram: frames[frame_index][bin_index]
+    /// Complex spectrogram: `frames[frame_index][bin_index]`
     pub frames: Vec<Vec<Complex>>,
     /// Sample rate (if known).
     pub sample_rate: Option<u32>,
