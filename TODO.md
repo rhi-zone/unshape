@@ -19,7 +19,7 @@
 
 ### Physics
 
-- [ ] Constraints/joints - hinges, springs, motors, ragdolls
+- [x] Constraints/joints - hinges, springs, motors (DistanceConstraint, HingeConstraint, SpringConstraint)
 - [x] Cloth-object collision - two-way interaction (ClothCollider, query_collision, solve_self_collision)
 - [x] Soft body FEM - finite element method deformation (SoftBody, Tetrahedron, LameParameters)
 
@@ -28,7 +28,7 @@
 - [x] Procedural architecture - buildings, rooms, floor plans (Building, generate_building, generate_stairs)
 - [ ] Road/river networks - graph-based path generation
 - [ ] Terrain erosion - hydraulic, thermal simulation
-- [ ] Maze generation - recursive backtracker, Prim's, Kruskal's, Eller's
+- [x] Maze generation - recursive backtracker, Prim's, Kruskal's, Eller's (maze module)
 
 ### Animation
 
