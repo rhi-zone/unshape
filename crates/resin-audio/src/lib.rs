@@ -10,6 +10,8 @@ pub mod graph;
 pub mod midi;
 pub mod osc;
 pub mod physical;
+pub mod spectral;
+pub mod vocoder;
 pub mod wav;
 
 pub use effects::{Chorus, Distortion, DistortionMode, Flanger, Phaser, Reverb, Tremolo};
@@ -38,6 +40,12 @@ pub use osc::{
     sine, square, square_blep, supersaw_wavetable, triangle,
 };
 pub use physical::{ExtendedKarplusStrong, KarplusStrong, PluckConfig, PolyStrings};
+pub use spectral::{
+    Complex, StftConfig, StftResult, blackman_window, estimate_pitch, fft, fft_complex,
+    find_peak_frequency, hamming_window, hann_window, ifft, ifft_complex, istft, rect_window,
+    spectral_centroid, spectral_flatness, stft, stft_with_sample_rate,
+};
+pub use vocoder::{FilterbankVocoder, Vocoder, VocoderConfig};
 pub use wav::{
     WavError, WavFile, WavFormat, WavResult, from_bytes as wav_from_bytes, to_bytes as wav_to_bytes,
 };

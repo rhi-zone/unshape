@@ -5,16 +5,11 @@
 ## Backlog
 
 ### Procedural / Simulation
-- [ ] Voxels - voxel grids, SDF → voxel conversion, voxel editing, sparse storage
-- [ ] Point clouds - sampling from meshes/SDFs, reconstruction, filtering, normals estimation
-- [ ] Texture baking - render Field → Image at UV coords, lightmap baking
 - [ ] Fluid simulation - SPH, grid-based, 2D/3D
 - [ ] Smoke/gas simulation - density advection, buoyancy
 - [ ] Rigid body physics - collision detection, constraints, stacking
 
 ### Audio
-- [ ] Spectral processing - FFT, STFT, spectral filtering, pitch detection
-- [ ] Vocoder - analysis/synthesis, cross-synthesis
 - [ ] Physical modeling (percussion) - membranes, bars, plates
 
 ### File Formats
@@ -30,6 +25,12 @@
 - [ ] Video export - mp4/webm encoding (likely via external tool/ffmpeg)
 
 ## Done
+- [x] Vocoder (Vocoder, FilterbankVocoder, spectral cross-synthesis, envelope follower)
+- [x] Spectral processing (FFT, IFFT, STFT, ISTFT, window functions, pitch detection, spectral analysis)
+- [x] Voxels (VoxelGrid, SparseVoxels, sdf_to_voxels, editing, dilate/erode, mesh generation)
+- [x] Point clouds (PointCloud, sampling from meshes/SDFs, normal estimation, filtering, voxel downsampling)
+- [x] Texture baking (BakeConfig, bake_scalar, bake_rgba, bake_vec4, export_png, anti-aliasing)
+
 - [x] 2D rasterization (Rasterizer, scanline algorithm, FillRule, alpha compositing, stroke rasterization)
 
 - [x] Space colonization (SpaceColonization, BranchNode, generate_tree, generate_lightning, pipe model radii)

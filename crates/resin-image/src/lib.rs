@@ -314,6 +314,251 @@ impl Field<Vec2, f32> for ImageField {
     }
 }
 
+// ============================================================================
+// Texture baking - render Field to Image
+// ============================================================================
+
+/// Configuration for texture baking.
+#[derive(Debug, Clone)]
+pub struct BakeConfig {
+    /// Output width in pixels.
+    pub width: u32,
+    /// Output height in pixels.
+    pub height: u32,
+    /// Number of samples per pixel for anti-aliasing (1 = no AA).
+    pub samples: u32,
+}
+
+impl Default for BakeConfig {
+    fn default() -> Self {
+        Self {
+            width: 256,
+            height: 256,
+            samples: 1,
+        }
+    }
+}
+
+impl BakeConfig {
+    /// Creates a new bake config with the given dimensions.
+    pub fn new(width: u32, height: u32) -> Self {
+        Self {
+            width,
+            height,
+            samples: 1,
+        }
+    }
+
+    /// Sets the number of anti-aliasing samples per pixel.
+    pub fn with_samples(mut self, samples: u32) -> Self {
+        self.samples = samples.max(1);
+        self
+    }
+}
+
+/// Bakes a scalar field (Field<Vec2, f32>) to a grayscale image.
+///
+/// UV coordinates go from (0, 0) at top-left to (1, 1) at bottom-right.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{bake_scalar, BakeConfig};
+/// use rhizome_resin_field::{Perlin2D, Field, EvalContext};
+///
+/// let noise = Perlin2D::new().scale(4.0);
+/// let config = BakeConfig::new(256, 256);
+/// let ctx = EvalContext::new();
+///
+/// let image = bake_scalar(&noise, &config, &ctx);
+/// assert_eq!(image.dimensions(), (256, 256));
+/// ```
+pub fn bake_scalar<F: Field<Vec2, f32>>(
+    field: &F,
+    config: &BakeConfig,
+    ctx: &EvalContext,
+) -> ImageField {
+    let mut data = Vec::with_capacity((config.width * config.height) as usize);
+
+    for y in 0..config.height {
+        for x in 0..config.width {
+            let value = if config.samples == 1 {
+                // Single sample at pixel center
+                let u = (x as f32 + 0.5) / config.width as f32;
+                let v = (y as f32 + 0.5) / config.height as f32;
+                field.sample(Vec2::new(u, v), ctx)
+            } else {
+                // Multi-sample anti-aliasing
+                let mut sum = 0.0;
+                let samples_sqrt = (config.samples as f32).sqrt().ceil() as u32;
+                let actual_samples = samples_sqrt * samples_sqrt;
+
+                for sy in 0..samples_sqrt {
+                    for sx in 0..samples_sqrt {
+                        let u = (x as f32 + (sx as f32 + 0.5) / samples_sqrt as f32)
+                            / config.width as f32;
+                        let v = (y as f32 + (sy as f32 + 0.5) / samples_sqrt as f32)
+                            / config.height as f32;
+                        sum += field.sample(Vec2::new(u, v), ctx);
+                    }
+                }
+                sum / actual_samples as f32
+            };
+
+            let clamped = value.clamp(0.0, 1.0);
+            data.push([clamped, clamped, clamped, 1.0]);
+        }
+    }
+
+    ImageField::from_raw(data, config.width, config.height)
+}
+
+/// Bakes an RGBA field (Field<Vec2, Rgba>) to an image.
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_resin_image::{bake_rgba, BakeConfig};
+/// use rhizome_resin_field::{Field, EvalContext};
+///
+/// let field = MyColorField::new();
+/// let config = BakeConfig::new(512, 512);
+/// let ctx = EvalContext::new();
+///
+/// let image = bake_rgba(&field, &config, &ctx);
+/// ```
+pub fn bake_rgba<F: Field<Vec2, Rgba>>(
+    field: &F,
+    config: &BakeConfig,
+    ctx: &EvalContext,
+) -> ImageField {
+    let mut data = Vec::with_capacity((config.width * config.height) as usize);
+
+    for y in 0..config.height {
+        for x in 0..config.width {
+            let color = if config.samples == 1 {
+                let u = (x as f32 + 0.5) / config.width as f32;
+                let v = (y as f32 + 0.5) / config.height as f32;
+                field.sample(Vec2::new(u, v), ctx)
+            } else {
+                let mut sum = Rgba::new(0.0, 0.0, 0.0, 0.0);
+                let samples_sqrt = (config.samples as f32).sqrt().ceil() as u32;
+                let actual_samples = samples_sqrt * samples_sqrt;
+
+                for sy in 0..samples_sqrt {
+                    for sx in 0..samples_sqrt {
+                        let u = (x as f32 + (sx as f32 + 0.5) / samples_sqrt as f32)
+                            / config.width as f32;
+                        let v = (y as f32 + (sy as f32 + 0.5) / samples_sqrt as f32)
+                            / config.height as f32;
+                        let c = field.sample(Vec2::new(u, v), ctx);
+                        sum.r += c.r;
+                        sum.g += c.g;
+                        sum.b += c.b;
+                        sum.a += c.a;
+                    }
+                }
+                let n = actual_samples as f32;
+                Rgba::new(sum.r / n, sum.g / n, sum.b / n, sum.a / n)
+            };
+
+            data.push([
+                color.r.clamp(0.0, 1.0),
+                color.g.clamp(0.0, 1.0),
+                color.b.clamp(0.0, 1.0),
+                color.a.clamp(0.0, 1.0),
+            ]);
+        }
+    }
+
+    ImageField::from_raw(data, config.width, config.height)
+}
+
+/// Bakes a Vec4 field (Field<Vec2, Vec4>) to an image.
+pub fn bake_vec4<F: Field<Vec2, Vec4>>(
+    field: &F,
+    config: &BakeConfig,
+    ctx: &EvalContext,
+) -> ImageField {
+    let mut data = Vec::with_capacity((config.width * config.height) as usize);
+
+    for y in 0..config.height {
+        for x in 0..config.width {
+            let color = if config.samples == 1 {
+                let u = (x as f32 + 0.5) / config.width as f32;
+                let v = (y as f32 + 0.5) / config.height as f32;
+                field.sample(Vec2::new(u, v), ctx)
+            } else {
+                let mut sum = Vec4::ZERO;
+                let samples_sqrt = (config.samples as f32).sqrt().ceil() as u32;
+                let actual_samples = samples_sqrt * samples_sqrt;
+
+                for sy in 0..samples_sqrt {
+                    for sx in 0..samples_sqrt {
+                        let u = (x as f32 + (sx as f32 + 0.5) / samples_sqrt as f32)
+                            / config.width as f32;
+                        let v = (y as f32 + (sy as f32 + 0.5) / samples_sqrt as f32)
+                            / config.height as f32;
+                        sum += field.sample(Vec2::new(u, v), ctx);
+                    }
+                }
+                sum / actual_samples as f32
+            };
+
+            data.push([
+                color.x.clamp(0.0, 1.0),
+                color.y.clamp(0.0, 1.0),
+                color.z.clamp(0.0, 1.0),
+                color.w.clamp(0.0, 1.0),
+            ]);
+        }
+    }
+
+    ImageField::from_raw(data, config.width, config.height)
+}
+
+/// Exports an ImageField to a PNG file.
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_resin_image::{bake_scalar, BakeConfig, export_png};
+/// use rhizome_resin_field::{Perlin2D, EvalContext};
+///
+/// let noise = Perlin2D::new().scale(4.0);
+/// let config = BakeConfig::new(256, 256);
+/// let ctx = EvalContext::new();
+///
+/// let image = bake_scalar(&noise, &config, &ctx);
+/// export_png(&image, "noise.png").unwrap();
+/// ```
+pub fn export_png<P: AsRef<Path>>(image: &ImageField, path: P) -> Result<(), ImageFieldError> {
+    let (width, height) = image.dimensions();
+    let mut img_buf = image::RgbaImage::new(width, height);
+
+    for y in 0..height {
+        for x in 0..width {
+            let u = (x as f32 + 0.5) / width as f32;
+            let v = (y as f32 + 0.5) / height as f32;
+            let color = image.sample_uv(u, v);
+
+            img_buf.put_pixel(
+                x,
+                y,
+                image::Rgba([
+                    (color.r * 255.0) as u8,
+                    (color.g * 255.0) as u8,
+                    (color.b * 255.0) as u8,
+                    (color.a * 255.0) as u8,
+                ]),
+            );
+        }
+    }
+
+    img_buf.save(path)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -355,5 +600,98 @@ mod tests {
 
         let color: Rgba = img.sample(Vec2::new(0.0, 0.0), &ctx);
         assert!(color.r > 0.5);
+    }
+
+    // Texture baking tests
+
+    /// A simple field that returns UV coordinates as grayscale.
+    struct GradientField;
+
+    impl Field<Vec2, f32> for GradientField {
+        fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+            (input.x + input.y) / 2.0
+        }
+    }
+
+    /// A simple field that returns UV coordinates as color.
+    struct ColorGradientField;
+
+    impl Field<Vec2, Rgba> for ColorGradientField {
+        fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Rgba {
+            Rgba::new(input.x, input.y, 0.5, 1.0)
+        }
+    }
+
+    impl Field<Vec2, Vec4> for ColorGradientField {
+        fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec4 {
+            Vec4::new(input.x, input.y, 0.5, 1.0)
+        }
+    }
+
+    #[test]
+    fn test_bake_scalar() {
+        let field = GradientField;
+        let config = BakeConfig::new(4, 4);
+        let ctx = EvalContext::new();
+
+        let image = bake_scalar(&field, &config, &ctx);
+        assert_eq!(image.dimensions(), (4, 4));
+
+        // Top-left should be darker, bottom-right should be brighter
+        let tl = image.sample_uv(0.125, 0.125); // First pixel center
+        let br = image.sample_uv(0.875, 0.875); // Last pixel center
+        assert!(tl.r < br.r);
+    }
+
+    #[test]
+    fn test_bake_scalar_with_aa() {
+        let field = GradientField;
+        let config = BakeConfig::new(4, 4).with_samples(4);
+        let ctx = EvalContext::new();
+
+        let image = bake_scalar(&field, &config, &ctx);
+        assert_eq!(image.dimensions(), (4, 4));
+    }
+
+    #[test]
+    fn test_bake_rgba() {
+        let field = ColorGradientField;
+        let config = BakeConfig::new(4, 4);
+        let ctx = EvalContext::new();
+
+        let image = bake_rgba(&field, &config, &ctx);
+        assert_eq!(image.dimensions(), (4, 4));
+
+        // Check that colors vary as expected
+        let tl = image.sample_uv(0.125, 0.125);
+        let br = image.sample_uv(0.875, 0.875);
+        assert!(tl.r < br.r); // Red increases with X
+        assert!(tl.g < br.g); // Green increases with Y
+    }
+
+    #[test]
+    fn test_bake_vec4() {
+        let field = ColorGradientField;
+        let config = BakeConfig::new(4, 4);
+        let ctx = EvalContext::new();
+
+        let image = bake_vec4(&field, &config, &ctx);
+        assert_eq!(image.dimensions(), (4, 4));
+    }
+
+    #[test]
+    fn test_bake_config_builder() {
+        let config = BakeConfig::new(512, 256).with_samples(16);
+        assert_eq!(config.width, 512);
+        assert_eq!(config.height, 256);
+        assert_eq!(config.samples, 16);
+    }
+
+    #[test]
+    fn test_bake_config_default() {
+        let config = BakeConfig::default();
+        assert_eq!(config.width, 256);
+        assert_eq!(config.height, 256);
+        assert_eq!(config.samples, 1);
     }
 }

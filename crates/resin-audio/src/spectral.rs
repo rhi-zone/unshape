@@ -1,0 +1,750 @@
+//! Spectral processing: FFT, STFT, and frequency-domain analysis.
+//!
+//! This module provides:
+//! - FFT/IFFT for frequency-domain analysis
+//! - STFT for time-frequency analysis
+//! - Window functions (Hann, Hamming, Blackman, etc.)
+//! - Pitch detection
+//!
+//! # Example
+//!
+//! ```
+//! use rhizome_resin_audio::spectral::{fft, ifft, hann_window};
+//!
+//! // Generate a simple signal
+//! let n = 1024;
+//! let signal: Vec<f32> = (0..n)
+//!     .map(|i| (2.0 * std::f32::consts::PI * 10.0 * i as f32 / n as f32).sin())
+//!     .collect();
+//!
+//! // Apply FFT
+//! let spectrum = fft(&signal);
+//!
+//! // The spectrum has n/2+1 complex values (positive frequencies)
+//! assert_eq!(spectrum.len(), n / 2 + 1);
+//! ```
+
+use std::f32::consts::PI;
+
+/// A complex number for FFT operations.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Complex {
+    pub re: f32,
+    pub im: f32,
+}
+
+impl Complex {
+    /// Creates a new complex number.
+    pub fn new(re: f32, im: f32) -> Self {
+        Self { re, im }
+    }
+
+    /// Creates a complex number from polar coordinates.
+    pub fn from_polar(mag: f32, phase: f32) -> Self {
+        Self {
+            re: mag * phase.cos(),
+            im: mag * phase.sin(),
+        }
+    }
+
+    /// Returns the magnitude (absolute value).
+    pub fn mag(&self) -> f32 {
+        (self.re * self.re + self.im * self.im).sqrt()
+    }
+
+    /// Returns the phase angle.
+    pub fn phase(&self) -> f32 {
+        self.im.atan2(self.re)
+    }
+
+    /// Returns the complex conjugate.
+    pub fn conj(&self) -> Self {
+        Self {
+            re: self.re,
+            im: -self.im,
+        }
+    }
+}
+
+impl std::ops::Add for Complex {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self {
+        Self {
+            re: self.re + rhs.re,
+            im: self.im + rhs.im,
+        }
+    }
+}
+
+impl std::ops::Sub for Complex {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self {
+        Self {
+            re: self.re - rhs.re,
+            im: self.im - rhs.im,
+        }
+    }
+}
+
+impl std::ops::Mul for Complex {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self {
+        Self {
+            re: self.re * rhs.re - self.im * rhs.im,
+            im: self.re * rhs.im + self.im * rhs.re,
+        }
+    }
+}
+
+impl std::ops::Mul<f32> for Complex {
+    type Output = Self;
+    fn mul(self, rhs: f32) -> Self {
+        Self {
+            re: self.re * rhs,
+            im: self.im * rhs,
+        }
+    }
+}
+
+// ============================================================================
+// Window functions
+// ============================================================================
+
+/// Generates a Hann (raised cosine) window.
+pub fn hann_window(size: usize) -> Vec<f32> {
+    (0..size)
+        .map(|n| 0.5 * (1.0 - (2.0 * PI * n as f32 / (size - 1) as f32).cos()))
+        .collect()
+}
+
+/// Generates a Hamming window.
+pub fn hamming_window(size: usize) -> Vec<f32> {
+    (0..size)
+        .map(|n| 0.54 - 0.46 * (2.0 * PI * n as f32 / (size - 1) as f32).cos())
+        .collect()
+}
+
+/// Generates a Blackman window.
+pub fn blackman_window(size: usize) -> Vec<f32> {
+    (0..size)
+        .map(|n| {
+            let t = 2.0 * PI * n as f32 / (size - 1) as f32;
+            0.42 - 0.5 * t.cos() + 0.08 * (2.0 * t).cos()
+        })
+        .collect()
+}
+
+/// Generates a rectangular (flat) window.
+pub fn rect_window(size: usize) -> Vec<f32> {
+    vec![1.0; size]
+}
+
+/// Applies a window function to a signal in-place.
+pub fn apply_window(signal: &mut [f32], window: &[f32]) {
+    assert_eq!(signal.len(), window.len());
+    for (s, w) in signal.iter_mut().zip(window.iter()) {
+        *s *= w;
+    }
+}
+
+// ============================================================================
+// FFT (Cooley-Tukey radix-2)
+// ============================================================================
+
+/// Computes the FFT of a real signal.
+///
+/// Returns N/2+1 complex values representing positive frequencies.
+/// Input length must be a power of 2.
+pub fn fft(signal: &[f32]) -> Vec<Complex> {
+    let n = signal.len();
+    assert!(n.is_power_of_two(), "FFT size must be power of 2");
+
+    // Convert to complex
+    let mut x: Vec<Complex> = signal.iter().map(|&s| Complex::new(s, 0.0)).collect();
+
+    // In-place FFT
+    fft_in_place(&mut x, false);
+
+    // Return only positive frequencies (N/2+1 bins)
+    x.truncate(n / 2 + 1);
+    x
+}
+
+/// Computes the inverse FFT, returning a real signal.
+///
+/// Input should be N/2+1 complex values from fft().
+/// Output length is 2 * (input.len() - 1).
+pub fn ifft(spectrum: &[Complex]) -> Vec<f32> {
+    let n = (spectrum.len() - 1) * 2;
+    assert!(n.is_power_of_two(), "IFFT size must be power of 2");
+
+    // Reconstruct full spectrum (conjugate symmetry)
+    let mut x = Vec::with_capacity(n);
+    x.extend_from_slice(spectrum);
+
+    // Add conjugate mirrored frequencies
+    for i in (1..n / 2).rev() {
+        x.push(spectrum[i].conj());
+    }
+
+    // In-place IFFT
+    fft_in_place(&mut x, true);
+
+    // Return real part, scaled
+    x.iter().map(|c| c.re / n as f32).collect()
+}
+
+/// In-place FFT using Cooley-Tukey radix-2 algorithm.
+fn fft_in_place(x: &mut [Complex], inverse: bool) {
+    let n = x.len();
+    if n <= 1 {
+        return;
+    }
+
+    // Bit-reversal permutation
+    let mut j = 0;
+    for i in 0..n {
+        if i < j {
+            x.swap(i, j);
+        }
+        let mut m = n >> 1;
+        while m >= 1 && j >= m {
+            j -= m;
+            m >>= 1;
+        }
+        j += m;
+    }
+
+    // Cooley-Tukey iterative FFT
+    let sign = if inverse { 1.0 } else { -1.0 };
+
+    let mut len = 2;
+    while len <= n {
+        let half = len / 2;
+        let angle = sign * 2.0 * PI / len as f32;
+
+        for i in (0..n).step_by(len) {
+            let mut w = Complex::new(1.0, 0.0);
+            let wn = Complex::from_polar(1.0, angle);
+
+            for k in 0..half {
+                let t = x[i + k + half] * w;
+                let u = x[i + k];
+                x[i + k] = u + t;
+                x[i + k + half] = u - t;
+                w = w * wn;
+            }
+        }
+
+        len <<= 1;
+    }
+}
+
+/// Computes the full complex FFT (not just positive frequencies).
+pub fn fft_complex(signal: &[Complex]) -> Vec<Complex> {
+    let n = signal.len();
+    assert!(n.is_power_of_two(), "FFT size must be power of 2");
+
+    let mut x = signal.to_vec();
+    fft_in_place(&mut x, false);
+    x
+}
+
+/// Computes the full complex IFFT.
+pub fn ifft_complex(spectrum: &[Complex]) -> Vec<Complex> {
+    let n = spectrum.len();
+    assert!(n.is_power_of_two(), "IFFT size must be power of 2");
+
+    let mut x = spectrum.to_vec();
+    fft_in_place(&mut x, true);
+
+    // Scale
+    for c in &mut x {
+        *c = *c * (1.0 / n as f32);
+    }
+    x
+}
+
+// ============================================================================
+// STFT (Short-Time Fourier Transform)
+// ============================================================================
+
+/// Configuration for STFT analysis.
+#[derive(Debug, Clone)]
+pub struct StftConfig {
+    /// FFT window size (must be power of 2).
+    pub window_size: usize,
+    /// Hop size between consecutive frames.
+    pub hop_size: usize,
+    /// Window function.
+    pub window: Vec<f32>,
+}
+
+impl Default for StftConfig {
+    fn default() -> Self {
+        let window_size = 1024;
+        Self {
+            window_size,
+            hop_size: 256,
+            window: hann_window(window_size),
+        }
+    }
+}
+
+impl StftConfig {
+    /// Creates a new STFT config with the given window size.
+    pub fn new(window_size: usize) -> Self {
+        Self {
+            window_size,
+            hop_size: window_size / 4,
+            window: hann_window(window_size),
+        }
+    }
+
+    /// Sets the hop size.
+    pub fn with_hop_size(mut self, hop_size: usize) -> Self {
+        self.hop_size = hop_size;
+        self
+    }
+
+    /// Sets the window function.
+    pub fn with_window(mut self, window: Vec<f32>) -> Self {
+        assert_eq!(window.len(), self.window_size);
+        self.window = window;
+        self
+    }
+}
+
+/// Result of STFT analysis.
+#[derive(Debug, Clone)]
+pub struct StftResult {
+    /// Complex spectrogram: frames[frame_index][bin_index]
+    pub frames: Vec<Vec<Complex>>,
+    /// Sample rate (if known).
+    pub sample_rate: Option<u32>,
+    /// Configuration used.
+    pub config: StftConfig,
+}
+
+impl StftResult {
+    /// Returns the number of frames.
+    pub fn num_frames(&self) -> usize {
+        self.frames.len()
+    }
+
+    /// Returns the number of frequency bins per frame.
+    pub fn num_bins(&self) -> usize {
+        if self.frames.is_empty() {
+            0
+        } else {
+            self.frames[0].len()
+        }
+    }
+
+    /// Computes the magnitude spectrogram.
+    pub fn magnitude(&self) -> Vec<Vec<f32>> {
+        self.frames
+            .iter()
+            .map(|frame| frame.iter().map(|c| c.mag()).collect())
+            .collect()
+    }
+
+    /// Computes the power spectrogram (magnitude squared).
+    pub fn power(&self) -> Vec<Vec<f32>> {
+        self.frames
+            .iter()
+            .map(|frame| frame.iter().map(|c| c.re * c.re + c.im * c.im).collect())
+            .collect()
+    }
+
+    /// Computes the phase spectrogram.
+    pub fn phase(&self) -> Vec<Vec<f32>> {
+        self.frames
+            .iter()
+            .map(|frame| frame.iter().map(|c| c.phase()).collect())
+            .collect()
+    }
+
+    /// Returns the frequency for a given bin index.
+    pub fn bin_to_freq(&self, bin: usize) -> Option<f32> {
+        self.sample_rate
+            .map(|sr| bin as f32 * sr as f32 / self.config.window_size as f32)
+    }
+
+    /// Returns the approximate bin index for a given frequency.
+    pub fn freq_to_bin(&self, freq: f32) -> Option<usize> {
+        self.sample_rate
+            .map(|sr| (freq * self.config.window_size as f32 / sr as f32).round() as usize)
+    }
+}
+
+/// Computes the Short-Time Fourier Transform of a signal.
+pub fn stft(signal: &[f32], config: &StftConfig) -> StftResult {
+    stft_with_sample_rate(signal, config, None)
+}
+
+/// Computes the STFT with a known sample rate.
+pub fn stft_with_sample_rate(
+    signal: &[f32],
+    config: &StftConfig,
+    sample_rate: Option<u32>,
+) -> StftResult {
+    let mut frames = Vec::new();
+    let mut pos = 0;
+
+    let mut frame_buffer = vec![0.0f32; config.window_size];
+
+    while pos + config.window_size <= signal.len() {
+        // Copy frame and apply window
+        frame_buffer.copy_from_slice(&signal[pos..pos + config.window_size]);
+        apply_window(&mut frame_buffer, &config.window);
+
+        // Compute FFT
+        let spectrum = fft(&frame_buffer);
+        frames.push(spectrum);
+
+        pos += config.hop_size;
+    }
+
+    StftResult {
+        frames,
+        sample_rate,
+        config: config.clone(),
+    }
+}
+
+/// Reconstructs a signal from STFT using overlap-add synthesis.
+pub fn istft(stft: &StftResult) -> Vec<f32> {
+    if stft.frames.is_empty() {
+        return Vec::new();
+    }
+
+    let config = &stft.config;
+    let n_frames = stft.frames.len();
+    let output_len = (n_frames - 1) * config.hop_size + config.window_size;
+
+    let mut output = vec![0.0f32; output_len];
+    let mut window_sum = vec![0.0f32; output_len];
+
+    // Synthesis window (for perfect reconstruction with Hann window and 75% overlap)
+    let synthesis_window = &config.window;
+
+    for (i, frame) in stft.frames.iter().enumerate() {
+        let pos = i * config.hop_size;
+
+        // Inverse FFT
+        let time_domain = ifft(frame);
+
+        // Overlap-add with synthesis window
+        for (j, &sample) in time_domain.iter().enumerate() {
+            output[pos + j] += sample * synthesis_window[j];
+            window_sum[pos + j] += synthesis_window[j] * synthesis_window[j];
+        }
+    }
+
+    // Normalize by window sum
+    for (o, &w) in output.iter_mut().zip(window_sum.iter()) {
+        if w > 1e-8 {
+            *o /= w;
+        }
+    }
+
+    output
+}
+
+// ============================================================================
+// Spectral analysis utilities
+// ============================================================================
+
+/// Finds the peak frequency in a magnitude spectrum.
+pub fn find_peak_frequency(magnitudes: &[f32], sample_rate: u32, fft_size: usize) -> Option<f32> {
+    if magnitudes.is_empty() {
+        return None;
+    }
+
+    let (peak_bin, _) = magnitudes
+        .iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())?;
+
+    Some(peak_bin as f32 * sample_rate as f32 / fft_size as f32)
+}
+
+/// Estimates the fundamental frequency using normalized autocorrelation.
+pub fn estimate_pitch(
+    signal: &[f32],
+    sample_rate: u32,
+    min_freq: f32,
+    max_freq: f32,
+) -> Option<f32> {
+    let n = signal.len();
+    if n == 0 {
+        return None;
+    }
+
+    let min_lag = (sample_rate as f32 / max_freq).ceil() as usize;
+    let max_lag = (sample_rate as f32 / min_freq).floor() as usize;
+
+    if max_lag >= n || min_lag >= max_lag {
+        return None;
+    }
+
+    // Compute energy at lag 0 for normalization
+    let energy: f32 = signal.iter().map(|&x| x * x).sum();
+    if energy < 1e-10 {
+        return None;
+    }
+
+    // Compute normalized autocorrelation and find first peak after first zero crossing
+    let mut correlations = Vec::with_capacity(max_lag - min_lag + 1);
+
+    for lag in min_lag..=max_lag.min(n - 1) {
+        let mut sum = 0.0;
+        let mut energy1 = 0.0;
+        let mut energy2 = 0.0;
+
+        for i in 0..(n - lag) {
+            sum += signal[i] * signal[i + lag];
+            energy1 += signal[i] * signal[i];
+            energy2 += signal[i + lag] * signal[i + lag];
+        }
+
+        let denom = (energy1 * energy2).sqrt();
+        let corr = if denom > 1e-10 { sum / denom } else { 0.0 };
+        correlations.push((lag, corr));
+    }
+
+    // Find the first significant peak (not at lag 0)
+    // Use a simple peak detection: correlation > threshold and higher than neighbors
+    let threshold = 0.5;
+    let mut best_lag = min_lag;
+    let mut best_corr = 0.0f32;
+
+    for i in 1..correlations.len().saturating_sub(1) {
+        let (lag, corr) = correlations[i];
+        let prev_corr = correlations[i - 1].1;
+        let next_corr = correlations[i + 1].1;
+
+        // Is this a local maximum above threshold?
+        if corr > threshold && corr > prev_corr && corr >= next_corr {
+            // Take the first peak found (fundamental, not harmonic)
+            if best_corr < threshold || corr > best_corr * 0.9 {
+                best_lag = lag;
+                best_corr = corr;
+                break; // First strong peak is likely the fundamental
+            }
+        }
+    }
+
+    if best_corr < threshold {
+        // Fallback: find global maximum
+        for &(lag, corr) in &correlations {
+            if corr > best_corr {
+                best_corr = corr;
+                best_lag = lag;
+            }
+        }
+    }
+
+    Some(sample_rate as f32 / best_lag as f32)
+}
+
+/// Computes the spectral centroid (center of mass of the spectrum).
+pub fn spectral_centroid(magnitudes: &[f32], sample_rate: u32, fft_size: usize) -> f32 {
+    let mut weighted_sum = 0.0;
+    let mut total_magnitude = 0.0;
+
+    for (bin, &mag) in magnitudes.iter().enumerate() {
+        let freq = bin as f32 * sample_rate as f32 / fft_size as f32;
+        weighted_sum += freq * mag;
+        total_magnitude += mag;
+    }
+
+    if total_magnitude > 1e-8 {
+        weighted_sum / total_magnitude
+    } else {
+        0.0
+    }
+}
+
+/// Computes the spectral flatness (tonality coefficient).
+///
+/// Returns 0 for pure tones, 1 for white noise.
+pub fn spectral_flatness(magnitudes: &[f32]) -> f32 {
+    if magnitudes.is_empty() {
+        return 0.0;
+    }
+
+    let n = magnitudes.len() as f32;
+
+    // Geometric mean
+    let log_sum: f32 = magnitudes.iter().map(|&m| (m + 1e-10).ln()).sum();
+    let geometric_mean = (log_sum / n).exp();
+
+    // Arithmetic mean
+    let arithmetic_mean: f32 = magnitudes.iter().sum::<f32>() / n;
+
+    if arithmetic_mean > 1e-10 {
+        geometric_mean / arithmetic_mean
+    } else {
+        0.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_complex_ops() {
+        let a = Complex::new(3.0, 4.0);
+        assert!((a.mag() - 5.0).abs() < 0.001);
+
+        let b = Complex::new(1.0, 2.0);
+        let c = a + b;
+        assert!((c.re - 4.0).abs() < 0.001);
+        assert!((c.im - 6.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_hann_window() {
+        let window = hann_window(8);
+        assert_eq!(window.len(), 8);
+        // Hann window should be symmetric
+        assert!((window[0] - window[7]).abs() < 0.001);
+        assert!((window[1] - window[6]).abs() < 0.001);
+        // Peak at center
+        assert!(window[3] > window[0]);
+        assert!(window[4] > window[0]);
+    }
+
+    #[test]
+    fn test_fft_ifft_roundtrip() {
+        let signal: Vec<f32> = (0..64)
+            .map(|i| (2.0 * PI * 5.0 * i as f32 / 64.0).sin())
+            .collect();
+
+        let spectrum = fft(&signal);
+        let recovered = ifft(&spectrum);
+
+        assert_eq!(recovered.len(), signal.len());
+        for (a, b) in signal.iter().zip(recovered.iter()) {
+            assert!((a - b).abs() < 0.001);
+        }
+    }
+
+    #[test]
+    fn test_fft_sine_peak() {
+        let n = 1024;
+        let freq = 100.0;
+        let sample_rate = 1024.0;
+
+        let signal: Vec<f32> = (0..n)
+            .map(|i| (2.0 * PI * freq * i as f32 / sample_rate).sin())
+            .collect();
+
+        let spectrum = fft(&signal);
+        let magnitudes: Vec<f32> = spectrum.iter().map(|c| c.mag()).collect();
+
+        // Peak should be at bin 100 (freq * n / sample_rate)
+        let peak_bin = magnitudes
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+            .map(|(i, _)| i)
+            .unwrap();
+
+        assert_eq!(peak_bin, 100);
+    }
+
+    #[test]
+    fn test_stft_istft_roundtrip() {
+        let n = 4096;
+        let signal: Vec<f32> = (0..n)
+            .map(|i| (2.0 * PI * 440.0 * i as f32 / 44100.0).sin())
+            .collect();
+
+        let config = StftConfig::new(1024).with_hop_size(256);
+        let stft_result = stft(&signal, &config);
+
+        assert!(stft_result.num_frames() > 0);
+        assert_eq!(stft_result.num_bins(), 513); // 1024/2 + 1
+
+        let recovered = istft(&stft_result);
+
+        // Check reconstruction error (allowing for edge effects)
+        let start = config.window_size;
+        let end = signal.len() - config.window_size;
+        for i in start..end.min(recovered.len()) {
+            assert!(
+                (signal[i] - recovered[i]).abs() < 0.1,
+                "Mismatch at {}: {} vs {}",
+                i,
+                signal[i],
+                recovered[i]
+            );
+        }
+    }
+
+    #[test]
+    fn test_spectral_centroid() {
+        // Low frequency dominated
+        let low_mags = vec![10.0, 5.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let centroid_low = spectral_centroid(&low_mags, 8000, 16);
+
+        // High frequency dominated
+        let high_mags = vec![0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 5.0, 10.0];
+        let centroid_high = spectral_centroid(&high_mags, 8000, 16);
+
+        assert!(centroid_low < centroid_high);
+    }
+
+    #[test]
+    fn test_spectral_flatness() {
+        // Pure tone (very unflat)
+        let tone = vec![0.0, 0.0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let flatness_tone = spectral_flatness(&tone);
+
+        // Flat spectrum (very flat)
+        let flat = vec![10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0];
+        let flatness_flat = spectral_flatness(&flat);
+
+        assert!(flatness_tone < flatness_flat);
+        assert!(flatness_flat > 0.9); // Should be close to 1
+    }
+
+    #[test]
+    fn test_stft_magnitude() {
+        let signal: Vec<f32> = (0..2048)
+            .map(|i| (2.0 * PI * 100.0 * i as f32 / 1024.0).sin())
+            .collect();
+
+        let config = StftConfig::new(1024);
+        let result = stft(&signal, &config);
+        let mags = result.magnitude();
+
+        assert!(!mags.is_empty());
+        assert!(!mags[0].is_empty());
+    }
+
+    #[test]
+    fn test_estimate_pitch() {
+        let sample_rate = 44100;
+        let freq = 440.0;
+
+        let signal: Vec<f32> = (0..4096)
+            .map(|i| (2.0 * PI * freq * i as f32 / sample_rate as f32).sin())
+            .collect();
+
+        let estimated = estimate_pitch(&signal, sample_rate, 100.0, 1000.0);
+        assert!(estimated.is_some());
+
+        let est_freq = estimated.unwrap();
+        assert!(
+            (est_freq - freq).abs() < 10.0,
+            "Estimated {} vs actual {}",
+            est_freq,
+            freq
+        );
+    }
+}
