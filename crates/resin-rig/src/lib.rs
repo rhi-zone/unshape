@@ -7,6 +7,7 @@ mod blend;
 mod constraint;
 mod ik;
 mod locomotion;
+mod motion_matching;
 mod path3d;
 mod skeleton;
 mod skin;
@@ -20,6 +21,11 @@ pub use constraint::{Constraint, ConstraintStack, PathConstraint};
 pub use ik::{IkChain, IkConfig, IkResult, solve_ccd, solve_fabrik};
 pub use locomotion::{
     FootPlacement, GaitConfig, GaitPattern, LegState, ProceduralHop, ProceduralWalk, WalkAnimator,
+};
+pub use motion_matching::{
+    FrameRef, MatchResult, MotionClip, MotionDatabase, MotionFrame, MotionFrameBuilder,
+    MotionMatcher, MotionMatchingConfig, MotionQuery, apply_frame_to_pose, blend_frames,
+    compute_match_cost, find_best_match,
 };
 pub use path3d::{Path3D, Path3DBuilder, PathCommand3D, PathSample, line3d, polyline3d};
 pub use skeleton::{AddBoneResult, Bone, BoneId, Pose, Skeleton};
