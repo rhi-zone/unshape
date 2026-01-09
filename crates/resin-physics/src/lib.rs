@@ -6,11 +6,16 @@
 //! - `PhysicsWorld` - simulation container with gravity and constraints
 
 pub mod cloth;
+pub mod softbody;
 
 pub use cloth::{
     Cloth, ClothCollider, ClothConfig, ClothParticle, CollisionResult,
     DistanceConstraint as ClothDistanceConstraint, SelfCollisionGrid, query_collision,
     solve_self_collision,
+};
+pub use softbody::{
+    LameParameters, SoftBody, SoftBodyConfig, SoftVertex, Tetrahedron, generate_cube_mesh,
+    tetrahedralize_surface,
 };
 
 use glam::{Mat3, Quat, Vec3};
