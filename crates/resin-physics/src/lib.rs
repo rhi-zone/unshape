@@ -265,6 +265,18 @@ pub struct Contact {
     pub depth: f32,
 }
 
+impl Contact {
+    /// Flip a contact to swap bodies and invert normal.
+    ///
+    /// Used to handle symmetric collision pairs (e.g., sphere-plane vs plane-sphere).
+    #[inline]
+    fn flip(mut self) -> Self {
+        self.normal = -self.normal;
+        std::mem::swap(&mut self.body_a, &mut self.body_b);
+        self
+    }
+}
+
 // ============================================================================
 // Constraints / Joints
 // ============================================================================
@@ -659,19 +671,31 @@ impl PhysicsWorld {
     /// Step the simulation forward.
     pub fn step(&mut self) {
         let dt = self.config.dt;
+
+        self.apply_forces(dt);
+        self.integrate_velocities(dt);
+
+        let contacts = self.detect_collisions();
+        self.solve_contacts_and_constraints(&contacts);
+
+        self.integrate_positions(dt);
+    }
+
+    /// Apply external forces (gravity) and spring forces to all bodies.
+    fn apply_forces(&mut self, dt: f32) {
         let gravity = self.config.gravity;
 
-        // Apply gravity and spring forces
         for body in &mut self.bodies {
             if !body.is_static {
                 body.apply_force(gravity * body.mass);
             }
         }
 
-        // Apply spring constraint forces (springs are force-based, not positional)
         self.apply_spring_forces(dt);
+    }
 
-        // Integrate velocities
+    /// Integrate velocities from accumulated forces.
+    fn integrate_velocities(&mut self, dt: f32) {
         for body in &mut self.bodies {
             if !body.is_static {
                 // Linear
@@ -684,25 +708,22 @@ impl PhysicsWorld {
             }
             body.clear_forces();
         }
+    }
 
-        // Detect collisions
-        let contacts = self.detect_collisions();
-
-        // Resolve collisions and constraints iteratively
+    /// Solve collision contacts and positional constraints iteratively.
+    fn solve_contacts_and_constraints(&mut self, contacts: &[Contact]) {
         for _ in 0..self.config.solver_iterations {
-            // Collision contacts
-            for contact in &contacts {
+            for contact in contacts {
                 self.resolve_contact(contact);
             }
-
-            // Positional constraints
             self.solve_constraints();
         }
+    }
 
-        // Integrate positions
+    /// Integrate positions from velocities.
+    fn integrate_positions(&mut self, dt: f32) {
         for body in &mut self.bodies {
             if !body.is_static {
-                // Position
                 body.position += body.velocity * dt;
 
                 // Orientation (using quaternion integration)
@@ -1023,11 +1044,7 @@ impl PhysicsWorld {
                 sphere_plane(a, b, body_a.position, *radius, *normal, *distance)
             }
             (Collider::Plane { normal, distance }, Collider::Sphere { radius }) => {
-                sphere_plane(b, a, body_b.position, *radius, *normal, *distance).map(|mut c| {
-                    c.normal = -c.normal;
-                    std::mem::swap(&mut c.body_a, &mut c.body_b);
-                    c
-                })
+                sphere_plane(b, a, body_b.position, *radius, *normal, *distance).map(Contact::flip)
             }
             (Collider::Box { half_extents }, Collider::Plane { normal, distance }) => box_plane(
                 a,
@@ -1047,11 +1064,7 @@ impl PhysicsWorld {
                 *normal,
                 *distance,
             )
-            .map(|mut c| {
-                c.normal = -c.normal;
-                std::mem::swap(&mut c.body_a, &mut c.body_b);
-                c
-            }),
+            .map(Contact::flip),
             (Collider::Sphere { radius }, Collider::Box { half_extents }) => sphere_box(
                 a,
                 b,
@@ -1070,11 +1083,7 @@ impl PhysicsWorld {
                 body_a.orientation,
                 *half_extents,
             )
-            .map(|mut c| {
-                c.normal = -c.normal;
-                std::mem::swap(&mut c.body_a, &mut c.body_b);
-                c
-            }),
+            .map(Contact::flip),
             (Collider::Box { half_extents: he1 }, Collider::Box { half_extents: he2 }) => {
                 box_box_aabb(a, b, body_a.position, *he1, body_b.position, *he2)
             }

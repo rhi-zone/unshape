@@ -177,6 +177,15 @@ impl<T: Interpolatable> CatmullRom<T> {
     }
 }
 
+impl<T: Interpolatable> Default for CatmullRom<T> {
+    fn default() -> Self {
+        Self {
+            points: Vec::new(),
+            alpha: 0.5,
+        }
+    }
+}
+
 /// A B-spline curve.
 ///
 /// B-splines provide smooth curves that approximate (but don't pass through)
@@ -301,6 +310,16 @@ impl<T: Interpolatable> BSpline<T> {
                 self.evaluate(t)
             })
             .collect()
+    }
+}
+
+impl<T: Interpolatable> Default for BSpline<T> {
+    fn default() -> Self {
+        Self {
+            points: Vec::new(),
+            degree: 3,
+            knots: None,
+        }
     }
 }
 
@@ -662,6 +681,16 @@ impl<T: Interpolatable> Nurbs<T> {
 
         self.points = new_points;
         self.knots = new_knots;
+    }
+}
+
+impl<T: Interpolatable> Default for Nurbs<T> {
+    fn default() -> Self {
+        Self {
+            points: Vec::new(),
+            degree: 3,
+            knots: Vec::new(),
+        }
     }
 }
 
