@@ -40,6 +40,7 @@ export default withMermaid(
       nav: [
         { text: 'Guide', link: '/introduction' },
         { text: 'Design', link: '/philosophy' },
+        { text: 'Rhizome', link: 'https://rhizome-lab.github.io/' },
       ],
 
       sidebar: {
@@ -81,7 +82,7 @@ export default withMermaid(
       },
 
       socialLinks: [
-        { icon: 'github', link: 'https://github.com/pterror/resin' }
+        { icon: 'github', link: 'https://github.com/rhizome-lab/resin' }
       ],
 
       search: {
@@ -89,7 +90,7 @@ export default withMermaid(
       },
 
       editLink: {
-        pattern: 'https://github.com/pterror/resin/edit/master/docs/:path',
+        pattern: 'https://github.com/rhizome-lab/resin/edit/master/docs/:path',
         text: 'Edit this page on GitHub'
       },
     },
