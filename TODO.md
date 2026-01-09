@@ -19,10 +19,9 @@
 - [ ] Alembic import/export - cached geometry/animation; C++ lib with Rust bindings exists
 
 ### Export / Rendering
-(all done!)
+- [ ] Video export - mp4/webm encoding (likely via external tool/ffmpeg)
 
 ## Done
-- [x] Video export (VideoConfig, export_video, export_animation_video, mp4/webm via ffmpeg)
 - [x] Rigid body physics (RigidBody, Collider shapes, PhysicsWorld, impulse-based collision resolution)
 - [x] Fluid simulation (FluidGrid2D/3D stable fluids, Sph2D/3D particle hydrodynamics)
 - [x] Smoke/gas simulation (SmokeGrid2D/3D, buoyancy, temperature, dissipation)
