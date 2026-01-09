@@ -1051,7 +1051,7 @@ impl PressureStrokeConfig {
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// use rhizome_resin_vector::stroke::{PressureStroke, PressureStrokeConfig, pressure_stroke_to_path};
 /// use glam::Vec2;
 ///

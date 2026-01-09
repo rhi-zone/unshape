@@ -501,6 +501,288 @@ fn basis_functions(t: f32, span: usize, knots: &[f32], degree: usize) -> Vec<f32
 mod tests {
     use super::*;
 
+    // =========================================================================
+    // SurfacePoint tests
+    // =========================================================================
+
+    #[test]
+    fn test_surface_point_new() {
+        let pt = SurfacePoint::new(Vec3::new(1.0, 2.0, 3.0), 0.5);
+        assert_eq!(pt.point, Vec3::new(1.0, 2.0, 3.0));
+        assert_eq!(pt.weight, 0.5);
+    }
+
+    #[test]
+    fn test_surface_point_unweighted() {
+        let pt = SurfacePoint::unweighted(Vec3::new(4.0, 5.0, 6.0));
+        assert_eq!(pt.point, Vec3::new(4.0, 5.0, 6.0));
+        assert_eq!(pt.weight, 1.0);
+    }
+
+    // =========================================================================
+    // NurbsSurface constructor tests
+    // =========================================================================
+
+    #[test]
+    fn test_nurbs_surface_new() {
+        let points: Vec<SurfacePoint> = (0..9)
+            .map(|i| SurfacePoint::unweighted(Vec3::splat(i as f32)))
+            .collect();
+        let surface = NurbsSurface::new(points, 3, 3, 2, 2);
+        assert_eq!(surface.num_u, 3);
+        assert_eq!(surface.num_v, 3);
+    }
+
+    #[test]
+    fn test_nurbs_bicubic() {
+        let points: Vec<SurfacePoint> = (0..25)
+            .map(|i| SurfacePoint::unweighted(Vec3::splat(i as f32)))
+            .collect();
+        let surface = NurbsSurface::bicubic(points, 5, 5);
+        assert_eq!(surface.degree_u, 3);
+        assert_eq!(surface.degree_v, 3);
+    }
+
+    #[test]
+    fn test_nurbs_biquadratic() {
+        let points: Vec<SurfacePoint> = (0..9)
+            .map(|i| SurfacePoint::unweighted(Vec3::splat(i as f32)))
+            .collect();
+        let surface = NurbsSurface::biquadratic(points, 3, 3);
+        assert_eq!(surface.degree_u, 2);
+        assert_eq!(surface.degree_v, 2);
+    }
+
+    #[test]
+    fn test_nurbs_from_points() {
+        let points: Vec<Vec3> = (0..9).map(|i| Vec3::splat(i as f32)).collect();
+        let surface = NurbsSurface::from_points(points, 3, 3, 2, 2);
+        // All weights should be 1.0
+        for i in 0..3 {
+            for j in 0..3 {
+                assert_eq!(surface.control_point(i, j).weight, 1.0);
+            }
+        }
+    }
+
+    // =========================================================================
+    // Domain and control point tests
+    // =========================================================================
+
+    #[test]
+    fn test_domain() {
+        let patch = nurbs_bilinear_patch(Vec3::ZERO, Vec3::X, Vec3::Y, Vec3::new(1.0, 1.0, 0.0));
+        let ((u_min, u_max), (v_min, v_max)) = patch.domain();
+        assert!(u_min < u_max);
+        assert!(v_min < v_max);
+    }
+
+    #[test]
+    fn test_control_point_access() {
+        let patch = nurbs_bilinear_patch(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 1.0, 0.0),
+        );
+        // For bilinear patch with 2x2 control points
+        let cp00 = patch.control_point(0, 0);
+        let cp10 = patch.control_point(1, 0);
+        assert!((cp00.point - Vec3::new(0.0, 0.0, 0.0)).length() < 0.01);
+        assert!((cp10.point - Vec3::new(1.0, 0.0, 0.0)).length() < 0.01);
+    }
+
+    // =========================================================================
+    // Derivative tests
+    // =========================================================================
+
+    #[test]
+    fn test_derivative_u() {
+        let patch = nurbs_bilinear_patch(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 1.0, 0.0),
+        );
+        let du = patch.derivative_u(0.5, 0.5);
+        // Bilinear patch: derivative in u should point roughly in +X
+        assert!(du.x > 0.0);
+        assert!(du.y.abs() < 0.1);
+    }
+
+    #[test]
+    fn test_derivative_v() {
+        let patch = nurbs_bilinear_patch(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 1.0, 0.0),
+        );
+        let dv = patch.derivative_v(0.5, 0.5);
+        // Bilinear patch: derivative in v should point roughly in +Y
+        assert!(dv.y > 0.0);
+        assert!(dv.x.abs() < 0.1);
+    }
+
+    // =========================================================================
+    // Helper function tests
+    // =========================================================================
+
+    #[test]
+    fn test_uniform_clamped_knots() {
+        let knots = uniform_clamped_knots(4, 2);
+        // For n=4, k=2: num_knots = 4+2+1 = 7
+        assert_eq!(knots.len(), 7);
+        // First k+1 should be 0
+        assert_eq!(knots[0], 0.0);
+        assert_eq!(knots[1], 0.0);
+        assert_eq!(knots[2], 0.0);
+        // Last k+1 should be n-k
+        assert_eq!(knots[4], 2.0);
+        assert_eq!(knots[5], 2.0);
+        assert_eq!(knots[6], 2.0);
+    }
+
+    #[test]
+    fn test_find_span() {
+        let knots = vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0];
+        let span = find_span(1.5, &knots, 5, 2);
+        assert_eq!(span, 3); // Between knots[3]=1.0 and knots[4]=2.0
+    }
+
+    #[test]
+    fn test_basis_functions() {
+        let knots = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+        let basis = basis_functions(0.5, 2, &knots, 2);
+        // Should have degree+1 = 3 basis functions
+        assert_eq!(basis.len(), 3);
+        // Sum should be 1.0 (partition of unity)
+        let sum: f32 = basis.iter().sum();
+        assert!((sum - 1.0).abs() < 0.001);
+    }
+
+    // =========================================================================
+    // Primitive tests
+    // =========================================================================
+
+    #[test]
+    fn test_torus() {
+        let torus = nurbs_torus(Vec3::ZERO, 2.0, 0.5);
+        let ((u_min, _), (v_min, v_max)) = torus.domain();
+
+        // Sample a point on the outer edge (major + minor radius)
+        let outer = torus.evaluate(u_min, v_min);
+        let outer_dist = outer.length();
+        // Should be at major_radius + minor_radius = 2.5
+        assert!(
+            (outer_dist - 2.5).abs() < 0.2,
+            "Outer distance {} should be ~2.5",
+            outer_dist
+        );
+
+        // Sample a point on inner edge
+        let inner_v = (v_min + v_max) / 2.0;
+        let inner = torus.evaluate(u_min, inner_v);
+        // At v=0.5, should be at major_radius - minor_radius = 1.5 (roughly)
+        let inner_dist = (inner.x * inner.x + inner.z * inner.z).sqrt();
+        assert!(
+            inner_dist > 1.0 && inner_dist < 2.5,
+            "Inner distance {} should be between 1.0 and 2.5",
+            inner_dist
+        );
+    }
+
+    #[test]
+    fn test_sphere_poles() {
+        let sphere = nurbs_sphere(Vec3::ZERO, 1.0);
+        let ((u_min, _), (v_min, v_max)) = sphere.domain();
+
+        // North pole (v_min)
+        let north = sphere.evaluate(u_min, v_min);
+        assert!(
+            (north - Vec3::new(0.0, 1.0, 0.0)).length() < 0.15,
+            "North pole {:?} should be at (0, 1, 0)",
+            north
+        );
+
+        // South pole (v_max)
+        let south = sphere.evaluate(u_min, v_max - 0.001);
+        assert!(
+            (south - Vec3::new(0.0, -1.0, 0.0)).length() < 0.15,
+            "South pole {:?} should be at (0, -1, 0)",
+            south
+        );
+    }
+
+    #[test]
+    fn test_cylinder_height() {
+        let cylinder = nurbs_cylinder(Vec3::ZERO, 1.0, 4.0);
+        let ((u_min, _), (v_min, v_max)) = cylinder.domain();
+
+        // Bottom
+        let bottom = cylinder.evaluate(u_min, v_min);
+        assert!(
+            (bottom.y - (-2.0)).abs() < 0.1,
+            "Bottom y {} should be -2.0",
+            bottom.y
+        );
+
+        // Top
+        let top = cylinder.evaluate(u_min, v_max - 0.001);
+        assert!((top.y - 2.0).abs() < 0.1, "Top y {} should be 2.0", top.y);
+    }
+
+    // =========================================================================
+    // TessellatedSurface tests
+    // =========================================================================
+
+    #[test]
+    fn test_tessellation_indices_valid() {
+        let sphere = nurbs_sphere(Vec3::ZERO, 1.0);
+        let mesh = sphere.tessellate(8, 8);
+
+        let max_vertex = mesh.positions.len() as u32;
+        for &idx in &mesh.indices {
+            assert!(
+                idx < max_vertex,
+                "Index {} out of bounds (max {})",
+                idx,
+                max_vertex - 1
+            );
+        }
+    }
+
+    #[test]
+    fn test_tessellation_normals_normalized() {
+        let patch = nurbs_bilinear_patch(Vec3::ZERO, Vec3::X, Vec3::Y, Vec3::new(1.0, 1.0, 0.0));
+        let mesh = patch.tessellate(4, 4);
+
+        for normal in &mesh.normals {
+            let len = normal.length();
+            assert!(
+                (len - 1.0).abs() < 0.01 || len < 0.01, // normalized or zero
+                "Normal {:?} has length {}",
+                normal,
+                len
+            );
+        }
+    }
+
+    #[test]
+    fn test_tessellation_uvs_range() {
+        let patch = nurbs_bilinear_patch(Vec3::ZERO, Vec3::X, Vec3::Y, Vec3::new(1.0, 1.0, 0.0));
+        let mesh = patch.tessellate(4, 4);
+
+        for uv in &mesh.uvs {
+            assert!(uv.x >= 0.0 && uv.x <= 1.0, "UV.x {} out of [0,1]", uv.x);
+            assert!(uv.y >= 0.0 && uv.y <= 1.0, "UV.y {} out of [0,1]", uv.y);
+        }
+    }
+
+    // =========================================================================
+    // Original tests
+    // =========================================================================
+
     #[test]
     fn test_bilinear_patch() {
         let patch = nurbs_bilinear_patch(

@@ -62,3 +62,68 @@ pub enum GraphError {
     #[error("execution error: {0}")]
     ExecutionError(String),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_type_error_display() {
+        let err = TypeError::expected(ValueType::F32, ValueType::Bool);
+        let msg = err.to_string();
+        assert!(msg.contains("f32"));
+        assert!(msg.contains("bool"));
+    }
+
+    #[test]
+    fn test_type_error_fields() {
+        let err = TypeError::expected(ValueType::Vec3, ValueType::I32);
+        assert_eq!(err.expected, ValueType::Vec3);
+        assert_eq!(err.got, ValueType::I32);
+    }
+
+    #[test]
+    fn test_graph_error_node_not_found() {
+        let err = GraphError::NodeNotFound(42);
+        assert!(err.to_string().contains("42"));
+    }
+
+    #[test]
+    fn test_graph_error_port_not_found() {
+        let err = GraphError::PortNotFound { node: 1, port: 2 };
+        let msg = err.to_string();
+        assert!(msg.contains("1"));
+        assert!(msg.contains("2"));
+    }
+
+    #[test]
+    fn test_graph_error_type_mismatch() {
+        let err = GraphError::TypeMismatch {
+            expected: ValueType::F32,
+            got: ValueType::Vec3,
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("f32"));
+        assert!(msg.contains("Vec3"));
+    }
+
+    #[test]
+    fn test_graph_error_cycle_detected() {
+        let err = GraphError::CycleDetected;
+        assert!(err.to_string().contains("cycle"));
+    }
+
+    #[test]
+    fn test_graph_error_unconnected_input() {
+        let err = GraphError::UnconnectedInput { node: 5, port: 0 };
+        let msg = err.to_string();
+        assert!(msg.contains("5"));
+        assert!(msg.contains("0"));
+    }
+
+    #[test]
+    fn test_graph_error_execution_error() {
+        let err = GraphError::ExecutionError("something went wrong".to_string());
+        assert!(err.to_string().contains("something went wrong"));
+    }
+}

@@ -11,7 +11,7 @@
 //! # Example
 //!
 //! ```
-//! use rhizome_resin_wfc::maze::{Maze, MazeAlgorithm, generate_maze};
+//! use rhizome_resin_procgen::maze::{Maze, MazeAlgorithm, generate_maze};
 //!
 //! let maze = generate_maze(10, 10, MazeAlgorithm::RecursiveBacktracker, 12345);
 //!

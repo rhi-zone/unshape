@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```
-//! use rhizome_resin_wfc::network::{RoadNetwork, RoadConfig};
+//! use rhizome_resin_procgen::network::{RoadNetwork, RoadConfig, RoadType};
 //! use glam::Vec2;
 //!
 //! // Create a road network

@@ -56,3 +56,33 @@ macro_rules! ports {
         ]
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_port_descriptor_new() {
+        let port = PortDescriptor::new("input", ValueType::F32);
+        assert_eq!(port.name, "input");
+        assert_eq!(port.value_type, ValueType::F32);
+    }
+
+    #[test]
+    fn test_port_descriptor_clone() {
+        let port = PortDescriptor::new("output", ValueType::Vec3);
+        let cloned = port.clone();
+        assert_eq!(cloned.name, "output");
+        assert_eq!(cloned.value_type, ValueType::Vec3);
+    }
+
+    #[test]
+    fn test_ports_macro() {
+        let ports: &[PortDescriptor] = ports!["x": F32, "y": F32, "result": Vec2];
+        assert_eq!(ports.len(), 3);
+        assert_eq!(ports[0].name, "x");
+        assert_eq!(ports[0].value_type, ValueType::F32);
+        assert_eq!(ports[2].name, "result");
+        assert_eq!(ports[2].value_type, ValueType::Vec2);
+    }
+}

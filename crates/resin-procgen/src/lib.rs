@@ -7,29 +7,17 @@
 //!
 //! # Example
 //!
-//! ```no_run
-//! use rhizome_resin_wfc::{WfcSolver, TileSet, Direction};
+//! ```
+//! use rhizome_resin_procgen::maze::{Maze, MazeAlgorithm, generate_maze};
 //!
-//! // Define tiles with adjacency rules
-//! let mut tileset = TileSet::new();
-//! tileset.add_tile("ground");
-//! tileset.add_tile("wall");
-//! tileset.add_tile("sky");
+//! // Generate a maze using recursive backtracker
+//! let maze = generate_maze(10, 10, MazeAlgorithm::RecursiveBacktracker, 12345);
 //!
-//! // Ground can have ground or wall above
-//! tileset.add_rule("ground", Direction::Up, "ground");
-//! tileset.add_rule("ground", Direction::Up, "wall");
-//! // Wall can have sky above
-//! tileset.add_rule("wall", Direction::Up, "sky");
-//! // Sky can only have sky above
-//! tileset.add_rule("sky", Direction::Up, "sky");
+//! // Check if a cell is a passage
+//! assert!(maze.is_passage(1, 1));
 //!
-//! // Create solver and run
-//! let mut solver = WfcSolver::new(10, 10, tileset);
-//! solver.run(12345).expect("WFC should succeed");
-//!
-//! // Get result
-//! let grid = solver.get_result();
+//! // Get the maze as a 2D grid
+//! let grid = maze.to_grid();
 //! ```
 
 pub mod maze;

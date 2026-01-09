@@ -453,4 +453,113 @@ mod tests {
         let v3 = perlin2(2.5, 3.7);
         assert!(v1 != v2 || v2 != v3, "noise should vary");
     }
+
+    #[test]
+    fn test_perlin2v() {
+        let p = Vec2::new(1.5, 2.5);
+        let v1 = perlin2v(p);
+        let v2 = perlin2(1.5, 2.5);
+        assert_eq!(v1, v2);
+    }
+
+    #[test]
+    fn test_perlin3v() {
+        let p = Vec3::new(1.5, 2.5, 3.5);
+        let v1 = perlin3v(p);
+        let v2 = perlin3(1.5, 2.5, 3.5);
+        assert_eq!(v1, v2);
+    }
+
+    #[test]
+    fn test_simplex2v() {
+        let p = Vec2::new(1.5, 2.5);
+        let v1 = simplex2v(p);
+        let v2 = simplex2(1.5, 2.5);
+        assert_eq!(v1, v2);
+    }
+
+    #[test]
+    fn test_simplex3v() {
+        let p = Vec3::new(1.5, 2.5, 3.5);
+        let v1 = simplex3v(p);
+        let v2 = simplex3(1.5, 2.5, 3.5);
+        assert_eq!(v1, v2);
+    }
+
+    #[test]
+    fn test_noise_deterministic() {
+        // Same input should produce same output
+        let v1 = perlin2(3.14, 2.71);
+        let v2 = perlin2(3.14, 2.71);
+        assert_eq!(v1, v2);
+
+        let v3 = simplex3(1.0, 2.0, 3.0);
+        let v4 = simplex3(1.0, 2.0, 3.0);
+        assert_eq!(v3, v4);
+    }
+
+    #[test]
+    fn test_fbm_octaves() {
+        // More octaves should add more detail (different values)
+        // Use non-integer coords - gradient noise is often zero at integers
+        let v1 = fbm_perlin2(1.37, 2.81, 1);
+        let v2 = fbm_perlin2(1.37, 2.81, 4);
+        let v3 = fbm_perlin2(1.37, 2.81, 8);
+        // They should differ (not guaranteed but very likely at non-integer coords)
+        assert!(v1 != v2 || v2 != v3);
+    }
+
+    #[test]
+    fn test_fbm3_range() {
+        for i in 0..20 {
+            for j in 0..20 {
+                let x = i as f32 * 0.2;
+                let y = j as f32 * 0.2;
+                let v = fbm_perlin3(x, y, 0.5, 4);
+                assert!((0.0..=1.0).contains(&v), "fbm3 out of range: {}", v);
+            }
+        }
+    }
+
+    #[test]
+    fn test_fbm_simplex2_range() {
+        for i in 0..50 {
+            for j in 0..50 {
+                let x = i as f32 * 0.1;
+                let y = j as f32 * 0.1;
+                let v = fbm_simplex2(x, y, 4);
+                assert!((0.0..=1.0).contains(&v), "fbm_simplex2 out of range: {}", v);
+            }
+        }
+    }
+
+    #[test]
+    fn test_fbm_simplex3_range() {
+        for i in 0..20 {
+            for j in 0..20 {
+                let x = i as f32 * 0.2;
+                let y = j as f32 * 0.2;
+                let v = fbm_simplex3(x, y, 0.5, 4);
+                assert!((0.0..=1.0).contains(&v), "fbm_simplex3 out of range: {}", v);
+            }
+        }
+    }
+
+    #[test]
+    fn test_fbm_custom_params() {
+        // Test with custom lacunarity and persistence
+        let v = fbm2(perlin2, 1.0, 2.0, 3, 2.5, 0.4);
+        assert!((0.0..=1.0).contains(&v));
+    }
+
+    #[test]
+    fn test_negative_coordinates() {
+        // Noise should work with negative coordinates
+        let v1 = perlin2(-5.0, -3.0);
+        let v2 = simplex2(-10.0, -20.0);
+        let v3 = perlin3(-1.0, -2.0, -3.0);
+        assert!((0.0..=1.0).contains(&v1));
+        assert!((0.0..=1.0).contains(&v2));
+        assert!((0.0..=1.0).contains(&v3));
+    }
 }
