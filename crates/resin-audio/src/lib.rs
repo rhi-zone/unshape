@@ -8,6 +8,7 @@ pub mod filter;
 pub mod graph;
 pub mod midi;
 pub mod osc;
+pub mod physical;
 
 pub use effects::{Chorus, Distortion, DistortionMode, Flanger, Phaser, Reverb, Tremolo};
 pub use envelope::{Adsr, AdsrState, Ar, Lfo, LfoWaveform};
@@ -31,3 +32,4 @@ pub use osc::{
     additive_wavetable, fm_presets, freq_to_phase, pulse, sample_to_phase, saw, saw_blep, saw_rev,
     sine, square, square_blep, supersaw_wavetable, triangle,
 };
+pub use physical::{ExtendedKarplusStrong, KarplusStrong, PluckConfig, PolyStrings};

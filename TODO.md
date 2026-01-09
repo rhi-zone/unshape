@@ -2,10 +2,29 @@
 
 ## Next Up
 
+- [ ] Path simplification (Ramer-Douglas-Peucker)
+- [ ] Cellular automata (1D/2D)
+
 ## Backlog
+
+- [ ] Convex hull
+- [ ] Voronoi/Delaunay diagrams
+- [ ] Metaballs (2D/3D)
+- [ ] Hatching patterns
+- [ ] Granular synthesis
+- [ ] WAV import/export
+- [ ] SVG import (parsing)
+- [ ] Reaction-diffusion
+- [ ] Spring physics / Verlet integration
+- [ ] Delaunay triangulation
+- [ ] Mesh repair (hole filling)
+- [ ] Geodesic distance
+- [ ] Wave function collapse
+- [ ] Space colonization
 
 ## Done
 
+- [x] Karplus-Strong string synthesis (KarplusStrong, ExtendedKarplusStrong, PolyStrings, PluckConfig)
 - [x] MIDI support (MidiMessage parsing, note/freq conversion, CC constants, velocity/amplitude)
 
 - [x] L-systems (LSystem, Rule, TurtleConfig, interpret_turtle_2d/3d, presets)
