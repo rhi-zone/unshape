@@ -5,7 +5,7 @@
 ## Backlog
 
 ### Procedural / Simulation
-- [ ] Rigid body physics - collision detection, constraints, stacking
+(all done!)
 
 ### Audio
 (all done!)
@@ -22,6 +22,7 @@
 - [ ] Video export - mp4/webm encoding (likely via external tool/ffmpeg)
 
 ## Done
+- [x] Rigid body physics (RigidBody, Collider shapes, PhysicsWorld, impulse-based collision resolution)
 - [x] Fluid simulation (FluidGrid2D/3D stable fluids, Sph2D/3D particle hydrodynamics)
 - [x] Smoke/gas simulation (SmokeGrid2D/3D, buoyancy, temperature, dissipation)
 - [x] Animation export (AnimationConfig, render_animation, export_image_sequence, export_gif)

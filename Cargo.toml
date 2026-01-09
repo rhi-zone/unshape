@@ -48,6 +48,7 @@ rhizome-resin-vector = { path = "crates/resin-vector" }
 rhizome-resin-rig = { path = "crates/resin-rig" }
 rhizome-resin-gltf = { path = "crates/resin-gltf" }
 rhizome-resin-fluid = { path = "crates/resin-fluid" }
+rhizome-resin-physics = { path = "crates/resin-physics" }
 
 [package]
 name = "rhizome-resin-examples"

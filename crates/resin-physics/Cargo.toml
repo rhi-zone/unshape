@@ -1,0 +1,12 @@
+[package]
+name = "rhizome-resin-physics"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Rigid body physics simulation for resin"
+
+[dependencies]
+glam = { workspace = true }
+
+[dev-dependencies]
