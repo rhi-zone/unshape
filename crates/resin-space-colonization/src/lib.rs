@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```
-//! use rhizome_resin_colonization::{SpaceColonization, SpaceColonizationConfig};
+//! use rhizome_resin_space_colonization::{SpaceColonization, SpaceColonizationConfig};
 //! use glam::Vec3;
 //!
 //! let config = SpaceColonizationConfig {

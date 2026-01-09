@@ -1,5 +1,5 @@
 [package]
-name = "rhizome-resin-colonization"
+name = "rhizome-resin-space-colonization"
 version = "0.1.0"
 edition = "2024"
 description = "Space colonization algorithm for branching structures"
