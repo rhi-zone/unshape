@@ -3,13 +3,13 @@
 ## Next Up
 
 ## Backlog
-- [ ] Geodesic distance
 - [ ] Wave function collapse
 - [ ] Space colonization
 - [ ] 2D rasterization (paths to pixels)
 
 ## Done
 
+- [x] Geodesic distance (Dijkstra, fast marching, geodesic_path, find_mesh_center, iso_distance)
 - [x] Mesh repair (find_boundary_loops, fill_hole_fan, fill_hole_ear_clip, fill_hole_minimum_area)
 - [x] Spring physics (SpringSystem, Verlet integration, create_rope, create_cloth, create_soft_sphere)
 - [x] Reaction-diffusion (ReactionDiffusion, GrayScottPreset, MultiChannelRD, 5-point Laplacian)

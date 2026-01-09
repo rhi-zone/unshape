@@ -6,6 +6,7 @@ mod bevel;
 mod boolean;
 mod curve_mesh;
 mod decimate;
+pub mod geodesic;
 mod halfedge;
 mod loft;
 mod loops;
