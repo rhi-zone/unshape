@@ -29,6 +29,7 @@ pub mod spline;
 pub mod spring;
 pub mod surface;
 mod value;
+pub mod wfc;
 
 pub use attributes::{
     FullGeometry, Geometry, HasColors, HasIndices, HasNormals, HasPositions, HasUVs,
@@ -168,3 +169,6 @@ pub use surface::{
     nurbs_cylinder, nurbs_sphere, nurbs_torus,
 };
 pub use value::{Value, ValueType};
+pub use wfc::{
+    Direction as WfcDirection, TileSet, WfcError, WfcSolver, maze_tileset, platformer_tileset,
+};
