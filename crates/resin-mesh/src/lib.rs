@@ -24,6 +24,7 @@ mod remesh;
 pub mod repair;
 mod sdf;
 mod subdivision;
+mod terrain;
 mod uv;
 
 pub use ao::{
@@ -75,6 +76,7 @@ pub use remesh::{
 };
 pub use sdf::{SdfConfig, SdfGrid, mesh_to_sdf, mesh_to_sdf_fast, raymarch};
 pub use subdivision::{subdivide_linear, subdivide_loop, subdivide_loop_n};
+pub use terrain::{CombinedErosion, Heightfield, HydraulicErosion, ThermalErosion};
 pub use uv::{
     BoxConfig, CylindricalConfig, ProjectionAxis, SphericalConfig, flip_u, flip_v, normalize_uvs,
     project_box, project_box_per_face, project_cylindrical, project_planar, project_planar_axis,
