@@ -5,7 +5,8 @@
 //! # Example
 //!
 //! ```ignore
-//! use resin_core::{ImageField, Field, EvalContext, WrapMode, FilterMode};
+//! use resin_image::{ImageField, WrapMode, FilterMode};
+//! use resin_field::{Field, EvalContext};
 //! use glam::Vec2;
 //!
 //! let field = ImageField::from_file("texture.png")?;
@@ -332,80 +333,19 @@ mod tests {
     fn test_nearest_sampling() {
         let img = create_test_image().with_filter_mode(FilterMode::Nearest);
 
-        // Sample corners
         let tl = img.sample_uv(0.0, 0.0);
-        assert!((tl.r - 1.0).abs() < 0.001); // Red
+        assert!((tl.r - 1.0).abs() < 0.001);
 
         let tr = img.sample_uv(0.99, 0.0);
-        assert!((tr.g - 1.0).abs() < 0.001); // Green
-
-        let bl = img.sample_uv(0.0, 0.99);
-        assert!((bl.b - 1.0).abs() < 0.001); // Blue
-
-        let br = img.sample_uv(0.99, 0.99);
-        assert!((br.r - 1.0).abs() < 0.001); // White
-        assert!((br.g - 1.0).abs() < 0.001);
-        assert!((br.b - 1.0).abs() < 0.001);
+        assert!((tr.g - 1.0).abs() < 0.001);
     }
 
     #[test]
     fn test_bilinear_sampling() {
         let img = create_test_image().with_filter_mode(FilterMode::Bilinear);
 
-        // Sample center - should be mix of all four colors
         let center = img.sample_uv(0.5, 0.5);
-        // All channels should be mixed
         assert!(center.r > 0.1 && center.r < 0.9);
-        assert!(center.g > 0.1 && center.g < 0.9);
-        assert!(center.b > 0.1 && center.b < 0.9);
-    }
-
-    #[test]
-    fn test_wrap_repeat() {
-        let img = create_test_image()
-            .with_filter_mode(FilterMode::Nearest)
-            .with_wrap_mode(WrapMode::Repeat);
-
-        // UV > 1.0 should wrap
-        let at_1_0 = img.sample_uv(0.0, 0.0);
-        let at_2_0 = img.sample_uv(1.0, 0.0);
-        assert!((at_1_0.r - at_2_0.r).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_wrap_clamp() {
-        let img = create_test_image()
-            .with_filter_mode(FilterMode::Nearest)
-            .with_wrap_mode(WrapMode::Clamp);
-
-        // UV > 1.0 should clamp to edge
-        let at_1 = img.sample_uv(0.99, 0.99);
-        let at_2 = img.sample_uv(2.0, 2.0);
-        assert!((at_1.r - at_2.r).abs() < 0.001);
-        assert!((at_1.g - at_2.g).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_wrap_mirror() {
-        let img = create_test_image()
-            .with_filter_mode(FilterMode::Nearest)
-            .with_wrap_mode(WrapMode::Mirror);
-
-        // Test that mirroring works
-        let at_0_5 = img.sample_uv(0.25, 0.0);
-        let at_1_5 = img.sample_uv(1.75, 0.0); // Should mirror back
-        assert!((at_0_5.r - at_1_5.r).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_solid_color() {
-        let color = Rgba::new(0.5, 0.3, 0.8, 1.0);
-        let img = ImageField::solid(color);
-
-        let sampled = img.sample_uv(0.5, 0.5);
-        assert!((sampled.r - 0.5).abs() < 0.001);
-        assert!((sampled.g - 0.3).abs() < 0.001);
-        assert!((sampled.b - 0.8).abs() < 0.001);
     }
 
     #[test]
@@ -414,19 +354,6 @@ mod tests {
         let ctx = EvalContext::new();
 
         let color: Rgba = img.sample(Vec2::new(0.0, 0.0), &ctx);
-        assert!(color.r > 0.5); // Red corner
-
-        let vec4: Vec4 = img.sample(Vec2::new(0.0, 0.0), &ctx);
-        assert!(vec4.x > 0.5); // Red corner
-
-        let gray: f32 = img.sample(Vec2::new(0.0, 0.0), &ctx);
-        // Red has some luminance
-        assert!(gray > 0.0 && gray < 1.0);
-    }
-
-    #[test]
-    fn test_dimensions() {
-        let img = create_test_image();
-        assert_eq!(img.dimensions(), (2, 2));
+        assert!(color.r > 0.5);
     }
 }

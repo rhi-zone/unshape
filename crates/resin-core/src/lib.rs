@@ -7,13 +7,10 @@
 //! - [`Value`] - Runtime value type for graph data
 //! - [`EvalContext`] - Evaluation context (time, resolution, etc.)
 //! - Attribute traits ([`HasPositions`], [`HasNormals`], etc.)
-//! - [`expr::Expr`] - Expression language for field evaluation
 
 mod attributes;
 mod error;
-pub mod expr;
 mod graph;
-pub mod image_field;
 mod node;
 mod value;
 
@@ -23,7 +20,6 @@ pub use attributes::{
 pub use error::{GraphError, TypeError};
 pub use glam;
 pub use graph::{Edge, Graph, NodeId};
-pub use image_field::{FilterMode, ImageField, ImageFieldError, WrapMode};
 pub use node::{BoxedNode, DynNode, PortDescriptor};
 pub use resin_field::EvalContext;
 pub use resin_macros::DynNode as DynNodeDerive;

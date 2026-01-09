@@ -1,0 +1,13 @@
+[package]
+name = "resin-image"
+version = "0.1.0"
+edition = "2024"
+description = "Image-based fields for texture sampling"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rhizome-lab/resin"
+
+[dependencies]
+glam.workspace = true
+image.workspace = true
+resin-color = { path = "../resin-color" }
+resin-field = { path = "../resin-field" }
