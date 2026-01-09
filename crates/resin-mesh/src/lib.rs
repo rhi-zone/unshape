@@ -18,6 +18,7 @@ mod obj;
 mod ops;
 mod primitives;
 pub mod repair;
+mod sdf;
 mod subdivision;
 mod uv;
 
@@ -53,6 +54,7 @@ pub use ops::{
     smooth_taubin, smooth_with_config, solidify, split_faces, weld_vertices,
 };
 pub use primitives::{box_mesh, sphere, uv_sphere};
+pub use sdf::{SdfConfig, SdfGrid, mesh_to_sdf, mesh_to_sdf_fast, raymarch};
 pub use subdivision::{subdivide_linear, subdivide_loop, subdivide_loop_n};
 pub use uv::{
     BoxConfig, CylindricalConfig, ProjectionAxis, SphericalConfig, flip_u, flip_v, normalize_uvs,
