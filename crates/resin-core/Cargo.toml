@@ -11,3 +11,5 @@ thiserror.workspace = true
 image.workspace = true
 resin-macros = { path = "../resin-macros" }
 resin-expr = { path = "../resin-expr" }
+resin-color = { path = "../resin-color" }
+resin-noise = { path = "../resin-noise" }

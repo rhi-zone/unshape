@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```
-//! use resin_core::wfc::{WfcSolver, TileSet, Direction};
+//! use resin_wfc::{WfcSolver, TileSet, Direction};
 //!
 //! // Define tiles with adjacency rules
 //! let mut tileset = TileSet::new();

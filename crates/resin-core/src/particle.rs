@@ -643,7 +643,7 @@ impl Turbulence {
 
 impl Force for Turbulence {
     fn apply(&self, particle: &mut Particle, dt: f32) {
-        use crate::noise::simplex3v;
+        use resin_noise::simplex3v;
 
         let p = particle.position * self.frequency;
 
@@ -690,7 +690,7 @@ impl CurlNoise {
 
 impl Force for CurlNoise {
     fn apply(&self, particle: &mut Particle, dt: f32) {
-        use crate::noise::simplex3v;
+        use resin_noise::simplex3v;
 
         let p = particle.position * self.frequency;
         let e = self.epsilon;

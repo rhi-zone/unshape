@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```
-//! use resin_core::reaction_diffusion::{ReactionDiffusion, GrayScottPreset};
+//! use resin_rd::{ReactionDiffusion, GrayScottPreset};
 //!
 //! // Create a 100x100 simulation with coral preset
 //! let mut rd = ReactionDiffusion::new(100, 100);

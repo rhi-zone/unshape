@@ -1,0 +1,9 @@
+[package]
+name = "resin-easing"
+version = "0.1.0"
+edition = "2024"
+description = "Easing functions for animation and interpolation"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rhizome-lab/resin"
+
+[dependencies]

@@ -10,10 +10,7 @@
 //! - [`expr::Expr`] - Expression language for field evaluation
 
 mod attributes;
-pub mod automata;
-pub mod color;
 mod context;
-pub mod easing;
 mod error;
 pub mod expr;
 pub mod field;
@@ -21,35 +18,18 @@ mod graph;
 pub mod image_field;
 pub mod lsystem;
 mod node;
-pub mod noise;
 pub mod particle;
-pub mod reaction_diffusion;
 pub mod scatter;
 pub mod space_colonization;
 pub mod spline;
 pub mod spring;
 pub mod surface;
 mod value;
-pub mod wfc;
 
 pub use attributes::{
     FullGeometry, Geometry, HasColors, HasIndices, HasNormals, HasPositions, HasUVs,
 };
-pub use automata::{
-    CellularAutomaton2D, ElementaryCA, GameOfLife, elementary_rules, rules as ca_rules,
-};
-pub use color::{
-    BlendMode, ColorStop, Gradient, Hsl, Hsv, LinearRgb, Rgba, blend, blend_with_alpha,
-    presets as color_presets,
-};
 pub use context::EvalContext;
-pub use easing::{
-    Easing, back_in, back_in_out, back_out, bounce_in, bounce_in_out, bounce_out, circ_in,
-    circ_in_out, circ_out, cubic_in, cubic_in_out, cubic_out, ease_between, ease_value, elastic_in,
-    elastic_in_out, elastic_out, expo_in, expo_in_out, expo_out, linear, quad_in, quad_in_out,
-    quad_out, quart_in, quart_in_out, quart_out, quint_in, quint_in_out, quint_out, sine_in,
-    sine_in_out, sine_out, smootherstep, smoothstep, stepped,
-};
 pub use error::{GraphError, TypeError};
 pub use field::{
     // Combinators
@@ -124,10 +104,6 @@ pub use lsystem::{
     interpret_turtle_2d, interpret_turtle_3d, presets as lsystem_presets, segments_to_paths_2d,
 };
 pub use node::{BoxedNode, DynNode, PortDescriptor};
-pub use noise::{
-    fbm_perlin2, fbm_perlin3, fbm_simplex2, fbm_simplex3, fbm2, fbm3, perlin2, perlin2v, perlin3,
-    perlin3v, simplex2, simplex2v, simplex3, simplex3v,
-};
 pub use particle::{
     // Forces
     Attractor,
@@ -149,7 +125,6 @@ pub use particle::{
     Vortex,
     Wind,
 };
-pub use reaction_diffusion::{GrayScottPreset, MultiChannelRD, ReactionDiffusion};
 pub use resin_macros::DynNode as DynNodeDerive;
 pub use scatter::{
     Instance, ScatterConfig, jitter_positions, randomize_rotation, randomize_scale, scatter_circle,
@@ -174,6 +149,3 @@ pub use surface::{
     nurbs_cylinder, nurbs_sphere, nurbs_torus,
 };
 pub use value::{Value, ValueType};
-pub use wfc::{
-    Direction as WfcDirection, TileSet, WfcError, WfcSolver, maze_tileset, platformer_tileset,
-};

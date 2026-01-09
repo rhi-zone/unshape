@@ -20,8 +20,8 @@
 
 use crate::context::EvalContext;
 use crate::field::Field;
-use crate::noise;
 use glam::{Vec2, Vec3};
+use resin_noise;
 use std::collections::HashMap;
 
 // Re-export core expression types

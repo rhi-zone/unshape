@@ -5,7 +5,7 @@
 //! # Example
 //!
 //! ```
-//! use resin_core::automata::{ElementaryCA, GameOfLife};
+//! use resin_automata::{ElementaryCA, GameOfLife};
 //!
 //! // 1D: Rule 30
 //! let mut ca = ElementaryCA::new(100, 30);

@@ -583,12 +583,12 @@ pub fn blend(base: LinearRgb, blend: LinearRgb, mode: BlendMode) -> LinearRgb {
 }
 
 /// Blends with alpha and opacity.
-pub fn blend_with_alpha(base: Rgba, blend: Rgba, mode: BlendMode, opacity: f32) -> Rgba {
-    let blended_rgb = super::color::blend(base.to_rgb(), blend.to_rgb(), mode);
-    let result_rgb = base.to_rgb().lerp(blended_rgb, opacity * blend.a);
+pub fn blend_with_alpha(base: Rgba, overlay: Rgba, mode: BlendMode, opacity: f32) -> Rgba {
+    let blended_rgb = blend(base.to_rgb(), overlay.to_rgb(), mode);
+    let result_rgb = base.to_rgb().lerp(blended_rgb, opacity * overlay.a);
 
     // Combine alphas
-    let result_a = base.a + blend.a * opacity * (1.0 - base.a);
+    let result_a = base.a + overlay.a * opacity * (1.0 - base.a);
 
     Rgba::new(result_rgb.r, result_rgb.g, result_rgb.b, result_a)
 }
