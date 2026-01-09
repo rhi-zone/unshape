@@ -3,7 +3,6 @@
 ## Next Up
 
 ## Backlog
-- [ ] Spring physics / Verlet integration
 - [ ] Mesh repair (hole filling)
 - [ ] Geodesic distance
 - [ ] Wave function collapse
@@ -12,6 +11,7 @@
 
 ## Done
 
+- [x] Spring physics (SpringSystem, Verlet integration, create_rope, create_cloth, create_soft_sphere)
 - [x] Reaction-diffusion (ReactionDiffusion, GrayScottPreset, MultiChannelRD, 5-point Laplacian)
 - [x] SVG import/parsing (parse_path_data, M/L/H/V/C/S/Q/T/A/Z commands, arc to cubic conversion)
 - [x] WAV import/export (WavFile, PCM 8/16/24/32-bit, Float32, resampling)
