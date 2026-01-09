@@ -8,6 +8,7 @@ mod geometry;
 mod hatching;
 mod network;
 mod path;
+pub mod rasterize;
 mod stroke;
 pub mod svg;
 mod text;

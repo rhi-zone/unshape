@@ -3,9 +3,9 @@
 ## Next Up
 
 ## Backlog
-- [ ] 2D rasterization (paths to pixels)
 
 ## Done
+- [x] 2D rasterization (Rasterizer, scanline algorithm, FillRule, alpha compositing, stroke rasterization)
 
 - [x] Space colonization (SpaceColonization, BranchNode, generate_tree, generate_lightning, pipe model radii)
 - [x] Wave function collapse (WfcSolver, TileSet, constraint propagation, platformer/maze presets)
