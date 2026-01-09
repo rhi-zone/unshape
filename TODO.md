@@ -12,20 +12,20 @@
 ### Geometry / Mesh
 
 - [ ] Terrain generation - heightfield, hydraulic/thermal erosion
-- [ ] Remeshing/retopology - uniform triangle distribution
-- [ ] Lattice deformation - FFD (free-form deformation)
-- [ ] SDF from mesh - mesh → distance field conversion
-- [ ] Navigation meshes - walkable surface generation for game AI
+- [x] Remeshing/retopology - uniform triangle distribution (isotropic_remesh, quadify)
+- [x] Lattice deformation - FFD (free-form deformation) - already implemented
+- [x] SDF from mesh - mesh → distance field conversion (mesh_to_sdf, mesh_to_sdf_fast)
+- [x] Navigation meshes - walkable surface generation (NavMesh, find_path, smooth_path)
 
 ### Physics
 
 - [ ] Constraints/joints - hinges, springs, motors, ragdolls
-- [ ] Cloth-object collision - two-way interaction
-- [ ] Soft body FEM - finite element method deformation
+- [x] Cloth-object collision - two-way interaction (ClothCollider, query_collision, solve_self_collision)
+- [x] Soft body FEM - finite element method deformation (SoftBody, Tetrahedron, LameParameters)
 
 ### Procedural
 
-- [ ] Procedural architecture - buildings, rooms, floor plans
+- [x] Procedural architecture - buildings, rooms, floor plans (Building, generate_building, generate_stairs)
 - [ ] Road/river networks - graph-based path generation
 - [ ] Terrain erosion - hydraulic, thermal simulation
 - [ ] Maze generation - recursive backtracker, Prim's, Kruskal's, Eller's
@@ -34,13 +34,13 @@
 
 - [ ] Procedural walk cycles - parametric locomotion
 - [ ] Secondary motion - jiggle physics, follow-through, overlap
-- [ ] Motion matching - animation database lookup
+- [x] Motion matching - animation database lookup (MotionDatabase, MotionMatcher, find_best_match)
 
 ### Image / Texture
 
 - [ ] Convolution filters - blur, sharpen, edge detection, emboss
 - [ ] Normal map from heightfield - Sobel-based normal generation
-- [ ] Ambient occlusion baking - screen-space or ray-based AO
+- [x] Ambient occlusion baking - ray-based AO (bake_ao_vertices, bake_ao_texture, AoAccelerator)
 
 ### Audio
 
