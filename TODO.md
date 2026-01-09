@@ -3,9 +3,9 @@
 ## Next Up
 
 - [x] Documentation audit - ensure all public APIs have docs (367 items fixed)
-- [x] Test coverage audit - 725 tests passing, all crates covered
+- [x] Test coverage audit - 750+ tests passing, all crates covered
   - Well-tested: resin-mesh (153), resin-audio (123), resin-vector (117)
-  - Low coverage: resin-core (5), resin-noise (6), resin-surface (6)
+  - Improved: resin-core (29), resin-noise (17), resin-surface (25)
 
 ## Backlog
 
