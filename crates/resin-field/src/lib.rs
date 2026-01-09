@@ -598,6 +598,446 @@ impl<F: Field<Vec3, f32>> Field<Vec3, f32> for Fbm3D<F> {
     }
 }
 
+// ============================================================================
+// Terrain generation
+// ============================================================================
+
+/// Terrain heightfield generator.
+///
+/// Combines multiple noise octaves with configurable parameters for
+/// realistic terrain generation.
+#[derive(Debug, Clone, Copy)]
+pub struct Terrain2D {
+    /// Random seed.
+    pub seed: i32,
+    /// Number of noise octaves.
+    pub octaves: u32,
+    /// Frequency multiplier between octaves.
+    pub lacunarity: f32,
+    /// Amplitude multiplier between octaves.
+    pub persistence: f32,
+    /// Overall scale of the terrain features.
+    pub scale: f32,
+    /// Height exponent for terrain shaping (>1 = steeper peaks).
+    pub exponent: f32,
+}
+
+impl Default for Terrain2D {
+    fn default() -> Self {
+        Self {
+            seed: 0,
+            octaves: 6,
+            lacunarity: 2.0,
+            persistence: 0.5,
+            scale: 1.0,
+            exponent: 1.0,
+        }
+    }
+}
+
+impl Terrain2D {
+    /// Creates a new terrain generator with default settings.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the random seed.
+    pub fn with_seed(mut self, seed: i32) -> Self {
+        self.seed = seed;
+        self
+    }
+
+    /// Sets the number of octaves.
+    pub fn with_octaves(mut self, octaves: u32) -> Self {
+        self.octaves = octaves;
+        self
+    }
+
+    /// Sets the lacunarity (frequency multiplier).
+    pub fn with_lacunarity(mut self, lacunarity: f32) -> Self {
+        self.lacunarity = lacunarity;
+        self
+    }
+
+    /// Sets the persistence (amplitude multiplier).
+    pub fn with_persistence(mut self, persistence: f32) -> Self {
+        self.persistence = persistence;
+        self
+    }
+
+    /// Sets the overall scale.
+    pub fn with_scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    /// Sets the height exponent.
+    pub fn with_exponent(mut self, exponent: f32) -> Self {
+        self.exponent = exponent;
+        self
+    }
+
+    /// Creates a preset for gentle rolling hills.
+    pub fn rolling_hills() -> Self {
+        Self {
+            seed: 0,
+            octaves: 4,
+            lacunarity: 2.0,
+            persistence: 0.4,
+            scale: 0.5,
+            exponent: 0.8,
+        }
+    }
+
+    /// Creates a preset for mountainous terrain.
+    pub fn mountains() -> Self {
+        Self {
+            seed: 0,
+            octaves: 8,
+            lacunarity: 2.1,
+            persistence: 0.55,
+            scale: 1.5,
+            exponent: 1.5,
+        }
+    }
+
+    /// Creates a preset for flat plains with minor variation.
+    pub fn plains() -> Self {
+        Self {
+            seed: 0,
+            octaves: 3,
+            lacunarity: 2.0,
+            persistence: 0.3,
+            scale: 0.3,
+            exponent: 0.5,
+        }
+    }
+
+    /// Creates a preset for canyon-like terrain.
+    pub fn canyons() -> Self {
+        Self {
+            seed: 0,
+            octaves: 5,
+            lacunarity: 2.5,
+            persistence: 0.6,
+            scale: 1.0,
+            exponent: 2.0,
+        }
+    }
+}
+
+impl Field<Vec2, f32> for Terrain2D {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input * self.scale + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
+
+        let mut value = 0.0;
+        let mut amplitude = 1.0;
+        let mut frequency = 1.0;
+        let mut max_value = 0.0;
+
+        for _ in 0..self.octaves {
+            value += amplitude * rhizome_resin_noise::simplex2(p.x * frequency, p.y * frequency);
+            max_value += amplitude;
+            amplitude *= self.persistence;
+            frequency *= self.lacunarity;
+        }
+
+        // Normalize to 0-1 range
+        let normalized = (value / max_value + 1.0) * 0.5;
+
+        // Apply exponent for terrain shaping
+        normalized.powf(self.exponent).clamp(0.0, 1.0)
+    }
+}
+
+/// Ridged noise terrain for sharp mountain ridges.
+#[derive(Debug, Clone, Copy)]
+pub struct RidgedTerrain2D {
+    /// Random seed.
+    pub seed: i32,
+    /// Number of noise octaves.
+    pub octaves: u32,
+    /// Frequency multiplier between octaves.
+    pub lacunarity: f32,
+    /// Overall scale.
+    pub scale: f32,
+    /// Ridge sharpness (higher = sharper).
+    pub sharpness: f32,
+}
+
+impl Default for RidgedTerrain2D {
+    fn default() -> Self {
+        Self {
+            seed: 0,
+            octaves: 6,
+            lacunarity: 2.0,
+            scale: 1.0,
+            sharpness: 2.0,
+        }
+    }
+}
+
+impl RidgedTerrain2D {
+    /// Creates a new ridged terrain generator.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the random seed.
+    pub fn with_seed(mut self, seed: i32) -> Self {
+        self.seed = seed;
+        self
+    }
+
+    /// Sets the number of octaves.
+    pub fn with_octaves(mut self, octaves: u32) -> Self {
+        self.octaves = octaves;
+        self
+    }
+
+    /// Sets the overall scale.
+    pub fn with_scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    /// Sets the ridge sharpness.
+    pub fn with_sharpness(mut self, sharpness: f32) -> Self {
+        self.sharpness = sharpness;
+        self
+    }
+}
+
+impl Field<Vec2, f32> for RidgedTerrain2D {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input * self.scale + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
+
+        let mut value = 0.0;
+        let mut amplitude = 1.0;
+        let mut frequency = 1.0;
+        let mut weight = 1.0;
+
+        for _ in 0..self.octaves {
+            let noise = rhizome_resin_noise::simplex2(p.x * frequency, p.y * frequency);
+
+            // Ridged noise: abs(noise) with inversion for ridges
+            let ridge = 1.0 - noise.abs();
+            let ridge = ridge.powf(self.sharpness);
+
+            value += ridge * amplitude * weight;
+
+            // Reduce weight for successive octaves based on current value
+            weight = ridge.clamp(0.0, 1.0);
+
+            amplitude *= 0.5;
+            frequency *= self.lacunarity;
+        }
+
+        value.clamp(0.0, 1.0)
+    }
+}
+
+/// Billowy terrain for rounded, cloud-like hills.
+#[derive(Debug, Clone, Copy)]
+pub struct BillowyTerrain2D {
+    /// Random seed.
+    pub seed: i32,
+    /// Number of noise octaves.
+    pub octaves: u32,
+    /// Frequency multiplier between octaves.
+    pub lacunarity: f32,
+    /// Overall scale.
+    pub scale: f32,
+}
+
+impl Default for BillowyTerrain2D {
+    fn default() -> Self {
+        Self {
+            seed: 0,
+            octaves: 5,
+            lacunarity: 2.0,
+            scale: 1.0,
+        }
+    }
+}
+
+impl BillowyTerrain2D {
+    /// Creates a new billowy terrain generator.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the random seed.
+    pub fn with_seed(mut self, seed: i32) -> Self {
+        self.seed = seed;
+        self
+    }
+
+    /// Sets the number of octaves.
+    pub fn with_octaves(mut self, octaves: u32) -> Self {
+        self.octaves = octaves;
+        self
+    }
+
+    /// Sets the overall scale.
+    pub fn with_scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+}
+
+impl Field<Vec2, f32> for BillowyTerrain2D {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input * self.scale + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
+
+        let mut value = 0.0;
+        let mut amplitude = 1.0;
+        let mut frequency = 1.0;
+        let mut max_value = 0.0;
+
+        for _ in 0..self.octaves {
+            let noise = rhizome_resin_noise::simplex2(p.x * frequency, p.y * frequency);
+
+            // Billowy: abs(noise) gives rounded peaks
+            value += noise.abs() * amplitude;
+            max_value += amplitude;
+
+            amplitude *= 0.5;
+            frequency *= self.lacunarity;
+        }
+
+        (value / max_value).clamp(0.0, 1.0)
+    }
+}
+
+/// Island terrain generator with falloff at edges.
+#[derive(Debug, Clone, Copy)]
+pub struct IslandTerrain2D {
+    /// Base terrain noise.
+    pub terrain: Terrain2D,
+    /// Falloff radius (island size).
+    pub radius: f32,
+    /// Center of the island.
+    pub center: Vec2,
+    /// Falloff sharpness.
+    pub falloff: f32,
+}
+
+impl Default for IslandTerrain2D {
+    fn default() -> Self {
+        Self {
+            terrain: Terrain2D::default(),
+            radius: 1.0,
+            center: Vec2::ZERO,
+            falloff: 2.0,
+        }
+    }
+}
+
+impl IslandTerrain2D {
+    /// Creates a new island terrain generator.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the island radius.
+    pub fn with_radius(mut self, radius: f32) -> Self {
+        self.radius = radius;
+        self
+    }
+
+    /// Sets the island center.
+    pub fn with_center(mut self, center: Vec2) -> Self {
+        self.center = center;
+        self
+    }
+
+    /// Sets the falloff sharpness.
+    pub fn with_falloff(mut self, falloff: f32) -> Self {
+        self.falloff = falloff;
+        self
+    }
+
+    /// Sets the base terrain generator.
+    pub fn with_terrain(mut self, terrain: Terrain2D) -> Self {
+        self.terrain = terrain;
+        self
+    }
+}
+
+impl Field<Vec2, f32> for IslandTerrain2D {
+    fn sample(&self, input: Vec2, ctx: &EvalContext) -> f32 {
+        let dist = (input - self.center).length() / self.radius;
+
+        // Smooth falloff using smoothstep-like curve
+        let falloff = if dist >= 1.0 {
+            0.0
+        } else {
+            let t = 1.0 - dist;
+            let s = t.powf(self.falloff);
+            s
+        };
+
+        let terrain_height = self.terrain.sample(input, ctx);
+
+        (terrain_height * falloff).clamp(0.0, 1.0)
+    }
+}
+
+/// Terraced terrain for stepped plateaus.
+#[derive(Debug, Clone, Copy)]
+pub struct TerracedTerrain2D<F> {
+    /// Base terrain field.
+    pub base: F,
+    /// Number of terrace levels.
+    pub levels: u32,
+    /// Terrace sharpness (0=smooth, 1=sharp).
+    pub sharpness: f32,
+}
+
+impl<F> TerracedTerrain2D<F> {
+    /// Creates a new terraced terrain.
+    pub fn new(base: F, levels: u32) -> Self {
+        Self {
+            base,
+            levels,
+            sharpness: 0.8,
+        }
+    }
+
+    /// Sets the terrace sharpness.
+    pub fn with_sharpness(mut self, sharpness: f32) -> Self {
+        self.sharpness = sharpness.clamp(0.0, 1.0);
+        self
+    }
+}
+
+impl<F: Field<Vec2, f32>> Field<Vec2, f32> for TerracedTerrain2D<F> {
+    fn sample(&self, input: Vec2, ctx: &EvalContext) -> f32 {
+        let base_value = self.base.sample(input, ctx);
+
+        // Quantize to terrace levels
+        let scaled = base_value * self.levels as f32;
+        let terrace = scaled.floor();
+        let frac = scaled - terrace;
+
+        // Smooth the transition between terraces
+        let smoothed_frac = if self.sharpness >= 1.0 {
+            0.0
+        } else {
+            // Smoothstep-like transition
+            let t = frac / (1.0 - self.sharpness);
+            if t >= 1.0 {
+                1.0
+            } else {
+                t * t * (3.0 - 2.0 * t)
+            }
+        };
+
+        ((terrace + smoothed_frac * (1.0 - self.sharpness)) / self.levels as f32).clamp(0.0, 1.0)
+    }
+}
+
 /// Gradient field - returns gradient based on coordinates.
 #[derive(Debug, Clone, Copy)]
 pub struct Gradient2D {
@@ -1946,5 +2386,113 @@ mod tests {
 
         let radius_val = field.sample(Vec2::new(1.0, 0.0), &ctx);
         assert!((radius_val - 1.0).abs() < 0.01);
+    }
+
+    // Terrain generation tests
+
+    #[test]
+    fn test_terrain_basic() {
+        let terrain = Terrain2D::new();
+        let ctx = EvalContext::new();
+
+        // Sample at various points
+        let v1 = terrain.sample(Vec2::new(0.0, 0.0), &ctx);
+        let v2 = terrain.sample(Vec2::new(1.0, 1.0), &ctx);
+        let v3 = terrain.sample(Vec2::new(10.0, 10.0), &ctx);
+
+        // All values should be in [0, 1] range
+        assert!((0.0..=1.0).contains(&v1));
+        assert!((0.0..=1.0).contains(&v2));
+        assert!((0.0..=1.0).contains(&v3));
+
+        // Values should vary (not all the same)
+        assert!((v1 - v2).abs() > 0.001 || (v2 - v3).abs() > 0.001);
+    }
+
+    #[test]
+    fn test_terrain_presets() {
+        let ctx = EvalContext::new();
+        let point = Vec2::new(0.5, 0.5);
+
+        // Test all presets produce valid values
+        let hills = Terrain2D::rolling_hills().sample(point, &ctx);
+        let mountains = Terrain2D::mountains().sample(point, &ctx);
+        let plains = Terrain2D::plains().sample(point, &ctx);
+        let canyons = Terrain2D::canyons().sample(point, &ctx);
+
+        assert!((0.0..=1.0).contains(&hills));
+        assert!((0.0..=1.0).contains(&mountains));
+        assert!((0.0..=1.0).contains(&plains));
+        assert!((0.0..=1.0).contains(&canyons));
+    }
+
+    #[test]
+    fn test_terrain_deterministic() {
+        let ctx = EvalContext::new();
+        let terrain1 = Terrain2D::new().with_seed(42);
+        let terrain2 = Terrain2D::new().with_seed(42);
+
+        let point = Vec2::new(0.5, 0.5);
+        assert_eq!(terrain1.sample(point, &ctx), terrain2.sample(point, &ctx));
+    }
+
+    #[test]
+    fn test_ridged_terrain() {
+        let terrain = RidgedTerrain2D::new();
+        let ctx = EvalContext::new();
+
+        let v = terrain.sample(Vec2::new(0.5, 0.5), &ctx);
+        assert!((0.0..=1.0).contains(&v));
+    }
+
+    #[test]
+    fn test_billowy_terrain() {
+        let terrain = BillowyTerrain2D::new();
+        let ctx = EvalContext::new();
+
+        let v = terrain.sample(Vec2::new(0.5, 0.5), &ctx);
+        assert!((0.0..=1.0).contains(&v));
+    }
+
+    #[test]
+    fn test_island_terrain() {
+        let terrain = IslandTerrain2D::new().with_radius(1.0);
+        let ctx = EvalContext::new();
+
+        // Center should have terrain
+        let center = terrain.sample(Vec2::ZERO, &ctx);
+        assert!(center >= 0.0);
+
+        // Far from center should be zero (outside island)
+        let far = terrain.sample(Vec2::new(10.0, 10.0), &ctx);
+        assert_eq!(far, 0.0);
+    }
+
+    #[test]
+    fn test_terraced_terrain() {
+        let base = Terrain2D::new();
+        let terraced = TerracedTerrain2D::new(base, 5);
+        let ctx = EvalContext::new();
+
+        let v = terraced.sample(Vec2::new(0.5, 0.5), &ctx);
+        assert!((0.0..=1.0).contains(&v));
+    }
+
+    #[test]
+    fn test_terrain_builder() {
+        let terrain = Terrain2D::new()
+            .with_seed(123)
+            .with_octaves(4)
+            .with_lacunarity(2.5)
+            .with_persistence(0.4)
+            .with_scale(2.0)
+            .with_exponent(1.5);
+
+        assert_eq!(terrain.seed, 123);
+        assert_eq!(terrain.octaves, 4);
+        assert!((terrain.lacunarity - 2.5).abs() < 0.001);
+        assert!((terrain.persistence - 0.4).abs() < 0.001);
+        assert!((terrain.scale - 2.0).abs() < 0.001);
+        assert!((terrain.exponent - 1.5).abs() < 0.001);
     }
 }
