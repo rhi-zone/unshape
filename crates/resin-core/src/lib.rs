@@ -75,6 +75,12 @@ pub use field::{
     // Gradients
     Gradient2D,
     Map,
+    // Metaballs
+    Metaball,
+    MetaballSdf2D,
+    MetaballSdf3D,
+    Metaballs2D,
+    Metaballs3D,
     Mirror,
     Mix,
     Mul,

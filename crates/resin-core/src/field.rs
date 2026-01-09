@@ -1549,6 +1549,241 @@ pub fn from_fn<I, O, F: Fn(I, &EvalContext) -> O>(f: F) -> FnField<I, O, F> {
     FnField::new(f)
 }
 
+// ============================================================================
+// Metaballs
+// ============================================================================
+
+/// A single metaball (blob) center for use in metaball fields.
+#[derive(Debug, Clone, Copy)]
+pub struct Metaball {
+    /// Center position.
+    pub center: Vec3,
+    /// Radius of influence.
+    pub radius: f32,
+    /// Strength (default 1.0).
+    pub strength: f32,
+}
+
+impl Metaball {
+    /// Creates a new metaball at the given position with the given radius.
+    pub fn new(center: Vec3, radius: f32) -> Self {
+        Self {
+            center,
+            radius,
+            strength: 1.0,
+        }
+    }
+
+    /// Creates a 2D metaball (z=0).
+    pub fn new_2d(center: Vec2, radius: f32) -> Self {
+        Self::new(center.extend(0.0), radius)
+    }
+
+    /// Sets the strength of this metaball.
+    pub fn with_strength(mut self, strength: f32) -> Self {
+        self.strength = strength;
+        self
+    }
+}
+
+/// 2D metaball field - computes the sum of influences at each point.
+///
+/// The field value is the sum of `strength * f(distance)` for each ball,
+/// where f is the falloff function. Values above 1.0 are typically "inside"
+/// the merged surface.
+///
+/// # Example
+///
+/// ```
+/// use glam::Vec2;
+/// use resin_core::{Field, EvalContext, Metaball, Metaballs2D};
+///
+/// let balls = vec![
+///     Metaball::new_2d(Vec2::new(0.0, 0.0), 1.0),
+///     Metaball::new_2d(Vec2::new(1.5, 0.0), 1.0),
+/// ];
+///
+/// let field = Metaballs2D::new(balls);
+/// let ctx = EvalContext::new();
+///
+/// // Sample the field - values > 1.0 are "inside"
+/// let value = field.sample(Vec2::new(0.75, 0.0), &ctx);
+/// ```
+#[derive(Debug, Clone)]
+pub struct Metaballs2D {
+    balls: Vec<Metaball>,
+    threshold: f32,
+}
+
+impl Metaballs2D {
+    /// Creates a new 2D metaball field.
+    pub fn new(balls: Vec<Metaball>) -> Self {
+        Self {
+            balls,
+            threshold: 1.0,
+        }
+    }
+
+    /// Sets the threshold for the implicit surface (default 1.0).
+    pub fn with_threshold(mut self, threshold: f32) -> Self {
+        self.threshold = threshold;
+        self
+    }
+
+    /// Adds a metaball to the field.
+    pub fn add_ball(&mut self, ball: Metaball) {
+        self.balls.push(ball);
+    }
+
+    /// Returns the threshold value.
+    pub fn threshold(&self) -> f32 {
+        self.threshold
+    }
+
+    /// Returns a reference to the balls.
+    pub fn balls(&self) -> &[Metaball] {
+        &self.balls
+    }
+}
+
+impl Field<Vec2, f32> for Metaballs2D {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let mut sum = 0.0;
+
+        for ball in &self.balls {
+            let ball_pos = Vec2::new(ball.center.x, ball.center.y);
+            let dist_sq = (input - ball_pos).length_squared();
+            let radius_sq = ball.radius * ball.radius;
+
+            if dist_sq < 0.0001 {
+                // Very close to center - return large value
+                sum += ball.strength * 100.0;
+            } else {
+                // Classic metaball falloff: r^2 / d^2
+                sum += ball.strength * radius_sq / dist_sq;
+            }
+        }
+
+        sum
+    }
+}
+
+/// 3D metaball field.
+///
+/// Similar to Metaballs2D but operates in 3D space.
+#[derive(Debug, Clone)]
+pub struct Metaballs3D {
+    balls: Vec<Metaball>,
+    threshold: f32,
+}
+
+impl Metaballs3D {
+    /// Creates a new 3D metaball field.
+    pub fn new(balls: Vec<Metaball>) -> Self {
+        Self {
+            balls,
+            threshold: 1.0,
+        }
+    }
+
+    /// Sets the threshold for the implicit surface (default 1.0).
+    pub fn with_threshold(mut self, threshold: f32) -> Self {
+        self.threshold = threshold;
+        self
+    }
+
+    /// Adds a metaball to the field.
+    pub fn add_ball(&mut self, ball: Metaball) {
+        self.balls.push(ball);
+    }
+
+    /// Returns the threshold value.
+    pub fn threshold(&self) -> f32 {
+        self.threshold
+    }
+
+    /// Returns a reference to the balls.
+    pub fn balls(&self) -> &[Metaball] {
+        &self.balls
+    }
+}
+
+impl Field<Vec3, f32> for Metaballs3D {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        let mut sum = 0.0;
+
+        for ball in &self.balls {
+            let dist_sq = (input - ball.center).length_squared();
+            let radius_sq = ball.radius * ball.radius;
+
+            if dist_sq < 0.0001 {
+                sum += ball.strength * 100.0;
+            } else {
+                // Classic metaball falloff: r^2 / d^2
+                sum += ball.strength * radius_sq / dist_sq;
+            }
+        }
+
+        sum
+    }
+}
+
+/// Converts a 2D metaball field to an SDF-like representation.
+///
+/// Returns negative values inside (where field > threshold),
+/// positive values outside. This makes it compatible with SDF
+/// operations like smooth union.
+#[derive(Debug, Clone)]
+pub struct MetaballSdf2D {
+    field: Metaballs2D,
+}
+
+impl MetaballSdf2D {
+    /// Creates a new SDF from a metaball field.
+    pub fn new(field: Metaballs2D) -> Self {
+        Self { field }
+    }
+
+    /// Creates an SDF from balls directly.
+    pub fn from_balls(balls: Vec<Metaball>) -> Self {
+        Self::new(Metaballs2D::new(balls))
+    }
+}
+
+impl Field<Vec2, f32> for MetaballSdf2D {
+    fn sample(&self, input: Vec2, ctx: &EvalContext) -> f32 {
+        let value = self.field.sample(input, ctx);
+        // Convert to SDF-like: negative inside, positive outside
+        // When value > threshold, we're inside, so return negative
+        self.field.threshold - value
+    }
+}
+
+/// Converts a 3D metaball field to an SDF-like representation.
+#[derive(Debug, Clone)]
+pub struct MetaballSdf3D {
+    field: Metaballs3D,
+}
+
+impl MetaballSdf3D {
+    /// Creates a new SDF from a metaball field.
+    pub fn new(field: Metaballs3D) -> Self {
+        Self { field }
+    }
+
+    /// Creates an SDF from balls directly.
+    pub fn from_balls(balls: Vec<Metaball>) -> Self {
+        Self::new(Metaballs3D::new(balls))
+    }
+}
+
+impl Field<Vec3, f32> for MetaballSdf3D {
+    fn sample(&self, input: Vec3, ctx: &EvalContext) -> f32 {
+        let value = self.field.sample(input, ctx);
+        self.field.threshold - value
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1984,5 +2219,93 @@ mod tests {
         assert!(mirrored.sample(Vec2::new(1.0, 0.0), &ctx) < 0.0);
         // Mirrored position (negative x maps to positive)
         assert!(mirrored.sample(Vec2::new(-1.0, 0.0), &ctx) < 0.0);
+    }
+
+    #[test]
+    fn test_metaball_single() {
+        let balls = vec![Metaball::new_2d(Vec2::ZERO, 1.0)];
+        let field = Metaballs2D::new(balls);
+        let ctx = EvalContext::new();
+
+        // At center, value should be very high
+        let center_val = field.sample(Vec2::ZERO, &ctx);
+        assert!(center_val > 10.0);
+
+        // At radius distance, value should be around 1.0
+        let radius_val = field.sample(Vec2::new(1.0, 0.0), &ctx);
+        assert!((radius_val - 1.0).abs() < 0.01);
+
+        // Far away, value should be small
+        let far_val = field.sample(Vec2::new(10.0, 0.0), &ctx);
+        assert!(far_val < 0.1);
+    }
+
+    #[test]
+    fn test_metaballs_merge() {
+        // Two balls that should merge in the middle
+        let balls = vec![
+            Metaball::new_2d(Vec2::new(-0.5, 0.0), 1.0),
+            Metaball::new_2d(Vec2::new(0.5, 0.0), 1.0),
+        ];
+        let field = Metaballs2D::new(balls);
+        let ctx = EvalContext::new();
+
+        // Between the two balls, combined influence should be high
+        let middle_val = field.sample(Vec2::ZERO, &ctx);
+        assert!(middle_val > 2.0); // Combined influence
+
+        // Each individual ball contributes
+        let left_val = field.sample(Vec2::new(-0.5, 0.0), &ctx);
+        let right_val = field.sample(Vec2::new(0.5, 0.0), &ctx);
+        assert!(left_val > 10.0);
+        assert!(right_val > 10.0);
+    }
+
+    #[test]
+    fn test_metaballs_3d() {
+        let balls = vec![Metaball::new(Vec3::ZERO, 1.0)];
+        let field = Metaballs3D::new(balls);
+        let ctx = EvalContext::new();
+
+        // At center, value should be very high
+        let center_val = field.sample(Vec3::ZERO, &ctx);
+        assert!(center_val > 10.0);
+
+        // At radius distance, value should be around 1.0
+        let radius_val = field.sample(Vec3::new(1.0, 0.0, 0.0), &ctx);
+        assert!((radius_val - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_metaball_sdf() {
+        let balls = vec![Metaball::new_2d(Vec2::ZERO, 1.0)];
+        let sdf = MetaballSdf2D::from_balls(balls);
+        let ctx = EvalContext::new();
+
+        // Inside (at center): negative value
+        let center_val = sdf.sample(Vec2::ZERO, &ctx);
+        assert!(center_val < 0.0);
+
+        // Far outside: positive value
+        let far_val = sdf.sample(Vec2::new(10.0, 0.0), &ctx);
+        assert!(far_val > 0.0);
+    }
+
+    #[test]
+    fn test_metaball_strength() {
+        let weak = vec![Metaball::new_2d(Vec2::ZERO, 1.0).with_strength(0.5)];
+        let strong = vec![Metaball::new_2d(Vec2::ZERO, 1.0).with_strength(2.0)];
+
+        let weak_field = Metaballs2D::new(weak);
+        let strong_field = Metaballs2D::new(strong);
+        let ctx = EvalContext::new();
+
+        let weak_val = weak_field.sample(Vec2::new(1.0, 0.0), &ctx);
+        let strong_val = strong_field.sample(Vec2::new(1.0, 0.0), &ctx);
+
+        // Stronger metaball should have higher value
+        assert!(strong_val > weak_val);
+        assert!((weak_val - 0.5).abs() < 0.01);
+        assert!((strong_val - 2.0).abs() < 0.01);
     }
 }

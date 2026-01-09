@@ -3,7 +3,6 @@
 ## Next Up
 
 ## Backlog
-- [ ] Metaballs (2D/3D)
 - [ ] Hatching patterns
 - [ ] Granular synthesis
 - [ ] WAV import/export
@@ -19,6 +18,7 @@
 
 ## Done
 
+- [x] Metaballs 2D/3D (Metaball, Metaballs2D, Metaballs3D, MetaballSdf2D/3D)
 - [x] Voronoi/Delaunay diagrams (Bowyer-Watson algorithm, VoronoiDiagram, VoronoiCell)
 - [x] Convex hull and geometry utils (bounding_box, centroid, point_in_polygon, minimum_bounding_circle)
 - [x] Cellular automata (ElementaryCA, CellularAutomaton2D, GameOfLife, rule presets)
