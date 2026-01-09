@@ -2,7 +2,6 @@
 
 ## Next Up
 
-- [ ] Path simplification (Ramer-Douglas-Peucker)
 - [ ] Cellular automata (1D/2D)
 
 ## Backlog
@@ -21,9 +20,11 @@
 - [ ] Geodesic distance
 - [ ] Wave function collapse
 - [ ] Space colonization
+- [ ] 2D rasterization (paths to pixels)
 
 ## Done
 
+- [x] Path simplification (simplify_path, simplify_points, smooth_path, resample_path)
 - [x] Karplus-Strong string synthesis (KarplusStrong, ExtendedKarplusStrong, PolyStrings, PluckConfig)
 - [x] MIDI support (MidiMessage parsing, note/freq conversion, CC constants, velocity/amplitude)
 

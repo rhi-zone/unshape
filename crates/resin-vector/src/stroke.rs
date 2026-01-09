@@ -602,6 +602,222 @@ pub fn tangent_at_length(path: &Path, distance: f32) -> Option<Vec2> {
     Some((points[n - 1] - points[n - 2]).normalize_or_zero())
 }
 
+// ===========================================================================
+// Path Simplification
+// ===========================================================================
+
+/// Simplifies a path using the Ramer-Douglas-Peucker algorithm.
+///
+/// Reduces the number of points in a polyline while preserving its shape.
+/// Points within `epsilon` distance of the simplified line are removed.
+///
+/// # Arguments
+/// * `path` - The path to simplify.
+/// * `epsilon` - Maximum distance threshold for point removal.
+///
+/// # Example
+/// ```ignore
+/// let simplified = simplify_path(&path, 1.0);
+/// ```
+pub fn simplify_path(path: &Path, epsilon: f32) -> Path {
+    let points = path_to_points(path);
+    if points.len() < 3 {
+        return path.clone();
+    }
+
+    let simplified = rdp_simplify(&points, epsilon);
+    points_to_path(&simplified, is_path_closed(path))
+}
+
+/// Simplifies a list of points using Ramer-Douglas-Peucker.
+pub fn simplify_points(points: &[Vec2], epsilon: f32) -> Vec<Vec2> {
+    if points.len() < 3 {
+        return points.to_vec();
+    }
+    rdp_simplify(points, epsilon)
+}
+
+/// Internal RDP implementation.
+fn rdp_simplify(points: &[Vec2], epsilon: f32) -> Vec<Vec2> {
+    if points.len() < 3 {
+        return points.to_vec();
+    }
+
+    // Find the point with maximum distance from the line between endpoints
+    let start = points[0];
+    let end = points[points.len() - 1];
+
+    let mut max_dist = 0.0;
+    let mut max_idx = 0;
+
+    for (i, &point) in points.iter().enumerate().skip(1).take(points.len() - 2) {
+        let dist = perpendicular_distance(point, start, end);
+        if dist > max_dist {
+            max_dist = dist;
+            max_idx = i;
+        }
+    }
+
+    // If max distance is greater than epsilon, recursively simplify
+    if max_dist > epsilon {
+        let mut left = rdp_simplify(&points[..=max_idx], epsilon);
+        let right = rdp_simplify(&points[max_idx..], epsilon);
+
+        // Remove duplicate point at junction
+        left.pop();
+        left.extend(right);
+        left
+    } else {
+        // All points between start and end can be removed
+        vec![start, end]
+    }
+}
+
+/// Calculates perpendicular distance from a point to a line segment.
+fn perpendicular_distance(point: Vec2, line_start: Vec2, line_end: Vec2) -> f32 {
+    let line_vec = line_end - line_start;
+    let line_len_sq = line_vec.length_squared();
+
+    if line_len_sq < 1e-10 {
+        // Line is a point
+        return (point - line_start).length();
+    }
+
+    // Project point onto line
+    let t = ((point - line_start).dot(line_vec) / line_len_sq).clamp(0.0, 1.0);
+    let projection = line_start + line_vec * t;
+
+    (point - projection).length()
+}
+
+/// Converts points back to a path.
+fn points_to_path(points: &[Vec2], closed: bool) -> Path {
+    if points.is_empty() {
+        return Path::new();
+    }
+
+    let mut builder = PathBuilder::new().move_to(points[0]);
+
+    for &point in &points[1..] {
+        builder = builder.line_to(point);
+    }
+
+    if closed {
+        builder = builder.close();
+    }
+
+    builder.build()
+}
+
+/// Smooths a path using Chaikin's corner-cutting algorithm.
+///
+/// Creates a smoother curve by iteratively cutting corners.
+///
+/// # Arguments
+/// * `path` - The path to smooth.
+/// * `iterations` - Number of smoothing iterations (1-5 recommended).
+pub fn smooth_path(path: &Path, iterations: usize) -> Path {
+    let mut points = path_to_points(path);
+    let closed = is_path_closed(path);
+
+    for _ in 0..iterations {
+        points = chaikin_smooth(&points, closed);
+    }
+
+    points_to_path(&points, closed)
+}
+
+/// Single iteration of Chaikin's algorithm.
+fn chaikin_smooth(points: &[Vec2], closed: bool) -> Vec<Vec2> {
+    if points.len() < 2 {
+        return points.to_vec();
+    }
+
+    let mut result = Vec::with_capacity(points.len() * 2);
+
+    if closed {
+        // For closed paths, include the wrap-around
+        for i in 0..points.len() {
+            let p0 = points[i];
+            let p1 = points[(i + 1) % points.len()];
+
+            result.push(p0.lerp(p1, 0.25));
+            result.push(p0.lerp(p1, 0.75));
+        }
+    } else {
+        // Keep first point
+        result.push(points[0]);
+
+        for i in 0..points.len() - 1 {
+            let p0 = points[i];
+            let p1 = points[i + 1];
+
+            result.push(p0.lerp(p1, 0.25));
+            result.push(p0.lerp(p1, 0.75));
+        }
+
+        // Keep last point
+        result.push(points[points.len() - 1]);
+    }
+
+    result
+}
+
+/// Resamples a path to have evenly spaced points.
+///
+/// # Arguments
+/// * `path` - The path to resample.
+/// * `spacing` - Target distance between points.
+pub fn resample_path(path: &Path, spacing: f32) -> Path {
+    if spacing <= 0.0 {
+        return path.clone();
+    }
+
+    let points = path_to_points(path);
+    if points.len() < 2 {
+        return path.clone();
+    }
+
+    let total_length = path_length(path);
+    let num_points = (total_length / spacing).ceil() as usize;
+
+    if num_points < 2 {
+        return path.clone();
+    }
+
+    let mut resampled = Vec::with_capacity(num_points);
+
+    for i in 0..num_points {
+        let t = i as f32 / (num_points - 1) as f32;
+        let dist = t * total_length;
+
+        if let Some(point) = sample_path_at_distance(&points, dist) {
+            resampled.push(point);
+        }
+    }
+
+    points_to_path(&resampled, is_path_closed(path))
+}
+
+/// Samples a point along a polyline at a given distance.
+fn sample_path_at_distance(points: &[Vec2], distance: f32) -> Option<Vec2> {
+    if points.len() < 2 {
+        return points.first().copied();
+    }
+
+    let mut remaining = distance;
+    for i in 0..points.len() - 1 {
+        let segment_len = (points[i + 1] - points[i]).length();
+        if remaining <= segment_len {
+            let t = remaining / segment_len;
+            return Some(points[i].lerp(points[i + 1], t));
+        }
+        remaining -= segment_len;
+    }
+
+    points.last().copied()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -708,5 +924,105 @@ mod tests {
         let t = tangent.unwrap();
         assert!((t.x - 1.0).abs() < 0.1);
         assert!(t.y.abs() < 0.1);
+    }
+
+    #[test]
+    fn test_simplify_path_line() {
+        // A straight line with intermediate points should simplify to 2 points
+        let mut builder = PathBuilder::new().move_to(Vec2::ZERO);
+        for i in 1..10 {
+            builder = builder.line_to(Vec2::new(i as f32 * 10.0, 0.0));
+        }
+        let path = builder.build();
+
+        let simplified = simplify_path(&path, 0.1);
+        let points = path_to_points(&simplified);
+
+        // Should collapse to just start and end
+        assert_eq!(points.len(), 2);
+    }
+
+    #[test]
+    fn test_simplify_path_zigzag() {
+        // A zigzag should not simplify much with small epsilon
+        let path = PathBuilder::new()
+            .move_to(Vec2::ZERO)
+            .line_to(Vec2::new(10.0, 10.0))
+            .line_to(Vec2::new(20.0, 0.0))
+            .line_to(Vec2::new(30.0, 10.0))
+            .line_to(Vec2::new(40.0, 0.0))
+            .build();
+
+        let simplified = simplify_path(&path, 0.1);
+        let points = path_to_points(&simplified);
+
+        // Should keep most points due to large deviations
+        assert!(points.len() >= 4);
+    }
+
+    #[test]
+    fn test_simplify_points() {
+        let points = vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(1.0, 0.1), // Slightly off line
+            Vec2::new(2.0, 0.0),
+            Vec2::new(3.0, 0.0),
+        ];
+
+        let simplified = simplify_points(&points, 0.2);
+
+        // Should collapse middle points
+        assert!(simplified.len() < points.len());
+        assert_eq!(simplified[0], points[0]);
+        assert_eq!(simplified[simplified.len() - 1], points[points.len() - 1]);
+    }
+
+    #[test]
+    fn test_smooth_path() {
+        let path = rect(Vec2::ZERO, Vec2::new(100.0, 100.0));
+        let smoothed = smooth_path(&path, 2);
+
+        // Smoothed path should have more points
+        assert!(smoothed.len() > path.len());
+    }
+
+    #[test]
+    fn test_smooth_path_zero_iterations() {
+        let path = rect(Vec2::ZERO, Vec2::new(100.0, 100.0));
+        let smoothed = smooth_path(&path, 0);
+
+        // No smoothing should return same number of points
+        assert_eq!(smoothed.len(), path.len());
+    }
+
+    #[test]
+    fn test_resample_path() {
+        let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
+        let resampled = resample_path(&path, 10.0);
+
+        let points = path_to_points(&resampled);
+
+        // Should have approximately 100/10 + 1 = 11 points
+        assert!(points.len() >= 10 && points.len() <= 12);
+
+        // First and last points should match original endpoints
+        assert!((points[0] - Vec2::ZERO).length() < 0.1);
+        assert!((points[points.len() - 1] - Vec2::new(100.0, 0.0)).length() < 0.1);
+    }
+
+    #[test]
+    fn test_perpendicular_distance() {
+        let start = Vec2::ZERO;
+        let end = Vec2::new(10.0, 0.0);
+
+        // Point directly above the line
+        let point = Vec2::new(5.0, 5.0);
+        let dist = perpendicular_distance(point, start, end);
+        assert!((dist - 5.0).abs() < 0.001);
+
+        // Point on the line
+        let point_on = Vec2::new(5.0, 0.0);
+        let dist_on = perpendicular_distance(point_on, start, end);
+        assert!(dist_on < 0.001);
     }
 }

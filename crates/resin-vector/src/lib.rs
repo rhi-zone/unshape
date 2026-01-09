@@ -31,7 +31,8 @@ pub use path::{
 };
 pub use stroke::{
     CapStyle, DashPattern, JoinStyle, StrokeConfig, dash_path, offset_path, path_length,
-    point_at_length, stroke_to_path, tangent_at_length,
+    point_at_length, resample_path, simplify_path, simplify_points, smooth_path, stroke_to_path,
+    tangent_at_length,
 };
 pub use text::{
     Font, FontError, FontResult, TextConfig, TextMetrics, measure_text, text_to_path,
