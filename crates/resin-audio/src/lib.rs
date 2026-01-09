@@ -9,6 +9,7 @@ pub mod granular;
 pub mod graph;
 pub mod midi;
 pub mod osc;
+pub mod patch;
 pub mod percussion;
 pub mod physical;
 pub mod room;
@@ -43,6 +44,10 @@ pub use osc::{
     FmAlgorithm, FmOperator, FmOsc, FmSynth, Wavetable, WavetableBank, WavetableOsc,
     additive_wavetable, fm_presets, freq_to_phase, pulse, sample_to_phase, saw, saw_blep, saw_rev,
     sine, square, square_blep, supersaw_wavetable, triangle,
+};
+pub use patch::{
+    ModRouting, ModSource, PatchBank, PatchParameter, SynthPatch, interpolate_patches,
+    randomize_patch,
 };
 pub use percussion::{Bar, BarConfig, Membrane, MembraneConfig, Plate, PlateConfig, noise_burst};
 pub use physical::{ExtendedKarplusStrong, KarplusStrong, PluckConfig, PolyStrings};
