@@ -43,7 +43,7 @@
 - [x] Ambient occlusion baking - ray-based AO (bake_ao_vertices, bake_ao_texture, AoAccelerator)
 - [x] Channel operations - split/merge/process R/G/B/A independently (extract_channel, split_channels, merge_channels, set_channel, swap_channels)
 - [x] Chromatic aberration - RGB channel offset (radial from center) (chromatic_aberration, ChromaticAberrationConfig)
-- [ ] Distortion effects - barrel, pincushion, wave, displacement map
+- [x] Distortion effects - barrel, pincushion, wave, displacement map (lens_distortion, wave_distortion, displace, swirl, spherize)
 - [ ] Inpainting - diffusion-based fill, multi-scale PatchMatch
 - [ ] Image pyramid - downsample/upsample, coarse-to-fine processing
 - [x] Color adjustments - levels, curves, hue/saturation, color balance (adjust_levels, adjust_brightness_contrast, adjust_hsl, grayscale, invert, posterize, threshold)

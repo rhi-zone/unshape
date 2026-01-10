@@ -1730,6 +1730,337 @@ pub fn threshold(image: &ImageField, threshold: f32) -> ImageField {
 }
 
 // ============================================================================
+// Distortion effects
+// ============================================================================
+
+/// Configuration for radial lens distortion.
+#[derive(Debug, Clone, Copy)]
+pub struct LensDistortionConfig {
+    /// Distortion strength. Positive = barrel, negative = pincushion.
+    pub strength: f32,
+    /// Center point for distortion (normalized coordinates).
+    pub center: (f32, f32),
+}
+
+impl Default for LensDistortionConfig {
+    fn default() -> Self {
+        Self {
+            strength: 0.0,
+            center: (0.5, 0.5),
+        }
+    }
+}
+
+impl LensDistortionConfig {
+    /// Creates barrel distortion (bulging outward).
+    pub fn barrel(strength: f32) -> Self {
+        Self {
+            strength: strength.abs(),
+            center: (0.5, 0.5),
+        }
+    }
+
+    /// Creates pincushion distortion (pinching inward).
+    pub fn pincushion(strength: f32) -> Self {
+        Self {
+            strength: -strength.abs(),
+            center: (0.5, 0.5),
+        }
+    }
+
+    /// Sets the distortion center.
+    pub fn with_center(mut self, x: f32, y: f32) -> Self {
+        self.center = (x, y);
+        self
+    }
+}
+
+/// Applies radial lens distortion (barrel or pincushion).
+///
+/// Barrel distortion (positive strength) makes the image bulge outward.
+/// Pincushion distortion (negative strength) makes it pinch inward.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, lens_distortion, LensDistortionConfig};
+///
+/// let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
+/// let img = ImageField::from_raw(data, 4, 4);
+///
+/// let barrel = lens_distortion(&img, &LensDistortionConfig::barrel(0.3));
+/// let pincushion = lens_distortion(&img, &LensDistortionConfig::pincushion(0.3));
+/// ```
+pub fn lens_distortion(image: &ImageField, config: &LensDistortionConfig) -> ImageField {
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            // Normalize coordinates to [-1, 1] from center
+            let u = (x as f32 + 0.5) / width as f32;
+            let v = (y as f32 + 0.5) / height as f32;
+
+            let dx = u - config.center.0;
+            let dy = v - config.center.1;
+
+            // Distance from center
+            let r = (dx * dx + dy * dy).sqrt();
+
+            // Apply radial distortion
+            let distortion = 1.0 + config.strength * r * r;
+
+            // Map back to source coordinates
+            let src_u = config.center.0 + dx * distortion;
+            let src_v = config.center.1 + dy * distortion;
+
+            let color = image.sample_uv(src_u, src_v);
+            data.push([color.r, color.g, color.b, color.a]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Configuration for wave distortion.
+#[derive(Debug, Clone, Copy)]
+pub struct WaveDistortionConfig {
+    /// Amplitude in X direction (as fraction of image size).
+    pub amplitude_x: f32,
+    /// Amplitude in Y direction.
+    pub amplitude_y: f32,
+    /// Frequency of waves in X direction.
+    pub frequency_x: f32,
+    /// Frequency of waves in Y direction.
+    pub frequency_y: f32,
+    /// Phase offset in radians.
+    pub phase: f32,
+}
+
+impl Default for WaveDistortionConfig {
+    fn default() -> Self {
+        Self {
+            amplitude_x: 0.02,
+            amplitude_y: 0.02,
+            frequency_x: 4.0,
+            frequency_y: 4.0,
+            phase: 0.0,
+        }
+    }
+}
+
+impl WaveDistortionConfig {
+    /// Creates a horizontal wave distortion.
+    pub fn horizontal(amplitude: f32, frequency: f32) -> Self {
+        Self {
+            amplitude_x: amplitude,
+            amplitude_y: 0.0,
+            frequency_x: frequency,
+            frequency_y: 0.0,
+            phase: 0.0,
+        }
+    }
+
+    /// Creates a vertical wave distortion.
+    pub fn vertical(amplitude: f32, frequency: f32) -> Self {
+        Self {
+            amplitude_x: 0.0,
+            amplitude_y: amplitude,
+            frequency_x: 0.0,
+            frequency_y: frequency,
+            phase: 0.0,
+        }
+    }
+
+    /// Sets the phase offset.
+    pub fn with_phase(mut self, phase: f32) -> Self {
+        self.phase = phase;
+        self
+    }
+}
+
+/// Applies wave distortion to an image.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, wave_distortion, WaveDistortionConfig};
+///
+/// let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
+/// let img = ImageField::from_raw(data, 4, 4);
+///
+/// let wavy = wave_distortion(&img, &WaveDistortionConfig::horizontal(0.05, 3.0));
+/// ```
+pub fn wave_distortion(image: &ImageField, config: &WaveDistortionConfig) -> ImageField {
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    let two_pi = std::f32::consts::PI * 2.0;
+
+    for y in 0..height {
+        for x in 0..width {
+            let u = (x as f32 + 0.5) / width as f32;
+            let v = (y as f32 + 0.5) / height as f32;
+
+            // Apply sine wave offsets
+            let offset_x =
+                config.amplitude_x * (v * config.frequency_y * two_pi + config.phase).sin();
+            let offset_y =
+                config.amplitude_y * (u * config.frequency_x * two_pi + config.phase).sin();
+
+            let src_u = u + offset_x;
+            let src_v = v + offset_y;
+
+            let color = image.sample_uv(src_u, src_v);
+            data.push([color.r, color.g, color.b, color.a]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Applies displacement using another image as a map.
+///
+/// The displacement map's red channel controls X offset, green controls Y offset.
+/// Values are mapped from [0, 1] to [-strength, +strength].
+///
+/// # Arguments
+/// * `image` - Source image to distort
+/// * `displacement_map` - Image controlling displacement (R=X, G=Y)
+/// * `strength` - Maximum displacement as fraction of image size
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, displace};
+///
+/// let img = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
+/// let map = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
+///
+/// let displaced = displace(&img, &map, 0.1);
+/// ```
+pub fn displace(image: &ImageField, displacement_map: &ImageField, strength: f32) -> ImageField {
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let u = (x as f32 + 0.5) / width as f32;
+            let v = (y as f32 + 0.5) / height as f32;
+
+            // Sample displacement map
+            let disp = displacement_map.sample_uv(u, v);
+
+            // Map [0, 1] to [-strength, +strength]
+            let offset_x = (disp.r - 0.5) * 2.0 * strength;
+            let offset_y = (disp.g - 0.5) * 2.0 * strength;
+
+            let src_u = u + offset_x;
+            let src_v = v + offset_y;
+
+            let color = image.sample_uv(src_u, src_v);
+            data.push([color.r, color.g, color.b, color.a]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Applies a swirl/twist distortion around a center point.
+///
+/// # Arguments
+/// * `angle` - Maximum rotation in radians at center
+/// * `radius` - Radius of effect (normalized, 1.0 = half image size)
+/// * `center` - Center point (normalized coordinates)
+pub fn swirl(image: &ImageField, angle: f32, radius: f32, center: (f32, f32)) -> ImageField {
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    let radius_sq = radius * radius;
+
+    for y in 0..height {
+        for x in 0..width {
+            let u = (x as f32 + 0.5) / width as f32;
+            let v = (y as f32 + 0.5) / height as f32;
+
+            let dx = u - center.0;
+            let dy = v - center.1;
+            let dist_sq = dx * dx + dy * dy;
+
+            let (src_u, src_v) = if dist_sq < radius_sq {
+                // Inside swirl radius
+                let dist = dist_sq.sqrt();
+                let factor = 1.0 - dist / radius;
+                let rotation = angle * factor * factor;
+
+                let cos_r = rotation.cos();
+                let sin_r = rotation.sin();
+
+                let new_dx = dx * cos_r - dy * sin_r;
+                let new_dy = dx * sin_r + dy * cos_r;
+
+                (center.0 + new_dx, center.1 + new_dy)
+            } else {
+                (u, v)
+            };
+
+            let color = image.sample_uv(src_u, src_v);
+            data.push([color.r, color.g, color.b, color.a]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Applies a spherize/bulge effect.
+///
+/// # Arguments
+/// * `strength` - Bulge strength (positive = bulge out, negative = pinch in)
+/// * `center` - Center point (normalized coordinates)
+pub fn spherize(image: &ImageField, strength: f32, center: (f32, f32)) -> ImageField {
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let u = (x as f32 + 0.5) / width as f32;
+            let v = (y as f32 + 0.5) / height as f32;
+
+            let dx = u - center.0;
+            let dy = v - center.1;
+            let dist = (dx * dx + dy * dy).sqrt();
+
+            // Apply spherical transformation
+            let factor = if dist > 0.0001 {
+                let t = dist.min(0.5) / 0.5; // Normalize to [0, 1] within radius
+                let spherize_factor = (1.0 - t * t).sqrt(); // Spherical curve
+                1.0 + (spherize_factor - 1.0) * strength
+            } else {
+                1.0
+            };
+
+            let src_u = center.0 + dx * factor;
+            let src_v = center.1 + dy * factor;
+
+            let color = image.sample_uv(src_u, src_v);
+            data.push([color.r, color.g, color.b, color.a]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+// ============================================================================
 // Normal map generation
 // ============================================================================
 
@@ -2557,5 +2888,145 @@ mod tests {
         assert!(result.get_pixel(0, 0)[0] < 0.01);
         // 0.7 luminance > 0.5 -> white
         assert!(result.get_pixel(1, 0)[0] > 0.99);
+    }
+
+    // Distortion tests
+
+    #[test]
+    fn test_lens_distortion_barrel() {
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 25];
+        let img = ImageField::from_raw(data, 5, 5);
+
+        let result = lens_distortion(&img, &LensDistortionConfig::barrel(0.5));
+        assert_eq!(result.dimensions(), (5, 5));
+    }
+
+    #[test]
+    fn test_lens_distortion_pincushion() {
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 25];
+        let img = ImageField::from_raw(data, 5, 5);
+
+        let result = lens_distortion(&img, &LensDistortionConfig::pincushion(0.5));
+        assert_eq!(result.dimensions(), (5, 5));
+    }
+
+    #[test]
+    fn test_lens_distortion_zero_strength() {
+        let data: Vec<_> = (0..16).map(|i| [i as f32 / 15.0; 4]).collect();
+        let img = ImageField::from_raw(data.clone(), 4, 4);
+
+        let result = lens_distortion(&img, &LensDistortionConfig::default());
+
+        // Zero strength should not significantly change the image
+        for i in 0..16 {
+            let x = (i % 4) as u32;
+            let y = (i / 4) as u32;
+            let orig = img.get_pixel(x, y)[0];
+            let new = result.get_pixel(x, y)[0];
+            assert!((orig - new).abs() < 0.1);
+        }
+    }
+
+    #[test]
+    fn test_wave_distortion_horizontal() {
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
+        let img = ImageField::from_raw(data, 4, 4);
+
+        let result = wave_distortion(&img, &WaveDistortionConfig::horizontal(0.1, 2.0));
+        assert_eq!(result.dimensions(), (4, 4));
+    }
+
+    #[test]
+    fn test_wave_distortion_vertical() {
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
+        let img = ImageField::from_raw(data, 4, 4);
+
+        let result = wave_distortion(&img, &WaveDistortionConfig::vertical(0.1, 2.0));
+        assert_eq!(result.dimensions(), (4, 4));
+    }
+
+    #[test]
+    fn test_displace_neutral() {
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
+        let img = ImageField::from_raw(data.clone(), 4, 4);
+
+        // Displacement map with all 0.5 = no displacement
+        let disp_map = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
+        let result = displace(&img, &disp_map, 0.2);
+
+        // Should be unchanged
+        for i in 0..16 {
+            let x = (i % 4) as u32;
+            let y = (i / 4) as u32;
+            let pixel = result.get_pixel(x, y);
+            assert!((pixel[0] - 0.5).abs() < 0.01);
+        }
+    }
+
+    #[test]
+    fn test_displace_offset() {
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
+        let img = ImageField::from_raw(data, 4, 4);
+
+        // Red > 0.5 = offset right, Green > 0.5 = offset down
+        let disp_map = ImageField::from_raw(vec![[1.0, 1.0, 0.5, 1.0]; 16], 4, 4);
+        let result = displace(&img, &disp_map, 0.1);
+
+        assert_eq!(result.dimensions(), (4, 4));
+    }
+
+    #[test]
+    fn test_swirl() {
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 25];
+        let img = ImageField::from_raw(data, 5, 5);
+
+        let result = swirl(&img, std::f32::consts::PI, 0.5, (0.5, 0.5));
+        assert_eq!(result.dimensions(), (5, 5));
+    }
+
+    #[test]
+    fn test_swirl_zero_angle() {
+        let data: Vec<_> = (0..16).map(|i| [i as f32 / 15.0; 4]).collect();
+        let img = ImageField::from_raw(data.clone(), 4, 4);
+
+        // Zero angle swirl should not change the image
+        let result = swirl(&img, 0.0, 0.5, (0.5, 0.5));
+
+        for i in 0..16 {
+            let x = (i % 4) as u32;
+            let y = (i / 4) as u32;
+            let orig = img.get_pixel(x, y)[0];
+            let new = result.get_pixel(x, y)[0];
+            assert!((orig - new).abs() < 0.01);
+        }
+    }
+
+    #[test]
+    fn test_spherize() {
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 25];
+        let img = ImageField::from_raw(data, 5, 5);
+
+        let bulge = spherize(&img, 0.5, (0.5, 0.5));
+        let pinch = spherize(&img, -0.5, (0.5, 0.5));
+
+        assert_eq!(bulge.dimensions(), (5, 5));
+        assert_eq!(pinch.dimensions(), (5, 5));
+    }
+
+    #[test]
+    fn test_spherize_zero() {
+        let data: Vec<_> = (0..16).map(|i| [i as f32 / 15.0; 4]).collect();
+        let img = ImageField::from_raw(data.clone(), 4, 4);
+
+        // Zero strength should not significantly change the image
+        let result = spherize(&img, 0.0, (0.5, 0.5));
+
+        for i in 0..16 {
+            let x = (i % 4) as u32;
+            let y = (i / 4) as u32;
+            let orig = img.get_pixel(x, y)[0];
+            let new = result.get_pixel(x, y)[0];
+            assert!((orig - new).abs() < 0.1);
+        }
     }
 }
