@@ -1662,6 +1662,300 @@ impl Field<Vec2, f32> for DistanceBox {
     }
 }
 
+/// Distance field - returns distance from a rounded box.
+#[derive(Debug, Clone, Copy)]
+pub struct DistanceRoundedBox {
+    /// Center of the box.
+    pub center: Vec2,
+    /// Half-size of the box (before rounding).
+    pub half_size: Vec2,
+    /// Corner radius.
+    pub radius: f32,
+}
+
+impl DistanceRoundedBox {
+    /// Creates a new rounded box SDF.
+    pub fn new(center: Vec2, half_size: Vec2, radius: f32) -> Self {
+        Self {
+            center,
+            half_size,
+            radius,
+        }
+    }
+}
+
+impl Field<Vec2, f32> for DistanceRoundedBox {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = (input - self.center).abs();
+        let q = p - self.half_size + Vec2::splat(self.radius);
+        q.max(Vec2::ZERO).length() + q.x.max(q.y).min(0.0) - self.radius
+    }
+}
+
+/// Distance field - returns distance from an ellipse.
+#[derive(Debug, Clone, Copy)]
+pub struct DistanceEllipse {
+    /// Center of the ellipse.
+    pub center: Vec2,
+    /// Radii (half-width, half-height).
+    pub radii: Vec2,
+}
+
+impl DistanceEllipse {
+    /// Creates a new ellipse SDF.
+    pub fn new(center: Vec2, radii: Vec2) -> Self {
+        Self { center, radii }
+    }
+}
+
+impl Field<Vec2, f32> for DistanceEllipse {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        // Approximate ellipse SDF using normalized space
+        let p = (input - self.center).abs();
+        let ab = self.radii;
+
+        if ab.x == ab.y {
+            // Circle case
+            return p.length() - ab.x;
+        }
+
+        // Iterative Newton-Raphson for accurate ellipse SDF
+        let mut t = 0.25 * std::f32::consts::PI;
+        for _ in 0..4 {
+            let c = t.cos();
+            let s = t.sin();
+            let e = Vec2::new(ab.x * c, ab.y * s);
+            let d = p - e;
+            let g = Vec2::new(-ab.x * s, ab.y * c);
+            let dt = d.dot(g) / g.dot(g);
+            t = (t + dt).clamp(0.0, std::f32::consts::FRAC_PI_2);
+        }
+
+        let closest = Vec2::new(ab.x * t.cos(), ab.y * t.sin());
+        let dist = (p - closest).length();
+
+        // Determine sign (inside or outside)
+        let normalized = p / ab;
+        if normalized.length_squared() < 1.0 {
+            -dist
+        } else {
+            dist
+        }
+    }
+}
+
+/// Distance field - returns distance from a capsule (stadium shape).
+#[derive(Debug, Clone, Copy)]
+pub struct DistanceCapsule {
+    /// First endpoint of the capsule centerline.
+    pub a: Vec2,
+    /// Second endpoint of the capsule centerline.
+    pub b: Vec2,
+    /// Capsule radius.
+    pub radius: f32,
+}
+
+impl DistanceCapsule {
+    /// Creates a new capsule SDF.
+    pub fn new(a: Vec2, b: Vec2, radius: f32) -> Self {
+        Self { a, b, radius }
+    }
+}
+
+impl Field<Vec2, f32> for DistanceCapsule {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let pa = input - self.a;
+        let ba = self.b - self.a;
+        let t = (pa.dot(ba) / ba.dot(ba)).clamp(0.0, 1.0);
+        (pa - ba * t).length() - self.radius
+    }
+}
+
+/// Distance field - returns distance from a triangle.
+#[derive(Debug, Clone, Copy)]
+pub struct DistanceTriangle {
+    /// First vertex.
+    pub a: Vec2,
+    /// Second vertex.
+    pub b: Vec2,
+    /// Third vertex.
+    pub c: Vec2,
+}
+
+impl DistanceTriangle {
+    /// Creates a new triangle SDF.
+    pub fn new(a: Vec2, b: Vec2, c: Vec2) -> Self {
+        Self { a, b, c }
+    }
+}
+
+impl Field<Vec2, f32> for DistanceTriangle {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input;
+
+        // Edge vectors and point-to-vertex vectors
+        let e0 = self.b - self.a;
+        let e1 = self.c - self.b;
+        let e2 = self.a - self.c;
+        let v0 = p - self.a;
+        let v1 = p - self.b;
+        let v2 = p - self.c;
+
+        // Perpendicular vectors
+        let pq0 = v0 - e0 * (v0.dot(e0) / e0.dot(e0)).clamp(0.0, 1.0);
+        let pq1 = v1 - e1 * (v1.dot(e1) / e1.dot(e1)).clamp(0.0, 1.0);
+        let pq2 = v2 - e2 * (v2.dot(e2) / e2.dot(e2)).clamp(0.0, 1.0);
+
+        // Signed distance
+        let s = (e0.x * e2.y - e0.y * e2.x).signum();
+        let d = (pq0.dot(pq0).min(pq1.dot(pq1)).min(pq2.dot(pq2))).sqrt();
+
+        // Determine if inside or outside
+        let c0 = s * (v0.x * e0.y - v0.y * e0.x);
+        let c1 = s * (v1.x * e1.y - v1.y * e1.x);
+        let c2 = s * (v2.x * e2.y - v2.y * e2.x);
+
+        if c0 >= 0.0 && c1 >= 0.0 && c2 >= 0.0 {
+            -d
+        } else {
+            d
+        }
+    }
+}
+
+/// Distance field - returns distance from a regular polygon.
+#[derive(Debug, Clone, Copy)]
+pub struct DistanceRegularPolygon {
+    /// Center of the polygon.
+    pub center: Vec2,
+    /// Circumradius (distance from center to vertex).
+    pub radius: f32,
+    /// Number of sides (3 = triangle, 4 = square, 6 = hexagon, etc.).
+    pub sides: u32,
+}
+
+impl DistanceRegularPolygon {
+    /// Creates a new regular polygon SDF.
+    pub fn new(center: Vec2, radius: f32, sides: u32) -> Self {
+        Self {
+            center,
+            radius,
+            sides: sides.max(3),
+        }
+    }
+}
+
+impl Field<Vec2, f32> for DistanceRegularPolygon {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        use std::f32::consts::PI;
+
+        let p = input - self.center;
+        let n = self.sides as f32;
+
+        // Angle between vertices
+        let an = PI / n;
+
+        // Convert to polar, reduce to one sector
+        let angle = p.y.atan2(p.x);
+        let sector_angle = ((angle + PI) / (2.0 * an)).floor() * 2.0 * an - PI + an;
+
+        // Rotate point into canonical sector
+        let cs = sector_angle.cos();
+        let sn = sector_angle.sin();
+        let q = Vec2::new(p.x * cs + p.y * sn, -p.x * sn + p.y * cs).abs();
+
+        // Distance to edge
+        let edge_dist = q.x - self.radius * an.cos();
+        let corner_dist = (q - Vec2::new(self.radius * an.cos(), self.radius * an.sin())).length();
+
+        if q.y > self.radius * an.sin() {
+            corner_dist
+        } else {
+            edge_dist
+        }
+    }
+}
+
+/// Distance field - returns distance from a pie/arc shape.
+#[derive(Debug, Clone, Copy)]
+pub struct DistanceArc {
+    /// Center of the arc.
+    pub center: Vec2,
+    /// Radius of the arc.
+    pub radius: f32,
+    /// Half-angle of the arc in radians.
+    pub half_angle: f32,
+    /// Thickness of the arc (0 for just the arc curve).
+    pub thickness: f32,
+}
+
+impl DistanceArc {
+    /// Creates a new arc/pie SDF.
+    pub fn new(center: Vec2, radius: f32, half_angle: f32, thickness: f32) -> Self {
+        Self {
+            center,
+            radius,
+            half_angle,
+            thickness,
+        }
+    }
+
+    /// Creates a pie shape (filled arc).
+    pub fn pie(center: Vec2, radius: f32, half_angle: f32) -> Self {
+        Self {
+            center,
+            radius,
+            half_angle,
+            thickness: radius, // Fill to center
+        }
+    }
+}
+
+impl Field<Vec2, f32> for DistanceArc {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input - self.center;
+
+        // Use symmetry around x-axis
+        let p = Vec2::new(p.x, p.y.abs());
+        let r = p.length();
+
+        // Angle of point from positive x-axis
+        let angle = p.y.atan2(p.x);
+
+        // For a pie/sector shape (thickness >= radius means filled to center):
+        // - Inside: angle <= half_angle AND r <= radius
+        // - Distance is to the nearest boundary
+
+        if angle <= self.half_angle {
+            // Inside angular range
+            if self.thickness >= self.radius {
+                // Pie mode: distance to arc (outer boundary)
+                r - self.radius
+            } else {
+                // Arc mode: distance to thick arc boundary
+                let radial_dist = (r - self.radius).abs();
+                radial_dist - self.thickness
+            }
+        } else {
+            // Outside angular range - distance to edge line
+            // Edge direction from center
+            let edge_dir = Vec2::new(self.half_angle.cos(), self.half_angle.sin());
+
+            // Project p onto edge direction (line from origin along edge_dir)
+            let proj_length = p.dot(edge_dir).max(0.0).min(self.radius);
+            let proj_point = edge_dir * proj_length;
+            let dist_to_edge = (p - proj_point).length();
+
+            if self.thickness >= self.radius {
+                // Pie mode: just distance to edge line
+                dist_to_edge
+            } else {
+                dist_to_edge - self.thickness
+            }
+        }
+    }
+}
+
 // ============================================================================
 // SDF operations
 // ============================================================================
@@ -4134,5 +4428,108 @@ mod tests {
         for (n1, n2) in network1.nodes.iter().zip(network2.nodes.iter()) {
             assert_eq!(n1.position, n2.position);
         }
+    }
+
+    // 2D SDF primitive tests
+
+    #[test]
+    fn test_distance_rounded_box() {
+        let ctx = EvalContext::new();
+        let sdf = DistanceRoundedBox::new(Vec2::ZERO, Vec2::new(1.0, 0.5), 0.1);
+
+        // Center should be inside (negative)
+        assert!(sdf.sample(Vec2::ZERO, &ctx) < 0.0);
+
+        // Far away should be outside (positive)
+        assert!(sdf.sample(Vec2::new(5.0, 0.0), &ctx) > 0.0);
+
+        // At edge should be close to zero
+        let edge_val = sdf.sample(Vec2::new(1.0, 0.0), &ctx).abs();
+        assert!(edge_val < 0.2);
+    }
+
+    #[test]
+    fn test_distance_ellipse() {
+        let ctx = EvalContext::new();
+        let sdf = DistanceEllipse::new(Vec2::ZERO, Vec2::new(2.0, 1.0));
+
+        // Center should be inside (negative)
+        assert!(sdf.sample(Vec2::ZERO, &ctx) < 0.0);
+
+        // On the ellipse boundary should be close to zero
+        let on_x = sdf.sample(Vec2::new(2.0, 0.0), &ctx);
+        let on_y = sdf.sample(Vec2::new(0.0, 1.0), &ctx);
+        assert!(on_x.abs() < 0.1);
+        assert!(on_y.abs() < 0.1);
+
+        // Outside should be positive
+        assert!(sdf.sample(Vec2::new(5.0, 0.0), &ctx) > 0.0);
+    }
+
+    #[test]
+    fn test_distance_capsule() {
+        let ctx = EvalContext::new();
+        let sdf = DistanceCapsule::new(Vec2::new(-1.0, 0.0), Vec2::new(1.0, 0.0), 0.5);
+
+        // Center should be inside
+        assert!(sdf.sample(Vec2::ZERO, &ctx) < 0.0);
+
+        // At ends should be at edge
+        let end_val = sdf.sample(Vec2::new(1.5, 0.0), &ctx).abs();
+        assert!(end_val < 0.1);
+
+        // Outside should be positive
+        assert!(sdf.sample(Vec2::new(3.0, 0.0), &ctx) > 0.0);
+    }
+
+    #[test]
+    fn test_distance_triangle() {
+        let ctx = EvalContext::new();
+        let sdf = DistanceTriangle::new(
+            Vec2::new(0.0, 1.0),
+            Vec2::new(-1.0, -1.0),
+            Vec2::new(1.0, -1.0),
+        );
+
+        // Center should be inside (negative)
+        assert!(sdf.sample(Vec2::ZERO, &ctx) < 0.0);
+
+        // Far outside should be positive
+        assert!(sdf.sample(Vec2::new(5.0, 0.0), &ctx) > 0.0);
+    }
+
+    #[test]
+    fn test_distance_regular_polygon() {
+        let ctx = EvalContext::new();
+
+        // Hexagon
+        let hex = DistanceRegularPolygon::new(Vec2::ZERO, 1.0, 6);
+
+        // Center should be inside
+        assert!(hex.sample(Vec2::ZERO, &ctx) < 0.0);
+
+        // Outside should be positive
+        assert!(hex.sample(Vec2::new(2.0, 0.0), &ctx) > 0.0);
+
+        // Square
+        let square = DistanceRegularPolygon::new(Vec2::ZERO, 1.0, 4);
+        assert!(square.sample(Vec2::ZERO, &ctx) < 0.0);
+    }
+
+    #[test]
+    fn test_distance_arc() {
+        let ctx = EvalContext::new();
+
+        // Pie shape (filled arc)
+        let pie = DistanceArc::pie(Vec2::ZERO, 1.0, std::f32::consts::FRAC_PI_4);
+
+        // Center of pie should be inside
+        assert!(pie.sample(Vec2::new(0.3, 0.0), &ctx) < 0.0);
+
+        // Outside the angle should be positive
+        assert!(pie.sample(Vec2::new(0.0, 0.5), &ctx) > 0.0);
+
+        // Far outside radius should be positive
+        assert!(pie.sample(Vec2::new(3.0, 0.0), &ctx) > 0.0);
     }
 }
