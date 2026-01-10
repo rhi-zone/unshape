@@ -60,6 +60,22 @@
 - [x] Pressure curves - pen tool simulation, variable stroke width (PressureStroke, simulate_velocity_pressure)
 - [x] Gradient meshes - interpolated color regions (GradientMesh, GradientPatch)
 
+### Spatial (new crate: resin-spatial)
+
+- [ ] Quadtree - 2D spatial partitioning, point/region queries
+- [ ] Octree - 3D spatial partitioning, point/region queries
+- [ ] BVH - bounding volume hierarchy for ray/intersection queries
+- [ ] Spatial hash - grid-based broad phase collision detection
+- [ ] R-tree - rectangle/AABB queries
+
+### Cross-Domain
+
+> Inspired by MetaSynth, glitch art - structure is transferable between domains.
+
+- [ ] Image↔Audio - spectral painting, sonification, audio-to-image
+- [ ] Buffer reinterpretation - treat any `&[f32]` as audio/vertices/pixels
+- [ ] Noise-as-anything - same noise field as texture, audio modulation, displacement
+
 ### File Formats
 
 > **Note:** These need serious design consideration. May be better handled by [Cambium](https://github.com/rhizome-lab/cambium) (pipeline orchestrator for data conversion).
