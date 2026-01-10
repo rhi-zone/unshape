@@ -2,10 +2,6 @@
 
 Cross-domain data interpretation and conversion utilities.
 
-## Features
-
-- `bytemuck` - Enables raw byte casting utilities for glitch-art style reinterpretation
-
 ## Purpose
 
 Inspired by MetaSynth and glitch art - the insight that structure is transferable between domains. An image can become audio, audio can become vertices, noise can be anything.
@@ -17,6 +13,7 @@ This crate provides utilities for:
 
 ## Related Crates
 
+- **resin-bytes** - Raw byte casting (re-exported as `bytes` module)
 - **resin-image** - Image fields used for spectral conversions
 - **resin-audio** - Audio types and spectral analysis (FFT, STFT)
 - **resin-field** - Field trait for sampling noise/procedural content
@@ -124,25 +121,26 @@ let painted = ImageField::from_file("audio_painting.png")?;
 let sound = image_to_audio(&painted, &ImageToAudioConfig::new(44100, 5.0));
 ```
 
-## Raw Byte Casting (bytemuck feature)
+## Raw Byte Casting (via resin-bytes)
 
-Requires the `bytemuck` feature. Enables glitch-art style raw data reinterpretation:
+Raw byte utilities are provided by `resin-bytes`, re-exported as the `bytes` module:
 
 ```rust
-use rhizome_resin_crossdomain::raw::*;
+use rhizome_resin_crossdomain::bytes::*;
+use rhizome_resin_crossdomain::bytes_to_image_auto;
 
 // Load any file and interpret as audio
 let jpeg_bytes = std::fs::read("photo.jpg")?;
 let samples = bytes_as_f32(&jpeg_bytes).unwrap();
-let normalized = normalize_samples(samples);
+let normalized = normalize_f32(samples);
 // Now play it - hear what a JPEG "sounds like"
 
-// Or interpret as an image
+// Or interpret as an image (bridge function in crossdomain)
 let exe_bytes = std::fs::read("program.exe")?;
 let glitch_image = bytes_to_image_auto(&exe_bytes)?;
 
 // Convert between sample formats
-let i16_samples = bytes_as_i16(&raw_audio)?;
+let i16_samples = bytes_as_i16(&raw_audio).unwrap();
 let float_samples = i16_to_f32(i16_samples);
 ```
 
@@ -153,4 +151,4 @@ let float_samples = i16_to_f32(i16_samples);
 - **Data sonification** - Convert any numeric data to audio
 - **Texture-to-audio** - Use textures as modulation sources
 - **Audio visualization** - Generate images from audio for feedback loops
-- **Raw byte glitching** - Hear what any file "sounds like" (with `bytemuck` feature)
+- **Raw byte glitching** - Hear what any file "sounds like"

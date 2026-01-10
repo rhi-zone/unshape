@@ -94,7 +94,8 @@ Index of resin's crates organized by domain. See individual crate docs in `docs/
 
 | Crate | Description | Docs |
 |-------|-------------|------|
-| **[resin-crossdomain](crates/resin-crossdomain.md)** | Buffer reinterpretation, image↔audio conversion, noise-as-anything adapters | [docs](crates/resin-crossdomain.md) |
+| **[resin-bytes](crates/resin-bytes.md)** | Raw byte casting between numeric types (bytemuck) | [docs](crates/resin-bytes.md) |
+| **[resin-crossdomain](crates/resin-crossdomain.md)** | Image↔audio conversion, noise-as-anything adapters | [docs](crates/resin-crossdomain.md) |
 
 ---
 
@@ -111,6 +112,6 @@ Index of resin's crates organized by domain. See individual crate docs in `docs/
 | Physics | 4 | Rigid body, soft body, cloth, springs, particles, fluids |
 | Procedural | 6 | Noise, automata, WFC, L-systems, reaction-diffusion |
 | Spatial | 1 | Quadtree, octree, BVH, spatial hash, R-tree |
-| Cross-Domain | 1 | Image↔audio, buffer reinterpretation, noise-as-anything |
+| Cross-Domain | 2 | Raw byte casting, image↔audio, noise-as-anything |
 | Fields | 2 | Lazy evaluation, expression language |
 | GPU | 1 | wgpu compute for noise/textures |

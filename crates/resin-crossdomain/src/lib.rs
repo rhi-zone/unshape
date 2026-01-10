@@ -183,268 +183,48 @@ impl<'a> PixelView<'a> {
 }
 
 // ============================================================================
-// Raw Byte Casting (requires `bytemuck` feature)
+// Raw Byte Casting (re-exported from resin-bytes)
 // ============================================================================
 
-/// Raw byte reinterpretation utilities for glitch-art style domain crossing.
+/// Re-export of resin-bytes for raw byte reinterpretation.
+pub use rhizome_resin_bytes as bytes;
+
+/// Creates an ImageField from raw bytes interpreted as RGBA pixels.
 ///
-/// These functions let you interpret any byte stream as audio samples, pixel data,
-/// or vertex positions - regardless of what the bytes originally represented.
-#[cfg(feature = "bytemuck")]
-pub mod raw {
-    use super::*;
-
-    /// Reinterprets raw bytes as f32 audio samples.
-    ///
-    /// The bytes are cast directly to f32 values. Length must be divisible by 4.
-    /// Values are not normalized - they may be outside [-1, 1].
-    ///
-    /// # Example
-    /// ```ignore
-    /// let jpeg_bytes = std::fs::read("image.jpg")?;
-    /// let samples = bytes_as_f32(&jpeg_bytes)?;
-    /// // Now you can hear what the JPEG "sounds like"
-    /// ```
-    pub fn bytes_as_f32(bytes: &[u8]) -> Option<&[f32]> {
-        if bytes.len() % 4 != 0 {
-            return None;
-        }
-        Some(bytemuck::cast_slice(bytes))
+/// Each 4 bytes become one RGBA pixel (u8 values scaled to 0-1).
+///
+/// This is a bridge function that combines resin-bytes with resin-image.
+pub fn bytes_to_image(bytes: &[u8], width: u32, height: u32) -> Option<ImageField> {
+    let expected = (width * height * 4) as usize;
+    if bytes.len() < expected {
+        return None;
     }
 
-    /// Reinterprets raw bytes as i16 audio samples.
-    ///
-    /// Common for raw PCM audio. Length must be divisible by 2.
-    pub fn bytes_as_i16(bytes: &[u8]) -> Option<&[i16]> {
-        if bytes.len() % 2 != 0 {
-            return None;
-        }
-        Some(bytemuck::cast_slice(bytes))
+    let pixels: Vec<[f32; 4]> = bytes[..expected]
+        .chunks_exact(4)
+        .map(|chunk| {
+            [
+                chunk[0] as f32 / 255.0,
+                chunk[1] as f32 / 255.0,
+                chunk[2] as f32 / 255.0,
+                chunk[3] as f32 / 255.0,
+            ]
+        })
+        .collect();
+
+    Some(ImageField::from_raw(pixels, width, height))
+}
+
+/// Creates an ImageField from raw bytes with automatic dimensions.
+///
+/// Assumes square image, rounds down to nearest valid size.
+pub fn bytes_to_image_auto(bytes: &[u8]) -> Option<ImageField> {
+    let num_pixels = bytes.len() / 4;
+    if num_pixels == 0 {
+        return None;
     }
-
-    /// Reinterprets raw bytes as u8 samples (0-255 range).
-    ///
-    /// No alignment requirements - every byte is a sample.
-    pub fn bytes_as_u8(bytes: &[u8]) -> &[u8] {
-        bytes
-    }
-
-    /// Converts i16 samples to f32 in [-1, 1] range.
-    pub fn i16_to_f32(samples: &[i16]) -> Vec<f32> {
-        samples
-            .iter()
-            .map(|&s| s as f32 / i16::MAX as f32)
-            .collect()
-    }
-
-    /// Converts u8 samples to f32 in [-1, 1] range.
-    pub fn u8_to_f32(samples: &[u8]) -> Vec<f32> {
-        samples.iter().map(|&s| (s as f32 / 128.0) - 1.0).collect()
-    }
-
-    /// Normalizes f32 samples to [-1, 1] range.
-    ///
-    /// Useful after raw byte casting since values may be arbitrary floats.
-    pub fn normalize_samples(samples: &[f32]) -> Vec<f32> {
-        let max = samples
-            .iter()
-            .filter(|s| s.is_finite())
-            .map(|s| s.abs())
-            .fold(0.0f32, |a, b| a.max(b));
-
-        if max == 0.0 {
-            return samples.to_vec();
-        }
-
-        samples
-            .iter()
-            .map(|&s| if s.is_finite() { s / max } else { 0.0 })
-            .collect()
-    }
-
-    /// Reinterprets raw bytes as RGBA pixels (4 bytes per pixel).
-    ///
-    /// Returns pixel data as [u8; 4] arrays.
-    pub fn bytes_as_rgba_u8(bytes: &[u8]) -> Option<&[[u8; 4]]> {
-        if bytes.len() % 4 != 0 {
-            return None;
-        }
-        Some(bytemuck::cast_slice(bytes))
-    }
-
-    /// Reinterprets raw bytes as RGB pixels (3 bytes per pixel).
-    ///
-    /// Returns pixel data as [u8; 3] arrays.
-    pub fn bytes_as_rgb_u8(bytes: &[u8]) -> Option<&[[u8; 3]]> {
-        if bytes.len() % 3 != 0 {
-            return None;
-        }
-        Some(bytemuck::cast_slice(bytes))
-    }
-
-    /// Reinterprets raw bytes as Vec2 vertices (8 bytes per vertex).
-    pub fn bytes_as_vec2(bytes: &[u8]) -> Option<&[[f32; 2]]> {
-        if bytes.len() % 8 != 0 {
-            return None;
-        }
-        Some(bytemuck::cast_slice(bytes))
-    }
-
-    /// Reinterprets raw bytes as Vec3 vertices (12 bytes per vertex).
-    pub fn bytes_as_vec3(bytes: &[u8]) -> Option<&[[f32; 3]]> {
-        if bytes.len() % 12 != 0 {
-            return None;
-        }
-        Some(bytemuck::cast_slice(bytes))
-    }
-
-    /// Creates an ImageField from raw bytes interpreted as RGBA pixels.
-    ///
-    /// Each 4 bytes become one RGBA pixel (u8 values scaled to 0-1).
-    pub fn bytes_to_image(bytes: &[u8], width: u32, height: u32) -> Option<ImageField> {
-        let expected = (width * height * 4) as usize;
-        if bytes.len() < expected {
-            return None;
-        }
-
-        let pixels: Vec<[f32; 4]> = bytes[..expected]
-            .chunks_exact(4)
-            .map(|chunk| {
-                [
-                    chunk[0] as f32 / 255.0,
-                    chunk[1] as f32 / 255.0,
-                    chunk[2] as f32 / 255.0,
-                    chunk[3] as f32 / 255.0,
-                ]
-            })
-            .collect();
-
-        Some(ImageField::from_raw(pixels, width, height))
-    }
-
-    /// Creates an ImageField from raw bytes with automatic dimensions.
-    ///
-    /// Assumes square image, rounds down to nearest valid size.
-    pub fn bytes_to_image_auto(bytes: &[u8]) -> Option<ImageField> {
-        let num_pixels = bytes.len() / 4;
-        if num_pixels == 0 {
-            return None;
-        }
-        let side = (num_pixels as f32).sqrt() as u32;
-        bytes_to_image(bytes, side, side)
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn test_bytes_as_f32() {
-            let bytes: Vec<u8> = vec![0, 0, 128, 63, 0, 0, 0, 64]; // 1.0f32, 2.0f32 in little-endian
-            let floats = bytes_as_f32(&bytes).unwrap();
-            assert_eq!(floats.len(), 2);
-            assert!((floats[0] - 1.0).abs() < 0.0001);
-            assert!((floats[1] - 2.0).abs() < 0.0001);
-        }
-
-        #[test]
-        fn test_bytes_as_f32_invalid_len() {
-            let bytes = vec![0, 0, 128]; // 3 bytes, not divisible by 4
-            assert!(bytes_as_f32(&bytes).is_none());
-        }
-
-        #[test]
-        fn test_bytes_as_i16() {
-            let bytes: Vec<u8> = vec![0, 0, 255, 127]; // 0i16, 32767i16 in little-endian
-            let samples = bytes_as_i16(&bytes).unwrap();
-            assert_eq!(samples.len(), 2);
-            assert_eq!(samples[0], 0);
-            assert_eq!(samples[1], i16::MAX);
-        }
-
-        #[test]
-        fn test_i16_to_f32() {
-            let samples = vec![0i16, i16::MAX, i16::MIN];
-            let floats = i16_to_f32(&samples);
-            assert!((floats[0] - 0.0).abs() < 0.0001);
-            assert!((floats[1] - 1.0).abs() < 0.0001);
-            assert!((floats[2] - (-1.0)).abs() < 0.01);
-        }
-
-        #[test]
-        fn test_u8_to_f32() {
-            let samples = vec![0u8, 128, 255];
-            let floats = u8_to_f32(&samples);
-            assert!((floats[0] - (-1.0)).abs() < 0.01);
-            assert!((floats[1] - 0.0).abs() < 0.01);
-            assert!((floats[2] - 1.0).abs() < 0.01);
-        }
-
-        #[test]
-        fn test_normalize_samples() {
-            let samples = vec![0.0, 5.0, -10.0, 2.5];
-            let normalized = normalize_samples(&samples);
-            assert!((normalized[0] - 0.0).abs() < 0.0001);
-            assert!((normalized[1] - 0.5).abs() < 0.0001);
-            assert!((normalized[2] - (-1.0)).abs() < 0.0001);
-            assert!((normalized[3] - 0.25).abs() < 0.0001);
-        }
-
-        #[test]
-        fn test_normalize_with_nan() {
-            let samples = vec![1.0, f32::NAN, -2.0];
-            let normalized = normalize_samples(&samples);
-            assert!((normalized[0] - 0.5).abs() < 0.0001);
-            assert_eq!(normalized[1], 0.0); // NaN becomes 0
-            assert!((normalized[2] - (-1.0)).abs() < 0.0001);
-        }
-
-        #[test]
-        fn test_bytes_as_rgba_u8() {
-            let bytes = vec![255, 0, 0, 255, 0, 255, 0, 128];
-            let pixels = bytes_as_rgba_u8(&bytes).unwrap();
-            assert_eq!(pixels.len(), 2);
-            assert_eq!(pixels[0], [255, 0, 0, 255]);
-            assert_eq!(pixels[1], [0, 255, 0, 128]);
-        }
-
-        #[test]
-        fn test_bytes_as_vec3() {
-            // 12 bytes = 3 floats = 1 Vec3
-            let v = 1.0f32;
-            let mut bytes = Vec::new();
-            bytes.extend_from_slice(&v.to_le_bytes());
-            bytes.extend_from_slice(&2.0f32.to_le_bytes());
-            bytes.extend_from_slice(&3.0f32.to_le_bytes());
-
-            let verts = bytes_as_vec3(&bytes).unwrap();
-            assert_eq!(verts.len(), 1);
-            assert!((verts[0][0] - 1.0).abs() < 0.0001);
-            assert!((verts[0][1] - 2.0).abs() < 0.0001);
-            assert!((verts[0][2] - 3.0).abs() < 0.0001);
-        }
-
-        #[test]
-        fn test_bytes_to_image() {
-            // 4 pixels (2x2)
-            let bytes = vec![
-                255, 0, 0, 255, // red
-                0, 255, 0, 255, // green
-                0, 0, 255, 255, // blue
-                255, 255, 0, 255, // yellow
-            ];
-            let img = bytes_to_image(&bytes, 2, 2).unwrap();
-            assert_eq!(img.dimensions(), (2, 2));
-        }
-
-        #[test]
-        fn test_bytes_to_image_auto() {
-            // 16 pixels worth of bytes = 4x4 image
-            let bytes = vec![128u8; 64];
-            let img = bytes_to_image_auto(&bytes).unwrap();
-            assert_eq!(img.dimensions(), (4, 4));
-        }
-    }
+    let side = (num_pixels as f32).sqrt() as u32;
+    bytes_to_image(bytes, side, side)
 }
 
 // ============================================================================
@@ -1077,5 +857,26 @@ mod tests {
         assert_eq!(pixels.len(), 2);
         assert_eq!(pixels[0], [1.0, 0.0, 0.0, 1.0]);
         assert_eq!(pixels[1], [0.0, 1.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn test_bytes_to_image() {
+        // 4 pixels (2x2)
+        let bytes = vec![
+            255, 0, 0, 255, // red
+            0, 255, 0, 255, // green
+            0, 0, 255, 255, // blue
+            255, 255, 0, 255, // yellow
+        ];
+        let img = bytes_to_image(&bytes, 2, 2).unwrap();
+        assert_eq!(img.dimensions(), (2, 2));
+    }
+
+    #[test]
+    fn test_bytes_to_image_auto() {
+        // 16 pixels worth of bytes = 4x4 image
+        let bytes = vec![128u8; 64];
+        let img = bytes_to_image_auto(&bytes).unwrap();
+        assert_eq!(img.dimensions(), (4, 4));
     }
 }
