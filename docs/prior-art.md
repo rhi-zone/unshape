@@ -70,6 +70,55 @@ Key insight: audio is naturally dataflow - sources -> processors -> output.
 
 Key insight: a small set of primitives (osc, filter, env, lfo) covers vast sonic territory.
 
+### MetaSynth
+
+[Website](https://uisoftware.com/metasynth/)
+
+Image-based audio synthesis (used in Dune, Inception, The Matrix):
+- **Spectral painting**: x=time, y=frequency, brightness=amplitude, color=stereo
+- **Bidirectional**: paint sound OR analyze audio→image, manipulate, resynthesize
+- **Multi-synthesis**: wavetable, FM, additive, granular - all via image metaphor
+- **16-bit images**: 65,536 amplitude levels for subtle spectral work
+
+Key insight: **representation is transferable**. The same structure (2D field) can be an image OR a spectrogram. The "domain" (visual/audio) is just how you render it.
+
+**Relevance to Resin**: We have `ImageField` + spectral audio. Natural connection: procedural textures → spectral content. Noise fields as timbral control. Reaction-diffusion as evolving spectra.
+
+## Cross-Domain Reinterpretation
+
+### Glitch Art / Databending
+
+Intentionally "wrong" interpretation of data:
+- **Databending**: import JPEG as raw audio in Audacity, process, export back
+- **Hex editing**: corrupt headers, force partial decoding
+- **Wrong codec**: decode MP3 as raw PCM, treat WAV as image pixels
+- **Pixel sorting**: image rows as sortable numeric data
+- **Circuit bending**: hardware-level misinterpretation
+
+Key insight: **format is convention, not truth**. The same bytes are simultaneously valid (if weird) audio, image, mesh data. There's no "correct" interpretation - just useful ones.
+
+**Relevance to Resin**:
+- Raw buffer reinterpretation as creative tool (`&[f32]` → audio samples OR vertex positions)
+- Intentional format mismatches (mesh normals as RGB, audio as heightfield)
+- "Wrong" mappings that produce interesting results
+- Corruption/noise injection as first-class operations
+
+### The General Pattern
+
+Both MetaSynth and glitch art point to the same underlying idea:
+
+```
+Structure (graph, field, buffer)
+    ↓ interpretation A
+  Image
+    ↓ interpretation B
+  Audio
+    ↓ interpretation C
+  Mesh
+```
+
+The structure is the real thing. Domain-specific outputs are just projections. This aligns with resin's core idea: everything is procedurally describable, and the "output format" is a rendering choice.
+
 ### TidalCycles / Strudel
 
 [TidalCycles](https://tidalcycles.org/) (Haskell) · [Strudel](https://strudel.cc/) (JS)
@@ -276,3 +325,4 @@ Key insight: abstract compute kernels over backends. No need to choose CPU vs GP
 4. **Lazy/deferred evaluation** - describe, then compute
 5. **Generators as timelines** - (Motion Canvas, Manim) code execution = animation
 6. **Portable workflows** - (ComfyUI) graphs as shareable artifacts
+7. **Domain as projection** - (MetaSynth, glitch art) structure is real, format is interpretation
