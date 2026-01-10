@@ -27,7 +27,9 @@ pub mod repair;
 mod sdf;
 mod subdivision;
 mod terrain;
+mod topology;
 mod uv;
+mod weights;
 
 pub use ao::{
     AoAccelerator, AoBakeConfig, AoTexture, ao_to_vertex_colors, bake_ao_texture, bake_ao_vertices,
@@ -86,10 +88,20 @@ pub use remesh::{
 pub use sdf::{SdfConfig, SdfGrid, mesh_to_sdf, mesh_to_sdf_fast, raymarch};
 pub use subdivision::{subdivide_linear, subdivide_loop, subdivide_loop_n};
 pub use terrain::{CombinedErosion, Heightfield, HydraulicErosion, ThermalErosion};
+pub use topology::{
+    TopologyInfo, analyze_topology, connected_components, euler_characteristic,
+    extract_boundary_loops, find_boundary_edges, find_boundary_vertices, find_non_manifold_edges,
+    genus, is_closed, is_manifold,
+};
 pub use uv::{
     AtlasPackConfig, AtlasPackResult, BoxConfig, CylindricalConfig, PackedChart, ProjectionAxis,
     SphericalConfig, UvChart, apply_atlas_pack, find_uv_islands, flip_u, flip_v, normalize_uvs,
     pack_mesh_uvs, pack_multi_mesh_uvs, pack_uv_charts, project_box, project_box_per_face,
     project_cylindrical, project_planar, project_planar_axis, project_spherical, rotate_uvs,
     scale_uvs, transform_uvs, translate_uvs,
+};
+pub use weights::{
+    HeatDiffusionConfig, VertexWeights, blur_weights, compute_automatic_weights, gradient_weights,
+    heat_diffusion, invert_weights, limit_influences, radial_weights, scale_weights,
+    smooth_influence, smooth_weights, transfer_weights_nearest,
 };

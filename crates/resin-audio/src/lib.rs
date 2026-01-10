@@ -10,6 +10,7 @@ pub mod graph;
 pub mod midi;
 pub mod osc;
 pub mod patch;
+pub mod pattern;
 pub mod percussion;
 pub mod physical;
 pub mod room;
@@ -49,6 +50,10 @@ pub use osc::{
 pub use patch::{
     ModRouting, ModSource, PatchBank, PatchParameter, SynthPatch, interpolate_patches,
     randomize_patch,
+};
+pub use pattern::{
+    Event, Pattern, TimeArc as PatternArc, cat, chop, degrade, euclid, every, fast, jux, ply, rev,
+    shift, slow, stack,
 };
 pub use percussion::{Bar, BarConfig, Membrane, MembraneConfig, Plate, PlateConfig, noise_burst};
 pub use physical::{ExtendedKarplusStrong, KarplusStrong, PluckConfig, PolyStrings};
