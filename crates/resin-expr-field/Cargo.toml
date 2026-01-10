@@ -6,9 +6,17 @@ description = "Bridge between expressions and fields"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rhizome-lab/resin"
 
+[features]
+default = []
+serde = ["dep:serde", "glam/serde"]
+
 [dependencies]
 glam.workspace = true
 rhizome-dew-core = { git = "https://github.com/rhizome-lab/dew" }
 rhizome-dew-scalar = { git = "https://github.com/rhizome-lab/dew" }
 rhizome-resin-field = { path = "../resin-field" }
 rhizome-resin-noise = { path = "../resin-noise" }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = "1"

@@ -772,6 +772,564 @@ pub mod dew_functions {
 pub use dew_functions::register_motion_functions;
 
 // ============================================================================
+// MotionExpr - Typed AST for motion expressions
+// ============================================================================
+
+use std::collections::HashMap;
+
+/// A typed expression AST for motion (time → value).
+///
+/// Unlike raw dew AST, this has typed variants for each motion function,
+/// enabling UI introspection, JSON serialization, and GPU compilation.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_motion_fn::MotionExpr;
+///
+/// // Build expression: spring(0, 100, 300, 15) + wiggle(0, 5, 2, 42)
+/// let expr = MotionExpr::Add(
+///     Box::new(MotionExpr::Spring {
+///         from: Box::new(MotionExpr::Constant(0.0)),
+///         to: Box::new(MotionExpr::Constant(100.0)),
+///         stiffness: 300.0,
+///         damping: 15.0,
+///     }),
+///     Box::new(MotionExpr::Wiggle {
+///         center: 0.0,
+///         amplitude: 5.0,
+///         frequency: 2.0,
+///         seed: 42.0,
+///     }),
+/// );
+///
+/// // Evaluate at t=0.5
+/// let value = expr.eval(0.5, &Default::default());
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum MotionExpr {
+    // === Literals ===
+    /// Constant value.
+    Constant(f32),
+
+    /// Variable reference (user-defined, not `t`).
+    Var(String),
+
+    // === Binary operations ===
+    /// Addition.
+    Add(Box<MotionExpr>, Box<MotionExpr>),
+
+    /// Subtraction.
+    Sub(Box<MotionExpr>, Box<MotionExpr>),
+
+    /// Multiplication.
+    Mul(Box<MotionExpr>, Box<MotionExpr>),
+
+    /// Division.
+    Div(Box<MotionExpr>, Box<MotionExpr>),
+
+    /// Modulo.
+    Mod(Box<MotionExpr>, Box<MotionExpr>),
+
+    /// Power.
+    Pow(Box<MotionExpr>, Box<MotionExpr>),
+
+    // === Unary operations ===
+    /// Negation.
+    Neg(Box<MotionExpr>),
+
+    // === Motion functions ===
+    /// Spring motion toward target.
+    Spring {
+        from: Box<MotionExpr>,
+        to: Box<MotionExpr>,
+        stiffness: f32,
+        damping: f32,
+    },
+
+    /// Critically damped spring (auto-calculated damping).
+    SpringCritical {
+        from: Box<MotionExpr>,
+        to: Box<MotionExpr>,
+        stiffness: f32,
+    },
+
+    /// Sine wave oscillation.
+    Oscillate {
+        center: Box<MotionExpr>,
+        amplitude: Box<MotionExpr>,
+        frequency: f32,
+        phase: f32,
+    },
+
+    /// Noise-based random motion.
+    Wiggle {
+        center: f32,
+        amplitude: f32,
+        frequency: f32,
+        seed: f32,
+    },
+
+    /// Linear interpolation (clamped to duration).
+    LerpMotion {
+        from: Box<MotionExpr>,
+        to: Box<MotionExpr>,
+        duration: f32,
+    },
+
+    /// Eased interpolation.
+    Eased {
+        from: Box<MotionExpr>,
+        to: Box<MotionExpr>,
+        duration: f32,
+        easing: EasingType,
+    },
+
+    // === Math functions ===
+    /// Sine.
+    Sin(Box<MotionExpr>),
+
+    /// Cosine.
+    Cos(Box<MotionExpr>),
+
+    /// Absolute value.
+    Abs(Box<MotionExpr>),
+
+    /// Floor.
+    Floor(Box<MotionExpr>),
+
+    /// Ceiling.
+    Ceil(Box<MotionExpr>),
+
+    /// Square root.
+    Sqrt(Box<MotionExpr>),
+
+    /// Minimum of two values.
+    Min(Box<MotionExpr>, Box<MotionExpr>),
+
+    /// Maximum of two values.
+    Max(Box<MotionExpr>, Box<MotionExpr>),
+
+    /// Clamp value to range.
+    Clamp {
+        value: Box<MotionExpr>,
+        min: Box<MotionExpr>,
+        max: Box<MotionExpr>,
+    },
+
+    /// Linear interpolation (unclamped).
+    Lerp {
+        a: Box<MotionExpr>,
+        b: Box<MotionExpr>,
+        t_expr: Box<MotionExpr>,
+    },
+
+    // === Conditionals ===
+    /// If-then-else.
+    IfThenElse {
+        condition: Box<MotionExpr>,
+        then_expr: Box<MotionExpr>,
+        else_expr: Box<MotionExpr>,
+    },
+
+    /// Greater than (returns 1.0 or 0.0).
+    Gt(Box<MotionExpr>, Box<MotionExpr>),
+
+    /// Less than (returns 1.0 or 0.0).
+    Lt(Box<MotionExpr>, Box<MotionExpr>),
+}
+
+impl MotionExpr {
+    /// Evaluate the expression at time `t` with variable bindings.
+    pub fn eval(&self, t: f32, vars: &HashMap<String, f32>) -> f32 {
+        match self {
+            // Literals
+            Self::Constant(v) => *v,
+            Self::Var(name) => *vars.get(name).unwrap_or(&0.0),
+
+            // Binary ops
+            Self::Add(a, b) => a.eval(t, vars) + b.eval(t, vars),
+            Self::Sub(a, b) => a.eval(t, vars) - b.eval(t, vars),
+            Self::Mul(a, b) => a.eval(t, vars) * b.eval(t, vars),
+            Self::Div(a, b) => a.eval(t, vars) / b.eval(t, vars),
+            Self::Mod(a, b) => a.eval(t, vars) % b.eval(t, vars),
+            Self::Pow(a, b) => a.eval(t, vars).powf(b.eval(t, vars)),
+
+            // Unary ops
+            Self::Neg(a) => -a.eval(t, vars),
+
+            // Motion functions
+            Self::Spring {
+                from,
+                to,
+                stiffness,
+                damping,
+            } => spring_value(
+                from.eval(t, vars),
+                to.eval(t, vars),
+                *stiffness,
+                *damping,
+                t,
+            ),
+
+            Self::SpringCritical {
+                from,
+                to,
+                stiffness,
+            } => {
+                let damping = 2.0 * stiffness.sqrt();
+                spring_value(from.eval(t, vars), to.eval(t, vars), *stiffness, damping, t)
+            }
+
+            Self::Oscillate {
+                center,
+                amplitude,
+                frequency,
+                phase,
+            } => {
+                let angle = std::f32::consts::TAU * frequency * t + phase;
+                center.eval(t, vars) + amplitude.eval(t, vars) * angle.sin()
+            }
+
+            Self::Wiggle {
+                center,
+                amplitude,
+                frequency,
+                seed,
+            } => {
+                let noise = rhizome_resin_noise::perlin2(t * frequency, *seed);
+                let normalized = noise * 2.0 - 1.0;
+                center + amplitude * normalized
+            }
+
+            Self::LerpMotion { from, to, duration } => {
+                let progress = (t / duration).clamp(0.0, 1.0);
+                let a = from.eval(t, vars);
+                let b = to.eval(t, vars);
+                a + (b - a) * progress
+            }
+
+            Self::Eased {
+                from,
+                to,
+                duration,
+                easing,
+            } => {
+                let linear = (t / duration).clamp(0.0, 1.0);
+                let eased = easing.apply(linear);
+                let a = from.eval(t, vars);
+                let b = to.eval(t, vars);
+                a + (b - a) * eased
+            }
+
+            // Math functions
+            Self::Sin(a) => a.eval(t, vars).sin(),
+            Self::Cos(a) => a.eval(t, vars).cos(),
+            Self::Abs(a) => a.eval(t, vars).abs(),
+            Self::Floor(a) => a.eval(t, vars).floor(),
+            Self::Ceil(a) => a.eval(t, vars).ceil(),
+            Self::Sqrt(a) => a.eval(t, vars).sqrt(),
+            Self::Min(a, b) => a.eval(t, vars).min(b.eval(t, vars)),
+            Self::Max(a, b) => a.eval(t, vars).max(b.eval(t, vars)),
+            Self::Clamp { value, min, max } => value
+                .eval(t, vars)
+                .clamp(min.eval(t, vars), max.eval(t, vars)),
+            Self::Lerp { a, b, t_expr } => {
+                let a_val = a.eval(t, vars);
+                let b_val = b.eval(t, vars);
+                let t_val = t_expr.eval(t, vars);
+                a_val + (b_val - a_val) * t_val
+            }
+
+            // Conditionals
+            Self::IfThenElse {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                if condition.eval(t, vars) > 0.5 {
+                    then_expr.eval(t, vars)
+                } else {
+                    else_expr.eval(t, vars)
+                }
+            }
+            Self::Gt(a, b) => {
+                if a.eval(t, vars) > b.eval(t, vars) {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+            Self::Lt(a, b) => {
+                if a.eval(t, vars) < b.eval(t, vars) {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+        }
+    }
+
+    /// Returns the free variables in this expression (excluding `t`).
+    pub fn free_vars(&self) -> std::collections::HashSet<String> {
+        let mut vars = std::collections::HashSet::new();
+        self.collect_vars(&mut vars);
+        vars
+    }
+
+    fn collect_vars(&self, vars: &mut std::collections::HashSet<String>) {
+        match self {
+            Self::Var(name) => {
+                vars.insert(name.clone());
+            }
+            Self::Constant(_) | Self::Wiggle { .. } => {}
+
+            Self::Add(a, b)
+            | Self::Sub(a, b)
+            | Self::Mul(a, b)
+            | Self::Div(a, b)
+            | Self::Mod(a, b)
+            | Self::Pow(a, b)
+            | Self::Min(a, b)
+            | Self::Max(a, b)
+            | Self::Gt(a, b)
+            | Self::Lt(a, b) => {
+                a.collect_vars(vars);
+                b.collect_vars(vars);
+            }
+
+            Self::Neg(a)
+            | Self::Sin(a)
+            | Self::Cos(a)
+            | Self::Abs(a)
+            | Self::Floor(a)
+            | Self::Ceil(a)
+            | Self::Sqrt(a) => {
+                a.collect_vars(vars);
+            }
+
+            Self::Spring { from, to, .. } | Self::SpringCritical { from, to, .. } => {
+                from.collect_vars(vars);
+                to.collect_vars(vars);
+            }
+
+            Self::Oscillate {
+                center, amplitude, ..
+            } => {
+                center.collect_vars(vars);
+                amplitude.collect_vars(vars);
+            }
+
+            Self::LerpMotion { from, to, .. } | Self::Eased { from, to, .. } => {
+                from.collect_vars(vars);
+                to.collect_vars(vars);
+            }
+
+            Self::Clamp { value, min, max } => {
+                value.collect_vars(vars);
+                min.collect_vars(vars);
+                max.collect_vars(vars);
+            }
+
+            Self::Lerp { a, b, t_expr } => {
+                a.collect_vars(vars);
+                b.collect_vars(vars);
+                t_expr.collect_vars(vars);
+            }
+
+            Self::IfThenElse {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                condition.collect_vars(vars);
+                then_expr.collect_vars(vars);
+                else_expr.collect_vars(vars);
+            }
+        }
+    }
+}
+
+// Conversion to/from dew AST
+#[cfg(feature = "dew")]
+impl MotionExpr {
+    /// Convert to dew AST for compilation to WGSL/Cranelift.
+    pub fn to_dew_ast(&self) -> rhizome_dew_core::Ast {
+        use rhizome_dew_core::{Ast, BinOp, UnaryOp};
+
+        match self {
+            Self::Constant(v) => Ast::Num(*v),
+            Self::Var(name) => Ast::Var(name.clone()),
+
+            Self::Add(a, b) => Ast::BinOp(
+                BinOp::Add,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Sub(a, b) => Ast::BinOp(
+                BinOp::Sub,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Mul(a, b) => Ast::BinOp(
+                BinOp::Mul,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Div(a, b) => Ast::BinOp(
+                BinOp::Div,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Mod(a, b) => {
+                // Modulo as function call since dew doesn't have Mod binary op
+                Ast::Call("mod".into(), vec![a.to_dew_ast(), b.to_dew_ast()])
+            }
+            Self::Pow(a, b) => Ast::BinOp(
+                BinOp::Pow,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+
+            Self::Neg(a) => Ast::UnaryOp(UnaryOp::Neg, Box::new(a.to_dew_ast())),
+
+            Self::Spring {
+                from,
+                to,
+                stiffness,
+                damping,
+            } => Ast::Call(
+                "spring".into(),
+                vec![
+                    from.to_dew_ast(),
+                    to.to_dew_ast(),
+                    Ast::Num(*stiffness),
+                    Ast::Num(*damping),
+                    Ast::Var("t".into()),
+                ],
+            ),
+
+            Self::SpringCritical {
+                from,
+                to,
+                stiffness,
+            } => Ast::Call(
+                "spring_critical".into(),
+                vec![
+                    from.to_dew_ast(),
+                    to.to_dew_ast(),
+                    Ast::Num(*stiffness),
+                    Ast::Var("t".into()),
+                ],
+            ),
+
+            Self::Oscillate {
+                center,
+                amplitude,
+                frequency,
+                phase,
+            } => Ast::Call(
+                "oscillate".into(),
+                vec![
+                    center.to_dew_ast(),
+                    amplitude.to_dew_ast(),
+                    Ast::Num(*frequency),
+                    Ast::Num(*phase),
+                    Ast::Var("t".into()),
+                ],
+            ),
+
+            Self::Wiggle {
+                center,
+                amplitude,
+                frequency,
+                seed,
+            } => Ast::Call(
+                "wiggle".into(),
+                vec![
+                    Ast::Num(*center),
+                    Ast::Num(*amplitude),
+                    Ast::Num(*frequency),
+                    Ast::Num(*seed),
+                    Ast::Var("t".into()),
+                ],
+            ),
+
+            Self::LerpMotion { from, to, duration } => Ast::Call(
+                "lerp_motion".into(),
+                vec![
+                    from.to_dew_ast(),
+                    to.to_dew_ast(),
+                    Ast::Num(*duration),
+                    Ast::Var("t".into()),
+                ],
+            ),
+
+            Self::Eased {
+                from,
+                to,
+                duration,
+                easing,
+            } => {
+                // For now, convert easing to a string - backend needs to handle
+                Ast::Call(
+                    "eased".into(),
+                    vec![
+                        from.to_dew_ast(),
+                        to.to_dew_ast(),
+                        Ast::Num(*duration),
+                        Ast::Var(format!("{:?}", easing)),
+                        Ast::Var("t".into()),
+                    ],
+                )
+            }
+
+            Self::Sin(a) => Ast::Call("sin".into(), vec![a.to_dew_ast()]),
+            Self::Cos(a) => Ast::Call("cos".into(), vec![a.to_dew_ast()]),
+            Self::Abs(a) => Ast::Call("abs".into(), vec![a.to_dew_ast()]),
+            Self::Floor(a) => Ast::Call("floor".into(), vec![a.to_dew_ast()]),
+            Self::Ceil(a) => Ast::Call("ceil".into(), vec![a.to_dew_ast()]),
+            Self::Sqrt(a) => Ast::Call("sqrt".into(), vec![a.to_dew_ast()]),
+
+            Self::Min(a, b) => Ast::Call("min".into(), vec![a.to_dew_ast(), b.to_dew_ast()]),
+            Self::Max(a, b) => Ast::Call("max".into(), vec![a.to_dew_ast(), b.to_dew_ast()]),
+
+            Self::Clamp { value, min, max } => Ast::Call(
+                "clamp".into(),
+                vec![value.to_dew_ast(), min.to_dew_ast(), max.to_dew_ast()],
+            ),
+
+            Self::Lerp { a, b, t_expr } => Ast::Call(
+                "lerp".into(),
+                vec![a.to_dew_ast(), b.to_dew_ast(), t_expr.to_dew_ast()],
+            ),
+
+            Self::IfThenElse {
+                condition,
+                then_expr,
+                else_expr,
+            } => Ast::If(
+                Box::new(condition.to_dew_ast()),
+                Box::new(then_expr.to_dew_ast()),
+                Box::new(else_expr.to_dew_ast()),
+            ),
+
+            Self::Gt(a, b) => Ast::Compare(
+                rhizome_dew_core::CompareOp::Gt,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Lt(a, b) => Ast::Compare(
+                rhizome_dew_core::CompareOp::Lt,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+        }
+    }
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -901,5 +1459,161 @@ mod tests {
         assert!(late.x > 99.0);
         assert!(late.y > 99.0);
         assert!(late.z > 99.0);
+    }
+
+    // MotionExpr tests
+
+    #[test]
+    fn test_motion_expr_constant() {
+        let expr = MotionExpr::Constant(42.0);
+        assert_eq!(expr.eval(0.0, &Default::default()), 42.0);
+        assert_eq!(expr.eval(1.0, &Default::default()), 42.0);
+    }
+
+    #[test]
+    fn test_motion_expr_var() {
+        let expr = MotionExpr::Var("x".into());
+        let mut vars = HashMap::new();
+        vars.insert("x".into(), 100.0);
+        assert_eq!(expr.eval(0.0, &vars), 100.0);
+        // Missing var returns 0
+        assert_eq!(expr.eval(0.0, &Default::default()), 0.0);
+    }
+
+    #[test]
+    fn test_motion_expr_arithmetic() {
+        let expr = MotionExpr::Add(
+            Box::new(MotionExpr::Constant(10.0)),
+            Box::new(MotionExpr::Mul(
+                Box::new(MotionExpr::Constant(5.0)),
+                Box::new(MotionExpr::Constant(3.0)),
+            )),
+        );
+        // 10 + (5 * 3) = 25
+        assert_eq!(expr.eval(0.0, &Default::default()), 25.0);
+    }
+
+    #[test]
+    fn test_motion_expr_spring() {
+        let expr = MotionExpr::Spring {
+            from: Box::new(MotionExpr::Constant(0.0)),
+            to: Box::new(MotionExpr::Constant(100.0)),
+            stiffness: 300.0,
+            damping: 2.0 * 300.0_f32.sqrt(), // Critical damping
+        };
+        assert_eq!(expr.eval(0.0, &Default::default()), 0.0);
+        let late = expr.eval(1.0, &Default::default());
+        assert!(late > 99.0, "Spring should reach near target: {}", late);
+    }
+
+    #[test]
+    fn test_motion_expr_oscillate() {
+        let expr = MotionExpr::Oscillate {
+            center: Box::new(MotionExpr::Constant(0.0)),
+            amplitude: Box::new(MotionExpr::Constant(1.0)),
+            frequency: 1.0,
+            phase: 0.0,
+        };
+        // At t=0, sin(0) = 0
+        assert!((expr.eval(0.0, &Default::default()) - 0.0).abs() < 0.01);
+        // At t=0.25 (1/4 period), sin(π/2) = 1
+        assert!((expr.eval(0.25, &Default::default()) - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_motion_expr_free_vars() {
+        let expr = MotionExpr::Add(
+            Box::new(MotionExpr::Var("x".into())),
+            Box::new(MotionExpr::Mul(
+                Box::new(MotionExpr::Var("y".into())),
+                Box::new(MotionExpr::Constant(2.0)),
+            )),
+        );
+        let vars = expr.free_vars();
+        assert!(vars.contains("x"));
+        assert!(vars.contains("y"));
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn test_motion_expr_conditionals() {
+        // If t > 0.5 then 100 else 0
+        let expr = MotionExpr::IfThenElse {
+            condition: Box::new(MotionExpr::Gt(
+                Box::new(MotionExpr::Var("t_val".into())),
+                Box::new(MotionExpr::Constant(0.5)),
+            )),
+            then_expr: Box::new(MotionExpr::Constant(100.0)),
+            else_expr: Box::new(MotionExpr::Constant(0.0)),
+        };
+        let mut vars = HashMap::new();
+        vars.insert("t_val".into(), 0.3);
+        assert_eq!(expr.eval(0.0, &vars), 0.0);
+        vars.insert("t_val".into(), 0.7);
+        assert_eq!(expr.eval(0.0, &vars), 100.0);
+    }
+
+    #[test]
+    fn test_motion_expr_math_functions() {
+        let sin_expr = MotionExpr::Sin(Box::new(MotionExpr::Constant(0.0)));
+        assert!((sin_expr.eval(0.0, &Default::default()) - 0.0).abs() < 0.01);
+
+        let cos_expr = MotionExpr::Cos(Box::new(MotionExpr::Constant(0.0)));
+        assert!((cos_expr.eval(0.0, &Default::default()) - 1.0).abs() < 0.01);
+
+        let abs_expr = MotionExpr::Abs(Box::new(MotionExpr::Constant(-5.0)));
+        assert_eq!(abs_expr.eval(0.0, &Default::default()), 5.0);
+
+        let clamp_expr = MotionExpr::Clamp {
+            value: Box::new(MotionExpr::Constant(150.0)),
+            min: Box::new(MotionExpr::Constant(0.0)),
+            max: Box::new(MotionExpr::Constant(100.0)),
+        };
+        assert_eq!(clamp_expr.eval(0.0, &Default::default()), 100.0);
+    }
+
+    #[cfg(feature = "dew")]
+    #[test]
+    fn test_motion_expr_to_dew_ast() {
+        let expr = MotionExpr::Add(
+            Box::new(MotionExpr::Constant(1.0)),
+            Box::new(MotionExpr::Constant(2.0)),
+        );
+        let ast = expr.to_dew_ast();
+        // Just verify it doesn't panic and produces something
+        assert!(matches!(ast, rhizome_dew_core::Ast::BinOp(..)));
+    }
+
+    #[cfg(feature = "dew")]
+    #[test]
+    fn test_motion_expr_spring_to_dew() {
+        let expr = MotionExpr::Spring {
+            from: Box::new(MotionExpr::Constant(0.0)),
+            to: Box::new(MotionExpr::Constant(100.0)),
+            stiffness: 300.0,
+            damping: 15.0,
+        };
+        let ast = expr.to_dew_ast();
+        // Should be Call("spring", [...])
+        if let rhizome_dew_core::Ast::Call(name, args) = ast {
+            assert_eq!(name, "spring");
+            assert_eq!(args.len(), 5); // from, to, stiffness, damping, t
+        } else {
+            panic!("Expected Call AST");
+        }
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_motion_expr_serde_roundtrip() {
+        let expr = MotionExpr::Spring {
+            from: Box::new(MotionExpr::Constant(0.0)),
+            to: Box::new(MotionExpr::Var("target".into())),
+            stiffness: 300.0,
+            damping: 15.0,
+        };
+        let json = serde_json::to_string(&expr).unwrap();
+        let parsed: MotionExpr = serde_json::from_str(&json).unwrap();
+        assert_eq!(expr, parsed);
     }
 }
