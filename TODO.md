@@ -10,7 +10,27 @@
   - Added 3 standalone examples: audio_synthesis, noise_texture, procgen_lsystem
   - Added criterion benchmarks for mesh and noise operations
 - [x] Graph serialization - evaluated, registry approach recommended (see Backlog)
-- [ ] Identify new features - survey gaps, prioritize additions
+- [x] Identify new features - surveyed gaps (see New Features below)
+
+### New Features (prioritized suggestions)
+
+**High Value / Moderate Effort:**
+- [ ] UV atlas packing - pack multiple UV charts efficiently for game dev
+- [ ] LOD generation - automatic level-of-detail from high-poly meshes
+- [ ] Mesh curvature - Gaussian/mean curvature calculation
+- [ ] 2D signed distance fields - SDF operations for 2D (have 3D already)
+
+**Audio Extensions:**
+- [ ] Audio time-stretching - phase vocoder, granular time-stretch
+- [ ] 3D audio / HRTF - spatial audio, binaural rendering
+
+**Pattern/Sequencing (TidalCycles-inspired):**
+- [ ] Pattern combinators - `fast()`, `slow()`, `rev()`, `jux()` transformations
+- [ ] Pattern mini-notation - DSL for rhythmic patterns
+
+**Quality of Life:**
+- [ ] Weight painting tools - weight smoothing, heat diffusion for skinning
+- [ ] Topology analysis - genus detection, manifold testing, boundary classification
 
 ## Backlog
 
