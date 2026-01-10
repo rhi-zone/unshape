@@ -6,8 +6,10 @@
 - [x] Test coverage audit - 750+ tests passing, all crates covered
   - Well-tested: resin-mesh (153), resin-audio (123), resin-vector (117)
   - Improved: resin-core (29), resin-noise (17), resin-surface (25)
-- [ ] Polish pass - examples, benchmarks, integration tests
-- [ ] Graph serialization - evaluate and implement (see Backlog for details)
+- [x] Polish pass - examples, benchmarks, integration tests
+  - Added 3 standalone examples: audio_synthesis, noise_texture, procgen_lsystem
+  - Added criterion benchmarks for mesh and noise operations
+- [x] Graph serialization - evaluated, registry approach recommended (see Backlog)
 - [ ] Identify new features - survey gaps, prioritize additions
 
 ## Backlog
@@ -85,26 +87,31 @@
 
 ### Graph Serialization
 
-> **Current findings:** Not implemented. Trait objects block direct serialization.
+> **Status:** Not implemented. Trait objects block direct serialization.
 
-**What exists:**
-- `Graph` struct with `DynNode` trait, `Value` enum, topological execution
-- `DynNodeDerive` proc macro for node implementations
-- `Chain` in resin-audio with same pattern (`Box<dyn AudioNode>`)
-- `type_name()` on nodes returns static str (intended for serialization)
+**Current architecture:**
+- `Graph` holds `HashMap<NodeId, Box<dyn DynNode>>` + `Vec<Edge>`
+- `DynNode` trait has `type_name()` → &'static str (designed for serialization)
+- `Value` enum is primitives only (F32, I32, Bool, Vec2/3/4) - no Image/Mesh/Field
+- `Edge` is a simple struct (from_node, from_port, to_node, to_port)
 
-**What's missing:**
-- No serde derives on `Value`, `ValueType`, `Edge`
-- No node registry (`type_name()` → constructor mapping)
-- No parameter extraction from node instances
-- `Value` enum incomplete (only primitives, no Image/Mesh/Field/Audio)
-- No defined serialization format
+**Recommended approach: Registry pattern**
 
-**Options:**
-1. **Registry approach** - runtime registry maps type names to constructors
-2. **Enum approach** - replace trait objects with enum of all node types (loses extensibility)
-3. **Hybrid** - core nodes as enum, plugin nodes via registry
-4. **Skip it** - graphs are code-only, no persistence needed
+1. Add serde derives to `Edge`, `Value`, `ValueType`
+2. Add `params(&self) -> serde_json::Value` to DynNode trait
+3. Add `from_params(params: serde_json::Value) -> Box<dyn DynNode>` factory
+4. Create `NodeRegistry` mapping type_name → factory function
+5. Serialize graph as: `{ nodes: [(id, type_name, params)], edges: [...] }`
+
+**Why registry over enum:**
+- Extensibility: users can register custom nodes
+- Matches existing `type_name()` infrastructure
+- No breaking changes to existing code
+
+**Blockers before implementing:**
+- Decide if `Value` needs Image/Mesh/Field types (big scope change)
+- Decide on serialization format (JSON, MessagePack, custom)
+- Consider if this is actually needed (graphs can be code)
 
 ### Post-Features
 
