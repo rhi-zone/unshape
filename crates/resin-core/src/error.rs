@@ -61,6 +61,14 @@ pub enum GraphError {
     /// Error during node execution.
     #[error("execution error: {0}")]
     ExecutionError(String),
+
+    /// Node with the given ID already exists.
+    #[error("node already exists: {0}")]
+    NodeAlreadyExists(u32),
+
+    /// Edge was not found.
+    #[error("edge not found")]
+    EdgeNotFound,
 }
 
 #[cfg(test)]

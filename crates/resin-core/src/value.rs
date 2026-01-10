@@ -13,6 +13,7 @@ use crate::error::TypeError;
 /// at load time (via TypeId validation). At execution time, we trust the
 /// graph is valid.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Value {
     /// 32-bit float
     F32(f32),
@@ -33,6 +34,7 @@ pub enum Value {
 
 /// Type identifier for values in the graph system.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ValueType {
     /// 32-bit floating point.
     F32,

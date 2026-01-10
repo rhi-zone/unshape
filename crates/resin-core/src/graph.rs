@@ -11,6 +11,7 @@ pub type NodeId = u32;
 
 /// An edge connecting two nodes.
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Edge {
     /// Source node.
     pub from_node: NodeId,
@@ -246,6 +247,88 @@ impl Graph {
     /// Returns the number of edges in the graph.
     pub fn edge_count(&self) -> usize {
         self.edges.len()
+    }
+
+    /// Returns the next node ID that will be assigned.
+    pub fn next_id(&self) -> NodeId {
+        self.next_id
+    }
+
+    /// Returns a slice of all edges.
+    pub fn edges(&self) -> &[Edge] {
+        &self.edges
+    }
+
+    /// Iterates over all (NodeId, &BoxedNode) pairs.
+    pub fn nodes_iter(&self) -> impl Iterator<Item = (NodeId, &BoxedNode)> {
+        self.nodes.iter().map(|(&id, node)| (id, node))
+    }
+
+    /// Gets a node by ID.
+    pub fn get_node(&self, id: NodeId) -> Option<&BoxedNode> {
+        self.nodes.get(&id)
+    }
+
+    /// Creates a graph with a specific next_id (for deserialization).
+    pub fn with_next_id(next_id: NodeId) -> Self {
+        Self {
+            next_id,
+            ..Default::default()
+        }
+    }
+
+    /// Inserts a node with a specific ID (for deserialization).
+    ///
+    /// Returns an error if a node with that ID already exists.
+    pub fn insert_node_with_id(&mut self, id: NodeId, node: BoxedNode) -> Result<(), GraphError> {
+        if self.nodes.contains_key(&id) {
+            return Err(GraphError::NodeAlreadyExists(id));
+        }
+        self.nodes.insert(id, node);
+        if id >= self.next_id {
+            self.next_id = id + 1;
+        }
+        self.topo_order = None;
+        Ok(())
+    }
+
+    /// Removes a node and all its connected edges.
+    pub fn remove_node(&mut self, id: NodeId) -> Result<BoxedNode, GraphError> {
+        let node = self.nodes.remove(&id).ok_or(GraphError::NodeNotFound(id))?;
+        self.edges.retain(|e| e.from_node != id && e.to_node != id);
+        self.topo_order = None;
+        Ok(node)
+    }
+
+    /// Disconnects a specific edge.
+    pub fn disconnect(
+        &mut self,
+        from_node: NodeId,
+        from_port: usize,
+        to_node: NodeId,
+        to_port: usize,
+    ) -> Result<(), GraphError> {
+        let idx = self
+            .edges
+            .iter()
+            .position(|e| {
+                e.from_node == from_node
+                    && e.from_port == from_port
+                    && e.to_node == to_node
+                    && e.to_port == to_port
+            })
+            .ok_or(GraphError::EdgeNotFound)?;
+        self.edges.remove(idx);
+        self.topo_order = None;
+        Ok(())
+    }
+
+    /// Replaces a node with a new one, keeping the same ID.
+    pub fn replace_node(&mut self, id: NodeId, node: BoxedNode) -> Result<BoxedNode, GraphError> {
+        let old = self.nodes.remove(&id).ok_or(GraphError::NodeNotFound(id))?;
+        self.nodes.insert(id, node);
+        self.topo_order = None;
+        Ok(old)
     }
 }
 
