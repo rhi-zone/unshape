@@ -6,6 +6,7 @@ mod ao;
 mod architecture;
 mod bevel;
 mod boolean;
+mod curvature;
 mod curve_mesh;
 mod decimate;
 pub mod geodesic;
@@ -38,6 +39,9 @@ pub use architecture::{
 };
 pub use bevel::{BevelConfig, bevel_edges, bevel_mesh_edges, bevel_mesh_vertices, bevel_vertices};
 pub use boolean::{boolean_intersect, boolean_subtract, boolean_union};
+pub use curvature::{
+    CurvatureResult, compute_curvature, gaussian_curvature, mean_curvature, principal_curvatures,
+};
 pub use curve_mesh::{
     ExtrudeProfileConfig, RevolveConfig, SweepConfig, extrude_profile, extrude_profile_with_config,
     revolve_profile, revolve_profile_with_config, sweep_profile, sweep_profile_with_config,
