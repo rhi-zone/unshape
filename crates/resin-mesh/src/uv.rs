@@ -1,8 +1,10 @@
 //! UV projection and mapping operations.
 //!
-//! Provides various methods for generating texture coordinates on meshes.
+//! Provides various methods for generating texture coordinates on meshes,
+//! including UV atlas packing for combining multiple UV charts efficiently.
 
 use glam::{Mat4, Vec2, Vec3};
+use std::collections::{HashMap, HashSet};
 
 use crate::Mesh;
 
@@ -366,6 +368,449 @@ pub fn flip_v(mesh: &mut Mesh) {
 }
 
 // ============================================================================
+// UV Atlas Packing
+// ============================================================================
+
+/// A UV chart (island) that can be packed into an atlas.
+#[derive(Debug, Clone)]
+pub struct UvChart {
+    /// Indices of vertices in this chart.
+    pub vertex_indices: Vec<usize>,
+    /// Original UVs for vertices in this chart.
+    pub uvs: Vec<Vec2>,
+    /// Bounding box minimum in UV space.
+    pub min: Vec2,
+    /// Bounding box maximum in UV space.
+    pub max: Vec2,
+}
+
+impl UvChart {
+    /// Creates a chart from vertex indices and their UVs.
+    pub fn new(vertex_indices: Vec<usize>, uvs: Vec<Vec2>) -> Self {
+        let (min, max) = compute_bounds(&uvs);
+        Self {
+            vertex_indices,
+            uvs,
+            min,
+            max,
+        }
+    }
+
+    /// Returns the width of this chart.
+    pub fn width(&self) -> f32 {
+        self.max.x - self.min.x
+    }
+
+    /// Returns the height of this chart.
+    pub fn height(&self) -> f32 {
+        self.max.y - self.min.y
+    }
+
+    /// Returns the area of this chart's bounding box.
+    pub fn area(&self) -> f32 {
+        self.width() * self.height()
+    }
+}
+
+/// Configuration for UV atlas packing.
+#[derive(Debug, Clone)]
+pub struct AtlasPackConfig {
+    /// Padding between charts in UV space (0.0 to 1.0).
+    pub padding: f32,
+    /// Whether to allow chart rotation for better packing.
+    pub allow_rotation: bool,
+    /// Target atlas aspect ratio (width / height).
+    pub target_aspect: f32,
+}
+
+impl Default for AtlasPackConfig {
+    fn default() -> Self {
+        Self {
+            padding: 0.01,
+            allow_rotation: true,
+            target_aspect: 1.0,
+        }
+    }
+}
+
+/// Result of UV atlas packing.
+#[derive(Debug, Clone)]
+pub struct AtlasPackResult {
+    /// Packed charts with their new positions.
+    pub charts: Vec<PackedChart>,
+    /// Total atlas width (normalized, may exceed 1.0).
+    pub width: f32,
+    /// Total atlas height (normalized, may exceed 1.0).
+    pub height: f32,
+    /// Packing efficiency (chart area / atlas area).
+    pub efficiency: f32,
+}
+
+/// A chart that has been placed in the atlas.
+#[derive(Debug, Clone)]
+pub struct PackedChart {
+    /// Original chart index.
+    pub chart_index: usize,
+    /// New position (bottom-left corner).
+    pub position: Vec2,
+    /// Whether the chart was rotated 90 degrees.
+    pub rotated: bool,
+}
+
+/// Finds UV islands (connected components) in a mesh.
+///
+/// Returns a list of charts, where each chart contains the vertex indices
+/// and UV coordinates for one connected UV region.
+pub fn find_uv_islands(mesh: &Mesh) -> Vec<UvChart> {
+    if mesh.uvs.is_empty() || mesh.indices.is_empty() {
+        return vec![];
+    }
+
+    let n = mesh.positions.len();
+
+    // Build adjacency from triangles
+    let mut adjacency: HashMap<usize, HashSet<usize>> = HashMap::new();
+
+    for tri in mesh.indices.chunks(3) {
+        if tri.len() < 3 {
+            continue;
+        }
+        let [i0, i1, i2] = [tri[0] as usize, tri[1] as usize, tri[2] as usize];
+
+        if i0 >= n || i1 >= n || i2 >= n {
+            continue;
+        }
+
+        // Connect vertices that share a triangle
+        adjacency.entry(i0).or_default().insert(i1);
+        adjacency.entry(i0).or_default().insert(i2);
+        adjacency.entry(i1).or_default().insert(i0);
+        adjacency.entry(i1).or_default().insert(i2);
+        adjacency.entry(i2).or_default().insert(i0);
+        adjacency.entry(i2).or_default().insert(i1);
+    }
+
+    // Find connected components using flood fill
+    let mut visited = vec![false; n];
+    let mut charts = Vec::new();
+
+    for start in 0..n {
+        if visited[start] || !adjacency.contains_key(&start) {
+            continue;
+        }
+
+        // Flood fill from this vertex
+        let mut component = Vec::new();
+        let mut stack = vec![start];
+
+        while let Some(v) = stack.pop() {
+            if visited[v] {
+                continue;
+            }
+            visited[v] = true;
+            component.push(v);
+
+            if let Some(neighbors) = adjacency.get(&v) {
+                for &neighbor in neighbors {
+                    if !visited[neighbor] {
+                        stack.push(neighbor);
+                    }
+                }
+            }
+        }
+
+        if !component.is_empty() {
+            let uvs: Vec<Vec2> = component
+                .iter()
+                .map(|&i| {
+                    if i < mesh.uvs.len() {
+                        mesh.uvs[i]
+                    } else {
+                        Vec2::ZERO
+                    }
+                })
+                .collect();
+
+            charts.push(UvChart::new(component, uvs));
+        }
+    }
+
+    charts
+}
+
+/// Packs UV charts into an atlas using the maxrects algorithm.
+///
+/// Returns packing result with chart positions and atlas dimensions.
+pub fn pack_uv_charts(charts: &[UvChart], config: &AtlasPackConfig) -> AtlasPackResult {
+    if charts.is_empty() {
+        return AtlasPackResult {
+            charts: vec![],
+            width: 0.0,
+            height: 0.0,
+            efficiency: 0.0,
+        };
+    }
+
+    // Sort charts by area (largest first) for better packing
+    let mut sorted_indices: Vec<usize> = (0..charts.len()).collect();
+    sorted_indices.sort_by(|&a, &b| {
+        let area_a = charts[a].area();
+        let area_b = charts[b].area();
+        area_b
+            .partial_cmp(&area_a)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    // Calculate total area and estimate atlas size
+    let total_chart_area: f32 = charts.iter().map(|c| c.area()).sum();
+    let padding = config.padding;
+
+    // Start with an estimated size
+    let estimated_side = (total_chart_area * 1.5).sqrt();
+    let atlas_width = estimated_side * config.target_aspect.sqrt();
+    let mut atlas_height = estimated_side / config.target_aspect.sqrt();
+
+    // Use maxrects bin packing
+    let mut packed = Vec::with_capacity(charts.len());
+    let mut free_rects = vec![Rect {
+        x: 0.0,
+        y: 0.0,
+        w: atlas_width,
+        h: atlas_height,
+    }];
+
+    for &chart_idx in &sorted_indices {
+        let chart = &charts[chart_idx];
+        let w = chart.width() + padding * 2.0;
+        let h = chart.height() + padding * 2.0;
+
+        // Try to find best placement
+        let (best_rect_idx, best_pos, rotated) =
+            find_best_placement(&free_rects, w, h, config.allow_rotation);
+
+        if let Some(rect_idx) = best_rect_idx {
+            let (actual_w, actual_h) = if rotated { (h, w) } else { (w, h) };
+
+            packed.push(PackedChart {
+                chart_index: chart_idx,
+                position: Vec2::new(best_pos.x + padding, best_pos.y + padding),
+                rotated,
+            });
+
+            // Split the free rect
+            let free_rect = free_rects[rect_idx];
+            free_rects.remove(rect_idx);
+
+            // Add new free rects (guillotine split)
+            let right = Rect {
+                x: free_rect.x + actual_w,
+                y: free_rect.y,
+                w: free_rect.w - actual_w,
+                h: actual_h,
+            };
+            let top = Rect {
+                x: free_rect.x,
+                y: free_rect.y + actual_h,
+                w: free_rect.w,
+                h: free_rect.h - actual_h,
+            };
+
+            if right.w > 0.001 && right.h > 0.001 {
+                free_rects.push(right);
+            }
+            if top.w > 0.001 && top.h > 0.001 {
+                free_rects.push(top);
+            }
+        } else {
+            // Expand atlas and retry
+            atlas_height += h;
+            free_rects.push(Rect {
+                x: 0.0,
+                y: atlas_height - h,
+                w: atlas_width,
+                h,
+            });
+
+            packed.push(PackedChart {
+                chart_index: chart_idx,
+                position: Vec2::new(padding, atlas_height - h + padding),
+                rotated: false,
+            });
+        }
+    }
+
+    // Calculate actual bounds
+    let mut max_x = 0.0f32;
+    let mut max_y = 0.0f32;
+
+    for pc in &packed {
+        let chart = &charts[pc.chart_index];
+        let (w, h) = if pc.rotated {
+            (chart.height(), chart.width())
+        } else {
+            (chart.width(), chart.height())
+        };
+        max_x = max_x.max(pc.position.x + w + padding);
+        max_y = max_y.max(pc.position.y + h + padding);
+    }
+
+    let atlas_area = max_x * max_y;
+    let efficiency = if atlas_area > 0.0 {
+        total_chart_area / atlas_area
+    } else {
+        0.0
+    };
+
+    AtlasPackResult {
+        charts: packed,
+        width: max_x,
+        height: max_y,
+        efficiency,
+    }
+}
+
+/// Applies atlas packing result to a mesh's UVs.
+///
+/// This modifies the mesh's UV coordinates according to the packing result,
+/// normalizing them to fit within [0, 1] range.
+pub fn apply_atlas_pack(mesh: &mut Mesh, islands: &[UvChart], result: &AtlasPackResult) {
+    if result.width < 0.001 || result.height < 0.001 {
+        return;
+    }
+
+    // Create a map from original vertex index to packed position
+    for packed in &result.charts {
+        let island = &islands[packed.chart_index];
+
+        for (local_idx, &global_idx) in island.vertex_indices.iter().enumerate() {
+            if global_idx >= mesh.uvs.len() {
+                continue;
+            }
+
+            // Get original UV relative to island bounds
+            let original_uv = island.uvs[local_idx];
+            let local_uv = original_uv - island.min;
+
+            // Apply rotation if needed
+            let (local_u, local_v) = if packed.rotated {
+                (local_uv.y, island.width() - local_uv.x)
+            } else {
+                (local_uv.x, local_uv.y)
+            };
+
+            // Apply packed position and normalize
+            let packed_uv = Vec2::new(
+                (packed.position.x + local_u) / result.width,
+                (packed.position.y + local_v) / result.height,
+            );
+
+            mesh.uvs[global_idx] = packed_uv;
+        }
+    }
+}
+
+/// Packs a mesh's UV islands into an atlas.
+///
+/// This is a convenience function that finds islands, packs them, and applies
+/// the result in one step.
+pub fn pack_mesh_uvs(mesh: &mut Mesh, config: &AtlasPackConfig) {
+    let islands = find_uv_islands(mesh);
+    if islands.is_empty() {
+        return;
+    }
+
+    let result = pack_uv_charts(&islands, config);
+    apply_atlas_pack(mesh, &islands, &result);
+}
+
+/// Packs UV charts from multiple meshes into a single atlas.
+///
+/// Returns the packing result. The caller is responsible for applying
+/// the result to individual meshes using `apply_atlas_pack_to_mesh`.
+pub fn pack_multi_mesh_uvs(
+    meshes: &[&Mesh],
+    config: &AtlasPackConfig,
+) -> (Vec<Vec<UvChart>>, AtlasPackResult) {
+    let mut all_charts = Vec::new();
+    let mut charts_per_mesh = Vec::new();
+
+    for mesh in meshes {
+        let islands = find_uv_islands(mesh);
+        charts_per_mesh.push(islands.clone());
+        all_charts.extend(islands);
+    }
+
+    let result = pack_uv_charts(&all_charts, config);
+    (charts_per_mesh, result)
+}
+
+// Internal rectangle for packing
+#[derive(Debug, Clone, Copy)]
+struct Rect {
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+}
+
+/// Finds the best placement for a rectangle in the free rects.
+fn find_best_placement(
+    free_rects: &[Rect],
+    w: f32,
+    h: f32,
+    allow_rotation: bool,
+) -> (Option<usize>, Vec2, bool) {
+    let mut best_idx = None;
+    let mut best_pos = Vec2::ZERO;
+    let mut best_rotated = false;
+    let mut best_score = f32::MAX;
+
+    for (i, rect) in free_rects.iter().enumerate() {
+        // Try normal orientation
+        if w <= rect.w && h <= rect.h {
+            // Best short side fit
+            let score = (rect.w - w).min(rect.h - h);
+            if score < best_score {
+                best_score = score;
+                best_idx = Some(i);
+                best_pos = Vec2::new(rect.x, rect.y);
+                best_rotated = false;
+            }
+        }
+
+        // Try rotated
+        if allow_rotation && h <= rect.w && w <= rect.h {
+            let score = (rect.w - h).min(rect.h - w);
+            if score < best_score {
+                best_score = score;
+                best_idx = Some(i);
+                best_pos = Vec2::new(rect.x, rect.y);
+                best_rotated = true;
+            }
+        }
+    }
+
+    (best_idx, best_pos, best_rotated)
+}
+
+/// Computes min/max bounds of UV coordinates.
+fn compute_bounds(uvs: &[Vec2]) -> (Vec2, Vec2) {
+    if uvs.is_empty() {
+        return (Vec2::ZERO, Vec2::ZERO);
+    }
+
+    let mut min = Vec2::splat(f32::MAX);
+    let mut max = Vec2::splat(f32::MIN);
+
+    for uv in uvs {
+        min = min.min(*uv);
+        max = max.max(*uv);
+    }
+
+    (min, max)
+}
+
+// ============================================================================
 // Helper functions
 // ============================================================================
 
@@ -524,5 +969,115 @@ mod tests {
 
         // UVs should still exist
         assert_eq!(mesh.uvs.len(), mesh.positions.len());
+    }
+
+    #[test]
+    fn test_find_uv_islands() {
+        let mut mesh = box_mesh();
+        project_box(&mut mesh, &BoxConfig::default());
+
+        let islands = find_uv_islands(&mesh);
+
+        // Box mesh should have at least one island
+        assert!(!islands.is_empty());
+
+        // Total vertices in islands should match mesh
+        let total_vertices: usize = islands.iter().map(|i| i.vertex_indices.len()).sum();
+        assert_eq!(total_vertices, mesh.positions.len());
+    }
+
+    #[test]
+    fn test_uv_chart() {
+        let uvs = vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(1.0, 0.5),
+            Vec2::new(0.5, 1.0),
+        ];
+        let chart = UvChart::new(vec![0, 1, 2], uvs);
+
+        assert_eq!(chart.min, Vec2::new(0.0, 0.0));
+        assert_eq!(chart.max, Vec2::new(1.0, 1.0));
+        assert!((chart.width() - 1.0).abs() < 0.001);
+        assert!((chart.height() - 1.0).abs() < 0.001);
+        assert!((chart.area() - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_pack_uv_charts() {
+        // Create some test charts
+        let charts = vec![
+            UvChart::new(
+                vec![0, 1, 2],
+                vec![Vec2::ZERO, Vec2::new(0.3, 0.0), Vec2::new(0.15, 0.2)],
+            ),
+            UvChart::new(
+                vec![3, 4, 5],
+                vec![Vec2::ZERO, Vec2::new(0.2, 0.0), Vec2::new(0.1, 0.25)],
+            ),
+            UvChart::new(
+                vec![6, 7, 8],
+                vec![Vec2::ZERO, Vec2::new(0.4, 0.0), Vec2::new(0.2, 0.3)],
+            ),
+        ];
+
+        let config = AtlasPackConfig::default();
+        let result = pack_uv_charts(&charts, &config);
+
+        // All charts should be packed
+        assert_eq!(result.charts.len(), 3);
+
+        // Atlas should have positive dimensions
+        assert!(result.width > 0.0);
+        assert!(result.height > 0.0);
+
+        // Efficiency should be reasonable (> 0)
+        assert!(result.efficiency > 0.0);
+    }
+
+    #[test]
+    fn test_pack_mesh_uvs() {
+        let mut mesh = box_mesh();
+        project_box(&mut mesh, &BoxConfig::default());
+
+        let config = AtlasPackConfig::default();
+        pack_mesh_uvs(&mut mesh, &config);
+
+        // UVs should still exist
+        assert_eq!(mesh.uvs.len(), mesh.positions.len());
+
+        // All UVs should be in [0, 1] range after packing
+        for uv in &mesh.uvs {
+            assert!(uv.x >= -0.01 && uv.x <= 1.01, "UV x out of range: {}", uv.x);
+            assert!(uv.y >= -0.01 && uv.y <= 1.01, "UV y out of range: {}", uv.y);
+        }
+    }
+
+    #[test]
+    fn test_atlas_pack_config() {
+        let config = AtlasPackConfig {
+            padding: 0.02,
+            allow_rotation: false,
+            target_aspect: 2.0,
+        };
+
+        let charts = vec![UvChart::new(
+            vec![0, 1, 2],
+            vec![Vec2::ZERO, Vec2::new(0.5, 0.0), Vec2::new(0.25, 0.5)],
+        )];
+
+        let result = pack_uv_charts(&charts, &config);
+        assert_eq!(result.charts.len(), 1);
+        // With no rotation allowed, the chart should not be rotated
+        assert!(!result.charts[0].rotated);
+    }
+
+    #[test]
+    fn test_empty_atlas_pack() {
+        let charts: Vec<UvChart> = vec![];
+        let result = pack_uv_charts(&charts, &AtlasPackConfig::default());
+
+        assert!(result.charts.is_empty());
+        assert_eq!(result.width, 0.0);
+        assert_eq!(result.height, 0.0);
     }
 }
