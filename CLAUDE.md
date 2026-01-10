@@ -80,6 +80,13 @@ Proactively add features, ideas, patterns, technical debt.
 - Backlog: pending items
 - When completing items: mark as `[x]`, don't delete
 
+### Documenting New Features
+
+When adding a new feature or module:
+1. **Document immediately** - write doc comments as you implement
+2. **Update `docs/features.md`** - add the feature to the catalog under the appropriate crate section
+3. **Include API signatures** - list public types and functions with brief descriptions
+
 ### Working Style
 
 Agentic by default - continue through tasks unless:

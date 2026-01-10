@@ -219,6 +219,31 @@ Image as field + processing.
 - `blur()`, `sharpen()`, `detect_edges()`, `emboss()`
 - Presets: `box_blur()`, `gaussian_blur_3x3()`, `gaussian_blur_5x5()`, `sobel_horizontal()`, `sobel_vertical()`, `laplacian()`
 
+**Channel Operations:**
+- `Channel` - Red, Green, Blue, Alpha enum
+- `extract_channel()`, `split_channels()`, `merge_channels()` - channel manipulation
+- `set_channel()`, `swap_channels()` - in-place channel operations
+
+**Color Adjustments:**
+- `LevelsConfig`, `adjust_levels()` - input/output mapping, gamma
+- `adjust_brightness_contrast()` - simple brightness/contrast
+- `HslAdjustment`, `adjust_hsl()` - hue shift, saturation, lightness
+- `grayscale()`, `invert()`, `posterize()`, `threshold()` - color effects
+
+**Distortion:**
+- `LensDistortionConfig`, `lens_distortion()` - barrel/pincushion distortion
+- `WaveDistortionConfig`, `wave_distortion()` - sine wave distortion
+- `displace()` - displacement mapping from another image
+- `swirl()` - twist/swirl effect
+- `spherize()` - spherical bulge/pinch
+- `ChromaticAberrationConfig`, `chromatic_aberration()` - RGB channel offset
+
+**Image Pyramid:**
+- `downsample()`, `upsample()` - 2x scaling with filtering
+- `ImagePyramid` - multi-scale image representation
+- `ImagePyramid::gaussian()`, `ImagePyramid::laplacian()` - pyramid types
+- `resize()` - arbitrary resize with bilinear interpolation
+
 **Baking:**
 - `bake_scalar()`, `bake_rgba()`, `bake_vec4()` - field to image
 - `BakeConfig` - resolution, anti-aliasing samples
