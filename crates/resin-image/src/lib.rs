@@ -1034,6 +1034,219 @@ pub fn emboss(image: &ImageField) -> ImageField {
 }
 
 // ============================================================================
+// Channel operations
+// ============================================================================
+
+/// Which channel to extract or operate on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Channel {
+    /// Red channel.
+    Red,
+    /// Green channel.
+    Green,
+    /// Blue channel.
+    Blue,
+    /// Alpha channel.
+    Alpha,
+}
+
+/// Extracts a single channel as a grayscale image.
+///
+/// The extracted channel is stored in all RGB channels of the output,
+/// with alpha set to 1.0.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, Channel, extract_channel};
+///
+/// let data = vec![[1.0, 0.5, 0.25, 1.0]; 4];
+/// let img = ImageField::from_raw(data, 2, 2);
+///
+/// let red = extract_channel(&img, Channel::Red);
+/// assert_eq!(red.get_pixel(0, 0)[0], 1.0);
+///
+/// let green = extract_channel(&img, Channel::Green);
+/// assert_eq!(green.get_pixel(0, 0)[0], 0.5);
+/// ```
+pub fn extract_channel(image: &ImageField, channel: Channel) -> ImageField {
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    let idx = match channel {
+        Channel::Red => 0,
+        Channel::Green => 1,
+        Channel::Blue => 2,
+        Channel::Alpha => 3,
+    };
+
+    for y in 0..height {
+        for x in 0..width {
+            let v = image.get_pixel(x, y)[idx];
+            data.push([v, v, v, 1.0]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Splits an image into separate R, G, B, A grayscale images.
+///
+/// Returns a tuple of (red, green, blue, alpha) images.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, split_channels};
+///
+/// let data = vec![[1.0, 0.5, 0.25, 0.75]; 4];
+/// let img = ImageField::from_raw(data, 2, 2);
+///
+/// let (r, g, b, a) = split_channels(&img);
+/// assert_eq!(r.get_pixel(0, 0)[0], 1.0);
+/// assert_eq!(g.get_pixel(0, 0)[0], 0.5);
+/// assert_eq!(b.get_pixel(0, 0)[0], 0.25);
+/// assert_eq!(a.get_pixel(0, 0)[0], 0.75);
+/// ```
+pub fn split_channels(image: &ImageField) -> (ImageField, ImageField, ImageField, ImageField) {
+    (
+        extract_channel(image, Channel::Red),
+        extract_channel(image, Channel::Green),
+        extract_channel(image, Channel::Blue),
+        extract_channel(image, Channel::Alpha),
+    )
+}
+
+/// Merges separate grayscale images into a single RGBA image.
+///
+/// Each input image's red channel is used as that channel's value.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, merge_channels};
+///
+/// let r = ImageField::from_raw(vec![[1.0, 1.0, 1.0, 1.0]; 4], 2, 2);
+/// let g = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 4], 2, 2);
+/// let b = ImageField::from_raw(vec![[0.25, 0.25, 0.25, 1.0]; 4], 2, 2);
+/// let a = ImageField::from_raw(vec![[1.0, 1.0, 1.0, 1.0]; 4], 2, 2);
+///
+/// let merged = merge_channels(&r, &g, &b, &a);
+/// let pixel = merged.get_pixel(0, 0);
+/// assert_eq!(pixel[0], 1.0);
+/// assert_eq!(pixel[1], 0.5);
+/// assert_eq!(pixel[2], 0.25);
+/// ```
+pub fn merge_channels(
+    red: &ImageField,
+    green: &ImageField,
+    blue: &ImageField,
+    alpha: &ImageField,
+) -> ImageField {
+    let (width, height) = red.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let r = red.get_pixel(x, y)[0];
+            let g = green.get_pixel(x, y)[0];
+            let b = blue.get_pixel(x, y)[0];
+            let a = alpha.get_pixel(x, y)[0];
+            data.push([r, g, b, a]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(red.wrap_mode)
+        .with_filter_mode(red.filter_mode)
+}
+
+/// Replaces a single channel in an image.
+///
+/// The source image's red channel is used as the replacement value.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, Channel, set_channel};
+///
+/// let img = ImageField::from_raw(vec![[0.0, 0.0, 0.0, 1.0]; 4], 2, 2);
+/// let new_red = ImageField::from_raw(vec![[1.0, 1.0, 1.0, 1.0]; 4], 2, 2);
+///
+/// let result = set_channel(&img, Channel::Red, &new_red);
+/// assert_eq!(result.get_pixel(0, 0)[0], 1.0);
+/// assert_eq!(result.get_pixel(0, 0)[1], 0.0); // Green unchanged
+/// ```
+pub fn set_channel(image: &ImageField, channel: Channel, source: &ImageField) -> ImageField {
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    let idx = match channel {
+        Channel::Red => 0,
+        Channel::Green => 1,
+        Channel::Blue => 2,
+        Channel::Alpha => 3,
+    };
+
+    for y in 0..height {
+        for x in 0..width {
+            let mut pixel = image.get_pixel(x, y);
+            pixel[idx] = source.get_pixel(x, y)[0];
+            data.push(pixel);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Swaps two channels in an image.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, Channel, swap_channels};
+///
+/// let img = ImageField::from_raw(vec![[1.0, 0.5, 0.0, 1.0]; 4], 2, 2);
+/// let swapped = swap_channels(&img, Channel::Red, Channel::Blue);
+///
+/// assert_eq!(swapped.get_pixel(0, 0)[0], 0.0);  // Was blue
+/// assert_eq!(swapped.get_pixel(0, 0)[2], 1.0);  // Was red
+/// ```
+pub fn swap_channels(image: &ImageField, a: Channel, b: Channel) -> ImageField {
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    let idx_a = match a {
+        Channel::Red => 0,
+        Channel::Green => 1,
+        Channel::Blue => 2,
+        Channel::Alpha => 3,
+    };
+    let idx_b = match b {
+        Channel::Red => 0,
+        Channel::Green => 1,
+        Channel::Blue => 2,
+        Channel::Alpha => 3,
+    };
+
+    for y in 0..height {
+        for x in 0..width {
+            let mut pixel = image.get_pixel(x, y);
+            pixel.swap(idx_a, idx_b);
+            data.push(pixel);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+// ============================================================================
 // Normal map generation
 // ============================================================================
 
@@ -1521,6 +1734,104 @@ mod tests {
                 assert!(pixel[1] >= 0.0 && pixel[1] <= 1.0);
                 assert!(pixel[2] >= 0.0 && pixel[2] <= 1.0);
             }
+        }
+    }
+
+    // Channel operation tests
+
+    #[test]
+    fn test_extract_channel() {
+        let data = vec![[1.0, 0.5, 0.25, 0.75]; 4];
+        let img = ImageField::from_raw(data, 2, 2);
+
+        let red = extract_channel(&img, Channel::Red);
+        assert_eq!(red.get_pixel(0, 0)[0], 1.0);
+        assert_eq!(red.get_pixel(0, 0)[1], 1.0); // Grayscale - all channels same
+
+        let green = extract_channel(&img, Channel::Green);
+        assert_eq!(green.get_pixel(0, 0)[0], 0.5);
+
+        let blue = extract_channel(&img, Channel::Blue);
+        assert_eq!(blue.get_pixel(0, 0)[0], 0.25);
+
+        let alpha = extract_channel(&img, Channel::Alpha);
+        assert_eq!(alpha.get_pixel(0, 0)[0], 0.75);
+    }
+
+    #[test]
+    fn test_split_channels() {
+        let data = vec![[1.0, 0.5, 0.25, 0.75]; 4];
+        let img = ImageField::from_raw(data, 2, 2);
+
+        let (r, g, b, a) = split_channels(&img);
+
+        assert_eq!(r.get_pixel(0, 0)[0], 1.0);
+        assert_eq!(g.get_pixel(0, 0)[0], 0.5);
+        assert_eq!(b.get_pixel(0, 0)[0], 0.25);
+        assert_eq!(a.get_pixel(0, 0)[0], 0.75);
+    }
+
+    #[test]
+    fn test_merge_channels() {
+        let r = ImageField::from_raw(vec![[1.0, 1.0, 1.0, 1.0]; 4], 2, 2);
+        let g = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 4], 2, 2);
+        let b = ImageField::from_raw(vec![[0.25, 0.25, 0.25, 1.0]; 4], 2, 2);
+        let a = ImageField::from_raw(vec![[0.75, 0.75, 0.75, 1.0]; 4], 2, 2);
+
+        let merged = merge_channels(&r, &g, &b, &a);
+        let pixel = merged.get_pixel(0, 0);
+
+        assert_eq!(pixel[0], 1.0);
+        assert_eq!(pixel[1], 0.5);
+        assert_eq!(pixel[2], 0.25);
+        assert_eq!(pixel[3], 0.75);
+    }
+
+    #[test]
+    fn test_set_channel() {
+        let img = ImageField::from_raw(vec![[0.0, 0.0, 0.0, 1.0]; 4], 2, 2);
+        let new_val = ImageField::from_raw(vec![[0.8, 0.8, 0.8, 1.0]; 4], 2, 2);
+
+        let result = set_channel(&img, Channel::Red, &new_val);
+        assert_eq!(result.get_pixel(0, 0)[0], 0.8);
+        assert_eq!(result.get_pixel(0, 0)[1], 0.0); // Unchanged
+
+        let result = set_channel(&img, Channel::Green, &new_val);
+        assert_eq!(result.get_pixel(0, 0)[1], 0.8);
+        assert_eq!(result.get_pixel(0, 0)[0], 0.0); // Unchanged
+    }
+
+    #[test]
+    fn test_swap_channels() {
+        let img = ImageField::from_raw(vec![[1.0, 0.5, 0.0, 1.0]; 4], 2, 2);
+        let swapped = swap_channels(&img, Channel::Red, Channel::Blue);
+
+        assert_eq!(swapped.get_pixel(0, 0)[0], 0.0); // Was blue
+        assert_eq!(swapped.get_pixel(0, 0)[1], 0.5); // Unchanged
+        assert_eq!(swapped.get_pixel(0, 0)[2], 1.0); // Was red
+    }
+
+    #[test]
+    fn test_split_merge_roundtrip() {
+        let data = vec![
+            [0.1, 0.2, 0.3, 0.4],
+            [0.5, 0.6, 0.7, 0.8],
+            [0.9, 0.8, 0.7, 0.6],
+            [0.3, 0.4, 0.5, 0.6],
+        ];
+        let img = ImageField::from_raw(data.clone(), 2, 2);
+
+        let (r, g, b, a) = split_channels(&img);
+        let merged = merge_channels(&r, &g, &b, &a);
+
+        for (i, original) in data.iter().enumerate() {
+            let x = (i % 2) as u32;
+            let y = (i / 2) as u32;
+            let pixel = merged.get_pixel(x, y);
+            assert!((pixel[0] - original[0]).abs() < 0.001);
+            assert!((pixel[1] - original[1]).abs() < 0.001);
+            assert!((pixel[2] - original[2]).abs() < 0.001);
+            assert!((pixel[3] - original[3]).abs() < 0.001);
         }
     }
 }
