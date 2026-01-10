@@ -6,9 +6,14 @@ description = "Cross-domain data interpretation and conversion utilities"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rhizome-lab/resin"
 
+[features]
+default = []
+bytemuck = ["dep:bytemuck"]
+
 [dependencies]
 glam = { workspace = true }
 rhizome-resin-audio = { path = "../resin-audio" }
 rhizome-resin-image = { path = "../resin-image" }
 rhizome-resin-field = { path = "../resin-field" }
 rhizome-resin-color = { path = "../resin-color" }
+bytemuck = { version = "1.14", optional = true }

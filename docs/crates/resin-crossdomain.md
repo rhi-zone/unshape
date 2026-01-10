@@ -2,6 +2,10 @@
 
 Cross-domain data interpretation and conversion utilities.
 
+## Features
+
+- `bytemuck` - Enables raw byte casting utilities for glitch-art style reinterpretation
+
 ## Purpose
 
 Inspired by MetaSynth and glitch art - the insight that structure is transferable between domains. An image can become audio, audio can become vertices, noise can be anything.
@@ -120,6 +124,28 @@ let painted = ImageField::from_file("audio_painting.png")?;
 let sound = image_to_audio(&painted, &ImageToAudioConfig::new(44100, 5.0));
 ```
 
+## Raw Byte Casting (bytemuck feature)
+
+Requires the `bytemuck` feature. Enables glitch-art style raw data reinterpretation:
+
+```rust
+use rhizome_resin_crossdomain::raw::*;
+
+// Load any file and interpret as audio
+let jpeg_bytes = std::fs::read("photo.jpg")?;
+let samples = bytes_as_f32(&jpeg_bytes).unwrap();
+let normalized = normalize_samples(samples);
+// Now play it - hear what a JPEG "sounds like"
+
+// Or interpret as an image
+let exe_bytes = std::fs::read("program.exe")?;
+let glitch_image = bytes_to_image_auto(&exe_bytes)?;
+
+// Convert between sample formats
+let i16_samples = bytes_as_i16(&raw_audio)?;
+let float_samples = i16_to_f32(i16_samples);
+```
+
 ## Creative Applications
 
 - **Spectral painting** - Draw frequency content visually
@@ -127,3 +153,4 @@ let sound = image_to_audio(&painted, &ImageToAudioConfig::new(44100, 5.0));
 - **Data sonification** - Convert any numeric data to audio
 - **Texture-to-audio** - Use textures as modulation sources
 - **Audio visualization** - Generate images from audio for feedback loops
+- **Raw byte glitching** - Hear what any file "sounds like" (with `bytemuck` feature)
