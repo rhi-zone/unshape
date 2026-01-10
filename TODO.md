@@ -41,6 +41,12 @@
 - [x] Convolution filters - blur, sharpen, edge detection, emboss (Kernel, convolve, detect_edges)
 - [x] Normal map from heightfield - Sobel-based normal generation (heightfield_to_normal_map)
 - [x] Ambient occlusion baking - ray-based AO (bake_ao_vertices, bake_ao_texture, AoAccelerator)
+- [ ] Channel operations - split/merge/process R/G/B/A independently
+- [ ] Chromatic aberration - RGB channel offset (radial from center)
+- [ ] Distortion effects - barrel, pincushion, wave, displacement map
+- [ ] Inpainting - diffusion-based fill, multi-scale PatchMatch
+- [ ] Image pyramid - downsample/upsample, coarse-to-fine processing
+- [ ] Color adjustments - levels, curves, hue/saturation, color balance
 
 ### Audio
 
