@@ -593,6 +593,318 @@ pub fn spectral_flatness(magnitudes: &[f32]) -> f32 {
     }
 }
 
+// ============================================================================
+// Time-stretching via Phase Vocoder
+// ============================================================================
+
+/// Configuration for time-stretching.
+#[derive(Debug, Clone)]
+pub struct TimeStretchConfig {
+    /// FFT window size (must be power of 2).
+    pub window_size: usize,
+    /// Analysis hop size.
+    pub analysis_hop: usize,
+    /// Time stretch factor (< 1.0 = faster, > 1.0 = slower).
+    pub stretch_factor: f32,
+    /// Whether to preserve transients.
+    pub preserve_transients: bool,
+    /// Transient detection threshold.
+    pub transient_threshold: f32,
+}
+
+impl Default for TimeStretchConfig {
+    fn default() -> Self {
+        Self {
+            window_size: 2048,
+            analysis_hop: 512,
+            stretch_factor: 1.0,
+            preserve_transients: true,
+            transient_threshold: 1.5,
+        }
+    }
+}
+
+impl TimeStretchConfig {
+    /// Creates a config with the given stretch factor.
+    pub fn with_factor(factor: f32) -> Self {
+        Self {
+            stretch_factor: factor.max(0.1).min(10.0),
+            ..Default::default()
+        }
+    }
+
+    /// Sets the window size.
+    pub fn with_window_size(mut self, size: usize) -> Self {
+        assert!(size.is_power_of_two(), "Window size must be power of 2");
+        self.window_size = size;
+        self.analysis_hop = size / 4;
+        self
+    }
+
+    /// Sets whether to preserve transients.
+    pub fn with_preserve_transients(mut self, preserve: bool) -> Self {
+        self.preserve_transients = preserve;
+        self
+    }
+}
+
+/// Time-stretches audio using a phase vocoder.
+///
+/// Changes the duration without changing the pitch.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_audio::spectral::{time_stretch, TimeStretchConfig};
+///
+/// let audio: Vec<f32> = (0..8192).map(|i| (i as f32 * 0.1).sin()).collect();
+///
+/// // Slow down to 1.5x duration
+/// let slower = time_stretch(&audio, &TimeStretchConfig::with_factor(1.5));
+///
+/// // Speed up to 0.5x duration
+/// let faster = time_stretch(&audio, &TimeStretchConfig::with_factor(0.5));
+/// ```
+pub fn time_stretch(signal: &[f32], config: &TimeStretchConfig) -> Vec<f32> {
+    if signal.is_empty() || (config.stretch_factor - 1.0).abs() < 0.001 {
+        return signal.to_vec();
+    }
+
+    let window_size = config.window_size;
+    let analysis_hop = config.analysis_hop;
+    let synthesis_hop = (analysis_hop as f32 * config.stretch_factor) as usize;
+
+    // Window functions
+    let window = hann_window(window_size);
+    let num_bins = window_size / 2 + 1;
+
+    // Estimate output length
+    let num_frames = (signal.len().saturating_sub(window_size)) / analysis_hop + 1;
+    let output_len = (num_frames.saturating_sub(1)) * synthesis_hop + window_size;
+
+    let mut output = vec![0.0f32; output_len];
+    let mut window_sum = vec![0.0f32; output_len];
+
+    // Phase accumulators for phase vocoder
+    let mut prev_phase = vec![0.0f32; num_bins];
+    let mut synth_phase = vec![0.0f32; num_bins];
+
+    // Frequency per bin (for phase unwrapping)
+    let freq_per_bin = 2.0 * PI / window_size as f32;
+
+    // Process frames
+    let mut frame_buffer = vec![0.0f32; window_size];
+    let mut analysis_pos = 0;
+    let mut synthesis_pos = 0;
+
+    while analysis_pos + window_size <= signal.len() {
+        // Copy and window the analysis frame
+        frame_buffer.copy_from_slice(&signal[analysis_pos..analysis_pos + window_size]);
+        apply_window(&mut frame_buffer, &window);
+
+        // FFT
+        let spectrum = fft(&frame_buffer);
+
+        // Phase vocoder: adjust phases
+        let mut adjusted_spectrum = Vec::with_capacity(num_bins);
+
+        for (bin, c) in spectrum.iter().enumerate() {
+            let mag = c.mag();
+            let phase = c.phase();
+
+            // Calculate phase difference
+            let expected_phase_advance = bin as f32 * analysis_hop as f32 * freq_per_bin;
+            let phase_diff = phase - prev_phase[bin] - expected_phase_advance;
+
+            // Wrap to [-PI, PI]
+            let wrapped_diff = wrap_phase(phase_diff);
+
+            // True frequency deviation
+            let true_freq = bin as f32 * freq_per_bin + wrapped_diff / analysis_hop as f32;
+
+            // Accumulate synthesis phase
+            synth_phase[bin] += true_freq * synthesis_hop as f32;
+            synth_phase[bin] = wrap_phase(synth_phase[bin]);
+
+            // Store for next frame
+            prev_phase[bin] = phase;
+
+            // Reconstruct complex number with new phase
+            adjusted_spectrum.push(Complex::from_polar(mag, synth_phase[bin]));
+        }
+
+        // Transient detection (optional)
+        let is_transient = if config.preserve_transients {
+            detect_transient(&spectrum, &prev_phase, config.transient_threshold)
+        } else {
+            false
+        };
+
+        // For transients, use original phase to preserve attack
+        let final_spectrum = if is_transient {
+            spectrum
+        } else {
+            adjusted_spectrum
+        };
+
+        // IFFT
+        let time_frame = ifft(&final_spectrum);
+
+        // Overlap-add at synthesis position
+        if synthesis_pos + window_size <= output_len {
+            for (j, &sample) in time_frame.iter().enumerate() {
+                output[synthesis_pos + j] += sample * window[j];
+                window_sum[synthesis_pos + j] += window[j] * window[j];
+            }
+        }
+
+        analysis_pos += analysis_hop;
+        synthesis_pos += synthesis_hop;
+    }
+
+    // Normalize by window sum
+    for (o, &w) in output.iter_mut().zip(window_sum.iter()) {
+        if w > 1e-8 {
+            *o /= w;
+        }
+    }
+
+    output
+}
+
+/// Pitch-shifts audio by time-stretching and resampling.
+///
+/// Changes the pitch without changing the duration.
+///
+/// # Arguments
+/// * `signal` - Input audio samples
+/// * `semitones` - Pitch shift in semitones (positive = higher, negative = lower)
+pub fn pitch_shift(signal: &[f32], semitones: f32) -> Vec<f32> {
+    if signal.is_empty() || semitones.abs() < 0.001 {
+        return signal.to_vec();
+    }
+
+    // Pitch ratio (2^(semitones/12))
+    let pitch_ratio = (2.0f32).powf(semitones / 12.0);
+
+    // Time-stretch to compensate for resampling
+    let stretch_config = TimeStretchConfig::with_factor(pitch_ratio);
+    let stretched = time_stretch(signal, &stretch_config);
+
+    // Resample to original length
+    resample_linear(&stretched, signal.len())
+}
+
+/// Granular time-stretch for extreme ratios.
+///
+/// Better quality than phase vocoder for very large stretch factors.
+pub fn time_stretch_granular(
+    signal: &[f32],
+    stretch_factor: f32,
+    grain_size: usize,
+    overlap: f32,
+) -> Vec<f32> {
+    if signal.is_empty() || stretch_factor <= 0.0 {
+        return signal.to_vec();
+    }
+
+    let hop = (grain_size as f32 * (1.0 - overlap.clamp(0.0, 0.95))) as usize;
+    let output_hop = (hop as f32 * stretch_factor) as usize;
+
+    // Estimate output length
+    let num_grains = signal.len().saturating_sub(grain_size) / hop + 1;
+    let output_len = (num_grains.saturating_sub(1)) * output_hop + grain_size;
+
+    let mut output = vec![0.0f32; output_len];
+    let mut window_sum = vec![0.0f32; output_len];
+
+    let window = hann_window(grain_size);
+
+    let mut read_pos = 0;
+    let mut write_pos = 0;
+
+    while read_pos + grain_size <= signal.len() && write_pos + grain_size <= output_len {
+        // Copy grain with window
+        for i in 0..grain_size {
+            output[write_pos + i] += signal[read_pos + i] * window[i];
+            window_sum[write_pos + i] += window[i] * window[i];
+        }
+
+        read_pos += hop;
+        write_pos += output_hop;
+    }
+
+    // Normalize
+    for (o, &w) in output.iter_mut().zip(window_sum.iter()) {
+        if w > 1e-8 {
+            *o /= w;
+        }
+    }
+
+    output
+}
+
+/// Wraps a phase value to [-PI, PI].
+fn wrap_phase(phase: f32) -> f32 {
+    let mut p = phase;
+    while p > PI {
+        p -= 2.0 * PI;
+    }
+    while p < -PI {
+        p += 2.0 * PI;
+    }
+    p
+}
+
+/// Detects if a frame is a transient.
+fn detect_transient(spectrum: &[Complex], prev_phase: &[f32], threshold: f32) -> bool {
+    let mut phase_deviation_sum = 0.0f32;
+    let mut count = 0;
+
+    for (bin, c) in spectrum.iter().enumerate().skip(1) {
+        if c.mag() > 0.001 {
+            let phase = c.phase();
+            let diff = (phase - prev_phase[bin]).abs();
+            phase_deviation_sum += diff;
+            count += 1;
+        }
+    }
+
+    if count > 0 {
+        let avg_deviation = phase_deviation_sum / count as f32;
+        avg_deviation > threshold
+    } else {
+        false
+    }
+}
+
+/// Linear resampling to a target length.
+fn resample_linear(signal: &[f32], target_len: usize) -> Vec<f32> {
+    if signal.is_empty() || target_len == 0 {
+        return vec![];
+    }
+
+    if target_len == signal.len() {
+        return signal.to_vec();
+    }
+
+    let ratio = (signal.len() - 1) as f32 / (target_len - 1).max(1) as f32;
+
+    (0..target_len)
+        .map(|i| {
+            let pos = i as f32 * ratio;
+            let idx = pos.floor() as usize;
+            let frac = pos.fract();
+
+            if idx + 1 < signal.len() {
+                signal[idx] * (1.0 - frac) + signal[idx + 1] * frac
+            } else {
+                signal[signal.len() - 1]
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -748,5 +1060,115 @@ mod tests {
             est_freq,
             freq
         );
+    }
+
+    #[test]
+    fn test_time_stretch_slower() {
+        let signal: Vec<f32> = (0..8192)
+            .map(|i| (2.0 * PI * 440.0 * i as f32 / 44100.0).sin())
+            .collect();
+
+        let config = TimeStretchConfig::with_factor(2.0);
+        let stretched = time_stretch(&signal, &config);
+
+        // Should be approximately twice as long
+        let ratio = stretched.len() as f32 / signal.len() as f32;
+        assert!(
+            (ratio - 2.0).abs() < 0.3,
+            "Expected ratio ~2.0, got {}",
+            ratio
+        );
+    }
+
+    #[test]
+    fn test_time_stretch_faster() {
+        let signal: Vec<f32> = (0..8192)
+            .map(|i| (2.0 * PI * 440.0 * i as f32 / 44100.0).sin())
+            .collect();
+
+        let config = TimeStretchConfig::with_factor(0.5);
+        let stretched = time_stretch(&signal, &config);
+
+        // Should be approximately half as long
+        let ratio = stretched.len() as f32 / signal.len() as f32;
+        assert!(
+            (ratio - 0.5).abs() < 0.2,
+            "Expected ratio ~0.5, got {}",
+            ratio
+        );
+    }
+
+    #[test]
+    fn test_time_stretch_unity() {
+        let signal: Vec<f32> = (0..4096)
+            .map(|i| (2.0 * PI * 440.0 * i as f32 / 44100.0).sin())
+            .collect();
+
+        let config = TimeStretchConfig::with_factor(1.0);
+        let stretched = time_stretch(&signal, &config);
+
+        // Should be same length for unity stretch
+        assert_eq!(stretched.len(), signal.len());
+    }
+
+    #[test]
+    fn test_pitch_shift() {
+        let signal: Vec<f32> = (0..4096)
+            .map(|i| (2.0 * PI * 440.0 * i as f32 / 44100.0).sin())
+            .collect();
+
+        // Shift up an octave
+        let shifted = pitch_shift(&signal, 12.0);
+
+        // Should be same length
+        assert_eq!(shifted.len(), signal.len());
+    }
+
+    #[test]
+    fn test_time_stretch_granular() {
+        let signal: Vec<f32> = (0..8192)
+            .map(|i| (2.0 * PI * 440.0 * i as f32 / 44100.0).sin())
+            .collect();
+
+        let stretched = time_stretch_granular(&signal, 2.0, 2048, 0.75);
+
+        // Should be approximately twice as long
+        let ratio = stretched.len() as f32 / signal.len() as f32;
+        assert!(
+            (ratio - 2.0).abs() < 0.5,
+            "Expected ratio ~2.0, got {}",
+            ratio
+        );
+    }
+
+    #[test]
+    fn test_time_stretch_empty() {
+        let signal: Vec<f32> = vec![];
+        let stretched = time_stretch(&signal, &TimeStretchConfig::with_factor(2.0));
+        assert!(stretched.is_empty());
+    }
+
+    #[test]
+    fn test_wrap_phase() {
+        assert!((wrap_phase(0.0) - 0.0).abs() < 0.001);
+        assert!((wrap_phase(PI) - PI).abs() < 0.001);
+        assert!((wrap_phase(-PI) - (-PI)).abs() < 0.001);
+        assert!((wrap_phase(3.0 * PI) - PI).abs() < 0.001);
+        assert!((wrap_phase(-3.0 * PI) - (-PI)).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_resample_linear() {
+        let signal = vec![0.0, 1.0, 2.0, 3.0, 4.0];
+
+        // Upsample
+        let upsampled = resample_linear(&signal, 9);
+        assert_eq!(upsampled.len(), 9);
+        assert!((upsampled[0] - 0.0).abs() < 0.001);
+        assert!((upsampled[8] - 4.0).abs() < 0.001);
+
+        // Downsample
+        let downsampled = resample_linear(&signal, 3);
+        assert_eq!(downsampled.len(), 3);
     }
 }

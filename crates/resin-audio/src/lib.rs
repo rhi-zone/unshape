@@ -57,9 +57,10 @@ pub use room::{
     calculate_rt60_sabine,
 };
 pub use spectral::{
-    Complex, StftConfig, StftResult, blackman_window, estimate_pitch, fft, fft_complex,
-    find_peak_frequency, hamming_window, hann_window, ifft, ifft_complex, istft, rect_window,
-    spectral_centroid, spectral_flatness, stft, stft_with_sample_rate,
+    Complex, StftConfig, StftResult, TimeStretchConfig, blackman_window, estimate_pitch, fft,
+    fft_complex, find_peak_frequency, hamming_window, hann_window, ifft, ifft_complex, istft,
+    pitch_shift, rect_window, spectral_centroid, spectral_flatness, stft, stft_with_sample_rate,
+    time_stretch, time_stretch_granular,
 };
 pub use vocoder::{FilterbankVocoder, Vocoder, VocoderConfig};
 pub use wav::{
