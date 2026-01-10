@@ -1247,6 +1247,127 @@ pub fn swap_channels(image: &ImageField, a: Channel, b: Channel) -> ImageField {
 }
 
 // ============================================================================
+// Chromatic aberration
+// ============================================================================
+
+/// Configuration for chromatic aberration effect.
+#[derive(Debug, Clone, Copy)]
+pub struct ChromaticAberrationConfig {
+    /// Offset amount for red channel (negative = inward, positive = outward).
+    pub red_offset: f32,
+    /// Offset amount for green channel.
+    pub green_offset: f32,
+    /// Offset amount for blue channel.
+    pub blue_offset: f32,
+    /// Center point for radial offset (normalized coordinates, default: (0.5, 0.5)).
+    pub center: (f32, f32),
+}
+
+impl Default for ChromaticAberrationConfig {
+    fn default() -> Self {
+        Self {
+            red_offset: 0.005,
+            green_offset: 0.0,
+            blue_offset: -0.005,
+            center: (0.5, 0.5),
+        }
+    }
+}
+
+impl ChromaticAberrationConfig {
+    /// Creates a new config with symmetric red/blue offset.
+    ///
+    /// Red is pushed outward, blue inward (typical lens aberration).
+    pub fn new(strength: f32) -> Self {
+        Self {
+            red_offset: strength,
+            green_offset: 0.0,
+            blue_offset: -strength,
+            center: (0.5, 0.5),
+        }
+    }
+
+    /// Sets the center point for radial offset.
+    pub fn with_center(mut self, x: f32, y: f32) -> Self {
+        self.center = (x, y);
+        self
+    }
+
+    /// Sets individual channel offsets.
+    pub fn with_offsets(mut self, red: f32, green: f32, blue: f32) -> Self {
+        self.red_offset = red;
+        self.green_offset = green;
+        self.blue_offset = blue;
+        self
+    }
+}
+
+/// Applies chromatic aberration effect to an image.
+///
+/// This simulates lens chromatic aberration by offsetting each color channel
+/// radially from the center point. Positive offsets push the channel outward,
+/// negative offsets push inward.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, chromatic_aberration, ChromaticAberrationConfig};
+///
+/// let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
+/// let img = ImageField::from_raw(data, 4, 4);
+///
+/// // Subtle chromatic aberration
+/// let config = ChromaticAberrationConfig::new(0.01);
+/// let result = chromatic_aberration(&img, &config);
+/// ```
+pub fn chromatic_aberration(image: &ImageField, config: &ChromaticAberrationConfig) -> ImageField {
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            // Normalize coordinates to [0, 1]
+            let u = (x as f32 + 0.5) / width as f32;
+            let v = (y as f32 + 0.5) / height as f32;
+
+            // Vector from center to current pixel
+            let dx = u - config.center.0;
+            let dy = v - config.center.1;
+
+            // Sample each channel at its offset position
+            let r_u = u + dx * config.red_offset;
+            let r_v = v + dy * config.red_offset;
+            let r = image.sample_uv(r_u, r_v).r;
+
+            let g_u = u + dx * config.green_offset;
+            let g_v = v + dy * config.green_offset;
+            let g = image.sample_uv(g_u, g_v).g;
+
+            let b_u = u + dx * config.blue_offset;
+            let b_v = v + dy * config.blue_offset;
+            let b = image.sample_uv(b_u, b_v).b;
+
+            // Alpha from original position
+            let a = image.sample_uv(u, v).a;
+
+            data.push([r, g, b, a]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Applies a quick chromatic aberration with default red/blue fringing.
+///
+/// # Arguments
+/// * `strength` - Amount of aberration (0.01-0.05 for subtle, higher for dramatic)
+pub fn chromatic_aberration_simple(image: &ImageField, strength: f32) -> ImageField {
+    chromatic_aberration(image, &ChromaticAberrationConfig::new(strength))
+}
+
+// ============================================================================
 // Normal map generation
 // ============================================================================
 
@@ -1833,5 +1954,85 @@ mod tests {
             assert!((pixel[2] - original[2]).abs() < 0.001);
             assert!((pixel[3] - original[3]).abs() < 0.001);
         }
+    }
+
+    // Chromatic aberration tests
+
+    #[test]
+    fn test_chromatic_aberration_config() {
+        let config = ChromaticAberrationConfig::new(0.02);
+        assert_eq!(config.red_offset, 0.02);
+        assert_eq!(config.green_offset, 0.0);
+        assert_eq!(config.blue_offset, -0.02);
+        assert_eq!(config.center, (0.5, 0.5));
+    }
+
+    #[test]
+    fn test_chromatic_aberration_config_builder() {
+        let config = ChromaticAberrationConfig::new(0.01)
+            .with_center(0.3, 0.7)
+            .with_offsets(0.02, 0.01, -0.01);
+
+        assert_eq!(config.center, (0.3, 0.7));
+        assert_eq!(config.red_offset, 0.02);
+        assert_eq!(config.green_offset, 0.01);
+        assert_eq!(config.blue_offset, -0.01);
+    }
+
+    #[test]
+    fn test_chromatic_aberration_preserves_dimensions() {
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 25];
+        let img = ImageField::from_raw(data, 5, 5);
+
+        let result = chromatic_aberration(&img, &ChromaticAberrationConfig::new(0.1));
+        assert_eq!(result.dimensions(), (5, 5));
+    }
+
+    #[test]
+    fn test_chromatic_aberration_zero_strength() {
+        // Zero strength should leave image unchanged
+        let data = vec![
+            [1.0, 0.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0, 1.0],
+        ];
+        let img = ImageField::from_raw(data.clone(), 2, 2);
+
+        let config = ChromaticAberrationConfig::new(0.0);
+        let result = chromatic_aberration(&img, &config);
+
+        for (i, original) in data.iter().enumerate() {
+            let x = (i % 2) as u32;
+            let y = (i / 2) as u32;
+            let pixel = result.get_pixel(x, y);
+            assert!((pixel[0] - original[0]).abs() < 0.01);
+            assert!((pixel[1] - original[1]).abs() < 0.01);
+            assert!((pixel[2] - original[2]).abs() < 0.01);
+        }
+    }
+
+    #[test]
+    fn test_chromatic_aberration_simple() {
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
+        let img = ImageField::from_raw(data, 4, 4);
+
+        let result = chromatic_aberration_simple(&img, 0.05);
+        assert_eq!(result.dimensions(), (4, 4));
+    }
+
+    #[test]
+    fn test_chromatic_aberration_center_unchanged() {
+        // At the center, all channels should sample from nearly the same location
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 9];
+        let img = ImageField::from_raw(data, 3, 3);
+
+        let result = chromatic_aberration(&img, &ChromaticAberrationConfig::new(0.1));
+
+        // Center pixel should be very similar to original
+        let center = result.get_pixel(1, 1);
+        assert!((center[0] - 0.5).abs() < 0.1);
+        assert!((center[1] - 0.5).abs() < 0.1);
+        assert!((center[2] - 0.5).abs() < 0.1);
     }
 }
