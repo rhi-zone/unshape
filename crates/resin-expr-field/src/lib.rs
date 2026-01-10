@@ -25,9 +25,14 @@ use rhizome_dew_scalar::{FunctionRegistry, ScalarFn};
 use rhizome_resin_field::{EvalContext, Field};
 use std::collections::HashMap;
 
+use std::collections::HashSet;
+
 // Re-export dew types for convenience
 pub use rhizome_dew_core::{Ast, BinOp, UnaryOp};
 pub use rhizome_dew_scalar::{Error as EvalError, scalar_registry};
+
+/// Built-in variables that are automatically bound during field evaluation.
+pub const BUILTIN_VARS: &[&str] = &["x", "y", "z", "t", "time"];
 
 // ============================================================================
 // Noise expression functions
@@ -163,6 +168,27 @@ impl ExprField {
     pub fn eval(&self, vars: &HashMap<String, f32>) -> Result<f32, EvalError> {
         rhizome_dew_scalar::eval(self.expr.ast(), vars, &self.registry)
     }
+
+    /// Returns all free variables referenced in the expression.
+    pub fn free_vars(&self) -> HashSet<&str> {
+        self.expr.free_vars()
+    }
+
+    /// Returns user-defined variables (free vars minus builtins like x, y, z, t, time).
+    ///
+    /// These are the variables that need to be bound by the user.
+    pub fn user_inputs(&self) -> HashSet<&str> {
+        self.expr
+            .free_vars()
+            .into_iter()
+            .filter(|v| !BUILTIN_VARS.contains(v))
+            .collect()
+    }
+
+    /// Returns the underlying expression.
+    pub fn expr(&self) -> &Expr {
+        &self.expr
+    }
 }
 
 impl Field<Vec2, f32> for ExprField {
@@ -240,5 +266,45 @@ mod tests {
         let expr = Expr::parse("simplex(0.5, 0.5)").unwrap();
         let v = rhizome_dew_scalar::eval(expr.ast(), &vars, &registry).unwrap();
         assert!((0.0..=1.0).contains(&v));
+    }
+
+    #[test]
+    fn test_free_vars() {
+        let registry = FunctionRegistry::<f32>::new();
+        let field = ExprField::parse("sin(t * speed) * amplitude + x", registry).unwrap();
+
+        let free = field.free_vars();
+        assert!(free.contains("t"));
+        assert!(free.contains("speed"));
+        assert!(free.contains("amplitude"));
+        assert!(free.contains("x"));
+    }
+
+    #[test]
+    fn test_user_inputs() {
+        let registry = FunctionRegistry::<f32>::new();
+        let field = ExprField::parse("sin(t * speed) * amplitude + x", registry).unwrap();
+
+        let inputs = field.user_inputs();
+        // Builtins (t, x) should be filtered out
+        assert!(!inputs.contains("t"));
+        assert!(!inputs.contains("x"));
+        // User inputs remain
+        assert!(inputs.contains("speed"));
+        assert!(inputs.contains("amplitude"));
+        assert_eq!(inputs.len(), 2);
+    }
+
+    #[test]
+    fn test_eval_with_bindings() {
+        let registry = FunctionRegistry::<f32>::new();
+        let field = ExprField::parse("a + b", registry).unwrap();
+
+        let mut vars = HashMap::new();
+        vars.insert("a".to_string(), 3.0);
+        vars.insert("b".to_string(), 4.0);
+
+        let result = field.eval(&vars).unwrap();
+        assert_eq!(result, 7.0);
     }
 }
