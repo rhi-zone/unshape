@@ -58,10 +58,10 @@ pub use path::{
 };
 pub use stroke::{
     CapStyle, DashPattern, JoinStyle, PressurePoint, PressureStroke, PressureStrokeConfig,
-    PressureStrokeRender, Stroke, StrokeConfig, dash_path, offset_path, path_length,
-    point_at_length, pressure_stroke_to_path, resample_path, simplify_path, simplify_points,
-    simulate_natural_pressure, simulate_velocity_pressure, smooth_path, stroke_to_path,
-    tangent_at_length,
+    PressureStrokeRender, Stroke, StrokeConfig, Trim, TrimResult, dash_path, offset_path,
+    path_length, point_at_length, pressure_stroke_to_path, resample_path, simplify_path,
+    simplify_points, simulate_natural_pressure, simulate_velocity_pressure, smooth_path,
+    stroke_to_path, tangent_at_length, trim_path, trim_path_with_tangents, trim_segments,
 };
 pub use text::{
     Font, FontError, FontResult, TextConfig, TextLayout, TextMetrics, measure_text, text_to_path,
@@ -75,4 +75,5 @@ pub use text::{
 pub fn register_ops(registry: &mut rhizome_resin_op::OpRegistry) {
     registry.register_type::<Stroke>("resin::Stroke");
     registry.register_type::<PressureStrokeRender>("resin::PressureStrokeRender");
+    registry.register_type::<Trim>("resin::Trim");
 }

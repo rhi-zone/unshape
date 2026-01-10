@@ -1241,6 +1241,272 @@ pub fn simulate_natural_pressure(path: &Path, taper_start: f32, taper_end: f32) 
     stroke.taper_start(taper_start).taper_end(taper_end)
 }
 
+// ===========================================================================
+// Path Trim (Stroke Reveal Animation)
+// ===========================================================================
+
+/// Operation for trimming a path to a portion of its length.
+///
+/// This is the core building block for "stroke reveal" animations where
+/// a path is drawn from 0% to 100% over time.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(rhizome_resin_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = Path, output = Path))]
+pub struct Trim {
+    /// Start position (0.0 to 1.0).
+    pub start: f32,
+    /// End position (0.0 to 1.0).
+    pub end: f32,
+}
+
+impl Default for Trim {
+    fn default() -> Self {
+        Self {
+            start: 0.0,
+            end: 1.0,
+        }
+    }
+}
+
+impl Trim {
+    /// Creates a trim operation with the given start and end positions.
+    ///
+    /// Both `start` and `end` are in the range 0.0 to 1.0, representing
+    /// percentage along the path length.
+    pub fn new(start: f32, end: f32) -> Self {
+        Self { start, end }
+    }
+
+    /// Creates a trim operation starting from the beginning.
+    ///
+    /// Useful for "draw on" animations: `Trim::from_start(t)` where t goes 0→1.
+    pub fn from_start(end: f32) -> Self {
+        Self { start: 0.0, end }
+    }
+
+    /// Creates a trim operation ending at the end.
+    ///
+    /// Useful for "draw off" animations: `Trim::to_end(t)` where t goes 0→1.
+    pub fn to_end(start: f32) -> Self {
+        Self { start, end: 1.0 }
+    }
+
+    /// Applies the trim operation to a path.
+    pub fn apply(&self, path: &Path) -> Path {
+        trim_path(path, self.start, self.end)
+    }
+}
+
+/// Result of trimming a path, including tangent information at endpoints.
+#[derive(Debug, Clone)]
+pub struct TrimResult {
+    /// The trimmed path.
+    pub path: Path,
+    /// Tangent direction at the start of the trimmed path.
+    pub start_tangent: Option<Vec2>,
+    /// Tangent direction at the end of the trimmed path.
+    pub end_tangent: Option<Vec2>,
+}
+
+/// Trims a path to a portion of its length.
+///
+/// Returns the portion of the path between `start` and `end`, where both
+/// values are in the range 0.0 to 1.0 (percentage of total path length).
+///
+/// If `start > end`, the path segment is reversed.
+///
+/// # Arguments
+/// * `path` - The path to trim.
+/// * `start` - Start position (0.0 to 1.0).
+/// * `end` - End position (0.0 to 1.0).
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_resin_vector::{circle, stroke::trim_path};
+/// use glam::Vec2;
+///
+/// let path = circle(Vec2::ZERO, 100.0);
+///
+/// // First half of the circle
+/// let first_half = trim_path(&path, 0.0, 0.5);
+///
+/// // Animate stroke reveal (in animation loop)
+/// let t = 0.5; // Animation progress
+/// let revealed = trim_path(&path, 0.0, t);
+/// ```
+pub fn trim_path(path: &Path, start: f32, end: f32) -> Path {
+    let start = start.clamp(0.0, 1.0);
+    let end = end.clamp(0.0, 1.0);
+
+    if (end - start).abs() < 1e-6 {
+        return Path::new();
+    }
+
+    let points = path_to_points(path);
+    if points.len() < 2 {
+        return path.clone();
+    }
+
+    let total_len = path_length(path);
+    if total_len < 1e-6 {
+        return path.clone();
+    }
+
+    let (start_dist, end_dist, reverse) = if start <= end {
+        (start * total_len, end * total_len, false)
+    } else {
+        (end * total_len, start * total_len, true)
+    };
+
+    // Sample points between start and end distances
+    let mut trimmed_points = Vec::new();
+
+    // Add start point
+    if let Some(p) = sample_path_at_distance(&points, start_dist) {
+        trimmed_points.push(p);
+    }
+
+    // Add intermediate points that fall within the range
+    let mut accumulated_dist = 0.0;
+    for i in 0..points.len() - 1 {
+        let segment_len = (points[i + 1] - points[i]).length();
+        let segment_end = accumulated_dist + segment_len;
+
+        // If this point falls within our range, add it
+        if accumulated_dist > start_dist && accumulated_dist < end_dist {
+            // Check if this point is significantly different from the last added point
+            if let Some(&last) = trimmed_points.last() {
+                if (points[i] - last).length() > 1e-6 {
+                    trimmed_points.push(points[i]);
+                }
+            }
+        }
+
+        // Same for the next point
+        if segment_end > start_dist && segment_end < end_dist && i + 1 < points.len() {
+            if let Some(&last) = trimmed_points.last() {
+                if (points[i + 1] - last).length() > 1e-6 {
+                    trimmed_points.push(points[i + 1]);
+                }
+            }
+        }
+
+        accumulated_dist = segment_end;
+    }
+
+    // Add end point
+    if let Some(p) = sample_path_at_distance(&points, end_dist) {
+        if let Some(&last) = trimmed_points.last() {
+            if (p - last).length() > 1e-6 {
+                trimmed_points.push(p);
+            }
+        } else {
+            trimmed_points.push(p);
+        }
+    }
+
+    if reverse {
+        trimmed_points.reverse();
+    }
+
+    points_to_path(&trimmed_points, false)
+}
+
+/// Trims a path and returns additional information about the endpoints.
+///
+/// This is useful when you need to draw arrowheads or other decorations
+/// at the trim endpoints.
+pub fn trim_path_with_tangents(path: &Path, start: f32, end: f32) -> TrimResult {
+    let start = start.clamp(0.0, 1.0);
+    let end = end.clamp(0.0, 1.0);
+
+    if (end - start).abs() < 1e-6 {
+        return TrimResult {
+            path: Path::new(),
+            start_tangent: None,
+            end_tangent: None,
+        };
+    }
+
+    let total_len = path_length(path);
+    if total_len < 1e-6 {
+        return TrimResult {
+            path: path.clone(),
+            start_tangent: None,
+            end_tangent: None,
+        };
+    }
+
+    let (actual_start, actual_end, reverse) = if start <= end {
+        (start, end, false)
+    } else {
+        (end, start, true)
+    };
+
+    let trimmed = trim_path(path, actual_start, actual_end);
+
+    let start_tangent = tangent_at_length(path, actual_start * total_len);
+    let end_tangent = tangent_at_length(path, actual_end * total_len);
+
+    if reverse {
+        TrimResult {
+            path: trimmed,
+            start_tangent: end_tangent.map(|t| -t),
+            end_tangent: start_tangent.map(|t| -t),
+        }
+    } else {
+        TrimResult {
+            path: trimmed,
+            start_tangent,
+            end_tangent,
+        }
+    }
+}
+
+/// Creates multiple trim segments from a path (for dashed stroke reveal).
+///
+/// This is useful for creating animated dashed lines where each dash
+/// appears progressively.
+///
+/// # Arguments
+/// * `path` - The path to segment.
+/// * `num_segments` - Number of segments to create.
+/// * `gap_ratio` - Ratio of gap to segment (0.0 = no gaps, 0.5 = equal gaps).
+/// * `progress` - Animation progress (0.0 to 1.0).
+pub fn trim_segments(path: &Path, num_segments: usize, gap_ratio: f32, progress: f32) -> Vec<Path> {
+    if num_segments == 0 || progress <= 0.0 {
+        return Vec::new();
+    }
+
+    let gap_ratio = gap_ratio.clamp(0.0, 0.9);
+    let segment_size = 1.0 / num_segments as f32;
+    let gap_size = segment_size * gap_ratio;
+    let dash_size = segment_size - gap_size;
+
+    let mut segments = Vec::with_capacity(num_segments);
+
+    for i in 0..num_segments {
+        let segment_start = i as f32 * segment_size;
+        let segment_end = segment_start + dash_size;
+
+        // Apply progress to this segment
+        let reveal_point = progress * (1.0 + gap_ratio);
+        let segment_progress = ((reveal_point - segment_start) / dash_size).clamp(0.0, 1.0);
+
+        if segment_progress > 0.0 {
+            let actual_end = segment_start + dash_size * segment_progress;
+            let trimmed = trim_path(path, segment_start, actual_end.min(segment_end));
+            if !trimmed.is_empty() {
+                segments.push(trimmed);
+            }
+        }
+    }
+
+    segments
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1612,5 +1878,187 @@ mod tests {
 
         assert!(first_pressure < middle_pressure);
         assert!(last_pressure < middle_pressure);
+    }
+
+    // Path trim tests
+
+    #[test]
+    fn test_trim_default() {
+        let trim = Trim::default();
+        assert_eq!(trim.start, 0.0);
+        assert_eq!(trim.end, 1.0);
+    }
+
+    #[test]
+    fn test_trim_new() {
+        let trim = Trim::new(0.25, 0.75);
+        assert_eq!(trim.start, 0.25);
+        assert_eq!(trim.end, 0.75);
+    }
+
+    #[test]
+    fn test_trim_from_start() {
+        let trim = Trim::from_start(0.5);
+        assert_eq!(trim.start, 0.0);
+        assert_eq!(trim.end, 0.5);
+    }
+
+    #[test]
+    fn test_trim_to_end() {
+        let trim = Trim::to_end(0.3);
+        assert_eq!(trim.start, 0.3);
+        assert_eq!(trim.end, 1.0);
+    }
+
+    #[test]
+    fn test_trim_path_full() {
+        let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
+        let trimmed = trim_path(&path, 0.0, 1.0);
+
+        // Full trim should preserve path
+        assert!(!trimmed.is_empty());
+        let len = path_length(&trimmed);
+        assert!((len - 100.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_trim_path_first_half() {
+        let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
+        let trimmed = trim_path(&path, 0.0, 0.5);
+
+        let len = path_length(&trimmed);
+        assert!((len - 50.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_trim_path_second_half() {
+        let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
+        let trimmed = trim_path(&path, 0.5, 1.0);
+
+        let len = path_length(&trimmed);
+        assert!((len - 50.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_trim_path_middle() {
+        let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
+        let trimmed = trim_path(&path, 0.25, 0.75);
+
+        let len = path_length(&trimmed);
+        assert!((len - 50.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_trim_path_empty() {
+        let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
+
+        // Same start and end should give empty path
+        let trimmed = trim_path(&path, 0.5, 0.5);
+        assert!(trimmed.is_empty());
+    }
+
+    #[test]
+    fn test_trim_path_reversed() {
+        let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
+
+        // start > end should reverse the path
+        let trimmed = trim_path(&path, 0.75, 0.25);
+        let len = path_length(&trimmed);
+        assert!((len - 50.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_trim_path_clamping() {
+        let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
+
+        // Values outside 0-1 should be clamped
+        let trimmed = trim_path(&path, -0.5, 1.5);
+        let len = path_length(&trimmed);
+        assert!((len - 100.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_trim_path_circle() {
+        let path = circle(Vec2::ZERO, 50.0);
+        let full_len = path_length(&path);
+
+        // Quarter of circle
+        let trimmed = trim_path(&path, 0.0, 0.25);
+        let trimmed_len = path_length(&trimmed);
+
+        assert!((trimmed_len - full_len * 0.25).abs() < 2.0);
+    }
+
+    #[test]
+    fn test_trim_apply() {
+        let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
+        let trim = Trim::new(0.0, 0.5);
+        let trimmed = trim.apply(&path);
+
+        let len = path_length(&trimmed);
+        assert!((len - 50.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_trim_path_with_tangents() {
+        let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
+        let result = trim_path_with_tangents(&path, 0.0, 0.5);
+
+        assert!(!result.path.is_empty());
+        assert!(result.start_tangent.is_some());
+        assert!(result.end_tangent.is_some());
+
+        // Tangents should point along x-axis
+        let start_t = result.start_tangent.unwrap();
+        assert!((start_t.x - 1.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_trim_segments_basic() {
+        let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
+
+        // 4 segments, no gaps, full progress
+        let segments = trim_segments(&path, 4, 0.0, 1.0);
+        assert_eq!(segments.len(), 4);
+
+        // Each segment should be about 25 units
+        for seg in &segments {
+            let len = path_length(seg);
+            assert!((len - 25.0).abs() < 2.0);
+        }
+    }
+
+    #[test]
+    fn test_trim_segments_with_gaps() {
+        let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
+
+        // 2 segments, 50% gap ratio, full progress
+        let segments = trim_segments(&path, 2, 0.5, 1.0);
+        assert_eq!(segments.len(), 2);
+
+        // Each segment should be 25 units (50% of 50 unit block)
+        for seg in &segments {
+            let len = path_length(seg);
+            assert!((len - 25.0).abs() < 2.0);
+        }
+    }
+
+    #[test]
+    fn test_trim_segments_partial_progress() {
+        let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
+
+        // 4 segments, no gaps, 50% progress
+        let segments = trim_segments(&path, 4, 0.0, 0.5);
+
+        // Should have 2 full segments revealed
+        assert_eq!(segments.len(), 2);
+    }
+
+    #[test]
+    fn test_trim_segments_zero_progress() {
+        let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
+
+        let segments = trim_segments(&path, 4, 0.0, 0.0);
+        assert!(segments.is_empty());
     }
 }

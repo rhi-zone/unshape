@@ -151,8 +151,8 @@
 **Features needed:**
 - [x] Transform2D with anchor point (pivot for rotation/scale)
 - [x] Layer hierarchy with parent-child transforms
-- [ ] Path trim (animate stroke reveal 0-100%)
-- [ ] Stagger/offset timing for instances
+- [x] Path trim (animate stroke reveal 0-100%) - Trim, trim_path, trim_segments in resin-vector
+- [x] Stagger/offset timing for instances - Stagger, StaggerPattern, stagger_timing in resin-scatter
 - [ ] Drop shadow, glow effects
 
 **Typed Expression AST:** ✅ Implemented
