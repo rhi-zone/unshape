@@ -27,3 +27,51 @@ crates/resin-field/src/lib.rs:thermal_erosion  # Terrain erosion simulation algo
 crates/resin-fluid/src/lib.rs:advect_3d  # Fluid advection algorithm
 crates/resin-noise/src/lib.rs:perlin3  # 3D Perlin noise algorithm
 crates/resin-mesh/src/architecture.rs:generate_stairs  # Procedural stair generation
+crates/resin-mesh/src/curve_mesh.rs:sweep_profile_impl  # Curve sweeping with frame generation
+crates/resin-vector/src/text.rs:build_glyph_path  # Font glyph to path conversion
+crates/resin-vector/src/delaunay.rs:circumcircle  # Delaunay triangulation geometry
+crates/resin-mesh/src/lattice.rs:taper_lattice  # FFD deformation math
+crates/resin-mesh/src/ao.rs:bake_ao_texture  # Ambient occlusion ray tracing
+crates/resin-pointcloud/src/lib.rs:estimate_normal_from_covariance  # PCA normal estimation
+crates/resin-mesh/src/bevel.rs:bevel_edges  # Mesh beveling with edge handling
+crates/resin-fluid/src/lib.rs:project_3d  # Fluid pressure projection
+crates/resin-mesh/src/remesh.rs:quadify  # Quad remeshing algorithm
+crates/resin-procgen/src/network.rs:generate_road_network_hierarchical  # Procedural road network generation
+crates/resin-mesh/src/repair.rs:fill_hole_ear_clip  # Ear clipping triangulation
+crates/resin-audio/src/spectral.rs:time_stretch  # Phase vocoder time stretching
+crates/resin-mesh/src/curve_mesh.rs:revolve_profile_impl  # Surface of revolution
+crates/resin-mesh/src/uv.rs:pack_uv_charts  # UV atlas bin packing
+crates/resin-audio/src/effects.rs:generate_room_ir  # Room acoustics impulse response
+crates/resin-vector/src/delaunay.rs:compute_circumcenter  # Delaunay triangulation geometry
+crates/resin-scatter/src/lib.rs:stagger_timing  # Animation stagger patterns
+crates/resin-image/src/lib.rs:inpaint_diffusion  # Diffusion-based inpainting
+crates/resin-fluid/src/lib.rs:set_bnd_2d  # Fluid boundary conditions
+crates/resin-procgen/src/maze.rs:eller  # Eller's maze generation algorithm
+crates/resin-vector/src/stroke.rs:dash_path  # Dash pattern along path
+crates/resin-vector/src/stroke.rs:pressure_stroke_to_path  # Variable-width pressure stroke
+crates/resin-spline/src/lib.rs:nurbs_arc  # NURBS arc construction
+crates/resin-audio/src/room.rs:calculate_room_modes  # Room acoustics mode calculation
+crates/resin-procgen/src/network.rs:calculate_flow_accumulation  # Terrain flow accumulation
+crates/resin-mesh/src/ops.rs:inset_with_config  # Face inset with config options
+crates/resin-color/src/lib.rs:blend  # Color blend modes
+crates/resin-field/src/lib.rs:trace_river_path  # River path tracing
+crates/resin-voxel/src/lib.rs:add_face  # Voxel face generation
+crates/resin-vector/src/hatching.rs:clip_line_to_polygon  # Sutherland-Hodgman clipping
+crates/resin-pointcloud/src/lib.rs:sample_mesh_uniform_with_rng  # Mesh surface sampling
+crates/resin-fluid/src/lib.rs:set_bnd_3d  # 3D fluid boundary conditions
+crates/resin-crossdomain/src/lib.rs:image_to_audio  # Spectral image sonification
+crates/resin-mesh/src/architecture.rs:generate_wall_with_window  # Procedural wall generation
+crates/resin-vector/src/path.rs:rounded_rect  # Rounded rectangle construction
+crates/resin-scatter/src/lib.rs:stagger_index  # Animation stagger index calculation
+crates/resin-mesh/src/subdivision.rs:subdivide_loop  # Loop subdivision algorithm
+crates/resin-mesh/src/bevel.rs:bevel_vertices  # Vertex beveling
+crates/resin-mesh/src/architecture.rs:generate_gabled_roof  # Procedural roof generation
+crates/resin-mesh/src/architecture.rs:generate_wall_with_door  # Procedural wall generation
+crates/resin-spring/src/lib.rs:create_cloth  # Cloth spring system setup
+crates/resin-field/src/lib.rs:compute_flow_accumulation  # Terrain flow accumulation
+crates/resin-mesh/src/loft.rs:loft  # Curve lofting algorithm
+crates/resin-mesh/src/remesh.rs:collapse_short_edges  # Edge collapse remeshing
+crates/resin-vector/src/svg.rs:parse_number  # SVG number parsing
+crates/resin-rig/src/ik.rs:solve_fabrik  # FABRIK IK solver
+crates/resin-audio/src/spectral.rs:fft_in_place  # In-place FFT implementation
+crates/resin-physics/src/softbody.rs:generate_cube_mesh  # Soft body cube mesh generation
