@@ -133,29 +133,15 @@
 - [x] Architecture review - evaluate patterns, identify inconsistencies (see docs/architecture-review.md)
 - [x] Refactoring - HIGH: tuple returns → named structs, panics → Option; MEDIUM: collision dedup, missing traits, step() split
 
-### Complexity Hotspots (141 functions >21)
+### Complexity Hotspots
 
-Top 20 (see `moss analyze complexity -t 21 -l 0` for full list):
-- [ ] `crates/resin-vector/src/svg.rs:arc_to_cubics` (135)
-- [ ] `crates/resin-noise/src/lib.rs:simplex3` (113)
-- [ ] `crates/resin-mesh/src/marching_cubes.rs:marching_cubes` (75)
-- [ ] `crates/resin-image/src/lib.rs:patchmatch_iteration` (74)
-- [ ] `crates/resin-mesh/src/sdf.rs:point_triangle_distance` (64)
-- [ ] `crates/resin-physics/src/cloth.rs:query_collision` (63)
-- [ ] `crates/resin-voxel/src/lib.rs:voxels_to_mesh` (60)
-- [ ] `crates/resin-noise/src/lib.rs:simplex2` (59)
-- [ ] `crates/resin-scatter/src/lib.rs:scatter_poisson_2d` (57)
-- [ ] `crates/resin-mesh/src/lattice.rs:twist_lattice` (54)
-- [ ] `crates/resin-vector/src/hatching.rs:clip_line_to_rect` (54)
-- [ ] `crates/resin-mesh/src/curvature.rs:mean_curvature` (53)
-- [ ] `crates/resin-vector/src/svg.rs:parse_path_data` (51)
-- [ ] `crates/resin-vector/src/rasterize.rs:composite_mask` (50)
-- [ ] `crates/resin-vector/src/path.rs:rounded_rect_corners` (50)
-- [ ] `crates/resin-mesh/src/geodesic.rs:solve_triangle_update` (49)
-- [ ] `crates/resin-vector/src/geometry.rs:circle_from_three_points` (49)
-- [ ] `crates/resin-mesh/src/obj.rs:import_obj_from_reader` (48)
-- [ ] `crates/resin-audio/src/spectral.rs:estimate_pitch` (48)
-- [ ] `crates/resin-vector/src/stroke.rs:offset_path` (48)
+> **Status:** ✅ Reviewed - all allowed in `.moss/complexity-allow`
+
+29 high-complexity functions reviewed. All represent inherent algorithmic complexity:
+- Standard algorithms (simplex noise, marching cubes, PatchMatch, Poisson disk)
+- Parsers (SVG path, OBJ) with many command variants
+- Geometry functions with edge cases (arc-to-cubic, point-triangle distance)
+- Physics simulations (erosion, fluid advection, spring dynamics)
 
 ### Architecture / Future Extraction
 
