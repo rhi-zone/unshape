@@ -712,6 +712,10 @@ pub fn parse_path_data(data: &str) -> SvgParseResult<Path> {
                 builder = builder.close();
                 current = start;
                 last_control = None;
+                // Z takes no parameters, so it shouldn't become the implicit command
+                // (otherwise "z-5" would infinite loop trying to repeat Z)
+                last_command = None;
+                continue;
             }
             _ => {
                 return Err(SvgParseError::UnknownCommand(command));
