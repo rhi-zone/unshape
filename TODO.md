@@ -143,15 +143,25 @@
 
 ### Glitch Art (image/video)
 
-- [ ] Pixel sorting - sort pixels by brightness/hue/saturation along rows/columns
-- [ ] RGB channel shift - independent X/Y offset per channel
-- [ ] Scan lines - CRT-style horizontal lines with configurable gap/intensity
+- [x] Pixel sorting - sort pixels by brightness/hue/saturation along rows/columns (pixel_sort, PixelSort)
+- [x] RGB channel shift - independent X/Y offset per channel (rgb_shift, RgbShift)
+- [x] Scan lines - CRT-style horizontal lines with configurable gap/intensity (scan_lines, ScanLines)
+- [x] Static/noise overlay - TV static, film grain, digital noise (static_noise)
+- [x] VHS tracking - horizontal displacement bands, color bleeding (vhs_tracking, VhsTracking)
 - [ ] JPEG artifacts - DCT block corruption, quantization artifacts
-- [ ] Static/noise overlay - TV static, film grain, digital noise
-- [ ] VHS tracking - horizontal displacement bands, color bleeding
 - [ ] Bit manipulation - XOR/AND/OR on raw pixel bytes
 - [ ] Datamosh (video) - P-frame/I-frame manipulation, motion vector corruption
 - [ ] Corrupt bytes - random byte insertion/deletion/swap in image data
+
+### Buffer / Channel Operations
+
+- [ ] Per-channel transform - `map_channel(image, channel, Fn(ImageField) -> ImageField)`
+- [ ] Colorspace decomposition - decompose/reconstruct in HSL/HSV/LAB/YUV/etc
+- [ ] Arbitrary channel reorder - swap/permute channels across colorspaces
+- [ ] Buffer map - `map_buffer(&[f32], Fn(f32) -> f32)` for audio/image/mesh
+- [ ] Buffer zip - `zip_buffers(&[f32], &[f32], Fn(f32, f32) -> f32)`
+- [ ] Buffer fold - `fold_buffer(&[f32], init, Fn(acc, f32) -> acc)`
+- [ ] Windowed operations - sliding window with arbitrary kernel function
 
 ### 2D Vector
 
