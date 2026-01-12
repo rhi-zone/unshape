@@ -80,9 +80,7 @@
 - [ ] Catmull-Clark subdivision - `subdivide_catmull_clark(mesh, levels)`
 - [ ] Selective subdivision - `subdivide_selected(selection, method)`
 
-**Edit History:**
-- [ ] MeshEditStack - undo/redo stack for mesh operations
-- [ ] Snapshot/restore - efficient mesh state serialization
+**Edit History:** Use `resin-history` (SnapshotHistory or EventHistory) - already implemented.
 
 ### Geometry / Mesh
 
