@@ -23,6 +23,16 @@ ALWAYS NOTE THINGS DOWN. When you discover something important, write it immedia
 - Framework/library quirk discovered → add to relevant docs/ file
 - "I'll remember this" thought → you won't, write it down now
 
+## Behavioral Patterns
+
+From ecosystem-wide session analysis:
+
+- **Question scope early:** Before implementing, ask whether it belongs in this crate/module
+- **Check consistency:** Look at how similar things are done elsewhere in the codebase
+- **Implement fully:** No silent arbitrary caps, incomplete pagination, or unexposed trait methods
+- **Name for purpose:** Avoid names that describe one consumer
+- **Verify before stating:** Don't assert API behavior or codebase facts without checking
+
 ## Negative Constraints
 
 Do not:
