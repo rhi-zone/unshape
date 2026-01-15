@@ -260,9 +260,9 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
   - Data flow graphs (resin-core): NodeId, Edge with ports
   - Spatial graphs (resin-vector, resin-procgen): position + connectivity
   - Topology graphs (resin-mesh): HalfEdge, Vertex, Face
-- [ ] Transform unification - consider generic `Transform<V, R>` (V=Vec2/Vec3, R=f32/Quat)
-  - Currently: `Transform` (3D) and `Transform2D` separate
-  - 2D has additional properties (anchor, skew)
+- [x] Transform unification - `resin-transform` crate with `SpatialTransform` trait
+  - Implemented for `Transform` (3D) and `Transform2D`
+  - Enables generic algorithms over both transform types
 
 **Low Priority:**
 - [ ] Vertex attribute unification - use traits instead of per-subsystem Vertex structs

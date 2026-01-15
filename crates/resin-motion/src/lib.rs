@@ -30,6 +30,7 @@
 
 use glam::{Mat3, Vec2};
 pub use rhizome_resin_easing::Lerp;
+pub use rhizome_resin_transform::SpatialTransform;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -211,6 +212,32 @@ impl Lerp for Transform2D {
 impl From<Transform2D> for Mat3 {
     fn from(t: Transform2D) -> Self {
         t.to_matrix()
+    }
+}
+
+impl SpatialTransform for Transform2D {
+    type Vector = Vec2;
+    type Rotation = f32;
+    type Matrix = Mat3;
+
+    fn translation(&self) -> Vec2 {
+        self.position
+    }
+
+    fn rotation(&self) -> f32 {
+        self.rotation
+    }
+
+    fn scale(&self) -> Vec2 {
+        self.scale
+    }
+
+    fn to_matrix(&self) -> Mat3 {
+        self.to_matrix()
+    }
+
+    fn transform_point(&self, point: Vec2) -> Vec2 {
+        self.transform_point(point)
     }
 }
 
@@ -1306,6 +1333,34 @@ mod tests {
         let t2 = Transform2D::from_position(Vec2::new(100.0, 100.0));
         let mid = t1.lerp(&t2, 0.5);
         assert!((mid.position - Vec2::new(50.0, 50.0)).length() < 0.001);
+    }
+
+    #[test]
+    fn test_spatial_transform_trait() {
+        // Test using the SpatialTransform trait generically
+        fn transform_points<T: SpatialTransform<Vector = Vec2>>(
+            transform: &T,
+            points: &[Vec2],
+        ) -> Vec<Vec2> {
+            points
+                .iter()
+                .map(|&p| transform.transform_point(p))
+                .collect()
+        }
+
+        let t = Transform2D::from_position(Vec2::new(10.0, 5.0));
+
+        let points = vec![Vec2::ZERO, Vec2::X, Vec2::Y];
+        let transformed = transform_points(&t, &points);
+
+        assert!((transformed[0] - Vec2::new(10.0, 5.0)).length() < 0.001);
+        assert!((transformed[1] - Vec2::new(11.0, 5.0)).length() < 0.001);
+        assert!((transformed[2] - Vec2::new(10.0, 6.0)).length() < 0.001);
+
+        // Verify trait accessors match struct fields
+        assert_eq!(SpatialTransform::translation(&t), t.position);
+        assert_eq!(SpatialTransform::rotation(&t), t.rotation);
+        assert_eq!(SpatialTransform::scale(&t), t.scale);
     }
 
     #[test]

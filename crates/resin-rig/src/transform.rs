@@ -2,6 +2,7 @@
 
 use glam::{Mat4, Quat, Vec3};
 use rhizome_resin_easing::Lerp;
+use rhizome_resin_transform::SpatialTransform;
 
 /// A 3D transform (translation, rotation, scale).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -153,6 +154,32 @@ impl From<Mat4> for Transform {
     }
 }
 
+impl SpatialTransform for Transform {
+    type Vector = Vec3;
+    type Rotation = Quat;
+    type Matrix = Mat4;
+
+    fn translation(&self) -> Vec3 {
+        self.translation
+    }
+
+    fn rotation(&self) -> Quat {
+        self.rotation
+    }
+
+    fn scale(&self) -> Vec3 {
+        self.scale
+    }
+
+    fn to_matrix(&self) -> Mat4 {
+        self.to_matrix()
+    }
+
+    fn transform_point(&self, point: Vec3) -> Vec3 {
+        self.transform_point(point)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,5 +251,33 @@ mod tests {
         assert!((t.translation - t2.translation).length() < 0.0001);
         assert!((t.rotation.w - t2.rotation.w).abs() < 0.0001);
         assert!((t.scale - t2.scale).length() < 0.0001);
+    }
+
+    #[test]
+    fn test_spatial_transform_trait() {
+        // Test using the trait generically
+        fn transform_points<T: SpatialTransform<Vector = Vec3>>(
+            transform: &T,
+            points: &[Vec3],
+        ) -> Vec<Vec3> {
+            points
+                .iter()
+                .map(|&p| transform.transform_point(p))
+                .collect()
+        }
+
+        let t = Transform::new(Vec3::new(10.0, 0.0, 0.0), Quat::IDENTITY, Vec3::ONE);
+
+        let points = vec![Vec3::ZERO, Vec3::X, Vec3::Y];
+        let transformed = transform_points(&t, &points);
+
+        assert_eq!(transformed[0], Vec3::new(10.0, 0.0, 0.0));
+        assert_eq!(transformed[1], Vec3::new(11.0, 0.0, 0.0));
+        assert_eq!(transformed[2], Vec3::new(10.0, 1.0, 0.0));
+
+        // Verify trait accessors match struct fields
+        assert_eq!(SpatialTransform::translation(&t), t.translation);
+        assert_eq!(SpatialTransform::rotation(&t), t.rotation);
+        assert_eq!(SpatialTransform::scale(&t), t.scale);
     }
 }

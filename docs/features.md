@@ -105,6 +105,7 @@ Index of resin's crates organized by domain. See individual crate docs in `docs/
 | Crate | Description |
 |-------|-------------|
 | **resin-core** | Graph container, DynNode trait, Value enum, node derive macro |
+| **resin-transform** | `SpatialTransform` trait for unified 2D/3D transform interface |
 | **resin-op** | DynOp trait, `#[derive(Op)]` macro, OpRegistry, Pipeline execution |
 | **resin-serde** | Graph serialization: SerialGraph format, NodeRegistry, JSON/bincode |
 | **resin-history** | History tracking: snapshots (undo/redo), event sourcing (fine-grained) |
@@ -127,4 +128,4 @@ Index of resin's crates organized by domain. See individual crate docs in `docs/
 | Cross-Domain | 2 | Raw byte casting, image↔audio, noise-as-anything |
 | Fields | 2 | Lazy evaluation, expression language |
 | GPU | 1 | wgpu compute for noise/textures |
-| Core | 4 | Graph system, DynOp pipelines, serialization, history tracking |
+| Core | 5 | Graph system, transforms, DynOp pipelines, serialization, history tracking |

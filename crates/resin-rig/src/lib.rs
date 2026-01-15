@@ -42,6 +42,7 @@ pub use motion_matching::{
     blend_frames, compute_match_cost, find_best_match,
 };
 pub use path3d::{Path3D, Path3DBuilder, Path3DExt, PathSample, line3d, polyline3d};
+pub use rhizome_resin_transform::SpatialTransform;
 pub use secondary::{
     Drag, FollowThrough, JiggleBone, JiggleChain, JiggleMesh, OverlappingAction,
     RotationFollowThrough, Secondary, SecondaryConfig, SecondaryMotion, WindForce,

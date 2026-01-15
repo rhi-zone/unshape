@@ -16,6 +16,7 @@ rhizome-resin-color = { path = "../resin-color" }
 rhizome-resin-easing = { path = "../resin-easing" }
 rhizome-resin-motion-fn = { path = "../resin-motion-fn" }
 rhizome-resin-noise = { path = "../resin-noise" }
+rhizome-resin-transform = { path = "../resin-transform" }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]

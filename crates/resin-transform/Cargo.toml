@@ -1,0 +1,13 @@
+[package]
+name = "rhizome-resin-transform"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Spatial transform trait for unified 2D/3D transforms"
+
+[features]
+default = []
+serde = ["dep:serde"]
+
+[dependencies]
+serde = { workspace = true, optional = true }

@@ -8,7 +8,7 @@ This document analyzes opportunities for type unification across the resin codeb
 |--------|-------|----------|-------------|
 | **Curves/Paths** | Fragmented 2D/3D, mixed function/struct APIs | HIGH | Yes: `curve-types.md` |
 | **Graphs** | "Node"/"Edge" overloaded across domains | MEDIUM | No |
-| **Transforms** | Separate 2D/3D types | MEDIUM | No |
+| **Transforms** | ~~Separate 2D/3D types~~ | ~~MEDIUM~~ | ✅ Done - `SpatialTransform` trait |
 | **Vertex Data** | Per-subsystem Vertex structs | LOW | No |
 | **Mesh** | Two representations | NONE | Already unified correctly |
 | **Fields** | Trait + implementations | NONE | Well-designed |
@@ -142,54 +142,29 @@ Topology Domain (resin-mesh):
 
 ### 3. Transform Types
 
-**Current state:**
+**Status: ✅ Complete**
 
-| Crate | Type | Fields |
-|-------|------|--------|
-| resin-rig | `Transform` | `translation: Vec3`, `rotation: Quat`, `scale: Vec3` |
-| resin-motion | `Transform2D` | `position: Vec2`, `anchor: Vec2`, `rotation: f32`, `scale: Vec2`, `skew: f32`, `skew_axis: f32` |
-
-**Problems:**
-
-1. Nearly identical concepts optimized for different dimensions
-2. `Transform2D` has additional motion-graphics properties (anchor, skew)
-3. No shared interface for generic algorithms
-4. Conversions require manual implementation
-
-**Analysis:**
-
-The 2D and 3D transforms serve different use cases:
-- 3D transforms: skeletal animation, mesh manipulation
-- 2D transforms: motion graphics with anchor points and skew
-
-The extra 2D properties (anchor, skew) are motion-graphics specific and don't map cleanly to 3D.
-
-**Options:**
-
-1. **Keep separate** - Accept they serve different domains
-2. **Generic base + extensions** - `Transform<V, R>` base with optional anchor/skew
-3. **Trait abstraction** - `Transformable` trait both implement
-
-**Recommended approach:**
-
-Keep separate types but add shared trait:
+Added `SpatialTransform` trait in `resin-transform` crate with implementations in `resin-rig` (Transform) and `resin-motion` (Transform2D).
 
 ```rust
 pub trait SpatialTransform {
-    type Vector;
-    type Rotation;
+    type Vector: Copy;   // Vec2 or Vec3
+    type Rotation: Copy; // f32 or Quat
+    type Matrix: Copy;   // Mat3 or Mat4
 
     fn translation(&self) -> Self::Vector;
     fn rotation(&self) -> Self::Rotation;
     fn scale(&self) -> Self::Vector;
-    fn to_matrix(&self) -> impl Into<Mat4>;
+    fn to_matrix(&self) -> Self::Matrix;
+    fn transform_point(&self, point: Self::Vector) -> Self::Vector;
 }
-
-impl SpatialTransform for Transform { ... }
-impl SpatialTransform for Transform2D { ... }  // anchor/skew baked into matrix
 ```
 
-This allows generic algorithms while preserving domain-specific features.
+**Implementation:**
+- `Transform` (3D): `Vector=Vec3`, `Rotation=Quat`, `Matrix=Mat4`
+- `Transform2D`: `Vector=Vec2`, `Rotation=f32`, `Matrix=Mat3`
+
+This enables generic algorithms over transforms while preserving domain-specific features (2D anchor/skew, 3D quaternion rotation).
 
 ---
 
@@ -283,9 +258,9 @@ The trait-based design allows composition without type proliferation.
 
 ## Implementation Priority
 
-1. **Curves** (HIGH) - Most impactful, design already documented
+1. ~~**Curves** (HIGH)~~ - ✅ Complete - `resin-curve` crate with `Curve` trait
 2. **Graph terminology** (MEDIUM) - Documentation + gradual renaming
-3. **Transforms** (MEDIUM) - Add trait, keep separate types
+3. ~~**Transforms** (MEDIUM)~~ - ✅ Complete - `resin-transform` crate with `SpatialTransform` trait
 4. **Vertex attributes** (LOW) - Works fine, optimize later
 
 ---

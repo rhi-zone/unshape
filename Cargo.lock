@@ -3929,6 +3929,7 @@ dependencies = [
  "rhizome-resin-easing",
  "rhizome-resin-motion-fn",
  "rhizome-resin-noise",
+ "rhizome-resin-transform",
  "serde",
  "serde_json",
 ]
@@ -4036,6 +4037,7 @@ dependencies = [
  "rhizome-resin-curve",
  "rhizome-resin-easing",
  "rhizome-resin-op",
+ "rhizome-resin-transform",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
@@ -4102,6 +4104,13 @@ name = "rhizome-resin-surface"
 version = "0.1.0"
 dependencies = [
  "glam",
+]
+
+[[package]]
+name = "rhizome-resin-transform"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
