@@ -3896,21 +3896,11 @@ dependencies = [
  "cranelift-module",
  "cranelift-native",
  "criterion",
- "rhizome-resin-audio-macros",
  "rhizome-resin-core",
  "rhizome-resin-op",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
-]
-
-[[package]]
-name = "rhizome-resin-audio-macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]

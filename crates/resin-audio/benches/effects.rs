@@ -322,87 +322,24 @@ fn bench_gain_rust(c: &mut Criterion) {
 }
 
 // ============================================================================
-// Tier 4: Proc macro (compile-time graph codegen)
+// Tier 4: Build.rs codegen
 // ============================================================================
 
-use rhizome_resin_audio::graph::AudioNode;
-use rhizome_resin_audio::primitive::{DelayNode, GainNode, LfoNode, MixNode};
-use rhizome_resin_audio_macros::graph_effect;
-
-// Define a static tremolo using the proc macro
-graph_effect! {
-    name: StaticTremolo,
-    nodes: {
-        lfo: LfoNode::with_freq(5.0, 44100.0),
-        gain: GainNode::new(1.0),
-    },
-    audio: [input -> gain],
-    modulation: [lfo -> gain.gain(base: 0.5, scale: 0.5)],
-    output: gain,
+#[cfg(feature = "codegen-bench")]
+mod codegen_bench {
+    include!(concat!(env!("OUT_DIR"), "/codegen_bench.rs"));
 }
 
-fn bench_tremolo_macro(c: &mut Criterion) {
+#[cfg(feature = "codegen-bench")]
+fn bench_tremolo_codegen(c: &mut Criterion) {
+    use codegen_bench::GeneratedTremolo;
+    use rhizome_resin_audio::graph::AudioNode;
+
     let signal = test_signal(ONE_SECOND);
     let ctx = AudioContext::new(SAMPLE_RATE);
 
-    c.bench_function("tremolo_macro_1sec", |b| {
-        let mut effect = StaticTremolo::new();
-        b.iter(|| {
-            for &sample in &signal {
-                black_box(effect.process(sample, &ctx));
-            }
-        });
-    });
-}
-
-// Full chorus using proc macro with audio_params for dry/wet
-graph_effect! {
-    name: StaticChorus,
-    nodes: {
-        lfo: LfoNode::with_freq(0.5, 44100.0),
-        delay: DelayNode::from_time(0.05, 44100.0),
-        mix: MixNode::new(0.5),
-    },
-    audio: [input -> delay, delay -> mix],
-    modulation: [lfo -> delay.time(base: 300.0, scale: 130.0)],
-    audio_params: [input -> mix.dry],
-    output: mix,
-}
-
-fn bench_chorus_macro(c: &mut Criterion) {
-    let signal = test_signal(ONE_SECOND);
-    let ctx = AudioContext::new(SAMPLE_RATE);
-
-    c.bench_function("chorus_macro_1sec", |b| {
-        let mut effect = StaticChorus::new();
-        b.iter(|| {
-            for &sample in &signal {
-                black_box(effect.process(sample, &ctx));
-            }
-        });
-    });
-}
-
-// Full flanger using proc macro (with feedback approximation)
-graph_effect! {
-    name: StaticFlanger,
-    nodes: {
-        lfo: LfoNode::with_freq(0.25, 44100.0),
-        delay: DelayNode::from_time(0.02, 44100.0),
-        mix: MixNode::new(0.5),
-    },
-    audio: [input -> delay, delay -> mix],
-    modulation: [lfo -> delay.time(base: 44.0, scale: 88.0)],
-    audio_params: [input -> mix.dry],
-    output: mix,
-}
-
-fn bench_flanger_macro(c: &mut Criterion) {
-    let signal = test_signal(ONE_SECOND);
-    let ctx = AudioContext::new(SAMPLE_RATE);
-
-    c.bench_function("flanger_macro_1sec", |b| {
-        let mut effect = StaticFlanger::new();
+    c.bench_function("tremolo_codegen_1sec", |b| {
+        let mut effect = GeneratedTremolo::new(SAMPLE_RATE);
         b.iter(|| {
             for &sample in &signal {
                 black_box(effect.process(sample, &ctx));
@@ -430,11 +367,10 @@ criterion_group!(
     bench_flanger_graph,
     // Rust baseline
     bench_gain_rust,
-    // Tier 4: Proc macro
-    bench_tremolo_macro,
-    bench_chorus_macro,
-    bench_flanger_macro,
 );
+
+#[cfg(feature = "codegen-bench")]
+criterion_group!(codegen_benches, bench_tremolo_codegen,);
 
 #[cfg(feature = "optimize")]
 criterion_group!(
@@ -447,14 +383,51 @@ criterion_group!(
 #[cfg(feature = "cranelift")]
 criterion_group!(jit_benches, bench_tremolo_jit, bench_gain_jit,);
 
-#[cfg(all(feature = "optimize", feature = "cranelift"))]
+// Main macro combinations for different feature sets
+#[cfg(all(feature = "optimize", feature = "cranelift", feature = "codegen-bench"))]
+criterion_main!(benches, optimized_benches, jit_benches, codegen_benches);
+
+#[cfg(all(
+    feature = "optimize",
+    feature = "cranelift",
+    not(feature = "codegen-bench")
+))]
 criterion_main!(benches, optimized_benches, jit_benches);
 
-#[cfg(all(feature = "optimize", not(feature = "cranelift")))]
+#[cfg(all(
+    feature = "optimize",
+    not(feature = "cranelift"),
+    feature = "codegen-bench"
+))]
+criterion_main!(benches, optimized_benches, codegen_benches);
+
+#[cfg(all(
+    feature = "optimize",
+    not(feature = "cranelift"),
+    not(feature = "codegen-bench")
+))]
 criterion_main!(benches, optimized_benches);
 
-#[cfg(all(not(feature = "optimize"), feature = "cranelift"))]
+#[cfg(all(
+    not(feature = "optimize"),
+    feature = "cranelift",
+    feature = "codegen-bench"
+))]
+criterion_main!(benches, jit_benches, codegen_benches);
+
+#[cfg(all(
+    not(feature = "optimize"),
+    feature = "cranelift",
+    not(feature = "codegen-bench")
+))]
 criterion_main!(benches, jit_benches);
 
-#[cfg(not(any(feature = "optimize", feature = "cranelift")))]
+#[cfg(all(
+    not(feature = "optimize"),
+    not(feature = "cranelift"),
+    feature = "codegen-bench"
+))]
+criterion_main!(benches, codegen_benches);
+
+#[cfg(not(any(feature = "optimize", feature = "cranelift", feature = "codegen-bench")))]
 criterion_main!(benches);

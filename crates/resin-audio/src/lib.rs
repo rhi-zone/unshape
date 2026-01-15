@@ -2,6 +2,7 @@
 //!
 //! Provides oscillators, filters, envelopes, and audio utilities for procedural sound generation.
 
+pub mod codegen;
 pub mod effects;
 pub mod envelope;
 pub mod filter;

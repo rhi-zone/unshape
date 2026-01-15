@@ -13,6 +13,8 @@ dynop = ["dep:rhizome-resin-op", "dep:serde_json", "serde"]
 optimize = []
 # Experimental: JIT compilation for audio graphs
 cranelift = ["dep:cranelift", "dep:cranelift-frontend", "dep:cranelift-native", "dep:cranelift-module", "dep:cranelift-jit"]
+# Build-time codegen for benchmarks
+codegen-bench = []
 
 [dependencies]
 rhizome-resin-core = { path = "../resin-core" }
@@ -30,7 +32,6 @@ cranelift-jit = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion.workspace = true
-rhizome-resin-audio-macros = { workspace = true }
 
 [[bench]]
 name = "effects"
