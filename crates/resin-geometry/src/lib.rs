@@ -1,13 +1,26 @@
-//! Attribute traits for geometry types.
+//! Geometry attribute traits for resin.
 //!
-//! These traits provide generic access to common geometry attributes,
+//! This crate provides traits for generic access to common geometry attributes,
 //! enabling generic algorithms over different geometry types.
+//!
+//! # Traits
+//!
+//! - [`HasPositions`] / [`HasPositions2D`] - vertex positions (3D/2D)
+//! - [`HasNormals`] - vertex normals
+//! - [`HasUVs`] - texture coordinates
+//! - [`HasColors`] - vertex colors (RGBA)
+//! - [`HasIndices`] - triangle indices
+//!
+//! # Composite Traits
+//!
+//! - [`Geometry`] - positions + indices
+//! - [`FullGeometry`] - positions + normals + UVs + indices
 
 use glam::{Vec2, Vec3, Vec4};
 
 /// Geometry with vertex positions.
 ///
-/// This is the fundamental trait for all geometry types.
+/// This is the fundamental trait for all 3D geometry types.
 /// Used as a bound for generic algorithms like rigging, deformation, etc.
 pub trait HasPositions {
     /// Returns the number of vertices.

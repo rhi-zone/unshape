@@ -1,21 +1,18 @@
-//! Core types and traits for resin.
+//! Core types and traits for the resin node graph system.
 //!
-//! This crate provides the foundational types for the resin ecosystem:
+//! This crate provides the foundational types for node graph execution:
 //!
 //! - [`Graph`] - Node graph container and execution engine
 //! - [`DynNode`] - Trait for dynamic node execution
 //! - [`Value`] - Runtime value type for graph data
-//! - Attribute traits ([`HasPositions`], [`HasNormals`], etc.)
+//!
+//! For geometry attribute traits, see `resin-geometry`.
 
-mod attributes;
 mod error;
 mod graph;
 mod node;
 mod value;
 
-pub use attributes::{
-    FullGeometry, Geometry, HasColors, HasIndices, HasNormals, HasPositions, HasPositions2D, HasUVs,
-};
 pub use error::{GraphError, TypeError};
 pub use glam;
 pub use graph::{Graph, NodeId, Wire};
