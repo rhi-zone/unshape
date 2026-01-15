@@ -78,42 +78,14 @@ impl std::fmt::Debug for ImageField {
 }
 
 /// Errors that can occur when loading images.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ImageFieldError {
     /// Failed to load the image file.
-    ImageError(ImageError),
+    #[error("Image error: {0}")]
+    ImageError(#[from] ImageError),
     /// I/O error reading the file.
-    IoError(std::io::Error),
-}
-
-impl std::fmt::Display for ImageFieldError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ImageFieldError::ImageError(e) => write!(f, "Image error: {}", e),
-            ImageFieldError::IoError(e) => write!(f, "IO error: {}", e),
-        }
-    }
-}
-
-impl std::error::Error for ImageFieldError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            ImageFieldError::ImageError(e) => Some(e),
-            ImageFieldError::IoError(e) => Some(e),
-        }
-    }
-}
-
-impl From<ImageError> for ImageFieldError {
-    fn from(e: ImageError) -> Self {
-        ImageFieldError::ImageError(e)
-    }
-}
-
-impl From<std::io::Error> for ImageFieldError {
-    fn from(e: std::io::Error) -> Self {
-        ImageFieldError::IoError(e)
-    }
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
 }
 
 impl ImageField {

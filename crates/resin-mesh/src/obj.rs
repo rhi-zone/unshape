@@ -25,38 +25,27 @@ use glam::{Vec2, Vec3};
 use crate::Mesh;
 
 /// Errors that can occur during OBJ import.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ObjError {
     /// Invalid or malformed line in the OBJ file.
+    #[error("Invalid line: {0}")]
     InvalidLine(String),
     /// Face references a vertex index that doesn't exist.
+    #[error("Invalid vertex index: {0}")]
     InvalidVertexIndex(usize),
     /// Face references a normal index that doesn't exist.
+    #[error("Invalid normal index: {0}")]
     InvalidNormalIndex(usize),
     /// Face references a texture coordinate index that doesn't exist.
+    #[error("Invalid texture coordinate index: {0}")]
     InvalidTexCoordIndex(usize),
     /// Failed to parse a number.
+    #[error("Parse error: {0}")]
     ParseError(String),
     /// Face has fewer than 3 vertices.
+    #[error("Invalid face: {0}")]
     InvalidFace(String),
 }
-
-impl std::fmt::Display for ObjError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ObjError::InvalidLine(line) => write!(f, "Invalid line: {}", line),
-            ObjError::InvalidVertexIndex(idx) => write!(f, "Invalid vertex index: {}", idx),
-            ObjError::InvalidNormalIndex(idx) => write!(f, "Invalid normal index: {}", idx),
-            ObjError::InvalidTexCoordIndex(idx) => {
-                write!(f, "Invalid texture coordinate index: {}", idx)
-            }
-            ObjError::ParseError(msg) => write!(f, "Parse error: {}", msg),
-            ObjError::InvalidFace(msg) => write!(f, "Invalid face: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for ObjError {}
 
 /// Imports a mesh from OBJ format string.
 pub fn import_obj(obj_str: &str) -> Result<Mesh, ObjError> {

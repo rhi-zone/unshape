@@ -87,7 +87,7 @@ Crates with `Lerp` implementations:
 
 ---
 
-### 5. Sampling Interface Inconsistency 🔴
+### 5. Sampling Interface Inconsistency - SKIPPED
 
 **Problem:** `sample()` methods have different signatures across crates.
 
@@ -98,22 +98,25 @@ Crates with `Lerp` implementations:
 | resin-image | `sample_uv(&self, u: f32, v: f32) -> Rgba` | 2D, no context |
 | resin-rig | `sample(&self, time: f32) -> T` | Animation tracks |
 
-**Issue:** `resin-field::Field` trait is powerful and generic but not adopted by other crates.
+**Decision: Skip this normalization.**
 
-**Proposal:**
-- Keep domain-specific `sample()` methods (they're ergonomic)
-- Add `Field` trait implementations where it makes sense:
-  - `impl Field<f32, Rgba> for Gradient`
-  - `impl Field<f32, T> for AnimationTrack<T>`
-- Document when to use `Field` vs direct methods
+Adding `Field` trait impls to `Gradient` or `AnimationTrack` would require adding `resin-field` as a dependency, creating coupling for limited benefit:
+- The `EvalContext` parameter is unnecessary for simple 1D/time-based sampling
+- Domain-specific methods (`gradient.sample(t)`, `track.sample(time)`) are more ergonomic
+- `resin-image` already implements `Field` where composability matters
+
+**Convention:** Domain-specific `sample()` methods are the preferred API. Add `Field` impls only when field composition is actually needed (as in resin-image).
 
 ---
 
-### 6. Config Struct Builder Patterns - SKIPPED
+### 6. Config Struct Builder Patterns 🟢
 
-**Original Problem:** Config structs have inconsistent construction patterns.
+**Original Problem:** Config structs have inconsistent construction patterns with ~260 builder methods.
 
-**Decision: Skip this normalization.**
+**Solution:**
+- Removed ~170 redundant builder methods that were just `self.x = x; self`
+- Kept builders that validate input, compute derived values, or set multiple fields
+- Updated code to use struct literal syntax with `..Default::default()`
 
 For structs with public fields, Rust's struct literal syntax is cleaner:
 ```rust
@@ -129,32 +132,29 @@ Builders (`with_*` methods) are only justified when they:
 - Compute derived values (`with_fps` → `frame_duration = 1.0 / fps`)
 - Hide private fields
 
-Most existing builders in the codebase are just `self.x = x; self` - pure boilerplate.
-
-**Action:** Don't add new builders for simple configs. Existing ones can stay (removing would be churn).
+**Action:** Removed boilerplate builders. ~90 useful builders remain.
 
 ---
 
 ## Low Priority
 
-### 7. Error Handling Patterns 🔴
+### 7. Error Handling Patterns 🟢
 
-**Problem:** Inconsistent error handling across crates.
+**Problem:** Inconsistent error handling across crates - some used `thiserror`, others had manual impls.
 
-| Crate | Pattern |
-|-------|---------|
-| resin-core | `thiserror` derive, `GraphError` enum |
-| resin-audio | `thiserror`, `WavError`, type alias `WavResult<T>` |
-| resin-image | Manual `Display`/`Error` impl (no thiserror) |
+**Solution:** Standardized all error types to use `thiserror`:
+- `resin-image`: `ImageFieldError`
+- `resin-audio`: `WavError`
+- `resin-mesh`: `ObjError`
+- `resin-vector`: `FontError`, `SvgParseError`
+- `resin-gltf`: `GltfError`
+- `resin-procgen`: `WfcError`
 
-**Proposal:**
-- Standardize on `thiserror` for all error enums
-- Add type aliases: `type XyzResult<T> = Result<T, XyzError>`
-- Update `resin-image` to use `thiserror`
+This reduced boilerplate by replacing manual `Display`, `Error`, and `From` impls with derive macros.
 
 ---
 
-### 8. Coordinate System Documentation 🔴
+### 8. Coordinate System Documentation 🟢
 
 **Problem:** Ambiguous coordinate conventions.
 
@@ -164,10 +164,10 @@ Most existing builders in the codebase are just `self.x = x; self` - pure boiler
 | resin-vector/gradient_mesh | Math coords: counterclockwise, (0,0) bottom-left implied |
 | resin-mesh | Right-handed, Y-up (Blender/glTF convention) |
 
-**Proposal:**
-- Document conventions in `CLAUDE.md` or dedicated `docs/conventions.md`
-- Add doc comments to key types stating their coordinate system
-- No code changes needed, just documentation
+**Solution:** Created `docs/conventions.md` documenting:
+- Coordinate systems for 2D image, 2D vector, 3D mesh, and audio domains
+- Unit conventions (meters, seconds, radians, etc.)
+- Naming conventions for types and methods
 
 ---
 
@@ -177,9 +177,10 @@ Most existing builders in the codebase are just `self.x = x; self` - pure boiler
 2. ~~**Interpolate trait**~~ ✅ - Done: `resin-easing::Lerp`, impls in rig and color
 3. ~~**Color conversions**~~ ✅ - Done: `From` impls for arrays
 4. ~~**Transform conversions**~~ ✅ - Done: `From` impls for matrix types
-5. ~~**Config builders**~~ ⏭️ - Skipped: struct literals with `..Default::default()` are cleaner
-6. **Error standardization** - Low priority, cosmetic
-7. **Coordinate docs** - Documentation only
+5. ~~**Sampling interface**~~ ⏭️ - Skipped: domain-specific methods are more ergonomic
+6. ~~**Config builders**~~ ✅ - Done: removed ~170 boilerplate builders
+7. ~~**Error standardization**~~ ✅ - Done: all error types now use thiserror
+8. ~~**Coordinate docs**~~ ✅ - Done: `docs/conventions.md`
 
 ---
 

@@ -17,4 +17,5 @@ rhizome-resin-color = { path = "../resin-color" }
 rhizome-resin-op = { path = "../resin-op", optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
+thiserror.workspace = true
 ab_glyph = "0.2"

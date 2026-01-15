@@ -627,24 +627,15 @@ impl WfcSolver {
 }
 
 /// Errors that can occur during WFC.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum WfcError {
     /// The algorithm reached a contradiction (cell with no valid tiles).
+    #[error("WFC reached a contradiction")]
     Contradiction,
     /// Position out of bounds.
+    #[error("Position ({0}, {1}) out of bounds")]
     OutOfBounds(usize, usize),
 }
-
-impl std::fmt::Display for WfcError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            WfcError::Contradiction => write!(f, "WFC reached a contradiction"),
-            WfcError::OutOfBounds(x, y) => write!(f, "Position ({}, {}) out of bounds", x, y),
-        }
-    }
-}
-
-impl std::error::Error for WfcError {}
 
 /// Creates a simple platformer tileset.
 pub fn platformer_tileset() -> NamedTileSet {

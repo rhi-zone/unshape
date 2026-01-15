@@ -9,38 +9,17 @@ use std::path::Path;
 pub type GltfResult<T> = Result<T, GltfError>;
 
 /// Errors that can occur during glTF export.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum GltfError {
     /// I/O error.
-    Io(std::io::Error),
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
     /// JSON serialization error.
-    Json(serde_json::Error),
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
     /// Invalid mesh data.
+    #[error("Invalid mesh: {0}")]
     InvalidMesh(String),
-}
-
-impl std::fmt::Display for GltfError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            GltfError::Io(e) => write!(f, "I/O error: {}", e),
-            GltfError::Json(e) => write!(f, "JSON error: {}", e),
-            GltfError::InvalidMesh(msg) => write!(f, "Invalid mesh: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for GltfError {}
-
-impl From<std::io::Error> for GltfError {
-    fn from(e: std::io::Error) -> Self {
-        GltfError::Io(e)
-    }
-}
-
-impl From<serde_json::Error> for GltfError {
-    fn from(e: serde_json::Error) -> Self {
-        GltfError::Json(e)
-    }
 }
 
 /// Export format for glTF files.

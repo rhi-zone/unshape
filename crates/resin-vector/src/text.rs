@@ -18,21 +18,12 @@ use serde::{Deserialize, Serialize};
 use crate::path::{Path, PathBuilder};
 
 /// Errors that can occur during font loading.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum FontError {
     /// Invalid font data.
+    #[error("Invalid font: {0}")]
     InvalidFont(String),
 }
-
-impl std::fmt::Display for FontError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            FontError::InvalidFont(msg) => write!(f, "Invalid font: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for FontError {}
 
 /// Result type for font operations.
 pub type FontResult<T> = Result<T, FontError>;

@@ -3712,6 +3712,7 @@ dependencies = [
  "rhizome-resin-op",
  "serde",
  "serde_json",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -3836,6 +3837,7 @@ dependencies = [
  "rhizome-resin-mesh",
  "serde_json",
  "tempfile",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -3875,6 +3877,7 @@ dependencies = [
  "rhizome-resin-op",
  "serde",
  "serde_json",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -3907,6 +3910,7 @@ dependencies = [
  "rhizome-resin-op",
  "serde",
  "serde_json",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -4005,6 +4009,7 @@ dependencies = [
  "rhizome-resin-op",
  "serde",
  "serde_json",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -4101,6 +4106,7 @@ dependencies = [
  "rhizome-resin-op",
  "serde",
  "serde_json",
+ "thiserror 2.0.17",
 ]
 
 [[package]]

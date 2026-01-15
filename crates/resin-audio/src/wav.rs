@@ -23,32 +23,17 @@ use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
 /// Error type for WAV operations.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum WavError {
     /// IO error.
-    Io(io::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
     /// Invalid WAV format.
+    #[error("Invalid WAV format: {0}")]
     InvalidFormat(String),
     /// Unsupported format.
+    #[error("Unsupported format: {0}")]
     Unsupported(String),
-}
-
-impl std::fmt::Display for WavError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            WavError::Io(e) => write!(f, "IO error: {}", e),
-            WavError::InvalidFormat(s) => write!(f, "Invalid WAV format: {}", s),
-            WavError::Unsupported(s) => write!(f, "Unsupported format: {}", s),
-        }
-    }
-}
-
-impl std::error::Error for WavError {}
-
-impl From<io::Error> for WavError {
-    fn from(e: io::Error) -> Self {
-        WavError::Io(e)
-    }
 }
 
 /// Result type for WAV operations.

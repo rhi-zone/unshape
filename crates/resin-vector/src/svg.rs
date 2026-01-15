@@ -483,30 +483,21 @@ pub fn path_to_svg(path: &Path, width: f32, height: f32, style: SvgStyle) -> Str
 // ============================================================================
 
 /// Error type for SVG parsing.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum SvgParseError {
     /// Invalid path data.
+    #[error("Invalid path: {0}")]
     InvalidPath(String),
     /// Invalid number format.
+    #[error("Invalid number: {0}")]
     InvalidNumber(String),
     /// Unexpected end of input.
+    #[error("Unexpected end of path data")]
     UnexpectedEnd,
     /// Unknown command.
+    #[error("Unknown command: {0}")]
     UnknownCommand(char),
 }
-
-impl std::fmt::Display for SvgParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SvgParseError::InvalidPath(s) => write!(f, "Invalid path: {}", s),
-            SvgParseError::InvalidNumber(s) => write!(f, "Invalid number: {}", s),
-            SvgParseError::UnexpectedEnd => write!(f, "Unexpected end of path data"),
-            SvgParseError::UnknownCommand(c) => write!(f, "Unknown command: {}", c),
-        }
-    }
-}
-
-impl std::error::Error for SvgParseError {}
 
 /// Result type for SVG parsing.
 pub type SvgParseResult<T> = Result<T, SvgParseError>;
