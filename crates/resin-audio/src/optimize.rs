@@ -710,7 +710,9 @@ pub struct FlangerOptimized {
     base_delay: f32,
     depth: f32,
     feedback: f32,
-    mix: f32,
+    // Pre-computed mix factors (constant folding)
+    wet_mix: f32,
+    dry_mix: f32,
 }
 
 impl FlangerOptimized {
@@ -734,7 +736,8 @@ impl FlangerOptimized {
             base_delay,
             depth,
             feedback,
-            mix,
+            wet_mix: mix,
+            dry_mix: 1.0 - mix,
         }
     }
 
@@ -754,7 +757,8 @@ impl FlangerOptimized {
             base_delay,
             depth,
             feedback,
-            mix,
+            wet_mix: mix,
+            dry_mix: 1.0 - mix,
         }
     }
 }
@@ -771,8 +775,8 @@ impl crate::graph::AudioNode for FlangerOptimized {
         // Write with feedback
         self.delay.write(input + delayed * self.feedback);
 
-        // Mix dry and wet (matches ModulatedDelay behavior)
-        input * (1.0 - self.mix) + delayed * self.mix
+        // Mix dry and wet (pre-computed factors)
+        input * self.dry_mix + delayed * self.wet_mix
     }
 
     fn reset(&mut self) {
@@ -790,7 +794,9 @@ pub struct ChorusOptimized {
     phase_inc: f32,
     base_delay: f32,
     depth: f32,
-    mix: f32,
+    // Pre-computed mix factors (constant folding)
+    wet_mix: f32,
+    dry_mix: f32,
 }
 
 impl ChorusOptimized {
@@ -806,7 +812,8 @@ impl ChorusOptimized {
             phase_inc: rate / sample_rate,
             base_delay,
             depth,
-            mix,
+            wet_mix: mix,
+            dry_mix: 1.0 - mix,
         }
     }
 
@@ -824,7 +831,8 @@ impl ChorusOptimized {
             phase_inc: rate / sample_rate,
             base_delay,
             depth,
-            mix,
+            wet_mix: mix,
+            dry_mix: 1.0 - mix,
         }
     }
 }
@@ -839,8 +847,8 @@ impl crate::graph::AudioNode for ChorusOptimized {
         self.delay.write(input);
         let wet = self.delay.read_interp(delay_time);
 
-        // Mix dry and wet
-        input * (1.0 - self.mix) + wet * self.mix
+        // Mix dry and wet (pre-computed factors)
+        input * self.dry_mix + wet * self.wet_mix
     }
 
     fn reset(&mut self) {
