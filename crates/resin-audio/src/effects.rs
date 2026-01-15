@@ -412,6 +412,9 @@ use crate::primitive::{DelayNode, GainNode, LfoNode, MixNode};
 pub fn tremolo_graph(sample_rate: f32, rate: f32, depth: f32) -> AudioGraph {
     let mut g = AudioGraph::new();
 
+    // Use control rate for LFO modulation (64 samples = ~1.5ms at 44.1kHz)
+    g.set_control_rate(64);
+
     let lfo = g.add(LfoNode::with_freq(rate, sample_rate));
     let gain = g.add(GainNode::new(1.0));
 
@@ -443,6 +446,9 @@ pub fn tremolo_graph(sample_rate: f32, rate: f32, depth: f32) -> AudioGraph {
 /// ```
 pub fn chorus_graph(sample_rate: f32) -> AudioGraph {
     let mut g = AudioGraph::new();
+
+    // Use control rate for LFO modulation
+    g.set_control_rate(64);
 
     // Chorus parameters
     let base_delay_ms = 20.0;
@@ -489,6 +495,9 @@ pub fn chorus_graph(sample_rate: f32) -> AudioGraph {
 /// Flanger = short modulated delay with feedback.
 pub fn flanger_graph(sample_rate: f32) -> AudioGraph {
     let mut g = AudioGraph::new();
+
+    // Use control rate for LFO modulation
+    g.set_control_rate(64);
 
     // Flanger: shorter delay than chorus, more feedback
     let base_delay_ms = 5.0;
