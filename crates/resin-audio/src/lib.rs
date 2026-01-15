@@ -40,10 +40,10 @@ pub use granular::{
     GrainCloud, GrainConfig, GrainScheduler, GranularSynth, noise_grain_buffer, sine_grain_buffer,
 };
 pub use graph::{
-    AdsrNode, ArNode, AudioContext, AudioGraph, AudioNode, AudioWire, BiquadNode, Chain, Clip,
-    Constant, DelayNode, FeedbackDelayNode, Gain, HighPassNode, LfoNode, LowPassNode, Mixer,
-    NodeIndex, Offset, Oscillator, ParamDescriptor, ParamWire, PassThrough, RingMod, Silence,
-    SoftClip, Waveform,
+    AdsrNode, ArNode, AudioContext, AudioGraph, AudioNode, AudioWire, BiquadNode, BlockProcessor,
+    Chain, Clip, Constant, DelayNode, FeedbackDelayNode, Gain, HighPassNode, LfoNode, LowPassNode,
+    Mixer, NodeIndex, Offset, Oscillator, ParamDescriptor, ParamWire, PassThrough, RingMod,
+    Silence, SoftClip, Waveform,
 };
 pub use midi::{
     Channel, ControlValue, Controller, MidiMessage, Note, Program, Velocity, amplitude_to_velocity,

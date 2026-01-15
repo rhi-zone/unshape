@@ -132,10 +132,11 @@
 
 ### Graph Compilation (general, not audio-specific)
 
-- [ ] Cranelift JIT - compile graphs to native code at runtime, eliminating dyn dispatch overhead
-  - Feature-gated: `cranelift` feature in resin-core or dedicated resin-jit crate
-  - Applicable to any `Graph<T>` or `AudioGraph` where max perf needed
-  - Proof-of-concept exists in `resin-audio/src/jit.rs`
+- [x] Cranelift JIT - compile graphs to native code at runtime
+  - Feature-gated: `cranelift` feature in resin-audio
+  - Block processing via `BlockProcessor` trait to amortize function call overhead
+  - Per-sample JIT has ~15 cycle overhead; block processing amortizes across 64+ samples
+  - Proof-of-concept in `resin-audio/src/jit.rs`, full graph compilation WIP
 - [x] Static graph compilation - build.rs codegen from SerialAudioGraph
   - `resin-audio-codegen` crate with `generate_effect()` function
   - Topological sort + generic node processing (not pattern-matching)
@@ -143,7 +144,11 @@
 - [x] Feature-gated pre-monomorphized compositions - `optimize` feature in resin-audio
   - Pattern matching identifies tremolo/chorus/flanger graphs
   - Replaces with optimized `TremoloOptimized`, `ChorusOptimized`, `FlangerOptimized`
-- [ ] SIMD batch processing - process N samples at once to amortize per-node overhead
+- [x] BlockProcessor trait - unified block-based processing interface
+  - All tiers implement `BlockProcessor::process_block()`
+  - Blanket impl for `AudioNode` types loops over per-sample `process()`
+  - JIT uses native block impl for efficiency
+- [ ] SIMD batch processing - process N samples at once within block (future optimization)
 
 ### Audio Effects (guitar pedals / studio)
 

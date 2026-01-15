@@ -322,6 +322,49 @@ fn bench_gain_rust(c: &mut Criterion) {
 }
 
 // ============================================================================
+// Block processing comparison
+// ============================================================================
+
+fn bench_gain_block(c: &mut Criterion) {
+    use rhizome_resin_audio::graph::{BlockProcessor, Gain};
+
+    let signal = test_signal(ONE_SECOND);
+    let mut output = vec![0.0; ONE_SECOND];
+
+    c.bench_function("gain_block_1sec", |b| {
+        let mut gain = Gain::new(0.5);
+        let mut ctx = AudioContext::new(SAMPLE_RATE);
+
+        b.iter(|| {
+            ctx.reset();
+            gain.process_block(&signal, &mut output, &mut ctx);
+            black_box(&output);
+        });
+    });
+}
+
+fn bench_chain_block(c: &mut Criterion) {
+    use rhizome_resin_audio::graph::{BlockProcessor, Chain, Gain, Offset};
+
+    let signal = test_signal(ONE_SECOND);
+    let mut output = vec![0.0; ONE_SECOND];
+
+    c.bench_function("chain_block_1sec", |b| {
+        let mut chain = Chain::new()
+            .with(Gain::new(2.0))
+            .with(Offset::new(0.1))
+            .with(Gain::new(0.5));
+        let mut ctx = AudioContext::new(SAMPLE_RATE);
+
+        b.iter(|| {
+            ctx.reset();
+            chain.process_block(&signal, &mut output, &mut ctx);
+            black_box(&output);
+        });
+    });
+}
+
+// ============================================================================
 // Tier 4: Build.rs codegen
 // ============================================================================
 
@@ -403,6 +446,9 @@ criterion_group!(
     bench_flanger_graph,
     // Rust baseline
     bench_gain_rust,
+    // Block processing
+    bench_gain_block,
+    bench_chain_block,
 );
 
 #[cfg(feature = "codegen-bench")]
