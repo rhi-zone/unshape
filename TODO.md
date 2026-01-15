@@ -165,7 +165,8 @@
 **Simplification:**
 - [x] Identity elimination - remove `Gain(1.0)`, `Offset(0.0)`, `PassThrough`
   - `eliminate_identities()` pass rewires around no-op nodes
-- [ ] Dead node elimination - remove nodes not connected to output
+- [x] Dead node elimination - remove nodes not connected to output
+  - `eliminate_dead_nodes()` walks backwards from output via audio/param wires
 - [ ] Constant folding - `Constant(a) -> Gain(b)` → `Constant(a*b)`
 - [ ] Constant propagation - track known-constant inputs through graph
 
