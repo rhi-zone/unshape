@@ -1,6 +1,27 @@
 # Curve Types: Trait-Based Design
 
+> **Status:** ✅ Implemented in `resin-curve` crate
+
 Evaluating whether traits can elegantly support multiple curve types (cubic Bézier, quadratic, arcs, NURBS) without "more code paths in every operation."
+
+## Implementation Summary
+
+The design was implemented in `crates/resin-curve/` with the following structure:
+
+| Component | Location | Description |
+|-----------|----------|-------------|
+| `Curve` trait | `traits.rs` | Core trait with `position_at`, `tangent_at`, `split`, `to_cubics` |
+| `VectorSpace` trait | `traits.rs` | Extends `Interpolatable` with `length()`, `normalize()`, `dot()` |
+| `Line<V>`, `QuadBezier<V>`, `CubicBezier<V>` | `line.rs`, `bezier.rs` | Generic curve primitives |
+| `Arc` | `arc.rs` | 2D elliptical arc with `to_cubics()` conversion |
+| `Segment2D`, `Segment3D` | `segment.rs` | Enums for mixed-type paths |
+| `Path<C>` | `path.rs` | Generic path over any `Curve` type |
+| `ArcLengthPath<C>` | `path.rs` | Arc-length parameterized wrapper |
+
+**Integrations:**
+- `resin-spline`: `Curve` impl for `CubicBezier<V>`, `BezierSpline<V>`, `Nurbs<V>`
+- `resin-vector`: `Curve` impl for `CurveSegment`, conversions to/from `Segment2D`
+- `resin-rig`: `Path3D` replaced with `ArcLengthPath<Segment3D>`
 
 ## Current State
 

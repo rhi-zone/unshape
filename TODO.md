@@ -247,13 +247,13 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 
 ### Type Unification
 
-> **Status:** 🔴 Not started - see `docs/design/unification.md` for full analysis
+> **Status:** 🟡 In progress - see `docs/design/unification.md` for full analysis
 
 **High Priority:**
-- [ ] Curve trait unification - implement trait-based `Curve` design from `docs/design/curve-types.md`
-  - Unify `Path`, `Path3D`, `CubicBezier<T>`, bezier functions
-  - Create `Segment` enum with single-point trait dispatch
-  - Make `Path<C: Curve>` generic over curve type
+- [x] Curve trait unification - implemented trait-based `Curve` design from `docs/design/curve-types.md`
+  - Created `resin-curve` crate with `Curve` trait, `VectorSpace`, segment enums
+  - Integrated with `resin-spline`, `resin-vector`, `resin-rig`
+  - `Path3D` now uses `ArcLengthPath<Segment3D>` from unified types
 
 **Medium Priority:**
 - [ ] Graph terminology clarification - distinguish node/edge meanings across domains

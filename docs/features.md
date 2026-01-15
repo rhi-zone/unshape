@@ -19,6 +19,7 @@ Index of resin's crates organized by domain. See individual crate docs in `docs/
 | **resin-voxel** | Dense and sparse voxel grids, morphological ops, greedy meshing |
 | **resin-surface** | NURBS tensor product surfaces |
 | **resin-spline** | Curves: cubic Bezier, Catmull-Rom, B-spline, NURBS |
+| **resin-curve** | Unified `Curve` trait, 2D/3D segment types, arc-length paths |
 
 ## 2D Vector Graphics
 
@@ -115,7 +116,7 @@ Index of resin's crates organized by domain. See individual crate docs in `docs/
 | Domain | Crates | Highlights |
 |--------|--------|------------|
 | Audio | 2 | FM, wavetable, granular, physical modeling, effects, spectral |
-| Mesh | 6 | Booleans, subdivision, remeshing, terrain, NURBS, voxels |
+| Mesh | 7 | Booleans, subdivision, remeshing, terrain, NURBS, voxels, curves |
 | 2D Vector | 1 | Paths, booleans, networks, gradients, text, SVG |
 | Image | 1 | Convolution, color adjust, distortion, pyramids |
 | Color | 1 | Color spaces, gradients, blend modes |
