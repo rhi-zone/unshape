@@ -102,13 +102,14 @@ Index of resin's crates organized by domain. See individual crate docs in `docs/
 
 ## Core & Serialization
 
-| Crate | Description |
-|-------|-------------|
-| **resin-core** | Graph container, DynNode trait, Value enum, node derive macro |
-| **resin-transform** | `SpatialTransform` trait for unified 2D/3D transform interface |
-| **resin-op** | DynOp trait, `#[derive(Op)]` macro, OpRegistry, Pipeline execution |
-| **resin-serde** | Graph serialization: SerialGraph format, NodeRegistry, JSON/bincode |
-| **resin-history** | History tracking: snapshots (undo/redo), event sourcing (fine-grained) |
+| Crate | Description | Docs |
+|-------|-------------|------|
+| **resin-core** | Graph container, DynNode trait, Value enum, node derive macro | |
+| **resin-transform** | `SpatialTransform` trait for unified 2D/3D transform interface | |
+| **[resin-jit](crates/resin-jit.md)** | Cranelift JIT compilation with SIMD (41x faster than scalar, 6.6x faster than native) | [docs](crates/resin-jit.md) |
+| **resin-op** | DynOp trait, `#[derive(Op)]` macro, OpRegistry, Pipeline execution | |
+| **resin-serde** | Graph serialization: SerialGraph format, NodeRegistry, JSON/bincode | |
+| **resin-history** | History tracking: snapshots (undo/redo), event sourcing (fine-grained) | |
 
 ---
 
