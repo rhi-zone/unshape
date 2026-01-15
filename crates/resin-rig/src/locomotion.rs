@@ -2,7 +2,7 @@
 //!
 //! Provides gait generation, foot placement, and body motion for bipeds and quadrupeds.
 
-use crate::{IkChain, IkConfig, Pose, Skeleton, Transform, solve_fabrik};
+use crate::{IkChain, IkConfig, Pose, Skeleton, Transform3D, solve_fabrik};
 use glam::{Quat, Vec3};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -512,8 +512,8 @@ impl WalkAnimator {
     }
 
     /// Returns the current body transform.
-    pub fn body_transform(&self) -> Transform {
-        Transform {
+    pub fn body_transform(&self) -> Transform3D {
+        Transform3D {
             translation: self.walk.body_position,
             rotation: self.walk.body_rotation,
             scale: Vec3::ONE,

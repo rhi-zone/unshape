@@ -5,7 +5,7 @@
 //!
 //! # Implementors
 //!
-//! - `Transform` (resin-rig) - 3D transform with `Vec3`, `Quat`, `Mat4`
+//! - `Transform3D` (resin-rig) - 3D transform with `Vec3`, `Quat`, `Mat4`
 //! - `Transform2D` (resin-motion) - 2D transform with `Vec2`, `f32`, `Mat3`
 //!
 //! # Example

@@ -1,6 +1,6 @@
 //! Skeleton, bone, and pose types.
 
-use crate::transform::Transform;
+use crate::transform::Transform3D;
 use glam::Vec3;
 
 /// A bone identifier (index into skeleton).
@@ -27,7 +27,7 @@ pub struct Bone {
     /// Parent bone (None for root).
     pub parent: Option<BoneId>,
     /// Local transform in parent space (rest/bind pose).
-    pub local_transform: Transform,
+    pub local_transform: Transform3D,
     /// Length of the bone (for visualization, IK).
     pub length: f32,
 }
@@ -37,7 +37,7 @@ impl Default for Bone {
         Self {
             name: String::new(),
             parent: None,
-            local_transform: Transform::IDENTITY,
+            local_transform: Transform3D::IDENTITY,
             length: 1.0,
         }
     }
@@ -133,8 +133,8 @@ impl Skeleton {
     }
 
     /// Computes the world transform for a bone in rest pose.
-    pub fn world_transform(&self, id: BoneId) -> Transform {
-        let mut transform = Transform::IDENTITY;
+    pub fn world_transform(&self, id: BoneId) -> Transform3D {
+        let mut transform = Transform3D::IDENTITY;
         let mut current = Some(id);
 
         // Collect chain from root to bone
@@ -166,27 +166,27 @@ impl Skeleton {
 #[derive(Debug, Clone)]
 pub struct Pose {
     /// Per-bone transforms (delta from rest pose).
-    transforms: Vec<Transform>,
+    transforms: Vec<Transform3D>,
 }
 
 impl Pose {
     /// Creates a rest pose (all identity transforms).
     pub fn rest(bone_count: usize) -> Self {
         Self {
-            transforms: vec![Transform::IDENTITY; bone_count],
+            transforms: vec![Transform3D::IDENTITY; bone_count],
         }
     }
 
     /// Gets the transform for a bone.
-    pub fn get(&self, id: BoneId) -> Transform {
+    pub fn get(&self, id: BoneId) -> Transform3D {
         self.transforms
             .get(id.index())
             .copied()
-            .unwrap_or(Transform::IDENTITY)
+            .unwrap_or(Transform3D::IDENTITY)
     }
 
     /// Sets the transform for a bone.
-    pub fn set(&mut self, id: BoneId, transform: Transform) {
+    pub fn set(&mut self, id: BoneId, transform: Transform3D) {
         if let Some(t) = self.transforms.get_mut(id.index()) {
             *t = transform;
         }
@@ -203,12 +203,12 @@ impl Pose {
     }
 
     /// Returns all transforms.
-    pub fn transforms(&self) -> &[Transform] {
+    pub fn transforms(&self) -> &[Transform3D] {
         &self.transforms
     }
 
     /// Returns mutable access to all transforms.
-    pub fn transforms_mut(&mut self) -> &mut [Transform] {
+    pub fn transforms_mut(&mut self) -> &mut [Transform3D] {
         &mut self.transforms
     }
 
@@ -222,12 +222,12 @@ impl Pose {
                 .transforms
                 .get(i)
                 .copied()
-                .unwrap_or(Transform::IDENTITY);
+                .unwrap_or(Transform3D::IDENTITY);
             let b = other
                 .transforms
                 .get(i)
                 .copied()
-                .unwrap_or(Transform::IDENTITY);
+                .unwrap_or(Transform3D::IDENTITY);
             result.transforms[i] = a.lerp(&b, t);
         }
 
@@ -235,8 +235,8 @@ impl Pose {
     }
 
     /// Computes the final world transform for a bone.
-    pub fn world_transform(&self, skeleton: &Skeleton, id: BoneId) -> Transform {
-        let mut transform = Transform::IDENTITY;
+    pub fn world_transform(&self, skeleton: &Skeleton, id: BoneId) -> Transform3D {
+        let mut transform = Transform3D::IDENTITY;
         let mut current = Some(id);
 
         // Collect chain from root to bone
@@ -272,7 +272,7 @@ mod tests {
             .add_bone(Bone {
                 name: "root".into(),
                 parent: None,
-                local_transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                local_transform: Transform3D::from_translation(Vec3::new(0.0, 0.0, 0.0)),
                 length: 1.0,
             })
             .id;
@@ -281,7 +281,7 @@ mod tests {
             .add_bone(Bone {
                 name: "upper".into(),
                 parent: Some(root),
-                local_transform: Transform::from_translation(Vec3::new(0.0, 1.0, 0.0)),
+                local_transform: Transform3D::from_translation(Vec3::new(0.0, 1.0, 0.0)),
                 length: 1.0,
             })
             .id;
@@ -290,7 +290,7 @@ mod tests {
             .add_bone(Bone {
                 name: "lower".into(),
                 parent: Some(upper),
-                local_transform: Transform::from_translation(Vec3::new(0.0, 1.0, 0.0)),
+                local_transform: Transform3D::from_translation(Vec3::new(0.0, 1.0, 0.0)),
                 length: 1.0,
             })
             .id;
@@ -352,7 +352,7 @@ mod tests {
         let pose = skel.rest_pose();
 
         assert_eq!(pose.len(), 3);
-        assert_eq!(pose.get(BoneId(0)), Transform::IDENTITY);
+        assert_eq!(pose.get(BoneId(0)), Transform3D::IDENTITY);
     }
 
     #[test]
@@ -363,7 +363,7 @@ mod tests {
         // Rotate upper bone 90 degrees around Z
         pose.set(
             upper,
-            Transform::from_rotation(Quat::from_rotation_z(FRAC_PI_2)),
+            Transform3D::from_rotation(Quat::from_rotation_z(FRAC_PI_2)),
         );
 
         let lower_world = pose.world_transform(&skel, lower);
@@ -380,7 +380,7 @@ mod tests {
 
         pose_b.set(
             upper,
-            Transform::from_translation(Vec3::new(10.0, 0.0, 0.0)),
+            Transform3D::from_translation(Vec3::new(10.0, 0.0, 0.0)),
         );
 
         let blended = pose_a.blend(&pose_b, 0.5);

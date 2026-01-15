@@ -1,4 +1,4 @@
-//! Transform type for skeletal animation.
+//! Transform3D type for skeletal animation.
 
 use glam::{Mat4, Quat, Vec3};
 use rhizome_resin_easing::Lerp;
@@ -6,7 +6,7 @@ use rhizome_resin_transform::SpatialTransform;
 
 /// A 3D transform (translation, rotation, scale).
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Transform {
+pub struct Transform3D {
     /// Position offset.
     pub translation: Vec3,
     /// Rotation quaternion.
@@ -15,13 +15,13 @@ pub struct Transform {
     pub scale: Vec3,
 }
 
-impl Default for Transform {
+impl Default for Transform3D {
     fn default() -> Self {
         Self::IDENTITY
     }
 }
 
-impl Transform {
+impl Transform3D {
     /// Identity transform (no translation, rotation, or scale).
     pub const IDENTITY: Self = Self {
         translation: Vec3::ZERO,
@@ -87,12 +87,12 @@ impl Transform {
     /// Combines two transforms (self then other).
     ///
     /// This is equivalent to multiplying their matrices.
-    pub fn then(&self, other: &Transform) -> Transform {
+    pub fn then(&self, other: &Transform3D) -> Transform3D {
         // For proper TRS composition:
         // T' = T1 + R1 * S1 * T2
         // R' = R1 * R2
         // S' = S1 * S2 (component-wise, assuming no shear)
-        Transform {
+        Transform3D {
             translation: self.translation + self.rotation * (self.scale * other.translation),
             rotation: self.rotation * other.rotation,
             scale: self.scale * other.scale,
@@ -100,35 +100,35 @@ impl Transform {
     }
 
     /// Returns the inverse transform.
-    pub fn inverse(&self) -> Transform {
+    pub fn inverse(&self) -> Transform3D {
         let inv_rotation = self.rotation.inverse();
         let inv_scale = Vec3::ONE / self.scale;
         let inv_translation = inv_rotation * (-self.translation * inv_scale);
-        Transform {
+        Transform3D {
             translation: inv_translation,
             rotation: inv_rotation,
             scale: inv_scale,
         }
     }
 
-    /// Transforms a point.
+    /// Transform3Ds a point.
     pub fn transform_point(&self, point: Vec3) -> Vec3 {
         self.translation + self.rotation * (self.scale * point)
     }
 
-    /// Transforms a direction (ignores translation, normalizes result).
+    /// Transform3Ds a direction (ignores translation, normalizes result).
     pub fn transform_direction(&self, direction: Vec3) -> Vec3 {
         (self.rotation * direction).normalize()
     }
 
-    /// Transforms a vector (ignores translation, applies scale).
+    /// Transform3Ds a vector (ignores translation, applies scale).
     pub fn transform_vector(&self, vector: Vec3) -> Vec3 {
         self.rotation * (self.scale * vector)
     }
 
     /// Linearly interpolates between two transforms.
-    pub fn lerp(&self, other: &Transform, t: f32) -> Transform {
-        Transform {
+    pub fn lerp(&self, other: &Transform3D, t: f32) -> Transform3D {
+        Transform3D {
             translation: self.translation.lerp(other.translation, t),
             rotation: self.rotation.slerp(other.rotation, t),
             scale: self.scale.lerp(other.scale, t),
@@ -136,25 +136,25 @@ impl Transform {
     }
 }
 
-impl Lerp for Transform {
+impl Lerp for Transform3D {
     fn lerp_to(&self, other: &Self, t: f32) -> Self {
         self.lerp(other, t)
     }
 }
 
-impl From<Transform> for Mat4 {
-    fn from(t: Transform) -> Self {
+impl From<Transform3D> for Mat4 {
+    fn from(t: Transform3D) -> Self {
         t.to_matrix()
     }
 }
 
-impl From<Mat4> for Transform {
+impl From<Mat4> for Transform3D {
     fn from(m: Mat4) -> Self {
-        Transform::from_matrix(m)
+        Transform3D::from_matrix(m)
     }
 }
 
-impl SpatialTransform for Transform {
+impl SpatialTransform for Transform3D {
     type Vector = Vec3;
     type Rotation = Quat;
     type Matrix = Mat4;
@@ -187,21 +187,21 @@ mod tests {
 
     #[test]
     fn test_identity() {
-        let t = Transform::IDENTITY;
+        let t = Transform3D::IDENTITY;
         let p = Vec3::new(1.0, 2.0, 3.0);
         assert_eq!(t.transform_point(p), p);
     }
 
     #[test]
     fn test_translation() {
-        let t = Transform::from_translation(Vec3::new(10.0, 0.0, 0.0));
+        let t = Transform3D::from_translation(Vec3::new(10.0, 0.0, 0.0));
         let p = Vec3::new(1.0, 2.0, 3.0);
         assert_eq!(t.transform_point(p), Vec3::new(11.0, 2.0, 3.0));
     }
 
     #[test]
     fn test_rotation() {
-        let t = Transform::from_rotation(Quat::from_rotation_z(FRAC_PI_2));
+        let t = Transform3D::from_rotation(Quat::from_rotation_z(FRAC_PI_2));
         let p = Vec3::new(1.0, 0.0, 0.0);
         let result = t.transform_point(p);
         assert!((result.x).abs() < 0.0001);
@@ -210,14 +210,14 @@ mod tests {
 
     #[test]
     fn test_scale() {
-        let t = Transform::from_scale(Vec3::new(2.0, 3.0, 4.0));
+        let t = Transform3D::from_scale(Vec3::new(2.0, 3.0, 4.0));
         let p = Vec3::new(1.0, 1.0, 1.0);
         assert_eq!(t.transform_point(p), Vec3::new(2.0, 3.0, 4.0));
     }
 
     #[test]
     fn test_inverse() {
-        let t = Transform::new(
+        let t = Transform3D::new(
             Vec3::new(5.0, 3.0, 1.0),
             Quat::from_rotation_y(0.5),
             Vec3::new(2.0, 2.0, 2.0),
@@ -232,21 +232,21 @@ mod tests {
 
     #[test]
     fn test_lerp() {
-        let a = Transform::from_translation(Vec3::ZERO);
-        let b = Transform::from_translation(Vec3::new(10.0, 0.0, 0.0));
+        let a = Transform3D::from_translation(Vec3::ZERO);
+        let b = Transform3D::from_translation(Vec3::new(10.0, 0.0, 0.0));
         let mid = a.lerp(&b, 0.5);
         assert_eq!(mid.translation, Vec3::new(5.0, 0.0, 0.0));
     }
 
     #[test]
     fn test_matrix_roundtrip() {
-        let t = Transform::new(
+        let t = Transform3D::new(
             Vec3::new(1.0, 2.0, 3.0),
             Quat::from_rotation_x(0.5),
             Vec3::new(1.5, 1.5, 1.5),
         );
         let m = t.to_matrix();
-        let t2 = Transform::from_matrix(m);
+        let t2 = Transform3D::from_matrix(m);
 
         assert!((t.translation - t2.translation).length() < 0.0001);
         assert!((t.rotation.w - t2.rotation.w).abs() < 0.0001);
@@ -266,7 +266,7 @@ mod tests {
                 .collect()
         }
 
-        let t = Transform::new(Vec3::new(10.0, 0.0, 0.0), Quat::IDENTITY, Vec3::ONE);
+        let t = Transform3D::new(Vec3::new(10.0, 0.0, 0.0), Quat::IDENTITY, Vec3::ONE);
 
         let points = vec![Vec3::ZERO, Vec3::X, Vec3::Y];
         let transformed = transform_points(&t, &points);

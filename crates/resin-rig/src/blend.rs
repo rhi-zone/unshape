@@ -5,7 +5,7 @@
 //! - Additive animation layers
 //! - 1D/2D blend trees for parametric blending
 
-use crate::{AnimationClip, AnimationTarget, Interpolate, Lerp, Transform};
+use crate::{AnimationClip, AnimationTarget, Interpolate, Lerp, Transform3D};
 use glam::Vec3;
 use std::collections::HashMap;
 
@@ -22,8 +22,8 @@ pub enum BlendMode {
 /// A sampled pose from an animation.
 #[derive(Debug, Clone, Default)]
 pub struct AnimationPose {
-    /// Transform values by target.
-    pub transforms: HashMap<AnimationTarget, Transform>,
+    /// Transform3D values by target.
+    pub transforms: HashMap<AnimationTarget, Transform3D>,
     /// Float values by target.
     pub floats: HashMap<AnimationTarget, f32>,
     /// Vec3 values by target.
@@ -67,7 +67,7 @@ impl AnimationPose {
                 // New target - lerp from identity
                 self.transforms.insert(
                     target.clone(),
-                    Transform::IDENTITY.lerp_to(other_transform, weight),
+                    Transform3D::IDENTITY.lerp_to(other_transform, weight),
                 );
             }
         }
@@ -98,7 +98,7 @@ impl AnimationPose {
         for (target, other_transform) in &other.transforms {
             if let Some(self_transform) = self.transforms.get_mut(target) {
                 // Additive: add weighted difference from identity
-                let delta = Transform {
+                let delta = Transform3D {
                     translation: other_transform.translation * weight,
                     rotation: glam::Quat::IDENTITY.slerp(other_transform.rotation, weight),
                     scale: Vec3::ONE.lerp(other_transform.scale, weight),
@@ -108,7 +108,7 @@ impl AnimationPose {
                 // Apply additive to identity
                 self.transforms.insert(
                     target.clone(),
-                    Transform {
+                    Transform3D {
                         translation: other_transform.translation * weight,
                         rotation: glam::Quat::IDENTITY.slerp(other_transform.rotation, weight),
                         scale: Vec3::ONE.lerp(other_transform.scale, weight),
@@ -636,8 +636,11 @@ mod tests {
     fn make_test_clip(name: &str, end_y: f32) -> AnimationClip {
         let mut clip = AnimationClip::new(name);
         let mut track = Track::new();
-        track.add(0.0, Transform::from_translation(Vec3::ZERO));
-        track.add(1.0, Transform::from_translation(Vec3::new(0.0, end_y, 0.0)));
+        track.add(0.0, Transform3D::from_translation(Vec3::ZERO));
+        track.add(
+            1.0,
+            Transform3D::from_translation(Vec3::new(0.0, end_y, 0.0)),
+        );
         clip.add_transform_track(AnimationTarget::BoneTransform(0), track);
         clip
     }
@@ -761,11 +764,11 @@ mod tests {
         let mut clip = AnimationClip::new("masked");
 
         let mut track0 = Track::new();
-        track0.add(0.0, Transform::from_translation(Vec3::new(1.0, 0.0, 0.0)));
+        track0.add(0.0, Transform3D::from_translation(Vec3::new(1.0, 0.0, 0.0)));
         clip.add_transform_track(AnimationTarget::BoneTransform(0), track0);
 
         let mut track1 = Track::new();
-        track1.add(0.0, Transform::from_translation(Vec3::new(2.0, 0.0, 0.0)));
+        track1.add(0.0, Transform3D::from_translation(Vec3::new(2.0, 0.0, 0.0)));
         clip.add_transform_track(AnimationTarget::BoneTransform(1), track1);
 
         let mut layer = AnimationLayer::new(clip);

@@ -65,7 +65,7 @@ pub struct Skin {
     /// Per-vertex influences.
     influences: Vec<VertexInfluences>,
     /// Inverse bind matrices (one per bone).
-    /// Transform from world space to bone space at bind time.
+    /// Transform3D from world space to bone space at bind time.
     inverse_bind_matrices: Vec<Mat4>,
 }
 
@@ -204,7 +204,7 @@ impl Skin {
 mod tests {
     use super::*;
     use crate::skeleton::Bone;
-    use crate::transform::Transform;
+    use crate::transform::Transform3D;
     use glam::Quat;
     use std::f32::consts::FRAC_PI_2;
 
@@ -215,7 +215,7 @@ mod tests {
             .add_bone(Bone {
                 name: "upper_arm".into(),
                 parent: None,
-                local_transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                local_transform: Transform3D::from_translation(Vec3::new(0.0, 0.0, 0.0)),
                 length: 2.0,
             })
             .id;
@@ -224,7 +224,7 @@ mod tests {
             .add_bone(Bone {
                 name: "lower_arm".into(),
                 parent: Some(upper),
-                local_transform: Transform::from_translation(Vec3::new(0.0, 2.0, 0.0)),
+                local_transform: Transform3D::from_translation(Vec3::new(0.0, 2.0, 0.0)),
                 length: 2.0,
             })
             .id;
@@ -285,7 +285,7 @@ mod tests {
         // Rotate upper arm 90 degrees around Z
         pose.set(
             upper,
-            Transform::from_rotation(Quat::from_rotation_z(FRAC_PI_2)),
+            Transform3D::from_rotation(Quat::from_rotation_z(FRAC_PI_2)),
         );
 
         // Vertex at (0, 1, 0) should move to (-1, 0, 0)
@@ -310,7 +310,7 @@ mod tests {
         // Rotate upper arm
         pose.set(
             upper,
-            Transform::from_rotation(Quat::from_rotation_z(FRAC_PI_2)),
+            Transform3D::from_rotation(Quat::from_rotation_z(FRAC_PI_2)),
         );
 
         let pos = Vec3::new(0.0, 1.0, 0.0);

@@ -2,7 +2,7 @@
 //!
 //! Provides a system for storing and sampling animated values over time.
 
-use crate::Transform;
+use crate::Transform3D;
 use glam::{Quat, Vec3};
 pub use rhizome_resin_easing::Lerp;
 use std::collections::HashMap;
@@ -172,7 +172,7 @@ pub struct AnimationClip {
     /// Clip name.
     pub name: String,
     /// Transform tracks (for bones).
-    pub transform_tracks: HashMap<AnimationTarget, Track<Transform>>,
+    pub transform_tracks: HashMap<AnimationTarget, Track<Transform3D>>,
     /// Float tracks (for morph weights, etc).
     pub float_tracks: HashMap<AnimationTarget, Track<f32>>,
     /// Vec3 tracks (for positions, colors, etc).
@@ -189,7 +189,7 @@ impl AnimationClip {
     }
 
     /// Adds a transform track.
-    pub fn add_transform_track(&mut self, target: AnimationTarget, track: Track<Transform>) {
+    pub fn add_transform_track(&mut self, target: AnimationTarget, track: Track<Transform3D>) {
         self.transform_tracks.insert(target, track);
     }
 
@@ -219,7 +219,7 @@ impl AnimationClip {
     }
 
     /// Samples a transform track at a given time.
-    pub fn sample_transform(&self, target: &AnimationTarget, time: f32) -> Option<Transform> {
+    pub fn sample_transform(&self, target: &AnimationTarget, time: f32) -> Option<Transform3D> {
         self.transform_tracks.get(target).map(|t| t.sample(time))
     }
 
@@ -353,8 +353,11 @@ mod tests {
     #[test]
     fn test_transform_interpolation() {
         let mut track = Track::new();
-        track.add(0.0, Transform::from_translation(Vec3::ZERO));
-        track.add(1.0, Transform::from_translation(Vec3::new(10.0, 0.0, 0.0)));
+        track.add(0.0, Transform3D::from_translation(Vec3::ZERO));
+        track.add(
+            1.0,
+            Transform3D::from_translation(Vec3::new(10.0, 0.0, 0.0)),
+        );
 
         let mid = track.sample(0.5);
         assert!((mid.translation.x - 5.0).abs() < 0.001);
@@ -365,8 +368,8 @@ mod tests {
         let mut clip = AnimationClip::new("walk");
 
         let mut track = Track::new();
-        track.add(0.0, Transform::IDENTITY);
-        track.add(1.0, Transform::from_translation(Vec3::Y));
+        track.add(0.0, Transform3D::IDENTITY);
+        track.add(1.0, Transform3D::from_translation(Vec3::Y));
 
         clip.add_transform_track(AnimationTarget::BoneTransform(0), track);
 

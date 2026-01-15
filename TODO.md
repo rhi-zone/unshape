@@ -261,7 +261,7 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
   - Spatial graphs (resin-vector, resin-procgen): position + connectivity
   - Topology graphs (resin-mesh): HalfEdge, Vertex, Face
 - [x] Transform unification - `resin-transform` crate with `SpatialTransform` trait
-  - Implemented for `Transform` (3D) and `Transform2D`
+  - Implemented for `Transform3D` and `Transform2D`
   - Enables generic algorithms over both transform types
 
 **Low Priority:**

@@ -50,4 +50,4 @@ pub use secondary::{
 };
 pub use skeleton::{AddBoneResult, Bone, BoneId, Pose, Skeleton};
 pub use skin::{MAX_INFLUENCES, Skin, VertexInfluences};
-pub use transform::Transform;
+pub use transform::Transform3D;

@@ -3,7 +3,7 @@
 //! Motion matching finds the best-fitting pose from a database of motion clips
 //! based on the current pose and desired trajectory.
 
-use crate::{Pose, Skeleton, Transform};
+use crate::{Pose, Skeleton, Transform3D};
 use glam::{Quat, Vec3};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -608,7 +608,7 @@ pub fn apply_frame_to_pose(frame: &MotionFrame, pose: &mut Pose, skeleton: &Skel
         .min(frame.bone_rotations.len())
     {
         let bone_id = crate::skeleton::BoneId(i as u32);
-        let transform = Transform {
+        let transform = Transform3D {
             translation: frame.bone_positions[i],
             rotation: frame.bone_rotations[i],
             scale: Vec3::ONE,

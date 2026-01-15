@@ -2,7 +2,7 @@
 //!
 //! Provides CCD and FABRIK algorithms for positioning bone chains.
 
-use crate::{BoneId, Pose, Skeleton, Transform};
+use crate::{BoneId, Pose, Skeleton, Transform3D};
 use glam::{Quat, Vec3};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -167,7 +167,7 @@ pub fn solve_ccd(
                 .bone(bone_id)
                 .and_then(|b| b.parent)
                 .map(|p| pose.world_transform(skeleton, p))
-                .unwrap_or(Transform::IDENTITY);
+                .unwrap_or(Transform3D::IDENTITY);
 
             // Convert world rotation to local
             let new_world_rot = rotation * world.rotation;
@@ -175,7 +175,7 @@ pub fn solve_ccd(
 
             pose.set(
                 bone_id,
-                Transform {
+                Transform3D {
                     rotation: local_rot,
                     ..current
                 },
@@ -329,7 +329,7 @@ fn apply_positions_to_pose(
         let parent_world = bone
             .parent
             .map(|p| pose.world_transform(skeleton, p))
-            .unwrap_or(Transform::IDENTITY);
+            .unwrap_or(Transform3D::IDENTITY);
 
         let current_transform = pose.get(bone_id);
         let world_rot = parent_world.rotation * current_transform.rotation;
@@ -346,7 +346,7 @@ fn apply_positions_to_pose(
 
         pose.set(
             bone_id,
-            Transform {
+            Transform3D {
                 rotation: local_rot,
                 ..current_transform
             },
@@ -366,7 +366,7 @@ mod tests {
             .add_bone(Bone {
                 name: "root".into(),
                 parent: None,
-                local_transform: Transform::IDENTITY,
+                local_transform: Transform3D::IDENTITY,
                 length: 1.0,
             })
             .id;
@@ -375,7 +375,7 @@ mod tests {
             .add_bone(Bone {
                 name: "end".into(),
                 parent: Some(root),
-                local_transform: Transform::from_translation(Vec3::new(0.0, 1.0, 0.0)),
+                local_transform: Transform3D::from_translation(Vec3::new(0.0, 1.0, 0.0)),
                 length: 1.0,
             })
             .id;

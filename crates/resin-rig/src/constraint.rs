@@ -3,7 +3,7 @@
 //! Constraints modify a pose after it has been computed, applying
 //! effects like path following, IK, look-at, etc.
 
-use crate::{BoneId, Path3D, Path3DExt, Pose, Skeleton, Transform};
+use crate::{BoneId, Path3D, Path3DExt, Pose, Skeleton, Transform3D};
 use glam::{Quat, Vec3};
 
 /// A constraint that modifies bone transforms.
@@ -67,7 +67,7 @@ impl Constraint for PathConstraint {
             .bone(self.bone)
             .and_then(|b| b.parent)
             .map(|p| pose.world_transform(skeleton, p))
-            .unwrap_or(Transform::IDENTITY);
+            .unwrap_or(Transform3D::IDENTITY);
 
         let parent_inv = parent_world.inverse();
 
@@ -76,7 +76,7 @@ impl Constraint for PathConstraint {
 
         // Rotation
         let rotation = if self.follow_tangent {
-            // Transform tangent to local space
+            // Transform3D tangent to local space
             let local_tangent = parent_inv.transform_vector(sample.tangent);
 
             // Compute rotation from forward axis to tangent
@@ -85,7 +85,7 @@ impl Constraint for PathConstraint {
             Quat::IDENTITY
         };
 
-        let transform = Transform {
+        let transform = Transform3D {
             translation: local_pos,
             rotation,
             scale: Vec3::ONE,

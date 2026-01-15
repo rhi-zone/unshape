@@ -161,7 +161,7 @@ pub trait SpatialTransform {
 ```
 
 **Implementation:**
-- `Transform` (3D): `Vector=Vec3`, `Rotation=Quat`, `Matrix=Mat4`
+- `Transform3D`: `Vector=Vec3`, `Rotation=Quat`, `Matrix=Mat4`
 - `Transform2D`: `Vector=Vec2`, `Rotation=f32`, `Matrix=Mat3`
 
 This enables generic algorithms over transforms while preserving domain-specific features (2D anchor/skew, 3D quaternion rotation).
