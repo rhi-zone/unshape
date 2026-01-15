@@ -551,6 +551,14 @@ impl AudioNode for DelayNode {
         Self::PARAMS
     }
 
+    fn get_param(&self, index: usize) -> Option<f32> {
+        match index {
+            Self::PARAM_TIME => Some(self.time),
+            Self::PARAM_FEEDBACK => Some(self.feedback),
+            _ => None,
+        }
+    }
+
     fn set_param(&mut self, index: usize, value: f32) {
         match index {
             Self::PARAM_TIME => self.time = value.max(0.0),

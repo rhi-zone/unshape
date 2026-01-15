@@ -159,16 +159,20 @@
 - [x] Affine chain fusion - `Gain(a) -> Offset(b) -> Gain(c) -> Offset(d)` → single multiply-add
   - `AffineNode` struct with `then()` for composition, `fuse_affine_chains()` pass
   - Reduces N nodes to 1 fused node
-- [ ] Filter cascading - consecutive biquads can combine coefficients
-- [ ] Delay merging - consecutive delays become single buffer with combined length
+- [x] Delay merging - consecutive delays become single buffer with combined length
+  - `merge_delays()` pass merges zero-feedback delays
+- [ ] Filter cascading - NOT FEASIBLE: two cascaded 2nd-order biquads = 4th-order filter
+  - Would require higher-order filter struct; biquads can't be combined into one biquad
 
 **Simplification:**
 - [x] Identity elimination - remove `Gain(1.0)`, `Offset(0.0)`, `PassThrough`
   - `eliminate_identities()` pass rewires around no-op nodes
 - [x] Dead node elimination - remove nodes not connected to output
   - `eliminate_dead_nodes()` walks backwards from output via audio/param wires
-- [ ] Constant folding - `Constant(a) -> Gain(b)` → `Constant(a*b)`
-- [ ] Constant propagation - track known-constant inputs through graph
+- [x] Constant folding - `Constant(a) -> Gain(b)` → `Constant(a*b)`
+  - `fold_constants()` pass folds Constant through Affine nodes
+- [x] Constant propagation - track known-constant inputs through graph
+  - `propagate_constants()` iteratively folds and fuses until fixpoint
 
 **Implementation:**
 - [x] Composable passes - `run_optimization_passes()` runs all passes until no changes
