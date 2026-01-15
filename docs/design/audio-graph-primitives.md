@@ -269,52 +269,55 @@ Recommendation: Keep `AudioGraph` separate for now, but design `Modulatable<T>` 
 
 ### Benchmark Results
 
-Actual benchmarks show significant overhead:
+Initial benchmarks showed significant overhead. After optimization:
 
-| Effect | Composition | Graph | Overhead |
-|--------|-------------|-------|----------|
-| Tremolo | 191 µs | 718 µs | **3.76x slower** |
-| Chorus | 747 µs | 1,637 µs | **2.19x slower** |
-| Flanger | 742 µs | 1,224 µs | **1.65x slower** |
+| Effect | Composition | Graph (initial) | Graph (optimized) | Final Overhead |
+|--------|-------------|-----------------|-------------------|----------------|
+| Tremolo | 189 µs | 718 µs | 587 µs | **3.11x** (was 3.76x) |
+| Chorus | 735 µs | 1,637 µs | 1,163 µs | **1.58x** (was 2.19x) |
+| Flanger | 754 µs | 1,224 µs | 984 µs | **1.31x** (was 1.65x) |
 
 *(Times are for processing 1 second of audio at 44.1kHz)*
 
-### Overhead Sources (Actual)
+**Optimizations implemented:**
+1. Pre-computed wire lookups (per-node execution info, ~3-4% improvement)
+2. Control-rate parameter updates (every 64 samples, ~16-26% improvement)
 
-The prediction that overhead would be low was **wrong**. Actual sources:
+### Overhead Sources
 
-| Source | Impact | Why |
-|--------|--------|-----|
-| Wire iteration | **HIGH** | Scanning `Vec<ParamWire>` and `Vec<AudioWire>` on every sample |
+The remaining overhead comes from:
+
+| Source | Impact | Notes |
+|--------|--------|-------|
 | Dynamic dispatch | **MODERATE** | `Box<dyn AudioNode>` vtable lookup per node per sample |
-| set_param calls | **MODERATE** | Function call overhead even when params haven't changed |
+| Node loop | **LOW** | Iterating node vec vs hardcoded struct fields |
 | Output vector | **LOW** | Writing to `outputs[i]` vs direct field access |
+
+Wire iteration and set_param were addressed by optimizations.
 
 ### Optimization Strategies
 
-**1. Pre-compute wire lookups**
+**1. Pre-compute wire lookups** ✅ Implemented
 ```rust
 struct NodeExecInfo {
-    audio_inputs: SmallVec<[NodeIndex; 4]>,  // Which nodes feed this one
-    param_mods: SmallVec<[(NodeIndex, usize, f32, f32); 2]>,  // (from, param, base, scale)
+    audio_inputs: Vec<NodeIndex>,  // Which nodes feed this one
+    param_mods: Vec<(NodeIndex, usize, f32, f32)>,  // (from, param, base, scale)
 }
 ```
-Build once when graph structure changes, iterate small vecs per node instead of filtering all wires.
+Built once when graph structure changes via `build_exec_info()`.
 
-**2. Control-rate parameter updates**
-LFOs don't need sample-accurate modulation. Update params every N samples:
+**2. Control-rate parameter updates** ✅ Implemented
 ```rust
-if sample_count % 64 == 0 {
-    // Apply modulation
-}
+graph.set_control_rate(64);  // Update params every 64 samples
 ```
+Default effect constructors use control rate 64 (~1.5ms at 44.1kHz).
 
-**3. Monomorphization / code generation**
+**3. Monomorphization / code generation** (not implemented)
 For small fixed graphs, generate specialized code that inlines the graph structure. Options:
 - Proc macro at compile time
 - Cranelift JIT at runtime (see below)
 
-**4. SIMD batching**
+**4. SIMD batching** (not implemented)
 Process N samples at once, amortizing per-node overhead.
 
 ### Cranelift JIT Consideration
