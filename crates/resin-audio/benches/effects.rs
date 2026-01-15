@@ -321,6 +321,40 @@ fn bench_gain_rust(c: &mut Criterion) {
     });
 }
 
+// ============================================================================
+// Tier 4: Proc macro (compile-time graph codegen)
+// ============================================================================
+
+use rhizome_resin_audio::graph::AudioNode;
+use rhizome_resin_audio::primitive::{GainNode, LfoNode};
+use rhizome_resin_audio_macros::graph_effect;
+
+// Define a static tremolo using the proc macro
+graph_effect! {
+    name: StaticTremolo,
+    nodes: {
+        lfo: LfoNode::with_freq(5.0, 44100.0),
+        gain: GainNode::new(1.0),
+    },
+    audio: [input -> gain],
+    modulation: [lfo -> gain.gain(base: 0.5, scale: 0.5)],
+    output: gain,
+}
+
+fn bench_tremolo_macro(c: &mut Criterion) {
+    let signal = test_signal(ONE_SECOND);
+    let ctx = AudioContext::new(SAMPLE_RATE);
+
+    c.bench_function("tremolo_macro_1sec", |b| {
+        let mut effect = StaticTremolo::new();
+        b.iter(|| {
+            for &sample in &signal {
+                black_box(effect.process(sample, &ctx));
+            }
+        });
+    });
+}
+
 criterion_group!(
     benches,
     // Tier 1: Concrete effect structs (baseline)
@@ -340,6 +374,8 @@ criterion_group!(
     bench_flanger_graph,
     // Rust baseline
     bench_gain_rust,
+    // Tier 4: Proc macro
+    bench_tremolo_macro,
 );
 
 #[cfg(feature = "optimize")]
