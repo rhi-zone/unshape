@@ -12,6 +12,7 @@ This document analyzes opportunities for type unification across the resin codeb
 | **Vertex Data** | ~~Per-subsystem Vertex structs~~ | ~~LOW~~ | ✅ Partial - traits on SoA types |
 | **Mesh** | Two representations | NONE | Already unified correctly |
 | **Fields** | Trait + implementations | NONE | Well-designed |
+| **Effects** | Audio/Graphics divergent models | EXPLORE | This doc (below) |
 
 ---
 
@@ -230,9 +231,65 @@ The trait-based design allows composition without type proliferation.
 
 ---
 
+## EXPLORATION NEEDED
+
+### 5. Audio/Graphics Effects
+
+**Status: Exploring**
+
+Both domains process signals through chains of effects, but use different execution models.
+
+**Current state:**
+
+| Aspect | Audio (`resin-audio`) | Graphics (`resin-field`) |
+|--------|----------------------|--------------------------|
+| Core trait | `AudioNode` | `Field<I, O>` |
+| Execution | Eager (every sample) | Lazy (on demand) |
+| State | Stateful (delay lines, filters) | Stateless (pure functions) |
+| Domain | Time (sequential samples) | Space (parallel coordinates) |
+| Composition | `Chain` (linear), `AudioGraph` (DAG) | Method chaining (`.map()`, `.add()`) |
+| Context | `AudioContext` (sample_rate, time) | `EvalContext` |
+
+**Already unified:**
+
+- Both use `resin-op` for serialization (operations-as-values pattern)
+- Both register with `OpRegistry` for dynamic pipelines
+- Both follow general-internal-constrained-api pattern
+
+**Fundamental differences:**
+
+1. **Statefulness** - Audio effects *require* history buffers (reverb tails, delay lines, filter coefficients). Graphics fields are pure `sample(coord) -> value` functions.
+
+2. **Execution model** - Audio must process every sample eagerly at audio rate (~44100Hz). Graphics can evaluate lazily at arbitrary coordinates.
+
+3. **Parallelism** - Audio is inherently sequential (sample N depends on sample N-1 for stateful effects). Graphics is embarrassingly parallel (each pixel independent).
+
+**Potential unification opportunities:**
+
+1. **Modulation routing** - Audio has `ModSource` → parameter mapping (LFO, envelope, velocity to any parameter). Graphics could use same pattern for animating field parameters over time.
+
+2. **Effect library parity** - Audio has rich effects (`Reverb`, `Chorus`, `Distortion`, `Compressor`, etc.). Graphics lacks equivalent high-level effects (`Blur`, `Bloom`, `ColorGrade`, `Sharpen`).
+
+3. **Pipeline abstraction** - Both want to chain operations. Could there be a shared `Pipeline<T>` validation/serialization layer?
+
+4. **Parameter presets** - Audio has `SynthPatch` / `PatchBank` for preset management. Graphics could benefit from similar.
+
+**Questions to resolve:**
+
+- Is the eager/lazy distinction fundamental, or could audio effects be made lazy for offline processing?
+- Should `GraphicsEffect` trait mirror `AudioNode`, or is `Field` composition sufficient?
+- Would a unified modulation system benefit both domains?
+- Is the lack of graphics effects a gap to fill, or is the `Field` abstraction intentionally lower-level?
+
+**Decision:** TBD - needs further exploration of use cases.
+
+---
+
 ## Related Documents
 
 - `curve-types.md` - Detailed curve trait design
 - `general-internal-constrained-api.md` - Pattern for internal vs public types
 - `normalization.md` - Code style consistency (completed)
 - `conventions.md` - Coordinate systems and naming conventions
+- `ops-as-values.md` - Serializable operations pattern (used by both audio and graphics)
+- `../domains/audio.md` - Audio domain overview
