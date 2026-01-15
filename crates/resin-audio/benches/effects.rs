@@ -252,8 +252,8 @@ fn bench_flanger_optimized(c: &mut Criterion) {
     let ctx = AudioContext::new(SAMPLE_RATE);
 
     c.bench_function("flanger_optimized_1sec", |b| {
-        // rate=0.25 Hz, base_delay=1ms, depth=2ms, feedback=0.7
-        let mut effect = FlangerOptimized::new(0.25, 1.0, 2.0, 0.7, SAMPLE_RATE);
+        // rate=0.3 Hz, base_delay=3ms, depth=2ms, feedback=0.7, mix=0.5 (matches original flanger)
+        let mut effect = FlangerOptimized::new(0.3, 3.0, 2.0, 0.7, 0.5, SAMPLE_RATE);
         b.iter(|| {
             for &sample in &signal {
                 black_box(effect.process(sample, &ctx));

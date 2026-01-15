@@ -476,10 +476,11 @@ fn generate_chorus_process(graph: &SerialAudioGraph, analysis: &GraphAnalysis) -
     }
 
     code.push_str("        let delay_time = self.mod_0_base + lfo_out * self.mod_0_scale;\n");
+    // Write before read (matches optimized Tier 2 ordering for cache efficiency)
+    code.push_str(&format!("        self.node_{delay_idx}.write(input);\n"));
     code.push_str(&format!(
         "        let delayed = self.node_{delay_idx}.read_interp(delay_time);\n"
     ));
-    code.push_str(&format!("        self.node_{delay_idx}.write(input);\n"));
 
     // Find mix value
     let mix_idx = graph

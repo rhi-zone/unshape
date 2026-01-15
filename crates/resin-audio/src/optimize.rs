@@ -702,7 +702,7 @@ impl crate::graph::AudioNode for TremoloOptimized {
 
 /// Optimized flanger effect (LFO modulating delay time).
 ///
-/// Flanger = LFO → delay time, with feedback. Simpler than chorus (no mixer).
+/// Flanger = LFO → delay time, with feedback and dry/wet mix.
 pub struct FlangerOptimized {
     lfo: crate::primitive::PhaseOsc,
     delay: crate::primitive::DelayLine<true>,
@@ -710,6 +710,7 @@ pub struct FlangerOptimized {
     base_delay: f32,
     depth: f32,
     feedback: f32,
+    mix: f32,
 }
 
 impl FlangerOptimized {
@@ -719,6 +720,7 @@ impl FlangerOptimized {
         base_delay_ms: f32,
         depth_ms: f32,
         feedback: f32,
+        mix: f32,
         sample_rate: f32,
     ) -> Self {
         let base_delay = base_delay_ms * sample_rate / 1000.0;
@@ -732,6 +734,7 @@ impl FlangerOptimized {
             base_delay,
             depth,
             feedback,
+            mix,
         }
     }
 
@@ -740,6 +743,7 @@ impl FlangerOptimized {
         let rate = m.get_param(0, "rate").unwrap_or(0.3);
         let (base_delay, depth) = m.get_modulation(0, 1).unwrap_or((220.0, 130.0)); // ~5ms, ~3ms at 44.1kHz
         let feedback = m.get_param(1, "feedback").unwrap_or(0.7);
+        let mix = m.get_param(2, "mix").unwrap_or(0.5);
 
         let max_delay = (base_delay + depth * 2.0) as usize + 1;
 
@@ -750,6 +754,7 @@ impl FlangerOptimized {
             base_delay,
             depth,
             feedback,
+            mix,
         }
     }
 }
@@ -763,10 +768,11 @@ impl crate::graph::AudioNode for FlangerOptimized {
         let delay_time = self.base_delay + lfo_out * self.depth;
         let delayed = self.delay.read_interp(delay_time);
 
-        let to_delay = input + delayed * self.feedback;
-        self.delay.write(to_delay);
+        // Write with feedback
+        self.delay.write(input + delayed * self.feedback);
 
-        delayed
+        // Mix dry and wet (matches ModulatedDelay behavior)
+        input * (1.0 - self.mix) + delayed * self.mix
     }
 
     fn reset(&mut self) {

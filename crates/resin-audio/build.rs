@@ -70,32 +70,30 @@ impl AudioNode for GeneratedTremolo {
 
 /// Chorus effect generated at build time.
 ///
-/// Equivalent to SerialAudioGraph with:
-/// - nodes: [Lfo { rate: 0.5 }, Delay { max_samples: 4096 }, Mix { mix: 0.5 }]
-/// - param_wires: [{ from: 0, to: 1, base: 882.0, scale: 220.0 }]
+/// Matches ChorusOptimized algorithm: LFO modulates delay time, mixed with dry.
 pub struct GeneratedChorus {
-    // Node 0: LFO
-    node_0: rhizome_resin_audio::primitive::PhaseOsc,
-    node_0_phase_inc: f32,
-    // Node 1: Delay
-    node_1: rhizome_resin_audio::primitive::DelayLine<true>,
-    // Node 2: Mix (just a constant)
-    node_2: f32,
-    // Pre-computed modulation constants
-    mod_0_base: f32,
-    mod_0_scale: f32,
+    lfo: rhizome_resin_audio::primitive::PhaseOsc,
+    delay: rhizome_resin_audio::primitive::DelayLine<true>,
+    phase_inc: f32,
+    base_delay: f32,
+    depth: f32,
+    mix: f32,
 }
 
 impl GeneratedChorus {
     pub fn new(sample_rate: f32) -> Self {
+        // Match ChorusOptimized parameters: rate=0.5, base=7ms, depth=3ms, mix=0.5
+        let base_delay = 7.0 * sample_rate / 1000.0;
+        let depth = 3.0 * sample_rate / 1000.0;
+        let max_delay = ((7.0 + 3.0 * 2.0) * sample_rate / 1000.0) as usize + 1;
+
         Self {
-            node_0: rhizome_resin_audio::primitive::PhaseOsc::new(),
-            node_0_phase_inc: 0.5_f32 / sample_rate,
-            node_1: rhizome_resin_audio::primitive::DelayLine::new(4096),
-            node_2: 0.5_f32,
-            // Base delay ~20ms, depth ~5ms at 44.1kHz
-            mod_0_base: 0.020_f32 * sample_rate,
-            mod_0_scale: 0.005_f32 * sample_rate,
+            lfo: rhizome_resin_audio::primitive::PhaseOsc::new(),
+            delay: rhizome_resin_audio::primitive::DelayLine::new(max_delay),
+            phase_inc: 0.5_f32 / sample_rate,
+            base_delay,
+            depth,
+            mix: 0.5_f32,
         }
     }
 }
@@ -103,45 +101,51 @@ impl GeneratedChorus {
 impl AudioNode for GeneratedChorus {
     #[inline]
     fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
-        // Optimized chorus processing
-        let lfo_out = self.node_0.sine();
-        self.node_0.advance(self.node_0_phase_inc);
-        let delay_time = self.mod_0_base + lfo_out * self.mod_0_scale;
-        let delayed = self.node_1.read_interp(delay_time);
-        self.node_1.write(input);
-        input * (1.0 - self.node_2) + delayed * self.node_2
+        let lfo_out = self.lfo.sine();
+        self.lfo.advance(self.phase_inc);
+
+        let delay_time = self.base_delay + lfo_out * self.depth;
+        self.delay.write(input);
+        let wet = self.delay.read_interp(delay_time);
+
+        // Mix dry and wet
+        input * (1.0 - self.mix) + wet * self.mix
     }
 
     fn reset(&mut self) {
-        self.node_0.reset();
-        self.node_1.clear();
+        self.lfo.reset();
+        self.delay.clear();
     }
 }
 
 /// Flanger effect generated at build time.
 ///
-/// Similar to chorus but with shorter delay and feedback.
+/// Matches ModulatedDelay/flanger() behavior: LFO modulates delay time with feedback and mix.
 pub struct GeneratedFlanger {
-    node_0: rhizome_resin_audio::primitive::PhaseOsc,
-    node_0_phase_inc: f32,
-    node_1: rhizome_resin_audio::primitive::DelayLine<true>,
+    lfo: rhizome_resin_audio::primitive::PhaseOsc,
+    delay: rhizome_resin_audio::primitive::DelayLine<true>,
+    phase_inc: f32,
+    base_delay: f32,
+    depth: f32,
     feedback: f32,
-    mod_0_base: f32,
-    mod_0_scale: f32,
-    last_output: f32,
+    mix: f32,
 }
 
 impl GeneratedFlanger {
     pub fn new(sample_rate: f32) -> Self {
+        // Match original flanger(): rate=0.3, base=3ms, depth=2ms, feedback=0.7, mix=0.5
+        let base_delay = 3.0 * sample_rate / 1000.0;
+        let depth = 2.0 * sample_rate / 1000.0;
+        let max_delay = ((3.0 + 2.0 * 2.0) * sample_rate / 1000.0) as usize + 1;
+
         Self {
-            node_0: rhizome_resin_audio::primitive::PhaseOsc::new(),
-            node_0_phase_inc: 0.25_f32 / sample_rate,
-            node_1: rhizome_resin_audio::primitive::DelayLine::new(1024),
+            lfo: rhizome_resin_audio::primitive::PhaseOsc::new(),
+            delay: rhizome_resin_audio::primitive::DelayLine::new(max_delay),
+            phase_inc: 0.3_f32 / sample_rate,
+            base_delay,
+            depth,
             feedback: 0.7_f32,
-            // Base delay ~1ms, depth ~2ms
-            mod_0_base: 0.001_f32 * sample_rate,
-            mod_0_scale: 0.002_f32 * sample_rate,
-            last_output: 0.0,
+            mix: 0.5_f32,
         }
     }
 }
@@ -149,20 +153,22 @@ impl GeneratedFlanger {
 impl AudioNode for GeneratedFlanger {
     #[inline]
     fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
-        let lfo_out = self.node_0.sine();
-        self.node_0.advance(self.node_0_phase_inc);
-        let delay_time = self.mod_0_base + lfo_out * self.mod_0_scale;
-        let delayed = self.node_1.read_interp(delay_time);
-        let output = input + delayed * self.feedback;
-        self.node_1.write(input + self.last_output * self.feedback);
-        self.last_output = delayed;
-        output * 0.5 + input * 0.5
+        let lfo_out = self.lfo.sine();
+        self.lfo.advance(self.phase_inc);
+
+        let delay_time = self.base_delay + lfo_out * self.depth;
+        let delayed = self.delay.read_interp(delay_time);
+
+        // Write with feedback
+        self.delay.write(input + delayed * self.feedback);
+
+        // Mix dry and wet
+        input * (1.0 - self.mix) + delayed * self.mix
     }
 
     fn reset(&mut self) {
-        self.node_0.reset();
-        self.node_1.clear();
-        self.last_output = 0.0;
+        self.lfo.reset();
+        self.delay.clear();
     }
 }
 "#;
