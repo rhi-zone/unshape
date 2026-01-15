@@ -72,6 +72,7 @@ rhizome-resin-op-macros = { path = "crates/resin-op-macros" }
 rhizome-resin-motion-fn = { path = "crates/resin-motion-fn" }
 rhizome-resin-curve = { path = "crates/resin-curve" }
 rhizome-resin-audio-codegen = { path = "crates/resin-audio-codegen" }
+rhizome-resin-jit = { path = "crates/resin-jit" }
 
 [package]
 name = "rhizome-resin-examples"

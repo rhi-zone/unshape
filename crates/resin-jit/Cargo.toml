@@ -1,0 +1,34 @@
+[package]
+name = "rhizome-resin-jit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "JIT compilation infrastructure for resin graphs"
+
+[features]
+default = []
+# Full JIT support with Cranelift
+cranelift = [
+    "dep:cranelift",
+    "dep:cranelift-frontend",
+    "dep:cranelift-native",
+    "dep:cranelift-module",
+    "dep:cranelift-jit",
+]
+
+[dependencies]
+thiserror.workspace = true
+
+# JIT compilation (optional)
+cranelift = { workspace = true, optional = true }
+cranelift-frontend = { workspace = true, optional = true }
+cranelift-native = { workspace = true, optional = true }
+cranelift-module = { workspace = true, optional = true }
+cranelift-jit = { workspace = true, optional = true }
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "jit_bench"
+harness = false
