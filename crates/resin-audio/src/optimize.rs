@@ -1223,6 +1223,73 @@ fn find_identity_node(graph: &AudioGraph) -> Option<NodeIndex> {
     None
 }
 
+/// Remove nodes that are not connected to the output.
+///
+/// A node is "live" if it's reachable from the output via audio wires,
+/// or if it modulates a parameter of a live node.
+///
+/// # Example
+///
+/// ```text
+/// Before:
+///   A -> B -> Output
+///   C -> D (disconnected)
+///
+/// After:
+///   A -> B -> Output
+///   (C and D removed)
+/// ```
+pub fn eliminate_dead_nodes(graph: &mut AudioGraph) -> usize {
+    let output = match graph.output_node() {
+        Some(out) => out,
+        None => return 0, // No output, nothing to do
+    };
+
+    // Find all live nodes by walking backwards from output
+    let mut live = vec![false; graph.node_count()];
+    let mut worklist = vec![output];
+
+    // Also mark input node as live if it exists
+    if let Some(input) = graph.input_node() {
+        worklist.push(input);
+    }
+
+    let audio_wires: Vec<_> = graph.audio_wires().to_vec();
+    let param_wires: Vec<_> = graph.param_wires().to_vec();
+
+    while let Some(idx) = worklist.pop() {
+        if idx >= live.len() || live[idx] {
+            continue;
+        }
+        live[idx] = true;
+
+        // Add predecessors (nodes that feed into this one)
+        for wire in &audio_wires {
+            if wire.to == idx && !live[wire.from] {
+                worklist.push(wire.from);
+            }
+        }
+
+        // Add modulators (nodes that modulate this node's params)
+        for wire in &param_wires {
+            if wire.to == idx && !live[wire.from] {
+                worklist.push(wire.from);
+            }
+        }
+    }
+
+    // Collect dead nodes (in reverse order to preserve indices during removal)
+    let mut dead: Vec<NodeIndex> = (0..graph.node_count()).filter(|&i| !live[i]).collect();
+    dead.sort_by(|a, b| b.cmp(a)); // Reverse order
+
+    let removed = dead.len();
+    for idx in dead {
+        graph.remove_node(idx);
+    }
+
+    removed
+}
+
 /// Run all graph optimization passes.
 ///
 /// Returns the total number of nodes removed/fused.
@@ -1233,11 +1300,12 @@ pub fn run_optimization_passes(graph: &mut AudioGraph) -> usize {
     loop {
         let fused = fuse_affine_chains(graph);
         let identities = eliminate_identities(graph);
+        let dead = eliminate_dead_nodes(graph);
 
-        if fused == 0 && identities == 0 {
+        if fused == 0 && identities == 0 && dead == 0 {
             break;
         }
-        total += fused + identities;
+        total += fused + identities + dead;
     }
 
     total
@@ -1584,5 +1652,95 @@ mod tests {
                 optimized_output
             );
         }
+    }
+
+    #[test]
+    fn test_eliminate_dead_simple() {
+        use crate::graph::{AffineNode, AudioGraph};
+
+        // Build: A -> Output, B (disconnected)
+        let mut graph = AudioGraph::new();
+        let a = graph.add(AffineNode::gain(2.0));
+        let _b = graph.add(AffineNode::gain(3.0)); // Dead node
+
+        graph.connect_input(a);
+        graph.set_output(a);
+
+        assert_eq!(graph.node_count(), 2);
+
+        let removed = eliminate_dead_nodes(&mut graph);
+        assert_eq!(removed, 1);
+        assert_eq!(graph.node_count(), 1);
+
+        // Verify output still works
+        let ctx = AudioContext::new(44100.0);
+        let out = graph.process(1.0, &ctx);
+        assert!((out - 2.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_eliminate_dead_chain() {
+        use crate::graph::{AffineNode, AudioGraph};
+
+        // Build: A -> B -> Output, C -> D (disconnected chain)
+        let mut graph = AudioGraph::new();
+        let a = graph.add(AffineNode::gain(2.0));
+        let b = graph.add(AffineNode::gain(0.5));
+        let c = graph.add(AffineNode::gain(10.0)); // Dead
+        let d = graph.add(AffineNode::gain(10.0)); // Dead
+
+        graph.connect_input(a);
+        graph.connect(a, b);
+        graph.connect(c, d); // Dead chain
+        graph.set_output(b);
+
+        assert_eq!(graph.node_count(), 4);
+
+        let removed = eliminate_dead_nodes(&mut graph);
+        assert_eq!(removed, 2);
+        assert_eq!(graph.node_count(), 2);
+
+        // Verify output: 1.0 * 2.0 * 0.5 = 1.0
+        let ctx = AudioContext::new(44100.0);
+        let out = graph.process(1.0, &ctx);
+        assert!((out - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_eliminate_dead_keeps_modulators() {
+        use crate::graph::{AffineNode, AudioGraph};
+        use crate::primitive::LfoNode;
+
+        // Build: LFO -> (modulates) Gain -> Output
+        // The LFO doesn't have audio output to Gain, only param modulation
+        let mut graph = AudioGraph::new();
+        let lfo = graph.add(LfoNode::with_freq(5.0, 44100.0));
+        let gain = graph.add(AffineNode::gain(1.0));
+
+        graph.connect_input(gain);
+        graph.set_output(gain);
+        graph.modulate(lfo, gain, AffineNode::PARAM_GAIN, 0.5, 0.5);
+
+        assert_eq!(graph.node_count(), 2);
+
+        // LFO should NOT be removed - it modulates a live node
+        let removed = eliminate_dead_nodes(&mut graph);
+        assert_eq!(removed, 0);
+        assert_eq!(graph.node_count(), 2);
+    }
+
+    #[test]
+    fn test_eliminate_dead_no_output() {
+        use crate::graph::{AffineNode, AudioGraph};
+
+        // Graph with no output set - nothing should be removed
+        let mut graph = AudioGraph::new();
+        let _a = graph.add(AffineNode::gain(2.0));
+        let _b = graph.add(AffineNode::gain(3.0));
+
+        assert_eq!(graph.node_count(), 2);
+
+        let removed = eliminate_dead_nodes(&mut graph);
+        assert_eq!(removed, 0); // Can't determine liveness without output
     }
 }
