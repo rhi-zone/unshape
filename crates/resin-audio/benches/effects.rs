@@ -348,6 +348,42 @@ fn bench_tremolo_codegen(c: &mut Criterion) {
     });
 }
 
+#[cfg(feature = "codegen-bench")]
+fn bench_chorus_codegen(c: &mut Criterion) {
+    use codegen_bench::GeneratedChorus;
+    use rhizome_resin_audio::graph::AudioNode;
+
+    let signal = test_signal(ONE_SECOND);
+    let ctx = AudioContext::new(SAMPLE_RATE);
+
+    c.bench_function("chorus_codegen_1sec", |b| {
+        let mut effect = GeneratedChorus::new(SAMPLE_RATE);
+        b.iter(|| {
+            for &sample in &signal {
+                black_box(effect.process(sample, &ctx));
+            }
+        });
+    });
+}
+
+#[cfg(feature = "codegen-bench")]
+fn bench_flanger_codegen(c: &mut Criterion) {
+    use codegen_bench::GeneratedFlanger;
+    use rhizome_resin_audio::graph::AudioNode;
+
+    let signal = test_signal(ONE_SECOND);
+    let ctx = AudioContext::new(SAMPLE_RATE);
+
+    c.bench_function("flanger_codegen_1sec", |b| {
+        let mut effect = GeneratedFlanger::new(SAMPLE_RATE);
+        b.iter(|| {
+            for &sample in &signal {
+                black_box(effect.process(sample, &ctx));
+            }
+        });
+    });
+}
+
 criterion_group!(
     benches,
     // Tier 1: Concrete effect structs (baseline)
@@ -370,7 +406,12 @@ criterion_group!(
 );
 
 #[cfg(feature = "codegen-bench")]
-criterion_group!(codegen_benches, bench_tremolo_codegen,);
+criterion_group!(
+    codegen_benches,
+    bench_tremolo_codegen,
+    bench_chorus_codegen,
+    bench_flanger_codegen,
+);
 
 #[cfg(feature = "optimize")]
 criterion_group!(

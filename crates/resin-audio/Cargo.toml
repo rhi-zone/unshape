@@ -13,8 +13,10 @@ dynop = ["dep:rhizome-resin-op", "dep:serde_json", "serde"]
 optimize = []
 # Experimental: JIT compilation for audio graphs
 cranelift = ["dep:cranelift", "dep:cranelift-frontend", "dep:cranelift-native", "dep:cranelift-module", "dep:cranelift-jit"]
+# Build-time codegen (requires serde)
+codegen = ["serde", "dep:serde_json"]
 # Build-time codegen for benchmarks
-codegen-bench = []
+codegen-bench = ["codegen"]
 
 [dependencies]
 rhizome-resin-core = { path = "../resin-core" }

@@ -312,6 +312,41 @@ graph.set_control_rate(64);  // Update params every 64 samples
 ```
 Default effect constructors use control rate 64 (~1.5ms at 44.1kHz).
 
+### Why Tier 2 Beats Hand-Written Structs
+
+Counterintuitively, pattern-matched optimized structs (Tier 2) are **faster** than the original hand-written effect structs:
+
+| Effect | Original Struct | Tier 2 Optimized | Improvement |
+|--------|-----------------|------------------|-------------|
+| Tremolo | 189 µs | 175 µs | 8% faster |
+| Chorus | 735 µs | 611 µs | 17% faster |
+| Flanger | 754 µs | 647 µs | 14% faster |
+
+**Root cause: algebraic simplification.**
+
+The original `AmplitudeMod` (tremolo) does this per sample:
+```rust
+let lfo_val = self.lfo.sine_uni();  // = sine() * 0.5 + 0.5
+let mod_amount = 1.0 - self.depth * lfo_val;
+input * mod_amount
+// 5 ops after sine: *0.5, +0.5, *depth, 1.0-, *input
+```
+
+The optimized `TremoloOptimized` pre-computes constants:
+```rust
+let lfo_out = self.lfo.sine();
+let gain = self.base + lfo_out * self.scale;  // base/scale computed once
+input * gain
+// 3 ops after sine: *scale, +base, *input
+```
+
+Saving 2 FLOPs per sample × 44,100 samples/sec = 88,200 fewer operations/sec.
+
+**Implication for codegen:** Real codegen should perform:
+- Constant folding (pre-compute what's known at graph construction)
+- Algebraic simplification (eliminate redundant conversions)
+- Dead code elimination (remove unused paths)
+
 **3. Monomorphization / code generation** (not implemented)
 For small fixed graphs, generate specialized code that inlines the graph structure. Options:
 - Proc macro at compile time
@@ -468,7 +503,127 @@ let output = tremolo.process(input, &ctx);
 
 **When to use:** Library authors providing optimized effects, maximum performance for fixed graph structures.
 
-**Status:** Infrastructure in `codegen.rs`. Current approach: write optimized structs directly in build.rs. Future: automatic graph → optimized code transformation.
+**Status:** Infrastructure in `codegen.rs`. Implementation in progress.
+
+#### Codegen Implementation Plan
+
+**Goal:** Generate optimized Rust structs from serialized graph descriptions.
+
+**Architecture:**
+
+```
+SerialAudioGraph (JSON)
+    → generate_effect()
+    → Rust code with concrete types + inlined processing
+```
+
+**Step 1: SerialAudioGraph format**
+
+```rust
+#[derive(Serialize, Deserialize)]
+pub struct SerialAudioGraph {
+    pub nodes: Vec<SerialAudioNode>,
+    pub audio_wires: Vec<(usize, usize)>,      // (from, to)
+    pub param_wires: Vec<SerialParamWire>,
+    pub input_node: Option<usize>,
+    pub output_node: Option<usize>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct SerialParamWire {
+    pub from: usize,
+    pub to: usize,
+    pub param: usize,
+    pub base: f32,
+    pub scale: f32,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum SerialAudioNode {
+    Lfo { rate: f32 },
+    Gain { gain: f32 },
+    Delay { max_samples: usize },
+    Mix { mix: f32 },
+    Envelope { attack: f32, release: f32 },
+    Allpass { coefficient: f32 },
+    // Input/Output markers (no state)
+    Input,
+    Output,
+}
+```
+
+**Step 2: Per-node codegen**
+
+Each variant implements:
+- `field_type()` → Rust type for struct field
+- `init_code(sample_rate)` → Constructor expression
+- `process_code(field, input)` → Processing expression
+
+Example for Lfo:
+```rust
+SerialAudioNode::Lfo { rate } => {
+    field_type: "crate::primitive::PhaseOsc",
+    init_code: "crate::primitive::PhaseOsc::new()",
+    process_code: |field, _input| format!("{field}.sine()")
+    // Note: phase advancement handled separately based on param wires
+}
+```
+
+**Step 3: Graph analysis for optimization**
+
+Before generating process(), analyze the graph to:
+1. Determine processing order (topological sort)
+2. Identify param modulations → pre-compute base/scale constants
+3. Detect algebraic simplifications (e.g., unipolar→bipolar conversion)
+
+**Step 4: Code generation**
+
+```rust
+pub fn generate_effect(graph: &SerialAudioGraph, name: &str, sample_rate: f32) -> String {
+    // 1. Generate struct with fields for each node
+    // 2. Generate new() that initializes all fields
+    // 3. Generate process() with inlined node processing in topo order
+    // 4. Apply optimizations (constant folding, etc.)
+}
+```
+
+**Generated output example (tremolo):**
+
+```rust
+pub struct GeneratedTremolo {
+    node_0_lfo: crate::primitive::PhaseOsc,
+    node_0_phase_inc: f32,
+    // Gain node optimized away - just multiply
+    mod_base: f32,
+    mod_scale: f32,
+}
+
+impl GeneratedTremolo {
+    pub fn new(sample_rate: f32) -> Self {
+        Self {
+            node_0_lfo: crate::primitive::PhaseOsc::new(),
+            node_0_phase_inc: 5.0 / sample_rate,  // rate from Lfo node
+            mod_base: 0.5,   // from param wire
+            mod_scale: 0.5,  // from param wire
+        }
+    }
+}
+
+impl AudioNode for GeneratedTremolo {
+    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
+        let lfo_out = self.node_0_lfo.sine();
+        self.node_0_lfo.advance(self.node_0_phase_inc);
+        let gain = self.mod_base + lfo_out * self.mod_scale;
+        input * gain
+    }
+}
+```
+
+**Files to modify:**
+- `crates/resin-audio/src/codegen.rs` - Main implementation
+- `crates/resin-audio/Cargo.toml` - Add serde dep for codegen feature
+- `crates/resin-audio/build.rs` - Update to use new codegen
 
 ## Future: Control Rate
 
