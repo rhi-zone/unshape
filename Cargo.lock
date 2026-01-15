@@ -4004,6 +4004,7 @@ dependencies = [
  "cranelift-jit",
  "cranelift-module",
  "cranelift-native",
+ "criterion",
  "glam",
  "rhizome-dew-core",
  "rhizome-dew-scalar",
