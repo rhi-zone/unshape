@@ -249,6 +249,22 @@ Recommendation: Keep `AudioGraph` separate for now, but design `Modulatable<T>` 
 - Primitives become the only building blocks
 - Document graph-based effect creation
 
+## Implementation Status
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1: Primitives as AudioNode | ✅ Complete | `ParamDescriptor`, `params()`, `set_param()` added to AudioNode. Primitive nodes: `DelayNode`, `LfoNode`, `EnvelopeNode`, `AllpassNode`, `GainNode`, `MixNode` |
+| Phase 2: Graph with Modulation | ✅ Complete | `AudioGraph` with `modulate()` and `modulate_named()`. Param wires apply `base + output * scale` before each node processes. |
+| Phase 3: Effects as Graphs | ✅ Partial | `tremolo_graph()`, `chorus_graph()`, `flanger_graph()` demonstrate the pattern. Old composition structs still exist alongside. |
+| Phase 4: Cleanup | ⏳ Pending | Composition structs (ModulatedDelay, AmplitudeMod, AllpassBank) can be removed once graph versions are validated. |
+
+### Remaining Work
+
+1. **Benchmark comparison** - Compare graph-based vs composition-based effects performance
+2. **Dry/wet routing** - MixNode needs cleaner way to receive dry signal in graph context
+3. **Remove composition structs** - After validation, delete old types
+4. **Phaser as graph** - AllpassBank with modulated coefficients needs multi-stage allpass
+
 ## Performance Considerations
 
 ### Overhead Sources
