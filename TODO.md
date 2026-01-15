@@ -189,6 +189,10 @@
   - 41x faster than scalar JIT (5.1µs vs 209µs for 44100 samples)
   - 6.6x faster than native Rust (no bounds checking overhead)
   - Parity tests verify scalar == SIMD == native
+- [x] Field expression JIT - compile `FieldExpr` AST to native `fn(x,y,z,t) -> f32`
+  - Noise functions (perlin, simplex, fbm) via external symbol calls
+  - Math ops, SDF operations, conditionals compiled inline
+  - Parity tests verify JIT == interpreted eval
 
 ### Audio Effects (guitar pedals / studio)
 
