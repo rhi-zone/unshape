@@ -2,6 +2,7 @@
 //!
 //! Provides path primitives, vector networks, and operations for 2D vector art.
 
+pub mod bezier;
 mod boolean;
 mod delaunay;
 mod geometry;

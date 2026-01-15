@@ -30,6 +30,7 @@
 
 use glam::Vec2;
 
+use crate::bezier::{cubic_point, quadratic_point};
 use crate::{Path, PathBuilder, PathCommand};
 
 // ============================================================================
@@ -117,13 +118,13 @@ impl CurveSegment {
                 start,
                 control,
                 end,
-            } => quadratic_bezier(*start, *control, *end, t),
+            } => quadratic_point(*start, *control, *end, t),
             CurveSegment::Cubic {
                 start,
                 control1,
                 control2,
                 end,
-            } => cubic_bezier(*start, *control1, *control2, *end, t),
+            } => cubic_point(*start, *control1, *control2, *end, t),
         }
     }
 
@@ -684,7 +685,7 @@ fn flatten_path(path: &Path, segments: usize) -> Vec<Vec2> {
                 // Flatten quadratic bezier
                 for i in 1..=segments {
                     let t = i as f32 / segments as f32;
-                    let p = quadratic_bezier(current, *control, *to, t);
+                    let p = quadratic_point(current, *control, *to, t);
                     points.push(p);
                 }
                 current = *to;
@@ -697,7 +698,7 @@ fn flatten_path(path: &Path, segments: usize) -> Vec<Vec2> {
                 // Flatten cubic bezier
                 for i in 1..=segments {
                     let t = i as f32 / segments as f32;
-                    let p = cubic_bezier(current, *control1, *control2, *to, t);
+                    let p = cubic_point(current, *control1, *control2, *to, t);
                     points.push(p);
                 }
                 current = *to;
@@ -715,24 +716,6 @@ fn flatten_path(path: &Path, segments: usize) -> Vec<Vec2> {
     points.dedup_by(|a, b| a.distance(*b) < 0.0001);
 
     points
-}
-
-/// Evaluates a quadratic bezier curve at parameter t.
-fn quadratic_bezier(p0: Vec2, p1: Vec2, p2: Vec2, t: f32) -> Vec2 {
-    let t2 = t * t;
-    let mt = 1.0 - t;
-    let mt2 = mt * mt;
-    p0 * mt2 + p1 * (2.0 * mt * t) + p2 * t2
-}
-
-/// Evaluates a cubic bezier curve at parameter t.
-fn cubic_bezier(p0: Vec2, p1: Vec2, p2: Vec2, p3: Vec2, t: f32) -> Vec2 {
-    let t2 = t * t;
-    let t3 = t2 * t;
-    let mt = 1.0 - t;
-    let mt2 = mt * mt;
-    let mt3 = mt2 * mt;
-    p0 * mt3 + p1 * (3.0 * mt2 * t) + p2 * (3.0 * mt * t2) + p3 * t3
 }
 
 /// Converts a polygon back to a path.
@@ -1606,7 +1589,7 @@ mod tests {
         let (left, right) = split_quadratic(start, control, end, 0.5);
 
         // The split point should be on the original curve
-        let split_point = quadratic_bezier(start, control, end, 0.5);
+        let split_point = quadratic_point(start, control, end, 0.5);
         assert!((left.2 - split_point).length() < 0.001);
         assert!((right.0 - split_point).length() < 0.001);
     }
@@ -1621,7 +1604,7 @@ mod tests {
         let (left, right) = split_cubic(p0, p1, p2, p3, 0.5);
 
         // The split point should be on the original curve
-        let split_point = cubic_bezier(p0, p1, p2, p3, 0.5);
+        let split_point = cubic_point(p0, p1, p2, p3, 0.5);
         assert!((left.3 - split_point).length() < 0.001);
         assert!((right.0 - split_point).length() < 0.001);
     }

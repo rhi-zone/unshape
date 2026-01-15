@@ -20,6 +20,7 @@
 //! let outline = stroke_to_path(&path, 5.0, CapStyle::Round, JoinStyle::Round);
 //! ```
 
+use crate::bezier::{cubic_point, quadratic_point};
 use crate::{Path, PathBuilder, PathCommand};
 use glam::Vec2;
 use std::f32::consts::PI;
@@ -534,24 +535,6 @@ fn path_to_points(path: &Path) -> Vec<Vec2> {
     }
 
     points
-}
-
-/// Evaluates a quadratic bezier at parameter t.
-fn quadratic_point(p0: Vec2, p1: Vec2, p2: Vec2, t: f32) -> Vec2 {
-    let t2 = t * t;
-    let mt = 1.0 - t;
-    let mt2 = mt * mt;
-    p0 * mt2 + p1 * 2.0 * mt * t + p2 * t2
-}
-
-/// Evaluates a cubic bezier at parameter t.
-fn cubic_point(p0: Vec2, p1: Vec2, p2: Vec2, p3: Vec2, t: f32) -> Vec2 {
-    let t2 = t * t;
-    let t3 = t2 * t;
-    let mt = 1.0 - t;
-    let mt2 = mt * mt;
-    let mt3 = mt2 * mt;
-    p0 * mt3 + p1 * 3.0 * mt2 * t + p2 * 3.0 * mt * t2 + p3 * t3
 }
 
 /// Checks if a path is closed.

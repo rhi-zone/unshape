@@ -2,8 +2,109 @@
 //!
 //! Provides standard easing curves (Robert Penner style) and utilities
 //! for smooth animation transitions.
+//!
+//! # Lerp Trait
+//!
+//! The [`Lerp`] trait provides a unified interface for linear interpolation
+//! across all resin crates. Implementations are provided for common types.
+//!
+//! ```
+//! use rhizome_resin_easing::Lerp;
+//! use glam::Vec3;
+//!
+//! let a = Vec3::ZERO;
+//! let b = Vec3::ONE;
+//! let mid = a.lerp_to(&b, 0.5);
+//! assert!((mid - Vec3::splat(0.5)).length() < 0.001);
+//! ```
 
 use std::f32::consts::PI;
+
+use glam::{Quat, Vec2, Vec3, Vec4};
+
+// ============================================================================
+// Lerp Trait
+// ============================================================================
+
+/// Trait for types that support linear interpolation.
+///
+/// This is the canonical interpolation trait for resin. Implement this
+/// for custom types to enable animation, blending, and easing support.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_easing::Lerp;
+///
+/// struct MyColor { r: f32, g: f32, b: f32 }
+///
+/// impl Lerp for MyColor {
+///     fn lerp_to(&self, other: &Self, t: f32) -> Self {
+///         MyColor {
+///             r: self.r + (other.r - self.r) * t,
+///             g: self.g + (other.g - self.g) * t,
+///             b: self.b + (other.b - self.b) * t,
+///         }
+///     }
+/// }
+/// ```
+pub trait Lerp {
+    /// Linearly interpolates from `self` to `other` by factor `t`.
+    ///
+    /// - `t = 0.0` returns `self`
+    /// - `t = 1.0` returns `other`
+    /// - Values outside `[0, 1]` extrapolate
+    fn lerp_to(&self, other: &Self, t: f32) -> Self;
+}
+
+impl Lerp for f32 {
+    #[inline]
+    fn lerp_to(&self, other: &Self, t: f32) -> Self {
+        self + (other - self) * t
+    }
+}
+
+impl Lerp for f64 {
+    #[inline]
+    fn lerp_to(&self, other: &Self, t: f32) -> Self {
+        self + (other - self) * t as f64
+    }
+}
+
+impl Lerp for Vec2 {
+    #[inline]
+    fn lerp_to(&self, other: &Self, t: f32) -> Self {
+        Vec2::lerp(*self, *other, t)
+    }
+}
+
+impl Lerp for Vec3 {
+    #[inline]
+    fn lerp_to(&self, other: &Self, t: f32) -> Self {
+        Vec3::lerp(*self, *other, t)
+    }
+}
+
+impl Lerp for Vec4 {
+    #[inline]
+    fn lerp_to(&self, other: &Self, t: f32) -> Self {
+        Vec4::lerp(*self, *other, t)
+    }
+}
+
+impl Lerp for Quat {
+    /// Uses spherical linear interpolation (slerp) for quaternions.
+    #[inline]
+    fn lerp_to(&self, other: &Self, t: f32) -> Self {
+        self.slerp(*other, t)
+    }
+}
+
+impl<T: Lerp, const N: usize> Lerp for [T; N] {
+    fn lerp_to(&self, other: &Self, t: f32) -> Self {
+        std::array::from_fn(|i| self[i].lerp_to(&other[i], t))
+    }
+}
 
 /// Easing function type.
 pub type EaseFn = fn(f32) -> f32;
@@ -533,6 +634,32 @@ where
     ease_value(start, end, t, easing.as_fn())
 }
 
+/// Applies an easing function to a [`Lerp`] type.
+///
+/// This is the preferred way to ease between values that implement `Lerp`.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_easing::{ease_lerp, Easing, Lerp};
+/// use glam::Vec3;
+///
+/// let start = Vec3::ZERO;
+/// let end = Vec3::ONE;
+/// let result = ease_lerp(&start, &end, 0.5, Easing::QuadIn);
+/// // QuadIn(0.5) = 0.25, so result is Vec3(0.25, 0.25, 0.25)
+/// ```
+pub fn ease_lerp<T: Lerp>(start: &T, end: &T, t: f32, easing: Easing) -> T {
+    let eased = easing.ease(t.clamp(0.0, 1.0));
+    start.lerp_to(end, eased)
+}
+
+/// Applies an easing function pointer to a [`Lerp`] type.
+pub fn ease_lerp_fn<T: Lerp>(start: &T, end: &T, t: f32, ease_fn: EaseFn) -> T {
+    let eased = ease_fn(t.clamp(0.0, 1.0));
+    start.lerp_to(end, eased)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -703,5 +830,59 @@ mod tests {
         }
 
         assert!(local_maxima >= 3, "bounce should have multiple bounces");
+    }
+
+    // ========================================================================
+    // Lerp trait tests
+    // ========================================================================
+
+    #[test]
+    fn test_lerp_f32() {
+        assert!((0.0f32.lerp_to(&1.0, 0.0) - 0.0).abs() < 0.001);
+        assert!((0.0f32.lerp_to(&1.0, 1.0) - 1.0).abs() < 0.001);
+        assert!((0.0f32.lerp_to(&1.0, 0.5) - 0.5).abs() < 0.001);
+        // Extrapolation
+        assert!((0.0f32.lerp_to(&1.0, 2.0) - 2.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_lerp_vec3() {
+        let a = Vec3::ZERO;
+        let b = Vec3::ONE;
+        let mid = a.lerp_to(&b, 0.5);
+        assert!((mid - Vec3::splat(0.5)).length() < 0.001);
+    }
+
+    #[test]
+    fn test_lerp_quat() {
+        let a = Quat::IDENTITY;
+        let b = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2); // 90 degrees
+        let mid = a.lerp_to(&b, 0.5);
+        // Should be roughly 45 degrees
+        let angle = mid.to_euler(glam::EulerRot::ZYX).0;
+        assert!(
+            (angle - std::f32::consts::FRAC_PI_4).abs() < 0.01,
+            "Expected ~45 deg, got {} rad",
+            angle
+        );
+    }
+
+    #[test]
+    fn test_lerp_array() {
+        let a = [0.0f32, 0.0, 0.0];
+        let b = [1.0f32, 2.0, 3.0];
+        let mid = a.lerp_to(&b, 0.5);
+        assert!((mid[0] - 0.5).abs() < 0.001);
+        assert!((mid[1] - 1.0).abs() < 0.001);
+        assert!((mid[2] - 1.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_ease_lerp() {
+        let start = Vec3::ZERO;
+        let end = Vec3::ONE;
+        let result = ease_lerp(&start, &end, 0.5, Easing::QuadIn);
+        // QuadIn(0.5) = 0.25
+        assert!((result - Vec3::splat(0.25)).length() < 0.001);
     }
 }

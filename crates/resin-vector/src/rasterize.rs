@@ -22,6 +22,7 @@
 //! let mask = rasterizer.rasterize(FillRule::NonZero);
 //! ```
 
+use crate::bezier::{cubic_point, quadratic_point};
 use crate::path::{Path, PathCommand};
 use crate::stroke::{JoinStyle, offset_path};
 use glam::Vec2;
@@ -274,7 +275,7 @@ fn flatten_path(path: &Path, segments_per_curve: usize) -> Vec<Vec2> {
                 let start = current;
                 for i in 1..=segments_per_curve {
                     let t = i as f32 / segments_per_curve as f32;
-                    let p = quadratic_bezier(start, *control, *to, t);
+                    let p = quadratic_point(start, *control, *to, t);
                     points.push(p);
                 }
                 current = *to;
@@ -288,7 +289,7 @@ fn flatten_path(path: &Path, segments_per_curve: usize) -> Vec<Vec2> {
                 let start = current;
                 for i in 1..=segments_per_curve {
                     let t = i as f32 / segments_per_curve as f32;
-                    let p = cubic_bezier(start, *control1, *control2, *to, t);
+                    let p = cubic_point(start, *control1, *control2, *to, t);
                     points.push(p);
                 }
                 current = *to;
@@ -300,20 +301,6 @@ fn flatten_path(path: &Path, segments_per_curve: usize) -> Vec<Vec2> {
     }
 
     points
-}
-
-fn quadratic_bezier(p0: Vec2, p1: Vec2, p2: Vec2, t: f32) -> Vec2 {
-    let t1 = 1.0 - t;
-    p0 * (t1 * t1) + p1 * (2.0 * t1 * t) + p2 * (t * t)
-}
-
-fn cubic_bezier(p0: Vec2, p1: Vec2, p2: Vec2, p3: Vec2, t: f32) -> Vec2 {
-    let t1 = 1.0 - t;
-    let t1_2 = t1 * t1;
-    let t1_3 = t1_2 * t1;
-    let t_2 = t * t;
-    let t_3 = t_2 * t;
-    p0 * t1_3 + p1 * (3.0 * t1_2 * t) + p2 * (3.0 * t1 * t_2) + p3 * t_3
 }
 
 /// Rasterizes a path to a mask.
