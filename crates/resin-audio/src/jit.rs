@@ -92,6 +92,7 @@ impl JitCompiler {
         // Register external symbols BEFORE creating the module
         // This allows JIT code to call back into Rust for stateful node processing
         builder.symbol("process_stateful_node", process_stateful_node as *const u8);
+        builder.symbol("advance_context", advance_context as *const u8);
 
         let module = JITModule::new(builder);
         let ctx = module.make_context();
@@ -330,8 +331,8 @@ pub struct CompiledGraph {
 struct GraphState {
     /// Per-node values (current output).
     values: Vec<f32>,
-    /// Stateful processors - closures that process and update state.
-    processors: Vec<Box<dyn FnMut(f32) -> f32 + Send>>,
+    /// Stateful processors - closures that process input with context.
+    processors: Vec<Box<dyn FnMut(f32, &AudioContext) -> f32 + Send>>,
     /// Audio context for processors that need it.
     ctx: AudioContext,
 }
@@ -389,11 +390,11 @@ impl JitCompiler {
     /// - Some node types may not be supported (returns error)
     pub fn compile_graph(
         &mut self,
-        graph: &AudioGraph,
+        mut graph: AudioGraph,
         sample_rate: f32,
     ) -> JitResult<CompiledGraph> {
         // Get processing order
-        let order = compute_processing_order(graph);
+        let order = compute_processing_order(&graph);
         if order.is_empty() {
             return Err(JitError::Graph("empty graph".to_string()));
         }
@@ -402,7 +403,7 @@ impl JitCompiler {
         let output_idx = graph.output_node();
 
         // Analyze nodes - determine which are pure math vs stateful
-        let node_info = self.analyze_graph(graph, &order)?;
+        let node_info = self.analyze_graph(&graph, &order)?;
 
         // Build the function
         // Signature: fn(input: *const f32, output: *mut f32, len: usize, state: *mut GraphState)
@@ -432,6 +433,15 @@ impl JitCompiler {
             &stateful_sig,
         )?;
 
+        // Declare external function for advancing context
+        // extern fn advance_context(state: *mut GraphState)
+        let mut advance_sig = self.module.make_signature();
+        advance_sig.params.push(AbiParam::new(types::I64)); // state pointer
+
+        let advance_func_id =
+            self.module
+                .declare_function("advance_context", Linkage::Import, &advance_sig)?;
+
         {
             let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut self.builder_ctx);
 
@@ -449,10 +459,13 @@ impl JitCompiler {
             let len = builder.block_params(entry)[2];
             let state_ptr = builder.block_params(entry)[3];
 
-            // Import the external function reference
+            // Import the external function references
             let stateful_func_ref = self
                 .module
                 .declare_func_in_func(stateful_func_id, builder.func);
+            let advance_func_ref = self
+                .module
+                .declare_func_in_func(advance_func_id, builder.func);
 
             // Initialize loop counter
             let zero = builder.ins().iconst(types::I64, 0);
@@ -564,6 +577,9 @@ impl JitCompiler {
                 .ins()
                 .store(cranelift::ir::MemFlags::new(), output_val, output_addr, 0);
 
+            // Advance audio context for next sample
+            builder.ins().call(advance_func_ref, &[state_ptr]);
+
             // Increment counter and loop
             let one = builder.ins().iconst(types::I64, 1);
             let next_i = builder.ins().iadd(i, one);
@@ -597,15 +613,19 @@ impl JitCompiler {
             unsafe { mem::transmute(code_ptr) };
 
         // Create state with processors for stateful nodes
-        let mut processors: Vec<Box<dyn FnMut(f32) -> f32 + Send>> = Vec::new();
+        // Take ownership of stateful nodes from the graph
+        let mut processors: Vec<Box<dyn FnMut(f32, &AudioContext) -> f32 + Send>> = Vec::new();
         let num_nodes = order.len();
 
         for &idx in &order {
             if let NodeInfo::Stateful { .. } = &node_info[&idx] {
-                // Clone the node and create a processor closure
-                // Note: This requires AudioNode to be Clone, which it isn't always
-                // For full implementation, would need a different approach
-                processors.push(Box::new(|input| input)); // Placeholder
+                // Take the node from the graph and wrap it in a processor closure
+                if let Some(mut node) = graph.take_node(idx) {
+                    processors.push(Box::new(move |input, ctx| node.process(input, ctx)));
+                } else {
+                    // Fallback passthrough if node can't be taken
+                    processors.push(Box::new(|input, _ctx| input));
+                }
             }
         }
 
@@ -786,10 +806,19 @@ extern "C" fn process_stateful_node(state: *mut GraphState, node_idx: i32, input
     unsafe {
         let state = &mut *state;
         if let Some(processor) = state.processors.get_mut(node_idx as usize) {
-            processor(input)
+            processor(input, &state.ctx)
         } else {
             input
         }
+    }
+}
+
+/// Advances the audio context after each sample.
+/// Called by JIT code at the end of each sample loop iteration.
+extern "C" fn advance_context(state: *mut GraphState) {
+    unsafe {
+        let state = &mut *state;
+        state.ctx.advance();
     }
 }
 
@@ -858,9 +887,9 @@ mod tests {
         graph.connect_input(node);
         graph.set_output(node);
 
-        // Compile it
+        // Compile it (consumes the graph)
         let mut compiler = JitCompiler::new().unwrap();
-        let mut compiled = compiler.compile_graph(&graph, 44100.0).unwrap();
+        let mut compiled = compiler.compile_graph(graph, 44100.0).unwrap();
 
         // Test block processing
         let input = vec![1.0, 2.0, 3.0, 4.0];
@@ -889,9 +918,9 @@ mod tests {
         graph.connect(p1, p2);
         graph.set_output(p2);
 
-        // Compile it
+        // Compile it (consumes the graph)
         let mut compiler = JitCompiler::new().unwrap();
-        let mut compiled = compiler.compile_graph(&graph, 44100.0).unwrap();
+        let mut compiled = compiler.compile_graph(graph, 44100.0).unwrap();
 
         // Test block processing
         let input = vec![1.0, -1.0, 0.5];
@@ -916,9 +945,9 @@ mod tests {
         graph.connect_input(gain_node);
         graph.set_output(gain_node);
 
-        // Compile it
+        // Compile it (consumes the graph)
         let mut compiler = JitCompiler::new().unwrap();
-        let mut compiled = compiler.compile_graph(&graph, 44100.0).unwrap();
+        let mut compiled = compiler.compile_graph(graph, 44100.0).unwrap();
 
         // Test block processing
         let input = vec![1.0, 2.0, -1.0, 0.0];
@@ -948,5 +977,48 @@ mod tests {
             "expected 0.0, got {}",
             output[3]
         );
+    }
+
+    #[test]
+    #[cfg(feature = "optimize")]
+    fn test_compile_graph_stateful_node() {
+        use crate::graph::{AudioContext, AudioGraph, BlockProcessor, Oscillator};
+
+        // Create a graph with a stateful node (oscillator)
+        // Oscillator is not in the pure math list, so it uses the callback mechanism
+        let mut graph = AudioGraph::new();
+        let osc = graph.add(Oscillator::sine(440.0));
+        graph.connect_input(osc);
+        graph.set_output(osc);
+
+        // Compile it (consumes the graph)
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut compiled = compiler.compile_graph(graph, 44100.0).unwrap();
+
+        // Test block processing - input doesn't matter for oscillator
+        let input = vec![0.0; 4];
+        let mut output = vec![0.0; 4];
+        let mut ctx = AudioContext::new(44100.0);
+
+        compiled.process_block(&input, &mut output, &mut ctx);
+
+        // Oscillator should produce non-zero output (sine wave starts at 0 but quickly rises)
+        // At 440Hz and 44100 sample rate, phase increment is ~0.01
+        // Second sample should be sin(2*PI*0.01) ≈ 0.0628
+        assert!(
+            output[1].abs() > 0.01,
+            "expected non-zero oscillator output, got {}",
+            output[1]
+        );
+
+        // Output values should be in [-1, 1] range
+        for (i, &sample) in output.iter().enumerate() {
+            assert!(
+                sample >= -1.0 && sample <= 1.0,
+                "sample {} out of range: {}",
+                i,
+                sample
+            );
+        }
     }
 }
