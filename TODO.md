@@ -156,23 +156,24 @@
 > Works at graph level, not tied to any codegen backend. Benefits both dynamic execution and JIT.
 
 **Algebraic Fusion:**
-- [ ] Affine chain fusion - `Gain(a) -> Offset(b) -> Gain(c) -> Offset(d)` → single multiply-add
-  - Any sequence of linear ops becomes `output = input * combined_gain + combined_offset`
+- [x] Affine chain fusion - `Gain(a) -> Offset(b) -> Gain(c) -> Offset(d)` → single multiply-add
+  - `AffineNode` struct with `then()` for composition, `fuse_affine_chains()` pass
   - Reduces N nodes to 1 fused node
 - [ ] Filter cascading - consecutive biquads can combine coefficients
 - [ ] Delay merging - consecutive delays become single buffer with combined length
 
 **Simplification:**
-- [ ] Identity elimination - remove `Gain(1.0)`, `Offset(0.0)`, `PassThrough`
+- [x] Identity elimination - remove `Gain(1.0)`, `Offset(0.0)`, `PassThrough`
+  - `eliminate_identities()` pass rewires around no-op nodes
 - [ ] Dead node elimination - remove nodes not connected to output
 - [ ] Constant folding - `Constant(a) -> Gain(b)` → `Constant(a*b)`
 - [ ] Constant propagation - track known-constant inputs through graph
 
 **Implementation:**
-- [ ] `GraphOptimizer` trait - `fn optimize(&self, graph: &mut Graph)`
-- [ ] Composable passes - chain optimizers: `AffineChainFusion.then(IdentityElim).then(DeadNodeElim)`
+- [x] Composable passes - `run_optimization_passes()` runs all passes until no changes
+- [x] Preserve semantics - tests verify output unchanged after optimization
+- [ ] `GraphOptimizer` trait - `fn optimize(&self, graph: &mut Graph)` (for extensibility)
 - [ ] Generic over graph type - works on `AudioGraph`, `FieldGraph`, etc.
-- [ ] Preserve semantics - optimization must not change output
 
 **Future (post-optimization):**
 - [ ] Generalized JIT in `resin-jit` crate - extract from audio, apply to any optimized graph

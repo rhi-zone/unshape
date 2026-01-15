@@ -392,8 +392,8 @@ pub fn phaser(sample_rate: f32) -> AllpassBank {
 // rather than dedicated structs. Each function returns an AudioGraph wired
 // with primitives.
 
-use crate::graph::AudioGraph;
-use crate::primitive::{DelayNode, GainNode, LfoNode, MixNode};
+use crate::graph::{AffineNode, AudioGraph};
+use crate::primitive::{DelayNode, LfoNode, MixNode};
 
 /// Creates a tremolo effect using the graph architecture.
 ///
@@ -416,7 +416,7 @@ pub fn tremolo_graph(sample_rate: f32, rate: f32, depth: f32) -> AudioGraph {
     g.set_control_rate(64);
 
     let lfo = g.add(LfoNode::with_freq(rate, sample_rate));
-    let gain = g.add(GainNode::new(1.0));
+    let gain = g.add(AffineNode::gain(1.0));
 
     g.connect_input(gain);
     g.set_output(gain);
@@ -425,7 +425,7 @@ pub fn tremolo_graph(sample_rate: f32, rate: f32, depth: f32) -> AudioGraph {
     // So gain varies from (1-depth) to 1
     let base = 1.0 - depth * 0.5;
     let scale = depth * 0.5;
-    g.modulate(lfo, gain, GainNode::PARAM_GAIN, base, scale);
+    g.modulate(lfo, gain, AffineNode::PARAM_GAIN, base, scale);
 
     g
 }

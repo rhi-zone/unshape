@@ -517,13 +517,31 @@ impl JitCompiler {
                     NodeInfo::PureMath { op } => {
                         // Generate inline math
                         match op {
-                            MathOp::Gain(g) => {
-                                let gain = builder.ins().f32const(*g);
-                                builder.ins().fmul(node_input, gain)
-                            }
-                            MathOp::Offset(o) => {
-                                let offset = builder.ins().f32const(*o);
-                                builder.ins().fadd(node_input, offset)
+                            MathOp::Affine { gain, offset } => {
+                                // Emit optimal code based on values
+                                let is_identity_gain = (*gain - 1.0).abs() < 1e-10;
+                                let is_zero_offset = offset.abs() < 1e-10;
+
+                                match (is_identity_gain, is_zero_offset) {
+                                    (true, true) => node_input, // identity
+                                    (true, false) => {
+                                        // offset only
+                                        let o = builder.ins().f32const(*offset);
+                                        builder.ins().fadd(node_input, o)
+                                    }
+                                    (false, true) => {
+                                        // gain only
+                                        let g = builder.ins().f32const(*gain);
+                                        builder.ins().fmul(node_input, g)
+                                    }
+                                    (false, false) => {
+                                        // full affine: output = input * gain + offset
+                                        let g = builder.ins().f32const(*gain);
+                                        let o = builder.ins().f32const(*offset);
+                                        let mul = builder.ins().fmul(node_input, g);
+                                        builder.ins().fadd(mul, o)
+                                    }
+                                }
                             }
                             MathOp::Clip { min, max } => {
                                 let min_val = builder.ins().f32const(*min);
@@ -538,7 +556,6 @@ impl JitCompiler {
                                 let denom = builder.ins().fadd(one, abs_x);
                                 builder.ins().fdiv(node_input, denom)
                             }
-                            MathOp::PassThrough => node_input,
                             MathOp::Constant(c) => builder.ins().f32const(*c),
                             MathOp::RingMod => {
                                 // Ring mod multiplies input by modulator
@@ -666,17 +683,12 @@ impl JitCompiler {
             let node_info = {
                 use crate::optimize::NodeType;
                 match graph.node_type(idx) {
-                    Some(NodeType::Gain) => {
-                        // Extract actual gain value from node
+                    Some(NodeType::Affine) => {
+                        // AffineNode stores gain at param 0, offset at param 1
                         let gain = graph.node_param_value(idx, 0).unwrap_or(1.0);
+                        let offset = graph.node_param_value(idx, 1).unwrap_or(0.0);
                         NodeInfo::PureMath {
-                            op: MathOp::Gain(gain),
-                        }
-                    }
-                    Some(NodeType::Offset) => {
-                        let offset = graph.node_param_value(idx, 0).unwrap_or(0.0);
-                        NodeInfo::PureMath {
-                            op: MathOp::Offset(offset),
+                            op: MathOp::Affine { gain, offset },
                         }
                     }
                     Some(NodeType::Clip) => {
@@ -689,9 +701,6 @@ impl JitCompiler {
                     }
                     Some(NodeType::SoftClip) => NodeInfo::PureMath {
                         op: MathOp::SoftClip,
-                    },
-                    Some(NodeType::PassThrough) => NodeInfo::PureMath {
-                        op: MathOp::PassThrough,
                     },
                     Some(NodeType::Constant) => {
                         let value = graph.node_param_value(idx, 0).unwrap_or(0.0);
@@ -741,11 +750,17 @@ enum NodeInfo {
 /// Pure math operations that can be inlined.
 #[derive(Clone, Copy)]
 enum MathOp {
-    Gain(f32),
-    Offset(f32),
-    Clip { min: f32, max: f32 },
+    /// Linear transform: output = input * gain + offset
+    /// Covers gain-only (offset=0), offset-only (gain=1), and identity (gain=1, offset=0)
+    Affine {
+        gain: f32,
+        offset: f32,
+    },
+    Clip {
+        min: f32,
+        max: f32,
+    },
     SoftClip,
-    PassThrough,
     Constant(f32),
     RingMod,
 }
@@ -859,10 +874,10 @@ mod tests {
 
     #[test]
     fn test_block_processor_trait() {
-        use crate::graph::{AudioContext, BlockProcessor, Gain};
+        use crate::graph::{AffineNode, AudioContext, BlockProcessor};
 
         // Test that AudioNode types get BlockProcessor via blanket impl
-        let mut gain = Gain::new(0.5);
+        let mut gain = AffineNode::gain(0.5);
         let input = vec![1.0, 2.0, 3.0, 4.0];
         let mut output = vec![0.0; 4];
         let mut ctx = AudioContext::new(44100.0);
@@ -879,11 +894,11 @@ mod tests {
     #[test]
     #[cfg(feature = "optimize")]
     fn test_compile_graph_passthrough() {
-        use crate::graph::{AudioContext, AudioGraph, BlockProcessor, PassThrough};
+        use crate::graph::{AffineNode, AudioContext, AudioGraph, BlockProcessor};
 
         // Create a simple passthrough graph
         let mut graph = AudioGraph::new();
-        let node = graph.add(PassThrough);
+        let node = graph.add(AffineNode::identity());
         graph.connect_input(node);
         graph.set_output(node);
 
@@ -908,12 +923,12 @@ mod tests {
     #[test]
     #[cfg(feature = "optimize")]
     fn test_compile_graph_chain() {
-        use crate::graph::{AudioContext, AudioGraph, BlockProcessor, PassThrough};
+        use crate::graph::{AffineNode, AudioContext, AudioGraph, BlockProcessor};
 
         // Create a chain: input -> passthrough -> passthrough -> output
         let mut graph = AudioGraph::new();
-        let p1 = graph.add(PassThrough);
-        let p2 = graph.add(PassThrough);
+        let p1 = graph.add(AffineNode::identity());
+        let p2 = graph.add(AffineNode::identity());
         graph.connect_input(p1);
         graph.connect(p1, p2);
         graph.set_output(p2);
@@ -937,11 +952,11 @@ mod tests {
     #[test]
     #[cfg(feature = "optimize")]
     fn test_compile_graph_gain_param() {
-        use crate::graph::{AudioContext, AudioGraph, BlockProcessor, Gain};
+        use crate::graph::{AffineNode, AudioContext, AudioGraph, BlockProcessor};
 
         // Create a graph with a specific gain value
         let mut graph = AudioGraph::new();
-        let gain_node = graph.add(Gain::new(0.5)); // 50% gain
+        let gain_node = graph.add(AffineNode::gain(0.5)); // 50% gain
         graph.connect_input(gain_node);
         graph.set_output(gain_node);
 

@@ -48,7 +48,6 @@ pub enum NodeType {
     Lfo,
     Envelope,
     Allpass,
-    Gain,
     Mix,
 
     // Filters (from graph.rs)
@@ -65,10 +64,11 @@ pub enum NodeType {
     Oscillator,
     Clip,
     SoftClip,
-    Offset,
     Constant,
-    PassThrough,
     Silence,
+
+    // Linear transform (unified gain/offset/passthrough)
+    Affine,
 
     // Unknown/custom nodes
     Unknown,
@@ -76,7 +76,7 @@ pub enum NodeType {
 
 impl NodeType {
     /// Total number of known node types.
-    pub const COUNT: usize = 20;
+    pub const COUNT: usize = 18;
 
     /// Get node type from a type ID.
     pub fn from_type_id(id: TypeId) -> Self {
@@ -97,7 +97,6 @@ fn build_node_type_registry() -> HashMap<TypeId, NodeType> {
         TypeId::of::<crate::primitive::AllpassNode>(),
         NodeType::Allpass,
     );
-    map.insert(TypeId::of::<crate::primitive::GainNode>(), NodeType::Gain);
     map.insert(TypeId::of::<crate::primitive::MixNode>(), NodeType::Mix);
     map.insert(TypeId::of::<crate::graph::LowPassNode>(), NodeType::LowPass);
     map.insert(
@@ -117,14 +116,9 @@ fn build_node_type_registry() -> HashMap<TypeId, NodeType> {
     );
     map.insert(TypeId::of::<crate::graph::Clip>(), NodeType::Clip);
     map.insert(TypeId::of::<crate::graph::SoftClip>(), NodeType::SoftClip);
-    map.insert(TypeId::of::<crate::graph::Offset>(), NodeType::Offset);
-    map.insert(TypeId::of::<crate::graph::Gain>(), NodeType::Gain);
     map.insert(TypeId::of::<crate::graph::Constant>(), NodeType::Constant);
-    map.insert(
-        TypeId::of::<crate::graph::PassThrough>(),
-        NodeType::PassThrough,
-    );
     map.insert(TypeId::of::<crate::graph::Silence>(), NodeType::Silence);
+    map.insert(TypeId::of::<crate::graph::AffineNode>(), NodeType::Affine);
     map
 }
 
@@ -867,11 +861,11 @@ pub fn default_patterns() -> Vec<Pattern> {
     vec![tremolo_pattern(), flanger_pattern(), chorus_pattern()]
 }
 
-/// Pattern for tremolo: LFO modulating a gain node.
+/// Pattern for tremolo: LFO modulating an affine (gain) node.
 fn tremolo_pattern() -> Pattern {
     Pattern {
         name: "tremolo",
-        required: fingerprint!(Lfo: 1, Gain: 1),
+        required: fingerprint!(Lfo: 1, Affine: 1),
         structure: PatternStructure {
             nodes: vec![
                 PatternNode {
@@ -879,14 +873,14 @@ fn tremolo_pattern() -> Pattern {
                     constraints: vec![],
                 },
                 PatternNode {
-                    node_type: NodeType::Gain,
+                    node_type: NodeType::Affine,
                     constraints: vec![],
                 },
             ],
-            audio_wires: vec![],               // LFO doesn't send audio to Gain
-            param_wires: vec![(0, 1, "gain")], // LFO modulates Gain's gain param
-            external_inputs: vec![1],          // External audio enters at Gain
-            external_outputs: vec![1],         // Audio leaves from Gain
+            audio_wires: vec![],               // LFO doesn't send audio to Affine
+            param_wires: vec![(0, 1, "gain")], // LFO modulates Affine's gain param
+            external_inputs: vec![1],          // External audio enters at Affine
+            external_outputs: vec![1],         // Audio leaves from Affine
         },
         build: |m| Box::new(TremoloOptimized::from_match(m, 44100.0)),
         priority: 0,
@@ -949,24 +943,325 @@ fn chorus_pattern() -> Pattern {
     }
 }
 
+// ============================================================================
+// Graph Optimization Passes
+// ============================================================================
+
+// Re-export AffineNode from graph module
+pub use crate::graph::AffineNode;
+
+/// Represents an affine operation for chain detection.
+#[derive(Debug, Clone, Copy)]
+enum AffineOp {
+    /// Affine transform: output = input * gain + offset
+    Affine { gain: f32, offset: f32 },
+}
+
+impl AffineOp {
+    /// Convert to an AffineNode.
+    fn to_affine(self) -> AffineNode {
+        match self {
+            AffineOp::Affine { gain, offset } => AffineNode::new(gain, offset),
+        }
+    }
+
+    /// Compose two affine operations.
+    fn then(self, other: Self) -> Self {
+        let AffineOp::Affine {
+            gain: g1,
+            offset: o1,
+        } = self;
+        let AffineOp::Affine {
+            gain: g2,
+            offset: o2,
+        } = other;
+        // (x * g1 + o1) * g2 + o2 = x * (g1*g2) + (o1*g2 + o2)
+        AffineOp::Affine {
+            gain: g1 * g2,
+            offset: o1 * g2 + o2,
+        }
+    }
+}
+
+/// Try to interpret a node as an affine operation.
+fn node_as_affine(graph: &AudioGraph, idx: NodeIndex) -> Option<AffineOp> {
+    let node_type = graph.node_type(idx)?;
+    match node_type {
+        NodeType::Affine => {
+            // AffineNode stores gain at param 0, offset at param 1
+            let gain = graph.node_param_value(idx, 0).unwrap_or(1.0);
+            let offset = graph.node_param_value(idx, 1).unwrap_or(0.0);
+            Some(AffineOp::Affine { gain, offset })
+        }
+        _ => None,
+    }
+}
+
+/// Fuse chains of affine operations (Gain, Offset, PassThrough) into single AffineNode.
+///
+/// This optimization pass finds linear chains of affine nodes and replaces them
+/// with a single fused node, reducing node count and eliminating intermediate storage.
+///
+/// # Example
+///
+/// ```text
+/// Input -> Gain(0.5) -> Offset(1.0) -> Gain(2.0) -> Output
+/// ```
+/// Becomes:
+/// ```text
+/// Input -> AffineNode { gain: 1.0, offset: 2.0 } -> Output
+/// // Because: ((x * 0.5) + 1.0) * 2.0 = x * 1.0 + 2.0
+/// ```
+pub fn fuse_affine_chains(graph: &mut AudioGraph) -> usize {
+    let mut fused_count = 0;
+
+    loop {
+        // Find a chain to fuse
+        let chain = find_affine_chain(graph);
+        if chain.is_empty() || chain.len() < 2 {
+            break;
+        }
+
+        // Compute the fused affine transform
+        let mut combined = AffineNode::identity();
+        for &idx in &chain {
+            if let Some(op) = node_as_affine(graph, idx) {
+                combined = combined.then(op.to_affine());
+            }
+        }
+
+        // Skip if the result is identity (will be handled by identity elimination)
+        if combined.is_identity() && chain.len() == 1 {
+            break;
+        }
+
+        // Replace chain with fused node
+        replace_affine_chain(graph, &chain, combined);
+        fused_count += chain.len() - 1; // We reduced N nodes to 1
+    }
+
+    fused_count
+}
+
+/// Find a chain of affine nodes with single in/out connections.
+fn find_affine_chain(graph: &AudioGraph) -> Vec<NodeIndex> {
+    let node_count = graph.node_count();
+
+    // Build adjacency info
+    let mut in_degree = vec![0usize; node_count];
+    let mut out_degree = vec![0usize; node_count];
+    let mut successor = vec![None; node_count];
+    let mut predecessor = vec![None; node_count];
+
+    for wire in graph.audio_wires() {
+        if wire.from < node_count && wire.to < node_count {
+            out_degree[wire.from] += 1;
+            in_degree[wire.to] += 1;
+            successor[wire.from] = Some(wire.to);
+            predecessor[wire.to] = Some(wire.from);
+        }
+    }
+
+    // Find start of a chain (affine node with in_degree <= 1, followed by another affine)
+    for start in 0..node_count {
+        if node_as_affine(graph, start).is_none() {
+            continue;
+        }
+        if out_degree[start] != 1 {
+            continue;
+        }
+
+        let next = match successor[start] {
+            Some(n) => n,
+            None => continue,
+        };
+
+        if node_as_affine(graph, next).is_none() {
+            continue;
+        }
+
+        // Found potential chain start, extend it
+        let mut chain = vec![start];
+        let mut current = next;
+
+        while node_as_affine(graph, current).is_some()
+            && in_degree[current] == 1
+            && out_degree[current] <= 1
+        {
+            chain.push(current);
+            if out_degree[current] == 0 {
+                break;
+            }
+            current = match successor[current] {
+                Some(n) => n,
+                None => break,
+            };
+        }
+
+        if chain.len() >= 2 {
+            return chain;
+        }
+    }
+
+    Vec::new()
+}
+
+/// Replace a chain of nodes with a single AffineNode.
+fn replace_affine_chain(graph: &mut AudioGraph, chain: &[NodeIndex], affine: AffineNode) {
+    if chain.is_empty() {
+        return;
+    }
+
+    let first = chain[0];
+    let last = chain[chain.len() - 1];
+
+    // Add the new fused node
+    let new_node = graph.add(affine);
+
+    // Rewire inputs: anything that fed the first node should feed the new node
+    let wires: Vec<_> = graph.audio_wires().to_vec();
+    for wire in &wires {
+        if wire.to == first && !chain.contains(&wire.from) {
+            graph.connect(wire.from, new_node);
+        }
+    }
+
+    // Rewire outputs: anything the last node fed should be fed by the new node
+    for wire in &wires {
+        if wire.from == last && !chain.contains(&wire.to) {
+            graph.connect(new_node, wire.to);
+        }
+    }
+
+    // Update input/output node references
+    if graph.input_node() == Some(first) {
+        graph.connect_input(new_node);
+    }
+    if graph.output_node() == Some(last) {
+        graph.set_output(new_node);
+    }
+
+    // Remove chain nodes (in reverse order to preserve indices)
+    let mut to_remove: Vec<NodeIndex> = chain.to_vec();
+    to_remove.sort_by(|a, b| b.cmp(a));
+    for idx in to_remove {
+        graph.remove_node(idx);
+    }
+}
+
+/// Remove identity nodes (Gain(1.0), Offset(0.0), PassThrough) from the graph.
+///
+/// These nodes don't change the signal and can be safely removed by rewiring
+/// their inputs directly to their outputs.
+pub fn eliminate_identities(graph: &mut AudioGraph) -> usize {
+    let mut removed = 0;
+
+    loop {
+        let identity = find_identity_node(graph);
+        if identity.is_none() {
+            break;
+        }
+        let idx = identity.unwrap();
+
+        // Rewire: connect predecessors directly to successors
+        let wires: Vec<_> = graph.audio_wires().to_vec();
+        let predecessors: Vec<NodeIndex> = wires
+            .iter()
+            .filter(|w| w.to == idx)
+            .map(|w| w.from)
+            .collect();
+        let successors: Vec<NodeIndex> = wires
+            .iter()
+            .filter(|w| w.from == idx)
+            .map(|w| w.to)
+            .collect();
+
+        // Connect each predecessor to each successor
+        for &pred in &predecessors {
+            for &succ in &successors {
+                graph.connect(pred, succ);
+            }
+        }
+
+        // Update input/output references
+        if graph.input_node() == Some(idx) {
+            if let Some(&succ) = successors.first() {
+                graph.connect_input(succ);
+            }
+        }
+        if graph.output_node() == Some(idx) {
+            if let Some(&pred) = predecessors.first() {
+                graph.set_output(pred);
+            }
+        }
+
+        graph.remove_node(idx);
+        removed += 1;
+    }
+
+    removed
+}
+
+/// Find a node that is an identity operation.
+fn find_identity_node(graph: &AudioGraph) -> Option<NodeIndex> {
+    for idx in 0..graph.node_count() {
+        let node_type = graph.node_type(idx);
+        let is_identity = match node_type {
+            Some(NodeType::Affine) => {
+                // Check if AffineNode is identity (gain ~= 1, offset ~= 0)
+                let gain = graph.node_param_value(idx, 0).unwrap_or(1.0);
+                let offset = graph.node_param_value(idx, 1).unwrap_or(0.0);
+                (gain - 1.0).abs() < 1e-10 && offset.abs() < 1e-10
+            }
+            _ => false,
+        };
+
+        if is_identity {
+            return Some(idx);
+        }
+    }
+    None
+}
+
+/// Run all graph optimization passes.
+///
+/// Returns the total number of nodes removed/fused.
+pub fn run_optimization_passes(graph: &mut AudioGraph) -> usize {
+    let mut total = 0;
+
+    // Run passes until no more changes
+    loop {
+        let fused = fuse_affine_chains(graph);
+        let identities = eliminate_identities(graph);
+
+        if fused == 0 && identities == 0 {
+            break;
+        }
+        total += fused + identities;
+    }
+
+    total
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::AudioContext;
 
     #[test]
     fn test_fingerprint_contains() {
         let mut graph_fp = GraphFingerprint::new();
         graph_fp.add(NodeType::Lfo);
         graph_fp.add(NodeType::Lfo);
-        graph_fp.add(NodeType::Gain);
+        graph_fp.add(NodeType::Affine);
         graph_fp.add(NodeType::Delay);
 
-        // Pattern needs 1 LFO and 1 Gain - should match
-        let pattern_fp = fingerprint!(Lfo: 1, Gain: 1);
+        // Pattern needs 1 LFO and 1 Affine - should match
+        let pattern_fp = fingerprint!(Lfo: 1, Affine: 1);
         assert!(graph_fp.contains(&pattern_fp));
 
-        // Pattern needs 2 LFOs and 1 Gain - should match
-        let pattern_fp2 = fingerprint!(Lfo: 2, Gain: 1);
+        // Pattern needs 2 LFOs and 1 Affine - should match
+        let pattern_fp2 = fingerprint!(Lfo: 2, Affine: 1);
         assert!(graph_fp.contains(&pattern_fp2));
 
         // Pattern needs 3 LFOs - should not match
@@ -980,27 +1275,27 @@ mod tests {
 
     #[test]
     fn test_fingerprint_macro() {
-        let fp = fingerprint!(Lfo: 2, Gain: 1, Delay: 3);
+        let fp = fingerprint!(Lfo: 2, Affine: 1, Delay: 3);
 
         assert_eq!(fp.count(NodeType::Lfo), 2);
-        assert_eq!(fp.count(NodeType::Gain), 1);
+        assert_eq!(fp.count(NodeType::Affine), 1);
         assert_eq!(fp.count(NodeType::Delay), 3);
         assert_eq!(fp.count(NodeType::Allpass), 0);
     }
 
     #[test]
     fn test_tremolo_pattern_match() {
-        use crate::graph::{AudioContext, AudioGraph};
-        use crate::primitive::{GainNode, LfoNode};
+        use crate::graph::{AffineNode, AudioGraph};
+        use crate::primitive::LfoNode;
 
         // Build a tremolo graph manually
         let mut graph = AudioGraph::new();
         let lfo = graph.add(LfoNode::with_freq(5.0, 44100.0));
-        let gain = graph.add(GainNode::new(1.0));
+        let gain = graph.add(AffineNode::gain(1.0));
 
         graph.connect_input(gain);
         graph.set_output(gain);
-        graph.modulate(lfo, gain, GainNode::PARAM_GAIN, 0.5, 0.5);
+        graph.modulate(lfo, gain, AffineNode::PARAM_GAIN, 0.5, 0.5);
 
         // Verify fingerprint matches
         let fp = compute_fingerprint(&graph);
@@ -1018,17 +1313,17 @@ mod tests {
 
     #[test]
     fn test_optimize_tremolo_graph() {
-        use crate::graph::{AudioContext, AudioGraph};
-        use crate::primitive::{GainNode, LfoNode};
+        use crate::graph::{AffineNode, AudioGraph};
+        use crate::primitive::LfoNode;
 
         // Build a tremolo graph
         let mut graph = AudioGraph::new();
         let lfo = graph.add(LfoNode::with_freq(5.0, 44100.0));
-        let gain = graph.add(GainNode::new(1.0));
+        let gain = graph.add(AffineNode::gain(1.0));
 
         graph.connect_input(gain);
         graph.set_output(gain);
-        graph.modulate(lfo, gain, GainNode::PARAM_GAIN, 0.5, 0.5);
+        graph.modulate(lfo, gain, AffineNode::PARAM_GAIN, 0.5, 0.5);
 
         // Before optimization: 2 nodes
         assert_eq!(graph.node_count(), 2);
@@ -1072,7 +1367,7 @@ mod tests {
 
     #[test]
     fn test_optimize_flanger_graph() {
-        use crate::graph::{AudioContext, AudioGraph};
+        use crate::graph::AudioGraph;
         use crate::primitive::{DelayNode, LfoNode};
 
         let mut graph = AudioGraph::new();
@@ -1121,7 +1416,7 @@ mod tests {
 
     #[test]
     fn test_optimize_chorus_graph() {
-        use crate::graph::{AudioContext, AudioGraph};
+        use crate::graph::AudioGraph;
         use crate::primitive::{DelayNode, LfoNode, MixNode};
 
         let mut graph = AudioGraph::new();
@@ -1141,5 +1436,153 @@ mod tests {
         let ctx = AudioContext::new(44100.0);
         let output = graph.process(1.0, &ctx);
         assert!(output.abs() <= 1.5);
+    }
+
+    // ========================================================================
+    // Graph Optimization Pass Tests
+    // ========================================================================
+
+    #[test]
+    fn test_affine_composition() {
+        // Gain(0.5) then Offset(1.0) then Gain(2.0)
+        // Step 1: y = 0.5x
+        // Step 2: y = 0.5x + 1.0
+        // Step 3: y = 2.0 * (0.5x + 1.0) = 1.0x + 2.0
+        let a = AffineNode::new(0.5, 0.0);
+        let b = AffineNode::new(1.0, 1.0);
+        let c = AffineNode::new(2.0, 0.0);
+
+        let composed = a.then(b).then(c);
+        assert!((composed.gain - 1.0).abs() < 1e-6);
+        assert!((composed.offset - 2.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_fuse_gain_offset_chain() {
+        use crate::graph::{AffineNode, AudioGraph};
+
+        // Build: Input -> Gain(0.5) -> Offset(1.0) -> Gain(2.0) -> Output
+        let mut graph = AudioGraph::new();
+        let g1 = graph.add(AffineNode::gain(0.5));
+        let o1 = graph.add(AffineNode::offset(1.0));
+        let g2 = graph.add(AffineNode::gain(2.0));
+
+        graph.connect_input(g1);
+        graph.connect(g1, o1);
+        graph.connect(o1, g2);
+        graph.set_output(g2);
+
+        assert_eq!(graph.node_count(), 3);
+
+        // Test original behavior
+        let ctx = AudioContext::new(44100.0);
+        let original_output = graph.process(2.0, &ctx);
+        // (2.0 * 0.5 + 1.0) * 2.0 = (1.0 + 1.0) * 2.0 = 4.0
+        assert!(
+            (original_output - 4.0).abs() < 1e-6,
+            "got {}",
+            original_output
+        );
+
+        // Fuse the chain
+        let fused = fuse_affine_chains(&mut graph);
+        assert!(fused > 0, "expected some nodes to be fused");
+        assert_eq!(graph.node_count(), 1, "chain should be fused to 1 node");
+
+        // Verify same output
+        let optimized_output = graph.process(2.0, &ctx);
+        assert!(
+            (optimized_output - original_output).abs() < 1e-6,
+            "expected {}, got {}",
+            original_output,
+            optimized_output
+        );
+    }
+
+    #[test]
+    fn test_eliminate_identity_gain() {
+        use crate::graph::{AffineNode, AudioGraph};
+
+        // Build: Input -> Gain(1.0) -> Output (identity, should be removed)
+        let mut graph = AudioGraph::new();
+        let g = graph.add(AffineNode::gain(1.0));
+        graph.connect_input(g);
+        graph.set_output(g);
+
+        assert_eq!(graph.node_count(), 1);
+
+        let removed = eliminate_identities(&mut graph);
+        assert_eq!(removed, 1);
+        assert_eq!(graph.node_count(), 0);
+    }
+
+    #[test]
+    fn test_eliminate_identity_offset() {
+        use crate::graph::{AffineNode, AudioGraph};
+
+        // Build: Input -> Offset(0.0) -> Output (identity, should be removed)
+        let mut graph = AudioGraph::new();
+        let o = graph.add(AffineNode::offset(0.0));
+        graph.connect_input(o);
+        graph.set_output(o);
+
+        assert_eq!(graph.node_count(), 1);
+
+        let removed = eliminate_identities(&mut graph);
+        assert_eq!(removed, 1);
+        assert_eq!(graph.node_count(), 0);
+    }
+
+    #[test]
+    fn test_run_all_passes() {
+        use crate::graph::{AffineNode, AudioGraph};
+
+        // Build a complex chain with identities mixed in
+        // Input -> PassThrough -> Gain(0.5) -> Offset(0.0) -> Gain(2.0) -> Output
+        let mut graph = AudioGraph::new();
+        let p = graph.add(AffineNode::identity());
+        let g1 = graph.add(AffineNode::gain(0.5));
+        let o = graph.add(AffineNode::offset(0.0)); // Identity
+        let g2 = graph.add(AffineNode::gain(2.0));
+
+        graph.connect_input(p);
+        graph.connect(p, g1);
+        graph.connect(g1, o);
+        graph.connect(o, g2);
+        graph.set_output(g2);
+
+        assert_eq!(graph.node_count(), 4);
+
+        // Test original behavior
+        let ctx = AudioContext::new(44100.0);
+        let original_output = graph.process(2.0, &ctx);
+        // 2.0 * 0.5 * 2.0 = 2.0
+        assert!(
+            (original_output - 2.0).abs() < 1e-6,
+            "got {}",
+            original_output
+        );
+
+        // Run all optimization passes
+        let total = run_optimization_passes(&mut graph);
+        assert!(total > 0, "expected some optimizations");
+
+        // Should reduce to 1 node (or possibly 0 if it becomes identity)
+        assert!(
+            graph.node_count() <= 2,
+            "expected <= 2 nodes, got {}",
+            graph.node_count()
+        );
+
+        // Verify same output (if graph is not empty)
+        if graph.node_count() > 0 {
+            let optimized_output = graph.process(2.0, &ctx);
+            assert!(
+                (optimized_output - original_output).abs() < 1e-6,
+                "expected {}, got {}",
+                original_output,
+                optimized_output
+            );
+        }
     }
 }

@@ -112,7 +112,7 @@ pub trait AudioNode: Send {
 /// # Example
 ///
 /// ```
-/// use rhizome_resin_audio::graph::{BlockProcessor, AudioContext, Chain, Gain};
+/// use rhizome_resin_audio::graph::{BlockProcessor, AudioContext, Chain, AffineNode};
 ///
 /// fn apply_effect<P: BlockProcessor>(effect: &mut P, audio: &mut [f32], sample_rate: f32) {
 ///     let mut output = vec![0.0; audio.len()];
@@ -370,21 +370,21 @@ struct NodeExecInfo {
 /// # Example
 ///
 /// ```
-/// use rhizome_resin_audio::graph::{AudioGraph, AudioContext};
-/// use rhizome_resin_audio::primitive::{LfoNode, DelayNode, GainNode};
+/// use rhizome_resin_audio::graph::{AffineNode, AudioGraph, AudioContext};
+/// use rhizome_resin_audio::primitive::LfoNode;
 ///
 /// let mut graph = AudioGraph::new();
 ///
 /// // Build a simple tremolo: LFO modulates gain
 /// let lfo = graph.add(LfoNode::with_freq(5.0, 44100.0));
-/// let gain = graph.add(GainNode::new(1.0));
+/// let gain = graph.add(AffineNode::gain(1.0));
 ///
 /// // Audio path: input → gain → output
 /// graph.connect_input(gain);
 /// graph.set_output(gain);
 ///
 /// // Modulation: LFO → gain parameter (base=0.5, scale=0.5 means 0-1 range)
-/// graph.modulate(lfo, gain, GainNode::PARAM_GAIN, 0.5, 0.5);
+/// graph.modulate(lfo, gain, AffineNode::PARAM_GAIN, 0.5, 0.5);
 ///
 /// // Process
 /// let ctx = AudioContext::new(44100.0);
@@ -693,7 +693,7 @@ impl AudioGraph {
         if node < self.nodes.len() {
             Some(std::mem::replace(
                 &mut self.nodes[node],
-                Box::new(PassThrough),
+                Box::new(AffineNode::identity()),
             ))
         } else {
             None
@@ -910,51 +910,126 @@ impl AudioNode for Oscillator {
     }
 }
 
-/// Gain node that scales the signal.
+/// Affine transform node: output = input * gain + offset.
+///
+/// This is the canonical linear transform node. Use the constructors for common cases:
+/// - `AffineNode::gain(g)` - multiply by g (equivalent to old `Gain`)
+/// - `AffineNode::offset(o)` - add o (equivalent to old `Offset`)
+/// - `AffineNode::identity()` - pass through unchanged (equivalent to old `PassThrough`)
+///
+/// Affine nodes compose naturally via `then()`:
+/// ```
+/// # use rhizome_resin_audio::graph::AffineNode;
+/// let a = AffineNode::gain(2.0);      // y = 2x
+/// let b = AffineNode::offset(1.0);    // z = y + 1
+/// let c = a.then(b);                  // z = 2x + 1
+/// assert_eq!(c.gain, 2.0);
+/// assert_eq!(c.offset, 1.0);
+/// ```
 #[derive(Debug, Clone, Copy)]
-pub struct Gain {
-    /// Gain multiplier.
-    pub value: f32,
+pub struct AffineNode {
+    /// Multiplicative gain factor.
+    pub gain: f32,
+    /// Additive offset.
+    pub offset: f32,
 }
 
-impl Gain {
-    /// Create a new gain node.
-    pub fn new(value: f32) -> Self {
-        Self { value }
+impl AffineNode {
+    /// Parameter index for gain.
+    pub const PARAM_GAIN: usize = 0;
+    /// Parameter index for offset.
+    pub const PARAM_OFFSET: usize = 1;
+
+    const PARAMS: &'static [ParamDescriptor] = &[
+        ParamDescriptor::new("gain", 1.0, 0.0, 10.0),
+        ParamDescriptor::new("offset", 0.0, -10.0, 10.0),
+    ];
+
+    /// Create an affine node with explicit gain and offset.
+    pub fn new(gain: f32, offset: f32) -> Self {
+        Self { gain, offset }
+    }
+
+    /// Create a pure gain (multiply) node: output = input * value.
+    pub fn gain(value: f32) -> Self {
+        Self {
+            gain: value,
+            offset: 0.0,
+        }
+    }
+
+    /// Create a pure offset (add) node: output = input + value.
+    pub fn offset(value: f32) -> Self {
+        Self {
+            gain: 1.0,
+            offset: value,
+        }
+    }
+
+    /// Create an identity transform (pass through): output = input.
+    pub fn identity() -> Self {
+        Self {
+            gain: 1.0,
+            offset: 0.0,
+        }
+    }
+
+    /// Returns true if this is effectively an identity (no-op).
+    pub fn is_identity(&self) -> bool {
+        (self.gain - 1.0).abs() < 1e-10 && self.offset.abs() < 1e-10
+    }
+
+    /// Returns true if this is a pure gain (no offset).
+    pub fn is_pure_gain(&self) -> bool {
+        self.offset.abs() < 1e-10
+    }
+
+    /// Returns true if this is a pure offset (gain = 1).
+    pub fn is_pure_offset(&self) -> bool {
+        (self.gain - 1.0).abs() < 1e-10
+    }
+
+    /// Compose two affine transforms: self followed by other.
+    ///
+    /// If self is `y = ax + b` and other is `z = cy + d`, then
+    /// the composed transform is `z = c(ax + b) + d = (ca)x + (cb + d)`.
+    pub fn then(self, other: Self) -> Self {
+        Self {
+            gain: other.gain * self.gain,
+            offset: other.gain * self.offset + other.offset,
+        }
     }
 }
 
-impl AudioNode for Gain {
+impl Default for AffineNode {
+    fn default() -> Self {
+        Self::identity()
+    }
+}
+
+impl AudioNode for AffineNode {
     fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
-        input * self.value
+        input.mul_add(self.gain, self.offset)
+    }
+
+    fn params(&self) -> &'static [ParamDescriptor] {
+        Self::PARAMS
+    }
+
+    fn set_param(&mut self, index: usize, value: f32) {
+        match index {
+            Self::PARAM_GAIN => self.gain = value,
+            Self::PARAM_OFFSET => self.offset = value,
+            _ => {}
+        }
     }
 
     fn get_param(&self, index: usize) -> Option<f32> {
-        if index == 0 { Some(self.value) } else { None }
-    }
-}
-
-/// DC offset node.
-#[derive(Debug, Clone, Copy)]
-pub struct Offset {
-    /// Offset value to add.
-    pub value: f32,
-}
-
-impl Offset {
-    /// Create a new offset node.
-    pub fn new(value: f32) -> Self {
-        Self { value }
-    }
-}
-
-impl AudioNode for Offset {
-    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
-        input + self.value
-    }
-
-    fn get_param(&self, index: usize) -> Option<f32> {
-        if index == 0 { Some(self.value) } else { None }
+        match index {
+            Self::PARAM_GAIN => Some(self.gain),
+            Self::PARAM_OFFSET => Some(self.offset),
+            _ => None,
+        }
     }
 }
 
@@ -1292,16 +1367,6 @@ impl AudioNode for RingMod {
     }
 }
 
-/// Passes through input unchanged (useful as placeholder).
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PassThrough;
-
-impl AudioNode for PassThrough {
-    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
-        input
-    }
-}
-
 /// Outputs silence.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Silence;
@@ -1361,7 +1426,7 @@ mod tests {
 
     #[test]
     fn test_chain_gain() {
-        let mut chain = Chain::new().with(Gain::new(0.5));
+        let mut chain = Chain::new().with(AffineNode::gain(0.5));
         let ctx = AudioContext::new(44100.0);
 
         let output = chain.process(1.0, &ctx);
@@ -1371,8 +1436,8 @@ mod tests {
     #[test]
     fn test_chain_multiple_nodes() {
         let mut chain = Chain::new()
-            .with(Gain::new(2.0))
-            .with(Offset::new(1.0))
+            .with(AffineNode::gain(2.0))
+            .with(AffineNode::offset(1.0))
             .with(Clip::symmetric(2.0));
 
         let ctx = AudioContext::new(44100.0);
@@ -1475,10 +1540,8 @@ mod tests {
 
     #[test]
     fn test_audio_graph_simple_passthrough() {
-        use crate::primitive::GainNode;
-
         let mut graph = AudioGraph::new();
-        let gain = graph.add(GainNode::new(1.0));
+        let gain = graph.add(AffineNode::gain(1.0));
         graph.connect_input(gain);
         graph.set_output(gain);
 
@@ -1489,10 +1552,8 @@ mod tests {
 
     #[test]
     fn test_audio_graph_gain() {
-        use crate::primitive::GainNode;
-
         let mut graph = AudioGraph::new();
-        let gain = graph.add(GainNode::new(2.0));
+        let gain = graph.add(AffineNode::gain(2.0));
         graph.connect_input(gain);
         graph.set_output(gain);
 
@@ -1503,11 +1564,9 @@ mod tests {
 
     #[test]
     fn test_audio_graph_chain() {
-        use crate::primitive::GainNode;
-
         let mut graph = AudioGraph::new();
-        let gain1 = graph.add(GainNode::new(2.0));
-        let gain2 = graph.add(GainNode::new(0.5));
+        let gain1 = graph.add(AffineNode::gain(2.0));
+        let gain2 = graph.add(AffineNode::gain(0.5));
 
         graph.connect_input(gain1);
         graph.connect(gain1, gain2);
@@ -1521,19 +1580,19 @@ mod tests {
 
     #[test]
     fn test_audio_graph_parameter_modulation() {
-        use crate::primitive::{GainNode, LfoNode};
+        use crate::primitive::LfoNode;
 
         let mut graph = AudioGraph::new();
 
         // LFO modulates gain
         let lfo = graph.add(LfoNode::with_freq(10.0, 44100.0));
-        let gain = graph.add(GainNode::new(1.0));
+        let gain = graph.add(AffineNode::gain(1.0));
 
         graph.connect_input(gain);
         graph.set_output(gain);
 
         // Modulate gain: base=0.5, scale=0.5 (so gain varies 0-1)
-        graph.modulate(lfo, gain, GainNode::PARAM_GAIN, 0.5, 0.5);
+        graph.modulate(lfo, gain, AffineNode::PARAM_GAIN, 0.5, 0.5);
 
         let ctx = AudioContext::new(44100.0);
 
@@ -1556,11 +1615,9 @@ mod tests {
 
     #[test]
     fn test_audio_graph_modulate_named() {
-        use crate::primitive::GainNode;
-
         let mut graph = AudioGraph::new();
         let lfo = graph.add(Oscillator::sine(5.0)); // Use oscillator as modulator
-        let gain = graph.add(GainNode::new(1.0));
+        let gain = graph.add(AffineNode::gain(1.0));
 
         graph.connect_input(gain);
         graph.set_output(gain);
@@ -1569,20 +1626,18 @@ mod tests {
         graph.modulate_named(lfo, gain, "gain", 0.5, 0.5);
 
         assert_eq!(graph.param_wires.len(), 1);
-        assert_eq!(graph.param_wires[0].param, GainNode::PARAM_GAIN);
+        assert_eq!(graph.param_wires[0].param, AffineNode::PARAM_GAIN);
     }
 
     #[test]
     fn test_audio_graph_as_audio_node() {
-        use crate::primitive::GainNode;
-
         // AudioGraph implements AudioNode, so can be nested in Chain
         let mut inner = AudioGraph::new();
-        let gain = inner.add(GainNode::new(2.0));
+        let gain = inner.add(AffineNode::gain(2.0));
         inner.connect_input(gain);
         inner.set_output(gain);
 
-        let mut chain = Chain::new().with(inner).with(GainNode::new(0.5));
+        let mut chain = Chain::new().with(inner).with(AffineNode::gain(0.5));
 
         let ctx = AudioContext::new(44100.0);
         let out = chain.process(1.0, &ctx);
