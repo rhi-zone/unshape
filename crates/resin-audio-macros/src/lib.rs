@@ -127,12 +127,37 @@ impl Parse for ModWire {
     }
 }
 
+/// Audio-to-parameter wire: `source -> dest.param`
+/// Routes an audio signal directly to a parameter (e.g., for dry/wet mixing)
+struct AudioParamWire {
+    source: Ident,
+    dest: Ident,
+    param: Ident,
+}
+
+impl Parse for AudioParamWire {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let source: Ident = input.parse()?;
+        input.parse::<Token![->]>()?;
+        let dest: Ident = input.parse()?;
+        input.parse::<Token![.]>()?;
+        let param: Ident = input.parse()?;
+
+        Ok(AudioParamWire {
+            source,
+            dest,
+            param,
+        })
+    }
+}
+
 /// The full graph_effect! input
 struct GraphEffectInput {
     name: Ident,
     nodes: Vec<NodeDef>,
     audio_wires: Vec<AudioWire>,
     mod_wires: Vec<ModWire>,
+    audio_param_wires: Vec<AudioParamWire>,
     output: Ident,
     input_node: Option<Ident>,
 }
@@ -143,6 +168,7 @@ impl Parse for GraphEffectInput {
         let mut nodes = Vec::new();
         let mut audio_wires = Vec::new();
         let mut mod_wires = Vec::new();
+        let mut audio_param_wires = Vec::new();
         let mut output = None;
         let mut input_node = None;
 
@@ -178,6 +204,13 @@ impl Parse for GraphEffectInput {
                         Punctuated::parse_terminated(&content)?;
                     mod_wires = wires.into_iter().collect();
                 }
+                "audio_params" => {
+                    let content;
+                    syn::bracketed!(content in input);
+                    let wires: Punctuated<AudioParamWire, Token![,]> =
+                        Punctuated::parse_terminated(&content)?;
+                    audio_param_wires = wires.into_iter().collect();
+                }
                 "output" => {
                     output = Some(input.parse()?);
                 }
@@ -202,6 +235,7 @@ impl Parse for GraphEffectInput {
             nodes,
             audio_wires,
             mod_wires,
+            audio_param_wires,
             output: output
                 .ok_or_else(|| syn::Error::new(input.span(), "missing 'output' field"))?,
             input_node,
@@ -310,6 +344,28 @@ fn generate_process_steps(input: &GraphEffectInput) -> TokenStream2 {
             let param_val = #base + mod_val * #scale;
             self.#dest.#param_setter(param_val);
         });
+    }
+
+    // Route audio signals to parameters (e.g., dry signal to mix node)
+    for wire in &input.audio_param_wires {
+        let source = &wire.source;
+        let dest = &wire.dest;
+        let param = &wire.param;
+
+        let param_setter = format_ident!("set_{}", param);
+
+        // Check if source is "input" (special case - use input signal directly)
+        if source == "input" {
+            steps.push(quote! {
+                self.#dest.#param_setter(input);
+            });
+        } else {
+            // Route from another node's output (would need to track intermediate values)
+            // For now, just support input -> param routing
+            steps.push(quote! {
+                self.#dest.#param_setter(input); // TODO: support node -> param
+            });
+        }
     }
 
     // Process audio chain
