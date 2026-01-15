@@ -201,8 +201,129 @@ fn bench_flanger_graph(c: &mut Criterion) {
     });
 }
 
+// ============================================================================
+// Tier 2: Optimized patterns (pattern matching + monomorphized)
+// ============================================================================
+
+#[cfg(feature = "optimize")]
+fn bench_tremolo_optimized(c: &mut Criterion) {
+    use rhizome_resin_audio::graph::AudioNode;
+    use rhizome_resin_audio::optimize::TremoloOptimized;
+
+    let signal = test_signal(ONE_SECOND);
+    let ctx = AudioContext::new(SAMPLE_RATE);
+
+    c.bench_function("tremolo_optimized_1sec", |b| {
+        // rate=5.0 Hz, depth=0.5, sample_rate
+        let mut effect = TremoloOptimized::new(5.0, 0.5, SAMPLE_RATE);
+        b.iter(|| {
+            for &sample in &signal {
+                black_box(effect.process(sample, &ctx));
+            }
+        });
+    });
+}
+
+#[cfg(feature = "optimize")]
+fn bench_chorus_optimized(c: &mut Criterion) {
+    use rhizome_resin_audio::graph::AudioNode;
+    use rhizome_resin_audio::optimize::ChorusOptimized;
+
+    let signal = test_signal(ONE_SECOND);
+    let ctx = AudioContext::new(SAMPLE_RATE);
+
+    c.bench_function("chorus_optimized_1sec", |b| {
+        // rate=0.5 Hz, base_delay=7ms, depth=3ms, mix=0.5
+        let mut effect = ChorusOptimized::new(0.5, 7.0, 3.0, 0.5, SAMPLE_RATE);
+        b.iter(|| {
+            for &sample in &signal {
+                black_box(effect.process(sample, &ctx));
+            }
+        });
+    });
+}
+
+#[cfg(feature = "optimize")]
+fn bench_flanger_optimized(c: &mut Criterion) {
+    use rhizome_resin_audio::graph::AudioNode;
+    use rhizome_resin_audio::optimize::FlangerOptimized;
+
+    let signal = test_signal(ONE_SECOND);
+    let ctx = AudioContext::new(SAMPLE_RATE);
+
+    c.bench_function("flanger_optimized_1sec", |b| {
+        // rate=0.25 Hz, base_delay=1ms, depth=2ms, feedback=0.7
+        let mut effect = FlangerOptimized::new(0.25, 1.0, 2.0, 0.7, SAMPLE_RATE);
+        b.iter(|| {
+            for &sample in &signal {
+                black_box(effect.process(sample, &ctx));
+            }
+        });
+    });
+}
+
+// ============================================================================
+// Tier 3: Cranelift JIT
+// ============================================================================
+
+#[cfg(feature = "cranelift")]
+fn bench_tremolo_jit(c: &mut Criterion) {
+    use rhizome_resin_audio::jit::JitCompiler;
+    use rhizome_resin_audio::primitive::PhaseOsc;
+
+    let signal = test_signal(ONE_SECOND);
+
+    c.bench_function("tremolo_jit_1sec", |b| {
+        let mut compiler = JitCompiler::new().unwrap();
+        let compiled = compiler.compile_tremolo(0.5, 0.5).unwrap();
+        let mut lfo = PhaseOsc::new();
+        let phase_inc = 5.0 / SAMPLE_RATE;
+
+        b.iter(|| {
+            for &sample in &signal {
+                let lfo_val = lfo.sine();
+                lfo.advance(phase_inc);
+                black_box(compiled.process(sample, lfo_val));
+            }
+        });
+    });
+}
+
+#[cfg(feature = "cranelift")]
+fn bench_gain_jit(c: &mut Criterion) {
+    use rhizome_resin_audio::jit::JitCompiler;
+
+    let signal = test_signal(ONE_SECOND);
+
+    c.bench_function("gain_jit_1sec", |b| {
+        let mut compiler = JitCompiler::new().unwrap();
+        let compiled = compiler.compile_gain(0.5).unwrap();
+
+        b.iter(|| {
+            for &sample in &signal {
+                black_box(compiled.process(sample));
+            }
+        });
+    });
+}
+
+// Baseline: pure Rust gain for comparison
+fn bench_gain_rust(c: &mut Criterion) {
+    let signal = test_signal(ONE_SECOND);
+
+    c.bench_function("gain_rust_1sec", |b| {
+        let gain = 0.5f32;
+        b.iter(|| {
+            for &sample in &signal {
+                black_box(sample * gain);
+            }
+        });
+    });
+}
+
 criterion_group!(
     benches,
+    // Tier 1: Concrete effect structs (baseline)
     bench_chorus,
     bench_flanger,
     bench_phaser,
@@ -213,9 +334,33 @@ criterion_group!(
     bench_limiter,
     bench_noise_gate,
     bench_bitcrusher,
-    // Graph-based versions
+    // Dynamic graph versions
     bench_tremolo_graph,
     bench_chorus_graph,
     bench_flanger_graph,
+    // Rust baseline
+    bench_gain_rust,
 );
+
+#[cfg(feature = "optimize")]
+criterion_group!(
+    optimized_benches,
+    bench_tremolo_optimized,
+    bench_chorus_optimized,
+    bench_flanger_optimized,
+);
+
+#[cfg(feature = "cranelift")]
+criterion_group!(jit_benches, bench_tremolo_jit, bench_gain_jit,);
+
+#[cfg(all(feature = "optimize", feature = "cranelift"))]
+criterion_main!(benches, optimized_benches, jit_benches);
+
+#[cfg(all(feature = "optimize", not(feature = "cranelift")))]
+criterion_main!(benches, optimized_benches);
+
+#[cfg(all(not(feature = "optimize"), feature = "cranelift"))]
+criterion_main!(benches, jit_benches);
+
+#[cfg(not(any(feature = "optimize", feature = "cranelift")))]
 criterion_main!(benches);

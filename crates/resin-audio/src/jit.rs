@@ -577,9 +577,6 @@ impl JitCompiler {
                     Some(NodeType::Constant) => NodeInfo::PureMath {
                         op: MathOp::Constant(0.0),
                     },
-                    Some(NodeType::RingMod) => NodeInfo::PureMath {
-                        op: MathOp::RingMod,
-                    },
                     Some(NodeType::Silence) => NodeInfo::PureMath {
                         op: MathOp::Constant(0.0),
                     },
