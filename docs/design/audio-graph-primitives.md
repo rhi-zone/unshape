@@ -390,7 +390,7 @@ Four compilation tiers offer different tradeoffs:
 | 1. **Dynamic graph** | default | ~1.3-3x | Full runtime flexibility | Low |
 | 2. **Pattern matching** | `optimize` | ~0% (faster than concrete!) | Common idioms | Low |
 | 3. **Cranelift JIT** | `cranelift` | ~0-5% | Runtime flexibility | High |
-| 4. **Build.rs codegen** | `codegen` module | ~0% | Compile-time only | Low |
+| 4. **Build.rs codegen** | `codegen` module | ~0-7% | Compile-time only | Low |
 
 ### Tier 1: Dynamic AudioGraph (default)
 
@@ -427,14 +427,23 @@ JIT-compile graphs to native code at runtime. Eliminates dyn dispatch and wire i
 
 ### Tier 4: Build.rs Code Generation (`codegen` module)
 
-Generate optimized Rust code from graphs at build time. Write normal Rust code that builds graphs in `build.rs`, generate specialized struct code, and include it in your crate.
+Generate optimized Rust code from graphs at build time. Define graphs as `SerialAudioGraph` in `build.rs`, generate specialized struct code, and include it in your crate.
 
 **Benchmark results:**
-- Tremolo: 181µs (comparable to Tier 2, within 4% of pattern-matched version)
+| Effect | Tier 2 Optimized | Tier 4 Codegen | Difference |
+|--------|------------------|----------------|------------|
+| Tremolo | 176 µs | 176 µs | ~0% |
+| Chorus | 610 µs | 653 µs | ~7% |
+| Flanger | 684 µs | 697 µs | ~2% |
+
+The codegen is generic (topological sort + node processing) rather than pattern-matching specific effects. Performance is within rounding error of hand-optimized Tier 2 code.
 
 **Example `build.rs`:**
 
 ```rust
+use rhizome_resin_audio_codegen::{
+    SerialAudioGraph, SerialAudioNode, SerialParamWire, generate_effect, generate_header,
+};
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -443,41 +452,26 @@ fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest = Path::new(&out_dir).join("my_effects.rs");
 
-    // Generate inlined effect code
-    // For now, write the struct directly - future work will analyze
-    // the graph and inline node processing automatically
-    let code = r#"
-use rhizome_resin_audio::graph::{AudioContext, AudioNode};
-use rhizome_resin_audio::primitive::{GainNode, LfoNode};
+    let mut code = generate_header();
 
-pub struct MyTremolo {
-    lfo: LfoNode,
-    gain: GainNode,
-}
-
-impl MyTremolo {
-    pub fn new(sample_rate: f32) -> Self {
-        Self {
-            lfo: LfoNode::with_freq(5.0, sample_rate),
-            gain: GainNode::new(1.0),
-        }
-    }
-}
-
-impl AudioNode for MyTremolo {
-    fn process(&mut self, input: f32, ctx: &AudioContext) -> f32 {
-        let lfo_out = self.lfo.process(0.0, ctx);
-        let gain_val = 0.5 + lfo_out * 0.5;
-        self.gain.set_gain(gain_val);
-        self.gain.process(input, ctx)
-    }
-
-    fn reset(&mut self) {
-        self.lfo.reset();
-        self.gain.reset();
-    }
-}
-"#;
+    // Tremolo: LFO modulating gain
+    let tremolo_graph = SerialAudioGraph {
+        nodes: vec![
+            SerialAudioNode::Lfo { rate: 5.0 },
+            SerialAudioNode::Gain { gain: 1.0 },
+        ],
+        audio_wires: vec![],
+        param_wires: vec![SerialParamWire {
+            from: 0,
+            to: 1,
+            param: 0,
+            base: 0.5,
+            scale: 0.5,
+        }],
+        input_node: Some(1),
+        output_node: Some(1),
+    };
+    code.push_str(&generate_effect(&tremolo_graph, "MyTremolo"));
 
     fs::write(&dest, code).unwrap();
     println!("cargo:rerun-if-changed=build.rs");
@@ -499,131 +493,57 @@ let mut tremolo = MyTremolo::new(44100.0);
 let output = tremolo.process(input, &ctx);
 ```
 
-**Trade-off:** Graphs must be known at compile time. Currently requires manual struct writing; future work will add automatic graph analysis and inlining.
+**Trade-off:** Graphs must be known at compile time. The generated code uses topological sort to determine processing order - works with arbitrary graph structures, not just recognized patterns.
 
 **When to use:** Library authors providing optimized effects, maximum performance for fixed graph structures.
 
-**Status:** Infrastructure in `codegen.rs`. Implementation in progress.
+**Status:** ✅ Complete. Implementation in `resin-audio-codegen` crate.
 
-#### Codegen Implementation Plan
+#### Codegen Implementation
 
-**Goal:** Generate optimized Rust structs from serialized graph descriptions.
+> **Status:** ✅ Complete in `resin-audio-codegen` crate
 
 **Architecture:**
 
 ```
-SerialAudioGraph (JSON)
+SerialAudioGraph (Rust structs)
     → generate_effect()
+    → topological sort
     → Rust code with concrete types + inlined processing
 ```
 
-**Step 1: SerialAudioGraph format**
+**Key types (`resin-audio-codegen`):**
 
 ```rust
-#[derive(Serialize, Deserialize)]
 pub struct SerialAudioGraph {
     pub nodes: Vec<SerialAudioNode>,
-    pub audio_wires: Vec<(usize, usize)>,      // (from, to)
+    pub audio_wires: Vec<(usize, usize)>,
     pub param_wires: Vec<SerialParamWire>,
     pub input_node: Option<usize>,
     pub output_node: Option<usize>,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct SerialParamWire {
-    pub from: usize,
-    pub to: usize,
-    pub param: usize,
-    pub base: f32,
-    pub scale: f32,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
 pub enum SerialAudioNode {
     Lfo { rate: f32 },
     Gain { gain: f32 },
-    Delay { max_samples: usize },
+    Delay { max_samples: usize, feedback: f32, mix: f32 },
     Mix { mix: f32 },
     Envelope { attack: f32, release: f32 },
     Allpass { coefficient: f32 },
-    // Input/Output markers (no state)
-    Input,
-    Output,
+    Passthrough,
 }
 ```
 
-**Step 2: Per-node codegen**
+**Implementation approach:**
+1. Topological sort (Kahn's algorithm) determines processing order from dependencies
+2. Each node generates concrete struct fields and processing code
+3. Param modulation applies `base + output * scale` before node processing
+4. Constant folding for known values (e.g., wet/dry mix pre-computed)
 
-Each variant implements:
-- `field_type()` → Rust type for struct field
-- `init_code(sample_rate)` → Constructor expression
-- `process_code(field, input)` → Processing expression
-
-Example for Lfo:
-```rust
-SerialAudioNode::Lfo { rate } => {
-    field_type: "crate::primitive::PhaseOsc",
-    init_code: "crate::primitive::PhaseOsc::new()",
-    process_code: |field, _input| format!("{field}.sine()")
-    // Note: phase advancement handled separately based on param wires
-}
-```
-
-**Step 3: Graph analysis for optimization**
-
-Before generating process(), analyze the graph to:
-1. Determine processing order (topological sort)
-2. Identify param modulations → pre-compute base/scale constants
-3. Detect algebraic simplifications (e.g., unipolar→bipolar conversion)
-
-**Step 4: Code generation**
-
-```rust
-pub fn generate_effect(graph: &SerialAudioGraph, name: &str, sample_rate: f32) -> String {
-    // 1. Generate struct with fields for each node
-    // 2. Generate new() that initializes all fields
-    // 3. Generate process() with inlined node processing in topo order
-    // 4. Apply optimizations (constant folding, etc.)
-}
-```
-
-**Generated output example (tremolo):**
-
-```rust
-pub struct GeneratedTremolo {
-    node_0_lfo: crate::primitive::PhaseOsc,
-    node_0_phase_inc: f32,
-    // Gain node optimized away - just multiply
-    mod_base: f32,
-    mod_scale: f32,
-}
-
-impl GeneratedTremolo {
-    pub fn new(sample_rate: f32) -> Self {
-        Self {
-            node_0_lfo: crate::primitive::PhaseOsc::new(),
-            node_0_phase_inc: 5.0 / sample_rate,  // rate from Lfo node
-            mod_base: 0.5,   // from param wire
-            mod_scale: 0.5,  // from param wire
-        }
-    }
-}
-
-impl AudioNode for GeneratedTremolo {
-    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
-        let lfo_out = self.node_0_lfo.sine();
-        self.node_0_lfo.advance(self.node_0_phase_inc);
-        let gain = self.mod_base + lfo_out * self.mod_scale;
-        input * gain
-    }
-}
-```
-
-**Files to modify:**
-- `crates/resin-audio/src/codegen.rs` - Main implementation
-- `crates/resin-audio/Cargo.toml` - Add serde dep for codegen feature
-- `crates/resin-audio/build.rs` - Update to use new codegen
+**Files:**
+- `crates/resin-audio-codegen/src/lib.rs` - Main implementation (~780 lines)
+- `crates/resin-audio/build.rs` - Uses codegen for benchmark effects
+- `crates/resin-audio/src/codegen.rs` - Re-exports for library consumers
 
 ## Future: Control Rate
 

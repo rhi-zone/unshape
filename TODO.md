@@ -135,12 +135,14 @@
 - [ ] Cranelift JIT - compile graphs to native code at runtime, eliminating dyn dispatch overhead
   - Feature-gated: `cranelift` feature in resin-core or dedicated resin-jit crate
   - Applicable to any `Graph<T>` or `AudioGraph` where max perf needed
-- [ ] Static graph compilation - proc macro to monomorphize fixed graph structures (LTO-style inlining)
-  - For users who want max perf and know graph structure at compile time
-  - Generate concrete types from graph definitions
-- [ ] Feature-gated pre-monomorphized compositions - opt-in hardcoded effect structs
-  - Users who want dynamic graphs use AudioGraph
-  - Users who want max perf opt into `compositions` feature for concrete types
+  - Proof-of-concept exists in `resin-audio/src/jit.rs`
+- [x] Static graph compilation - build.rs codegen from SerialAudioGraph
+  - `resin-audio-codegen` crate with `generate_effect()` function
+  - Topological sort + generic node processing (not pattern-matching)
+  - ~0-7% overhead vs hand-optimized Tier 2 code
+- [x] Feature-gated pre-monomorphized compositions - `optimize` feature in resin-audio
+  - Pattern matching identifies tremolo/chorus/flanger graphs
+  - Replaces with optimized `TremoloOptimized`, `ChorusOptimized`, `FlangerOptimized`
 - [ ] SIMD batch processing - process N samples at once to amortize per-node overhead
 
 ### Audio Effects (guitar pedals / studio)
