@@ -233,6 +233,24 @@ All high-complexity library functions reviewed. Complexity reflects inherent alg
 
 Only `examples/*/main` functions remain above threshold (intentionally verbose).
 
+### Codebase Normalization
+
+> **Status:** 🔴 Not started - see `docs/design/normalization.md` for full analysis
+
+**High Priority:**
+- [ ] Transform representations - add `From` conversions between Mat4/Transform2D/Transform
+- [ ] Interpolate trait - move to resin-core, implement for all common types
+- [ ] Cubic bezier dedup - consolidate 3 identical implementations in resin-vector
+
+**Medium Priority:**
+- [ ] Color conversions - `From<[f32; 4]> for Rgba` and vice versa
+- [ ] Sampling interfaces - document Field trait adoption guidance
+- [ ] Config builders - add `with_*` methods to all Config structs
+
+**Low Priority:**
+- [ ] Error handling - standardize on thiserror across all crates
+- [ ] Coordinate docs - document conventions in CLAUDE.md
+
 ### Architecture / Future Extraction
 
 - [ ] Scene graph generalization - evaluate if resin-motion's scene graph should be extracted to resin-scene for general use (2D/3D hierarchy, transforms, parent-child relationships)
