@@ -712,62 +712,6 @@ impl AudioNode for AllpassNode {
         }
     }
 }
-
-/// Gain node that multiplies input by a modulatable amount.
-///
-/// Parameters:
-/// - `gain`: Multiplier (can be modulated for tremolo, VCA, etc.)
-pub struct GainNode {
-    gain: f32,
-}
-
-impl GainNode {
-    /// Parameter index for gain.
-    pub const PARAM_GAIN: usize = 0;
-
-    const PARAMS: &'static [ParamDescriptor] = &[ParamDescriptor::new("gain", 1.0, 0.0, 10.0)];
-
-    /// Create a gain node with given initial gain.
-    pub fn new(gain: f32) -> Self {
-        Self { gain }
-    }
-
-    /// Set the gain.
-    pub fn set_gain(&mut self, gain: f32) {
-        self.gain = gain;
-    }
-}
-
-impl Default for GainNode {
-    fn default() -> Self {
-        Self::new(1.0)
-    }
-}
-
-impl AudioNode for GainNode {
-    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
-        input * self.gain
-    }
-
-    fn params(&self) -> &'static [ParamDescriptor] {
-        Self::PARAMS
-    }
-
-    fn set_param(&mut self, index: usize, value: f32) {
-        if index == Self::PARAM_GAIN {
-            self.gain = value;
-        }
-    }
-
-    fn get_param(&self, index: usize) -> Option<f32> {
-        if index == Self::PARAM_GAIN {
-            Some(self.gain)
-        } else {
-            None
-        }
-    }
-}
-
 /// Mix node for dry/wet blending.
 ///
 /// Takes the input as "wet" signal, stores "dry" internally, outputs blend.
@@ -1047,15 +991,17 @@ mod tests {
     }
 
     #[test]
-    fn test_gain_node_audio_node() {
+    fn test_affine_node_audio_node() {
+        use crate::graph::AffineNode;
+
         let ctx = AudioContext::new(44100.0);
-        let mut gain = GainNode::new(2.0);
+        let mut gain = AffineNode::gain(2.0);
 
         let out = gain.process(0.5, &ctx);
         assert!((out - 1.0).abs() < 0.001);
 
         // Modulate gain
-        gain.set_param(GainNode::PARAM_GAIN, 0.5);
+        gain.set_param(AffineNode::PARAM_GAIN, 0.5);
         let out2 = gain.process(1.0, &ctx);
         assert!((out2 - 0.5).abs() < 0.001);
     }

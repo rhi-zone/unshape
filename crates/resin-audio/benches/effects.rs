@@ -324,7 +324,7 @@ fn bench_gain_rust(c: &mut Criterion) {
 // Block-based JIT compilation benchmark
 #[cfg(all(feature = "cranelift", feature = "optimize"))]
 fn bench_gain_jit_block(c: &mut Criterion) {
-    use rhizome_resin_audio::graph::{AudioGraph, BlockProcessor, Gain};
+    use rhizome_resin_audio::graph::{AffineNode, AudioGraph, BlockProcessor};
     use rhizome_resin_audio::jit::JitCompiler;
 
     let signal = test_signal(ONE_SECOND);
@@ -333,7 +333,7 @@ fn bench_gain_jit_block(c: &mut Criterion) {
     c.bench_function("gain_jit_block_1sec", |b| {
         // Build graph
         let mut graph = AudioGraph::new();
-        let gain_node = graph.add(Gain::new(0.5));
+        let gain_node = graph.add(AffineNode::gain(0.5));
         graph.connect_input(gain_node);
         graph.set_output(gain_node);
 
@@ -355,13 +355,13 @@ fn bench_gain_jit_block(c: &mut Criterion) {
 // ============================================================================
 
 fn bench_gain_block(c: &mut Criterion) {
-    use rhizome_resin_audio::graph::{BlockProcessor, Gain};
+    use rhizome_resin_audio::graph::{AffineNode, BlockProcessor};
 
     let signal = test_signal(ONE_SECOND);
     let mut output = vec![0.0; ONE_SECOND];
 
     c.bench_function("gain_block_1sec", |b| {
-        let mut gain = Gain::new(0.5);
+        let mut gain = AffineNode::gain(0.5);
         let mut ctx = AudioContext::new(SAMPLE_RATE);
 
         b.iter(|| {
@@ -373,16 +373,16 @@ fn bench_gain_block(c: &mut Criterion) {
 }
 
 fn bench_chain_block(c: &mut Criterion) {
-    use rhizome_resin_audio::graph::{BlockProcessor, Chain, Gain, Offset};
+    use rhizome_resin_audio::graph::{AffineNode, BlockProcessor, Chain};
 
     let signal = test_signal(ONE_SECOND);
     let mut output = vec![0.0; ONE_SECOND];
 
     c.bench_function("chain_block_1sec", |b| {
         let mut chain = Chain::new()
-            .with(Gain::new(2.0))
-            .with(Offset::new(0.1))
-            .with(Gain::new(0.5));
+            .with(AffineNode::gain(2.0))
+            .with(AffineNode::offset(0.1))
+            .with(AffineNode::gain(0.5));
         let mut ctx = AudioContext::new(SAMPLE_RATE);
 
         b.iter(|| {

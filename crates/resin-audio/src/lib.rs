@@ -40,10 +40,10 @@ pub use granular::{
     GrainCloud, GrainConfig, GrainScheduler, GranularSynth, noise_grain_buffer, sine_grain_buffer,
 };
 pub use graph::{
-    AdsrNode, ArNode, AudioContext, AudioGraph, AudioNode, AudioWire, BiquadNode, BlockProcessor,
-    Chain, Clip, Constant, DelayNode, FeedbackDelayNode, Gain, HighPassNode, LfoNode, LowPassNode,
-    Mixer, NodeIndex, Offset, Oscillator, ParamDescriptor, ParamWire, PassThrough, RingMod,
-    Silence, SoftClip, Waveform,
+    AdsrNode, AffineNode, ArNode, AudioContext, AudioGraph, AudioNode, AudioWire, BiquadNode,
+    BlockProcessor, Chain, Clip, Constant, DelayNode, FeedbackDelayNode, HighPassNode, LfoNode,
+    LowPassNode, Mixer, NodeIndex, Oscillator, ParamDescriptor, ParamWire, RingMod, Silence,
+    SoftClip, Waveform,
 };
 pub use midi::{
     Channel, ControlValue, Controller, MidiMessage, Note, Program, Velocity, amplitude_to_velocity,
@@ -71,8 +71,7 @@ pub use percussion::{
 pub use physical::{ExtendedKarplusStrong, KarplusStrong, PluckConfig, PluckSynth, PolyStrings};
 pub use primitive::{
     Allpass1, AllpassNode, DelayLine, DelayNode as PrimitiveDelayNode, EnvelopeFollower,
-    EnvelopeNode, GainNode as PrimitiveGainNode, LfoNode as PrimitiveLfoNode, MixNode, PhaseOsc,
-    Smoother,
+    EnvelopeNode, LfoNode as PrimitiveLfoNode, MixNode, PhaseOsc, Smoother,
 };
 pub use room::{
     EarlyReflection, RoomAcoustics, RoomGeometry, RoomMaterial, RoomMode, RoomModes, RoomSurfaces,
