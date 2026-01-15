@@ -317,18 +317,29 @@ const PERM: [u8; 256] = [
 // =============================================================================
 
 /// Emit perm(x) = PERM[x & 255].
-/// Uses a lookup table embedded as constants since Cranelift select chains are
-/// actually well-optimized and we avoid data section complexity.
+///
+/// # Safety
+///
+/// This generates code that does raw pointer arithmetic into the PERM table.
+/// It is safe because:
+///
+/// 1. **Bounds**: `x & 255` guarantees index ∈ [0, 255] regardless of input.
+///    Even negative i32 values produce valid indices after bitwise AND.
+///    PERM is `[u8; 256]`, so indices 0-255 are always valid.
+///
+/// 2. **Lifetime**: PERM is a `const` static array with program lifetime.
+///    Its address is fixed and it cannot be deallocated or moved.
+///
+/// 3. **Aliasing**: PERM is read-only (`const`), so no data races possible.
 fn emit_perm(builder: &mut FunctionBuilder, x: Value) -> Value {
-    // Mask to 0-255
+    // SAFETY: x & 255 guarantees idx ∈ [0, 255], PERM has 256 elements
     let mask = builder.ins().iconst(types::I32, 255);
     let idx = builder.ins().band(x, mask);
 
-    // Convert to u64 for table lookup
+    // Convert to u64 for pointer arithmetic
     let idx_u64 = builder.ins().uextend(types::I64, idx);
 
-    // Use the PERM table pointer as an immediate and do a load
-    // This is safe because PERM is static and won't move
+    // SAFETY: PERM is a const static array - fixed address, program lifetime
     let table_addr = PERM.as_ptr() as i64;
     let base = builder.ins().iconst(types::I64, table_addr);
     let addr = builder.ins().iadd(base, idx_u64);
