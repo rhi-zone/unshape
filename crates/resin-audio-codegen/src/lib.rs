@@ -105,6 +105,10 @@ pub enum SerialAudioNode {
     Delay {
         /// Maximum delay in samples.
         max_samples: usize,
+        /// Feedback amount (0.0 = no feedback, 0.7 = typical flanger).
+        feedback: f32,
+        /// Wet/dry mix (0.0 = dry only, 1.0 = wet only, 0.5 = equal mix).
+        mix: f32,
     },
     /// Wet/dry mixer.
     Mix {
@@ -153,7 +157,7 @@ impl SerialAudioNode {
                 "rhizome_resin_audio::primitive::PhaseOsc::new()".to_string()
             }
             SerialAudioNode::Gain { gain } => format!("{gain}_f32"),
-            SerialAudioNode::Delay { max_samples } => {
+            SerialAudioNode::Delay { max_samples, .. } => {
                 format!("rhizome_resin_audio::primitive::DelayLine::new({max_samples})")
             }
             SerialAudioNode::Mix { mix } => format!("{mix}_f32"),
@@ -279,6 +283,16 @@ fn generate_struct(graph: &SerialAudioGraph, name: &str, analysis: &GraphAnalysi
         if node.needs_field() {
             let field_type = node.field_type();
             code.push_str(&format!("    node_{i}: {field_type},\n"));
+
+            // Delay nodes get additional feedback/mix fields (pre-computed for constant folding)
+            if let SerialAudioNode::Delay { feedback, mix, .. } = node {
+                if *feedback != 0.0 {
+                    code.push_str(&format!("    node_{i}_feedback: f32,\n"));
+                }
+                // Pre-compute wet/dry mix factors
+                code.push_str(&format!("    node_{i}_wet_mix: f32,\n"));
+                code.push_str(&format!("    node_{i}_dry_mix: f32,\n"));
+            }
         }
     }
 
@@ -300,6 +314,7 @@ fn generate_struct(graph: &SerialAudioGraph, name: &str, analysis: &GraphAnalysi
 fn generate_impl(graph: &SerialAudioGraph, name: &str, analysis: &GraphAnalysis) -> String {
     let mut code = format!("impl {name} {{\n");
     code.push_str("    pub fn new(sample_rate: f32) -> Self {\n");
+    code.push_str("        let _ = sample_rate; // May be unused for simple effects\n");
     code.push_str("        Self {\n");
 
     // Initialize each node
@@ -307,6 +322,17 @@ fn generate_impl(graph: &SerialAudioGraph, name: &str, analysis: &GraphAnalysis)
         if node.needs_field() {
             let init = node.init_code("sample_rate");
             code.push_str(&format!("            node_{i}: {init},\n"));
+
+            // Initialize delay feedback/mix fields
+            if let SerialAudioNode::Delay { feedback, mix, .. } = node {
+                if *feedback != 0.0 {
+                    code.push_str(&format!("            node_{i}_feedback: {feedback}_f32,\n"));
+                }
+                // Pre-compute wet/dry mix (constant folding)
+                code.push_str(&format!("            node_{i}_wet_mix: {mix}_f32,\n"));
+                let dry_mix = 1.0 - mix;
+                code.push_str(&format!("            node_{i}_dry_mix: {dry_mix}_f32,\n"));
+            }
         }
     }
 
@@ -463,11 +489,6 @@ fn generate_chorus_process(graph: &SerialAudioGraph, analysis: &GraphAnalysis) -
         .position(|n| matches!(n, SerialAudioNode::Delay { .. }))
         .unwrap_or(1);
 
-    let mix_idx = graph
-        .nodes
-        .iter()
-        .position(|n| matches!(n, SerialAudioNode::Mix { .. }));
-
     code.push_str("        // Optimized chorus processing\n");
     code.push_str("        let lfo_out = self.node_0.sine();\n");
 
@@ -483,15 +504,10 @@ fn generate_chorus_process(graph: &SerialAudioGraph, analysis: &GraphAnalysis) -
         "        let wet = self.node_{delay_idx}.read_interp(delay_time);\n"
     ));
 
-    // Use pre-computed dry/wet mix factors
-    if let Some(idx) = mix_idx {
-        // Constant folding: use pre-computed factors
-        code.push_str(&format!(
-            "        input * (1.0 - self.node_{idx}) + wet * self.node_{idx}\n"
-        ));
-    } else {
-        code.push_str("        input * 0.5 + wet * 0.5\n");
-    }
+    // Mix dry and wet using pre-computed factors from the delay node
+    code.push_str(&format!(
+        "        input * self.node_{delay_idx}_dry_mix + wet * self.node_{delay_idx}_wet_mix\n"
+    ));
 
     code
 }
@@ -504,6 +520,12 @@ fn generate_flanger_process(graph: &SerialAudioGraph, analysis: &GraphAnalysis) 
         .iter()
         .position(|n| matches!(n, SerialAudioNode::Delay { .. }))
         .unwrap_or(1);
+
+    // Check if this delay has feedback
+    let has_feedback = matches!(
+        &graph.nodes[delay_idx],
+        SerialAudioNode::Delay { feedback, .. } if *feedback != 0.0
+    );
 
     code.push_str("        // Optimized flanger processing\n");
     code.push_str("        let lfo_out = self.node_0.sine();\n");
@@ -518,9 +540,20 @@ fn generate_flanger_process(graph: &SerialAudioGraph, analysis: &GraphAnalysis) 
     code.push_str(&format!(
         "        let delayed = self.node_{delay_idx}.read_interp(delay_time);\n"
     ));
-    // Note: flanger typically has feedback, but this basic version doesn't
-    code.push_str(&format!("        self.node_{delay_idx}.write(input);\n"));
-    code.push_str("        input * 0.5 + delayed * 0.5\n");
+
+    // Write with feedback if present
+    if has_feedback {
+        code.push_str(&format!(
+            "        self.node_{delay_idx}.write(input + delayed * self.node_{delay_idx}_feedback);\n"
+        ));
+    } else {
+        code.push_str(&format!("        self.node_{delay_idx}.write(input);\n"));
+    }
+
+    // Mix dry and wet using pre-computed factors
+    code.push_str(&format!(
+        "        input * self.node_{delay_idx}_dry_mix + delayed * self.node_{delay_idx}_wet_mix\n"
+    ));
 
     code
 }
@@ -605,7 +638,11 @@ mod tests {
         let graph = SerialAudioGraph {
             nodes: vec![
                 SerialAudioNode::Lfo { rate: 0.5 },
-                SerialAudioNode::Delay { max_samples: 4096 },
+                SerialAudioNode::Delay {
+                    max_samples: 4096,
+                    feedback: 0.0,
+                    mix: 0.5,
+                },
                 SerialAudioNode::Mix { mix: 0.5 },
             ],
             audio_wires: vec![(1, 2)],
@@ -625,6 +662,8 @@ mod tests {
         assert!(code.contains("pub struct TestChorus"));
         assert!(code.contains("rhizome_resin_audio::primitive::DelayLine<true>"));
         assert!(code.contains("read_interp"));
+        assert!(code.contains("node_1_wet_mix"));
+        assert!(code.contains("node_1_dry_mix"));
     }
 
     #[cfg(feature = "serde")]
