@@ -267,9 +267,11 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
   - Enables generic algorithms over both transform types
 
 **Low Priority:**
-- [ ] Vertex attribute unification - use traits instead of per-subsystem Vertex structs
-  - Currently: separate Vertex types in mesh, rig, vector, physics
-  - Use resin-core traits (`HasPositions`, `HasNormals`, `HasUVs`)
+- [x] Vertex attribute unification - use traits instead of per-subsystem Vertex structs
+  - Implemented `HasPositions`, `HasNormals`, `HasColors` on `PointCloud`
+  - Added `HasPositions2D` trait for 2D types
+  - Documented SoA vs AoS limitation: traits only work with Struct-of-Arrays storage
+  - AoS types (`SoftBody`, `GradientMesh`) cannot implement without restructuring
 
 ### Architecture / Future Extraction
 

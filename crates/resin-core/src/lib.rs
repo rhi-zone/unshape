@@ -14,7 +14,7 @@ mod node;
 mod value;
 
 pub use attributes::{
-    FullGeometry, Geometry, HasColors, HasIndices, HasNormals, HasPositions, HasUVs,
+    FullGeometry, Geometry, HasColors, HasIndices, HasNormals, HasPositions, HasPositions2D, HasUVs,
 };
 pub use error::{GraphError, TypeError};
 pub use glam;
