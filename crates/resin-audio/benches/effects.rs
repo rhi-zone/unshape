@@ -1,13 +1,11 @@
 //! Benchmarks for audio effects.
 //!
 //! Run with: cargo bench -p rhizome-resin-audio
-//! Save baseline with: cargo bench -p rhizome-resin-audio -- --save-baseline before
-//! Compare after refactor: cargo bench -p rhizome-resin-audio -- --baseline before
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rhizome_resin_audio::effects::{
-    Bitcrusher, Chorus, Compressor, Distortion, Flanger, Limiter, NoiseGate, Phaser, Reverb,
-    Tremolo, chorus, flanger, phaser, tremolo,
+    Bitcrusher, Compressor, Distortion, Limiter, NoiseGate, Reverb, chorus, flanger, phaser,
+    tremolo,
 };
 
 const SAMPLE_RATE: f32 = 44100.0;
@@ -29,18 +27,7 @@ fn test_signal(samples: usize) -> Vec<f32> {
 fn bench_chorus(c: &mut Criterion) {
     let signal = test_signal(ONE_SECOND);
 
-    // Old implementation
     c.bench_function("chorus_1sec", |b| {
-        let mut effect = Chorus::new(SAMPLE_RATE);
-        b.iter(|| {
-            for &sample in &signal {
-                black_box(effect.process(sample));
-            }
-        });
-    });
-
-    // New implementation using primitives
-    c.bench_function("chorus_new_1sec", |b| {
         let mut effect = chorus(SAMPLE_RATE);
         b.iter(|| {
             for &sample in &signal {
@@ -53,18 +40,7 @@ fn bench_chorus(c: &mut Criterion) {
 fn bench_flanger(c: &mut Criterion) {
     let signal = test_signal(ONE_SECOND);
 
-    // Old implementation
     c.bench_function("flanger_1sec", |b| {
-        let mut effect = Flanger::new(SAMPLE_RATE);
-        b.iter(|| {
-            for &sample in &signal {
-                black_box(effect.process(sample));
-            }
-        });
-    });
-
-    // New implementation using primitives
-    c.bench_function("flanger_new_1sec", |b| {
         let mut effect = flanger(SAMPLE_RATE);
         b.iter(|| {
             for &sample in &signal {
@@ -77,18 +53,7 @@ fn bench_flanger(c: &mut Criterion) {
 fn bench_phaser(c: &mut Criterion) {
     let signal = test_signal(ONE_SECOND);
 
-    // Old implementation
     c.bench_function("phaser_1sec", |b| {
-        let mut effect = Phaser::new(SAMPLE_RATE);
-        b.iter(|| {
-            for &sample in &signal {
-                black_box(effect.process(sample));
-            }
-        });
-    });
-
-    // New implementation using primitives
-    c.bench_function("phaser_new_1sec", |b| {
         let mut effect = phaser(SAMPLE_RATE);
         b.iter(|| {
             for &sample in &signal {
@@ -101,18 +66,7 @@ fn bench_phaser(c: &mut Criterion) {
 fn bench_tremolo(c: &mut Criterion) {
     let signal = test_signal(ONE_SECOND);
 
-    // Old implementation
     c.bench_function("tremolo_1sec", |b| {
-        let mut effect = Tremolo::new(SAMPLE_RATE, 5.0, 0.5);
-        b.iter(|| {
-            for &sample in &signal {
-                black_box(effect.process(sample));
-            }
-        });
-    });
-
-    // New implementation using primitives
-    c.bench_function("tremolo_new_1sec", |b| {
         let mut effect = tremolo(SAMPLE_RATE, 5.0, 0.5);
         b.iter(|| {
             for &sample in &signal {

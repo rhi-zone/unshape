@@ -12,7 +12,7 @@ This document analyzes opportunities for type unification across the resin codeb
 | **Vertex Data** | ~~Per-subsystem Vertex structs~~ | ~~LOW~~ | ✅ Partial - traits on SoA types |
 | **Mesh** | Two representations | NONE | Already unified correctly |
 | **Fields** | Trait + implementations | NONE | Well-designed |
-| **Effects** | Audio/Graphics divergent models | EXPLORE | This doc (below) |
+| **Effects** | ~~Audio/Graphics divergent models~~ | ~~EXPLORE~~ | ✅ Audio primitives implemented |
 
 ---
 
@@ -235,7 +235,7 @@ The trait-based design allows composition without type proliferation.
 
 ### 5. Audio/Graphics Effects
 
-**Status: Exploring**
+**Status: Implemented (audio primitives)**
 
 Both domains process signals through chains of effects, but use different execution models.
 
@@ -356,7 +356,32 @@ Use cases for dyn: runtime-configurable chains, serialization, plugin systems, n
 
 NOT needed within effects - primitives should be concrete generic types that compose into effect structs, which implement `AudioNode` for chain-level dyn dispatch.
 
-**Decision:** TBD - primitive-based architecture looks promising, needs prototyping with before/after benchmarks.
+**Implementation results:**
+
+Audio primitives implemented in `resin-audio/src/primitive.rs`:
+- `DelayLine<INTERP>` - const generic for interpolation
+- `PhaseOsc` - phase accumulator + waveforms
+- `EnvelopeFollower` - attack/release smoothing
+- `Allpass1` - first-order allpass for phasers
+- `Smoother` - one-pole parameter smoothing
+- `Mix` - dry/wet blending
+
+Composition structs replace monolithic effects:
+
+| Composition | Replaces | Performance |
+|-------------|----------|-------------|
+| `ModulatedDelay` | Chorus, Flanger | Same |
+| `AmplitudeMod` | Tremolo | **2.4x faster** |
+| `AllpassBank` | Phaser | **15% faster** |
+
+Constructor functions (`chorus()`, `flanger()`, `tremolo()`, `phaser()`) provide familiar API.
+
+**Remaining work:**
+- DynamicsProcessor (Compressor/Limiter/NoiseGate) - different envelope targets, Limiter needs lookahead
+- Reverb - complex internal CombFilter/AllpassFilter structure
+- Graphics primitives (blur/convolution, feedback/recursion)
+
+**Decision:** Primitive-based architecture validated. Effects are constructor functions returning composition structs.
 
 ---
 

@@ -1,13 +1,13 @@
 //! Audio effects for sound design.
 //!
-//! Provides classic effects: reverb, chorus, phaser, flanger.
+//! Provides classic effects: reverb, chorus, phaser, flanger, tremolo, distortion, etc.
 //!
 //! # Architecture
 //!
 //! Effects are built from low-level primitives in [`crate::primitive`].
 //! Many effects share the same underlying structure with different default
-//! parameters - for example, [`Chorus`] and [`Flanger`] are both instances
-//! of [`ModulatedDelay`].
+//! parameters - for example, [`chorus()`] and [`flanger()`] both return
+//! [`ModulatedDelay`], while [`tremolo()`] returns [`AmplitudeMod`].
 
 use crate::filter::{Biquad, BiquadCoeffs};
 use crate::graph::{AudioContext, AudioNode};
@@ -570,391 +570,6 @@ impl AllpassFilter {
 }
 
 // ============================================================================
-// Chorus
-// ============================================================================
-
-/// Chorus effect using modulated delay.
-pub struct Chorus {
-    /// Delay buffer.
-    buffer: Vec<f32>,
-    /// Write position.
-    write_pos: usize,
-    /// Base delay in samples.
-    base_delay: f32,
-    /// Modulation depth in samples.
-    depth: f32,
-    /// Modulation rate in Hz.
-    rate: f32,
-    /// LFO phase.
-    phase: f32,
-    /// Dry/wet mix.
-    pub mix: f32,
-    /// Feedback amount.
-    pub feedback: f32,
-    /// Sample rate.
-    sample_rate: f32,
-}
-
-impl Chorus {
-    /// Creates a new chorus effect.
-    pub fn new(sample_rate: f32) -> Self {
-        Self::with_params(sample_rate, 0.02, 0.003, 0.5, 0.5, 0.0)
-    }
-
-    /// Creates a chorus with specific parameters.
-    ///
-    /// - `delay`: Base delay in seconds (typically 0.01-0.03)
-    /// - `depth`: Modulation depth in seconds (typically 0.001-0.005)
-    /// - `rate`: Modulation rate in Hz (typically 0.1-5.0)
-    /// - `mix`: Dry/wet mix (0-1)
-    /// - `feedback`: Feedback amount (0-0.9)
-    pub fn with_params(
-        sample_rate: f32,
-        delay: f32,
-        depth: f32,
-        rate: f32,
-        mix: f32,
-        feedback: f32,
-    ) -> Self {
-        let max_delay = (delay + depth * 2.0) * sample_rate;
-        let buffer_size = (max_delay as usize + 1).max(1024);
-
-        Self {
-            buffer: vec![0.0; buffer_size],
-            write_pos: 0,
-            base_delay: delay * sample_rate,
-            depth: depth * sample_rate,
-            rate,
-            phase: 0.0,
-            mix,
-            feedback: feedback.clamp(0.0, 0.95),
-            sample_rate,
-        }
-    }
-
-    /// Sets the modulation rate in Hz.
-    pub fn set_rate(&mut self, rate: f32) {
-        self.rate = rate;
-    }
-
-    /// Sets the modulation depth in seconds.
-    pub fn set_depth(&mut self, depth: f32) {
-        self.depth = depth * self.sample_rate;
-    }
-
-    /// Processes a single sample.
-    pub fn process(&mut self, input: f32) -> f32 {
-        // Calculate modulated delay
-        let lfo = (self.phase * std::f32::consts::TAU).sin();
-        let delay = self.base_delay + lfo * self.depth;
-
-        // Read from buffer with linear interpolation
-        let read_pos = self.write_pos as f32 - delay;
-        let read_pos = if read_pos < 0.0 {
-            read_pos + self.buffer.len() as f32
-        } else {
-            read_pos
-        };
-
-        let idx0 = read_pos.floor() as usize % self.buffer.len();
-        let idx1 = (idx0 + 1) % self.buffer.len();
-        let frac = read_pos.fract();
-
-        let delayed = self.buffer[idx0] * (1.0 - frac) + self.buffer[idx1] * frac;
-
-        // Write to buffer
-        self.buffer[self.write_pos] = input + delayed * self.feedback;
-        self.write_pos = (self.write_pos + 1) % self.buffer.len();
-
-        // Advance LFO
-        self.phase += self.rate / self.sample_rate;
-        if self.phase >= 1.0 {
-            self.phase -= 1.0;
-        }
-
-        // Mix
-        input * (1.0 - self.mix) + delayed * self.mix
-    }
-
-    /// Clears the delay buffer.
-    pub fn clear(&mut self) {
-        self.buffer.fill(0.0);
-        self.phase = 0.0;
-    }
-}
-
-impl AudioNode for Chorus {
-    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
-        Chorus::process(self, input)
-    }
-
-    fn reset(&mut self) {
-        self.clear();
-    }
-}
-
-// ============================================================================
-// Phaser
-// ============================================================================
-
-/// Phaser effect using cascaded allpass filters.
-pub struct Phaser {
-    /// Allpass filter stages.
-    stages: Vec<PhaseAllpass>,
-    /// LFO phase.
-    phase: f32,
-    /// Modulation rate in Hz.
-    rate: f32,
-    /// Minimum frequency.
-    min_freq: f32,
-    /// Maximum frequency.
-    max_freq: f32,
-    /// Dry/wet mix.
-    pub mix: f32,
-    /// Feedback amount.
-    pub feedback: f32,
-    /// Previous output for feedback.
-    feedback_sample: f32,
-    /// Sample rate.
-    sample_rate: f32,
-}
-
-impl Phaser {
-    /// Creates a new phaser effect.
-    pub fn new(sample_rate: f32) -> Self {
-        Self::with_params(sample_rate, 4, 0.5, 100.0, 1000.0, 0.5, 0.7)
-    }
-
-    /// Creates a phaser with specific parameters.
-    ///
-    /// - `stages`: Number of allpass stages (2-12, even numbers work best)
-    /// - `rate`: Modulation rate in Hz
-    /// - `min_freq`: Minimum sweep frequency
-    /// - `max_freq`: Maximum sweep frequency
-    /// - `mix`: Dry/wet mix
-    /// - `feedback`: Feedback amount
-    pub fn with_params(
-        sample_rate: f32,
-        stages: usize,
-        rate: f32,
-        min_freq: f32,
-        max_freq: f32,
-        mix: f32,
-        feedback: f32,
-    ) -> Self {
-        let stages = (2..=12).contains(&stages).then_some(stages).unwrap_or(4);
-
-        Self {
-            stages: (0..stages).map(|_| PhaseAllpass::new()).collect(),
-            phase: 0.0,
-            rate,
-            min_freq,
-            max_freq,
-            mix,
-            feedback: feedback.clamp(0.0, 0.95),
-            feedback_sample: 0.0,
-            sample_rate,
-        }
-    }
-
-    /// Sets the modulation rate.
-    pub fn set_rate(&mut self, rate: f32) {
-        self.rate = rate;
-    }
-
-    /// Sets the sweep range.
-    pub fn set_range(&mut self, min_freq: f32, max_freq: f32) {
-        self.min_freq = min_freq;
-        self.max_freq = max_freq;
-    }
-
-    /// Processes a single sample.
-    pub fn process(&mut self, input: f32) -> f32 {
-        // Calculate sweep frequency
-        let lfo = (self.phase * std::f32::consts::TAU).sin() * 0.5 + 0.5;
-        let freq = self.min_freq + (self.max_freq - self.min_freq) * lfo;
-
-        // Calculate allpass coefficient
-        let coeff = (std::f32::consts::PI * freq / self.sample_rate).tan();
-        let a1 = (coeff - 1.0) / (coeff + 1.0);
-
-        // Apply feedback
-        let input_with_fb = input + self.feedback_sample * self.feedback;
-
-        // Process through allpass stages
-        let mut output = input_with_fb;
-        for stage in &mut self.stages {
-            output = stage.process(output, a1);
-        }
-
-        self.feedback_sample = output;
-
-        // Advance LFO
-        self.phase += self.rate / self.sample_rate;
-        if self.phase >= 1.0 {
-            self.phase -= 1.0;
-        }
-
-        // Mix with phase cancellation
-        input * (1.0 - self.mix) + (input + output) * 0.5 * self.mix
-    }
-
-    /// Resets the phaser state.
-    pub fn clear(&mut self) {
-        for stage in &mut self.stages {
-            stage.clear();
-        }
-        self.phase = 0.0;
-        self.feedback_sample = 0.0;
-    }
-}
-
-impl AudioNode for Phaser {
-    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
-        Phaser::process(self, input)
-    }
-
-    fn reset(&mut self) {
-        self.clear();
-    }
-}
-
-/// First-order allpass for phaser.
-struct PhaseAllpass {
-    prev_input: f32,
-    prev_output: f32,
-}
-
-impl PhaseAllpass {
-    fn new() -> Self {
-        Self {
-            prev_input: 0.0,
-            prev_output: 0.0,
-        }
-    }
-
-    fn process(&mut self, input: f32, a1: f32) -> f32 {
-        let output = a1 * input + self.prev_input - a1 * self.prev_output;
-        self.prev_input = input;
-        self.prev_output = output;
-        output
-    }
-
-    fn clear(&mut self) {
-        self.prev_input = 0.0;
-        self.prev_output = 0.0;
-    }
-}
-
-// ============================================================================
-// Flanger
-// ============================================================================
-
-/// Flanger effect (similar to chorus but with shorter delay and feedback).
-pub struct Flanger {
-    /// Delay buffer.
-    buffer: Vec<f32>,
-    /// Write position.
-    write_pos: usize,
-    /// Base delay in samples.
-    base_delay: f32,
-    /// Modulation depth in samples.
-    depth: f32,
-    /// Modulation rate in Hz.
-    rate: f32,
-    /// LFO phase.
-    phase: f32,
-    /// Dry/wet mix.
-    pub mix: f32,
-    /// Feedback amount.
-    pub feedback: f32,
-    /// Sample rate.
-    sample_rate: f32,
-}
-
-impl Flanger {
-    /// Creates a new flanger effect.
-    pub fn new(sample_rate: f32) -> Self {
-        Self::with_params(sample_rate, 0.003, 0.002, 0.3, 0.5, 0.7)
-    }
-
-    /// Creates a flanger with specific parameters.
-    pub fn with_params(
-        sample_rate: f32,
-        delay: f32,
-        depth: f32,
-        rate: f32,
-        mix: f32,
-        feedback: f32,
-    ) -> Self {
-        let max_delay = (delay + depth * 2.0) * sample_rate;
-        let buffer_size = (max_delay as usize + 1).max(256);
-
-        Self {
-            buffer: vec![0.0; buffer_size],
-            write_pos: 0,
-            base_delay: delay * sample_rate,
-            depth: depth * sample_rate,
-            rate,
-            phase: 0.0,
-            mix,
-            feedback: feedback.clamp(-0.95, 0.95),
-            sample_rate,
-        }
-    }
-
-    /// Processes a single sample.
-    pub fn process(&mut self, input: f32) -> f32 {
-        // Calculate modulated delay
-        let lfo = (self.phase * std::f32::consts::TAU).sin();
-        let delay = (self.base_delay + lfo * self.depth).max(1.0);
-
-        // Read from buffer with linear interpolation
-        let read_pos = self.write_pos as f32 - delay;
-        let read_pos = if read_pos < 0.0 {
-            read_pos + self.buffer.len() as f32
-        } else {
-            read_pos
-        };
-
-        let idx0 = read_pos.floor() as usize % self.buffer.len();
-        let idx1 = (idx0 + 1) % self.buffer.len();
-        let frac = read_pos.fract();
-
-        let delayed = self.buffer[idx0] * (1.0 - frac) + self.buffer[idx1] * frac;
-
-        // Write to buffer with feedback
-        self.buffer[self.write_pos] = input + delayed * self.feedback;
-        self.write_pos = (self.write_pos + 1) % self.buffer.len();
-
-        // Advance LFO
-        self.phase += self.rate / self.sample_rate;
-        if self.phase >= 1.0 {
-            self.phase -= 1.0;
-        }
-
-        // Mix
-        input * (1.0 - self.mix) + delayed * self.mix
-    }
-
-    /// Clears the delay buffer.
-    pub fn clear(&mut self) {
-        self.buffer.fill(0.0);
-        self.phase = 0.0;
-    }
-}
-
-impl AudioNode for Flanger {
-    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
-        Flanger::process(self, input)
-    }
-
-    fn reset(&mut self) {
-        self.clear();
-    }
-}
-
-// ============================================================================
 // Distortion
 // ============================================================================
 
@@ -1041,57 +656,6 @@ impl AudioNode for Distortion {
 
     fn reset(&mut self) {
         self.tone_filter.reset();
-    }
-}
-
-// ============================================================================
-// Tremolo
-// ============================================================================
-
-/// Tremolo effect (amplitude modulation).
-pub struct Tremolo {
-    /// Modulation rate in Hz.
-    pub rate: f32,
-    /// Modulation depth (0-1).
-    pub depth: f32,
-    /// LFO phase.
-    phase: f32,
-    /// Sample rate.
-    sample_rate: f32,
-}
-
-impl Tremolo {
-    /// Creates a new tremolo effect.
-    pub fn new(sample_rate: f32, rate: f32, depth: f32) -> Self {
-        Self {
-            rate,
-            depth: depth.clamp(0.0, 1.0),
-            phase: 0.0,
-            sample_rate,
-        }
-    }
-
-    /// Processes a single sample.
-    pub fn process(&mut self, input: f32) -> f32 {
-        let lfo = (self.phase * std::f32::consts::TAU).sin() * 0.5 + 0.5;
-        let mod_amount = 1.0 - self.depth * lfo;
-
-        self.phase += self.rate / self.sample_rate;
-        if self.phase >= 1.0 {
-            self.phase -= 1.0;
-        }
-
-        input * mod_amount
-    }
-}
-
-impl AudioNode for Tremolo {
-    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
-        Tremolo::process(self, input)
-    }
-
-    fn reset(&mut self) {
-        self.phase = 0.0;
     }
 }
 
@@ -1878,13 +1442,13 @@ mod tests {
 
     #[test]
     fn test_chorus_process() {
-        let mut chorus = Chorus::new(44100.0);
+        let mut effect = chorus(44100.0);
 
         // Process some samples
         let mut outputs = Vec::new();
         for i in 0..1000 {
             let input = (i as f32 * 0.1).sin();
-            outputs.push(chorus.process(input));
+            outputs.push(effect.process(input));
         }
 
         // Should have varying output (due to modulation)
@@ -1894,29 +1458,29 @@ mod tests {
 
     #[test]
     fn test_phaser_process() {
-        let mut phaser = Phaser::new(44100.0);
+        let mut effect = phaser(44100.0);
 
         // Process a constant signal
         for _ in 0..1000 {
-            phaser.process(0.5);
+            effect.process(0.5);
         }
 
         // Should still produce output
-        let out = phaser.process(0.5);
+        let out = effect.process(0.5);
         assert!(out.abs() <= 1.5);
     }
 
     #[test]
     fn test_flanger_process() {
-        let mut flanger = Flanger::new(44100.0);
+        let mut effect = flanger(44100.0);
 
         // Process samples
-        let out = flanger.process(1.0);
+        let out = effect.process(1.0);
         assert!(out.abs() <= 2.0);
 
         // Clear and verify
-        flanger.clear();
-        let out_after_clear = flanger.process(0.0);
+        effect.clear();
+        let out_after_clear = effect.process(0.0);
         assert!(out_after_clear.abs() < 0.01);
     }
 
@@ -1944,14 +1508,14 @@ mod tests {
 
     #[test]
     fn test_tremolo() {
-        let mut trem = Tremolo::new(44100.0, 5.0, 1.0);
+        let mut effect = tremolo(44100.0, 5.0, 1.0);
 
         // With full depth, output should vary between 0 and input
         let mut min_out = f32::MAX;
         let mut max_out = f32::MIN;
 
         for _ in 0..44100 {
-            let out = trem.process(1.0);
+            let out = effect.process(1.0);
             min_out = min_out.min(out);
             max_out = max_out.max(out);
         }
@@ -1966,16 +1530,16 @@ mod tests {
         let ctx = AudioContext::new(sample_rate);
 
         // All effects should implement AudioNode
-        let mut reverb: Box<dyn AudioNode> = Box::new(Reverb::new(sample_rate));
-        let mut chorus: Box<dyn AudioNode> = Box::new(Chorus::new(sample_rate));
-        let mut phaser: Box<dyn AudioNode> = Box::new(Phaser::new(sample_rate));
-        let mut flanger: Box<dyn AudioNode> = Box::new(Flanger::new(sample_rate));
+        let mut reverb_node: Box<dyn AudioNode> = Box::new(Reverb::new(sample_rate));
+        let mut chorus_node: Box<dyn AudioNode> = Box::new(chorus(sample_rate));
+        let mut phaser_node: Box<dyn AudioNode> = Box::new(phaser(sample_rate));
+        let mut flanger_node: Box<dyn AudioNode> = Box::new(flanger(sample_rate));
 
         // All should process without panic
-        reverb.process(0.5, &ctx);
-        chorus.process(0.5, &ctx);
-        phaser.process(0.5, &ctx);
-        flanger.process(0.5, &ctx);
+        reverb_node.process(0.5, &ctx);
+        chorus_node.process(0.5, &ctx);
+        phaser_node.process(0.5, &ctx);
+        flanger_node.process(0.5, &ctx);
     }
 
     // ========================================================================
