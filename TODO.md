@@ -180,9 +180,15 @@
 - [ ] `GraphOptimizer` trait - `fn optimize(&self, graph: &mut Graph)` (for extensibility)
 - [ ] Generic over graph type - works on `AudioGraph`, `FieldGraph`, etc.
 
-**Future (post-optimization):**
-- [ ] Generalized JIT in `resin-jit` crate - extract from audio, apply to any optimized graph
-- [ ] SIMD codegen - vectorize pure-math chains (4-8 samples at once)
+**JIT Compilation:** ✅
+- [x] Generalized JIT in `resin-jit` crate - extract from audio, apply to any optimized graph
+  - Generic traits: `JitCompilable`, `SimdCompilable`, `JitGraph`
+  - Node classification: `JitCategory::PureMath`, `Stateful`, `External`
+- [x] SIMD codegen - vectorize pure-math chains (4 samples at once via f32x4)
+  - `compile_affine_simd()` generates SIMD loop + scalar tail
+  - 41x faster than scalar JIT (5.1µs vs 209µs for 44100 samples)
+  - 6.6x faster than native Rust (no bounds checking overhead)
+  - Parity tests verify scalar == SIMD == native
 
 ### Audio Effects (guitar pedals / studio)
 
