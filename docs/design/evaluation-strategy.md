@@ -40,10 +40,10 @@ Two orthogonal choices:
 Separate graph structure from evaluation strategy.
 
 ```rust
-/// Graph is just data - nodes and edges
+/// Graph is just data - nodes and wires
 pub struct Graph {
     nodes: Vec<Node>,
-    edges: Vec<Edge>,
+    wires: Vec<Wire>,
     // No evaluation logic here
 }
 
@@ -146,7 +146,7 @@ impl Evaluator for EagerEvaluator {
 /// Processes in blocks, maintains inter-block state
 pub struct StreamingEvaluator {
     block_size: usize,
-    state: GraphState,  // feedback edge values
+    state: GraphState,  // feedback wire values
 }
 
 impl StreamingEvaluator {
@@ -238,12 +238,12 @@ pub fn topological_sort(graph: &Graph) -> Vec<NodeId> {
 
 /// Find all nodes that feed into given node
 pub fn find_dependencies(graph: &Graph, node: NodeId) -> Vec<NodeId> {
-    // Transitive closure of input edges
+    // Transitive closure of input wires
 }
 
 /// Find all nodes that depend on given node
 pub fn find_dependents(graph: &Graph, node: NodeId) -> Vec<NodeId> {
-    // Transitive closure of output edges
+    // Transitive closure of output wires
 }
 
 /// Compute cache key from node + input values
@@ -306,7 +306,7 @@ for block in audio_blocks {
 
 ## Recurrent Graphs
 
-Evaluators must handle cycles (feedback edges). See [recurrent-graphs.md](./recurrent-graphs.md).
+Evaluators must handle cycles (feedback wires). See [recurrent-graphs.md](./recurrent-graphs.md).
 
 For recurrent graphs:
 - **LazyEvaluator:** Error on cycles, or require explicit iteration count
@@ -325,7 +325,7 @@ impl LazyEvaluator {
     ) -> Result<EvalResult> {
         for _ in 0..iterations {
             // Evaluate one iteration
-            // Update feedback edge values in ctx.state
+            // Update feedback wire values in ctx.state
         }
         // Return final values
     }

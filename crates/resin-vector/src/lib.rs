@@ -48,7 +48,7 @@ pub use hatching::{
     hatch_polygon, hatch_rect,
 };
 pub use network::{
-    Edge, EdgeHandle, EdgeId, EdgeType, HandleStyle, Node, NodeId, Region, VectorNetwork,
+    Anchor, AnchorId, Edge, EdgeHandle, EdgeId, EdgeType, HandleStyle, Region, VectorNetwork,
 };
 pub use path::{
     CornerRadii,

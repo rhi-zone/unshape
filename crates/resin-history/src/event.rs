@@ -7,7 +7,7 @@
 //! - Replay and debugging
 
 use crate::error::HistoryError;
-use rhizome_resin_core::{Edge, Graph, NodeId};
+use rhizome_resin_core::{Graph, NodeId, Wire};
 use rhizome_resin_serde::NodeRegistry;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -25,7 +25,7 @@ pub enum GraphEvent {
         params: JsonValue,
     },
 
-    /// Remove a node (and its edges).
+    /// Remove a node (and its wires).
     RemoveNode {
         /// Node ID to remove.
         id: NodeId,
@@ -33,8 +33,8 @@ pub enum GraphEvent {
         type_name: String,
         /// Captured params (for inverse).
         params: JsonValue,
-        /// Captured edges that were connected to this node (for inverse).
-        edges: Vec<Edge>,
+        /// Captured wires that were connected to this node (for inverse).
+        wires: Vec<Wire>,
     },
 
     /// Update node parameters.
@@ -49,14 +49,14 @@ pub enum GraphEvent {
 
     /// Connect two nodes.
     Connect {
-        /// Edge to add.
-        edge: Edge,
+        /// Wire to add.
+        wire: Wire,
     },
 
     /// Disconnect two nodes.
     Disconnect {
-        /// Edge to remove.
-        edge: Edge,
+        /// Wire to remove.
+        wire: Wire,
     },
 
     /// Multiple events as a single atomic operation.
@@ -81,7 +81,7 @@ impl GraphEvent {
     /// Creates a Connect event.
     pub fn connect(from_node: NodeId, from_port: usize, to_node: NodeId, to_port: usize) -> Self {
         Self::Connect {
-            edge: Edge {
+            wire: Wire {
                 from_node,
                 from_port,
                 to_node,
@@ -98,7 +98,7 @@ impl GraphEvent {
         to_port: usize,
     ) -> Self {
         Self::Disconnect {
-            edge: Edge {
+            wire: Wire {
                 from_node,
                 from_port,
                 to_node,
@@ -126,23 +126,23 @@ impl GraphEvent {
                 id: *id,
                 type_name: type_name.clone(),
                 params: params.clone(),
-                edges: Vec::new(), // Edges are captured at apply time
+                wires: Vec::new(), // Wires are captured at apply time
             },
 
             GraphEvent::RemoveNode {
                 id,
                 type_name,
                 params,
-                edges,
+                wires,
             } => {
-                // Inverse is: add the node back, then reconnect edges
+                // Inverse is: add the node back, then reconnect wires
                 let mut events = vec![GraphEvent::AddNode {
                     id: *id,
                     type_name: type_name.clone(),
                     params: params.clone(),
                 }];
-                for edge in edges {
-                    events.push(GraphEvent::Connect { edge: *edge });
+                for wire in wires {
+                    events.push(GraphEvent::Connect { wire: *wire });
                 }
                 if events.len() == 1 {
                     events.pop().unwrap()
@@ -164,9 +164,9 @@ impl GraphEvent {
                 new_params: old_params.clone(),
             },
 
-            GraphEvent::Connect { edge } => GraphEvent::Disconnect { edge: *edge },
+            GraphEvent::Connect { wire } => GraphEvent::Disconnect { wire: *wire },
 
-            GraphEvent::Disconnect { edge } => GraphEvent::Connect { edge: *edge },
+            GraphEvent::Disconnect { wire } => GraphEvent::Connect { wire: *wire },
 
             GraphEvent::Batch {
                 events,
@@ -205,12 +205,12 @@ impl GraphEvent {
                 graph.replace_node(*id, new_node)?;
             }
 
-            GraphEvent::Connect { edge } => {
-                graph.connect(edge.from_node, edge.from_port, edge.to_node, edge.to_port)?;
+            GraphEvent::Connect { wire } => {
+                graph.connect(wire.from_node, wire.from_port, wire.to_node, wire.to_port)?;
             }
 
-            GraphEvent::Disconnect { edge } => {
-                graph.disconnect(edge.from_node, edge.from_port, edge.to_node, edge.to_port)?;
+            GraphEvent::Disconnect { wire } => {
+                graph.disconnect(wire.from_node, wire.from_port, wire.to_node, wire.to_port)?;
             }
 
             GraphEvent::Batch { events, .. } => {
@@ -234,16 +234,16 @@ impl GraphEvent {
             GraphEvent::UpdateParams { id, .. } => {
                 format!("Update params for node {}", id)
             }
-            GraphEvent::Connect { edge } => {
+            GraphEvent::Connect { wire } => {
                 format!(
                     "Connect {}:{} -> {}:{}",
-                    edge.from_node, edge.from_port, edge.to_node, edge.to_port
+                    wire.from_node, wire.from_port, wire.to_node, wire.to_port
                 )
             }
-            GraphEvent::Disconnect { edge } => {
+            GraphEvent::Disconnect { wire } => {
                 format!(
                     "Disconnect {}:{} -> {}:{}",
-                    edge.from_node, edge.from_port, edge.to_node, edge.to_port
+                    wire.from_node, wire.from_port, wire.to_node, wire.to_port
                 )
             }
             GraphEvent::Batch {
@@ -312,7 +312,7 @@ impl EventHistory {
         // Apply the event
         event.apply(graph, registry)?;
 
-        // Enhance RemoveNode with captured edges if needed
+        // Enhance RemoveNode with captured wires if needed
         let event = self.enhance_event(event, graph);
 
         // Store stamped event
@@ -330,7 +330,7 @@ impl EventHistory {
         Ok(())
     }
 
-    /// Enhances an event with captured state (e.g., edges for RemoveNode).
+    /// Enhances an event with captured state (e.g., wires for RemoveNode).
     fn enhance_event(&self, event: GraphEvent, graph: &Graph) -> GraphEvent {
         match event {
             GraphEvent::RemoveNode {
@@ -339,9 +339,9 @@ impl EventHistory {
                 params,
                 ..
             } => {
-                // Capture edges that were connected to this node
-                let edges: Vec<Edge> = graph
-                    .edges()
+                // Capture wires that were connected to this node
+                let wires: Vec<Wire> = graph
+                    .wires()
                     .iter()
                     .filter(|e| e.from_node == id || e.to_node == id)
                     .copied()
@@ -350,7 +350,7 @@ impl EventHistory {
                     id,
                     type_name,
                     params,
-                    edges,
+                    wires,
                 }
             }
             other => other,
@@ -546,15 +546,15 @@ mod tests {
         history
             .record(GraphEvent::connect(0, 0, 1, 0), &mut graph, &registry)
             .unwrap();
-        assert_eq!(graph.edge_count(), 1);
+        assert_eq!(graph.wire_count(), 1);
 
         // Undo connect
         history.undo(&mut graph, &registry).unwrap();
-        assert_eq!(graph.edge_count(), 0);
+        assert_eq!(graph.wire_count(), 0);
 
         // Redo connect
         history.redo(&mut graph, &registry).unwrap();
-        assert_eq!(graph.edge_count(), 1);
+        assert_eq!(graph.wire_count(), 1);
     }
 
     #[test]
@@ -575,12 +575,12 @@ mod tests {
         history.record(batch, &mut graph, &registry).unwrap();
 
         assert_eq!(graph.node_count(), 2);
-        assert_eq!(graph.edge_count(), 1);
+        assert_eq!(graph.wire_count(), 1);
 
         // Undo entire batch
         history.undo(&mut graph, &registry).unwrap();
         assert_eq!(graph.node_count(), 0);
-        assert_eq!(graph.edge_count(), 0);
+        assert_eq!(graph.wire_count(), 0);
     }
 
     #[test]
@@ -610,7 +610,7 @@ mod tests {
         // Replay from scratch
         let replayed = history.replay(&registry).unwrap();
         assert_eq!(replayed.node_count(), 2);
-        assert_eq!(replayed.edge_count(), 1);
+        assert_eq!(replayed.wire_count(), 1);
     }
 
     #[test]

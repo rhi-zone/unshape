@@ -63,7 +63,7 @@ where
 {
     let mut serial = SerialGraph {
         nodes: Vec::new(),
-        edges: graph.edges().to_vec(),
+        wires: graph.wires().to_vec(),
         next_id: graph.next_id(),
     };
 
@@ -87,7 +87,7 @@ where
 /// Returns an error if:
 /// - A node type is not registered
 /// - Node deserialization fails
-/// - Graph reconstruction fails (e.g., invalid edges)
+/// - Graph reconstruction fails (e.g., invalid wires)
 pub fn serial_to_graph(serial: SerialGraph, registry: &NodeRegistry) -> Result<Graph, SerdeError> {
     let mut graph = Graph::with_next_id(serial.next_id);
 
@@ -96,8 +96,8 @@ pub fn serial_to_graph(serial: SerialGraph, registry: &NodeRegistry) -> Result<G
         graph.insert_node_with_id(serial_node.id, node)?;
     }
 
-    for edge in serial.edges {
-        graph.connect(edge.from_node, edge.from_port, edge.to_node, edge.to_port)?;
+    for wire in serial.wires {
+        graph.connect(wire.from_node, wire.from_port, wire.to_node, wire.to_port)?;
     }
 
     Ok(graph)
@@ -265,7 +265,7 @@ mod tests {
 
         // Verify structure
         assert_eq!(loaded.node_count(), 3);
-        assert_eq!(loaded.edge_count(), 2);
+        assert_eq!(loaded.wire_count(), 2);
 
         // Execute and verify result
         let result = loaded.execute(add).unwrap();

@@ -6,8 +6,8 @@ This document analyzes opportunities for type unification across the resin codeb
 
 | Domain | Issue | Priority | Design Doc? |
 |--------|-------|----------|-------------|
-| **Curves/Paths** | Fragmented 2D/3D, mixed function/struct APIs | HIGH | Yes: `curve-types.md` |
-| **Graphs** | "Node"/"Edge" overloaded across domains | MEDIUM | No |
+| **Curves/Paths** | ~~Fragmented 2D/3D, mixed function/struct APIs~~ | ~~HIGH~~ | ✅ Done - `resin-curve` crate |
+| **Graphs** | ~~"Node"/"Edge" overloaded across domains~~ | ~~MEDIUM~~ | ✅ Done - terminology in `conventions.md` |
 | **Transforms** | ~~Separate 2D/3D types~~ | ~~MEDIUM~~ | ✅ Done - `SpatialTransform` trait |
 | **Vertex Data** | Per-subsystem Vertex structs | LOW | No |
 | **Mesh** | Two representations | NONE | Already unified correctly |
@@ -94,51 +94,22 @@ pub struct Path<C: Curve = Segment<Vec2>> {
 
 ### 2. Graph/Node/Edge Terminology
 
-**Current state (overloaded terms):**
+**Status: ✅ Complete**
 
-| Crate | "Node" means | "Edge" means |
-|-------|--------------|--------------|
-| resin-core | Data flow node (has ports) | Port-to-port connection |
-| resin-vector | Spatial position in network | Bezier curve between positions |
-| resin-procgen | Spatial position (roads/rivers) | Connection between positions |
-| resin-mesh | (uses "Vertex") | Pair of vertex indices |
-| resin-mesh/halfedge | (uses "Vertex") | Half-edge (directional) |
-| resin-space-colonization | Branch node (3D position) | Parent-child connection |
+Established clear terminology across domains:
 
-**Problems:**
+| Domain | Type | Meaning |
+|--------|------|---------|
+| Data Flow (resin-core) | `Node` | Processing unit with typed inputs/outputs |
+| Data Flow (resin-core) | `Wire` | Port-to-port connection |
+| Vector Graphics (resin-vector) | `Anchor` | 2D position where curves meet |
+| Vector Graphics (resin-vector) | `Edge` | Bezier curve connecting anchors |
+| Spatial Networks (resin-procgen) | `NetworkNode` | Position in roads/rivers |
+| Topology (resin-mesh) | `Vertex` | 3D position with attributes |
+| Topology (resin-mesh) | `HalfEdge` | Directional edge for traversal |
+| Skeletal (resin-rig) | `Bone` | Joint in skeletal hierarchy |
 
-1. "Node" means completely different things (data processing vs spatial position)
-2. "Edge" means different things (port connection vs geometric curve vs index pair)
-3. Multiple `NodeId` / `VertexId` / `EdgeId` types that aren't interchangeable
-4. Code that says "node" is ambiguous without context
-
-**Recommended solution:**
-
-Establish clear terminology domains:
-
-```
-Data Flow Domain (resin-core):
-  - GraphNode: processing node with typed inputs/outputs
-  - Port: input or output slot on a node
-  - Wire: connection from output port to input port
-
-Spatial Domain (resin-vector, resin-procgen):
-  - SpatialNode / Waypoint: position in space
-  - SpatialEdge / Link: connection between positions (may carry geometry)
-
-Topology Domain (resin-mesh):
-  - Vertex: position in mesh
-  - HalfEdge: directional edge (half-edge data structure)
-  - Face: polygon bounded by edges
-```
-
-**Migration approach:**
-
-1. Document terminology in `docs/conventions.md`
-2. Consider renaming in resin-vector: `Node` → `Waypoint` or `NetworkNode`
-3. Consider renaming in resin-core: `Edge` → `Wire` or `Connection`
-4. Add type aliases for backwards compatibility
-5. Update documentation to use consistent terms
+See `docs/conventions.md` for the full terminology guide.
 
 ### 3. Transform Types
 
@@ -259,7 +230,7 @@ The trait-based design allows composition without type proliferation.
 ## Implementation Priority
 
 1. ~~**Curves** (HIGH)~~ - ✅ Complete - `resin-curve` crate with `Curve` trait
-2. **Graph terminology** (MEDIUM) - Documentation + gradual renaming
+2. ~~**Graph terminology** (MEDIUM)~~ - ✅ Complete - renamed types and documented in `conventions.md`
 3. ~~**Transforms** (MEDIUM)~~ - ✅ Complete - `resin-transform` crate with `SpatialTransform` trait
 4. **Vertex attributes** (LOW) - Works fine, optimize later
 

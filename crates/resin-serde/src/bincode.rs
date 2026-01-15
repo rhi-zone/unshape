@@ -41,7 +41,7 @@ impl GraphFormat for BincodeFormat {
 mod tests {
     use super::*;
     use crate::serial::SerialNode;
-    use rhizome_resin_core::Edge;
+    use rhizome_resin_core::Wire;
 
     #[test]
     fn test_bincode_roundtrip() {
@@ -84,7 +84,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bincode_with_edges() {
+    fn test_bincode_with_wires() {
         let mut graph = SerialGraph::new();
         graph
             .nodes
@@ -92,7 +92,7 @@ mod tests {
         graph
             .nodes
             .push(SerialNode::new(1, "B", serde_json::json!({})));
-        graph.edges.push(Edge {
+        graph.wires.push(Wire {
             from_node: 0,
             from_port: 0,
             to_node: 1,
@@ -104,8 +104,8 @@ mod tests {
         let bytes = format.serialize(&graph).unwrap();
         let loaded = format.deserialize(&bytes).unwrap();
 
-        assert_eq!(loaded.edge_count(), 1);
-        assert_eq!(loaded.edges[0].from_node, 0);
-        assert_eq!(loaded.edges[0].to_node, 1);
+        assert_eq!(loaded.wire_count(), 1);
+        assert_eq!(loaded.wires[0].from_node, 0);
+        assert_eq!(loaded.wires[0].to_node, 1);
     }
 }

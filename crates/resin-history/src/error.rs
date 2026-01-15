@@ -25,9 +25,9 @@ pub enum HistoryError {
     #[error("node not found: {0}")]
     NodeNotFound(u32),
 
-    /// Edge not found during event application.
-    #[error("edge not found")]
-    EdgeNotFound,
+    /// Wire not found during event application.
+    #[error("wire not found")]
+    WireNotFound,
 
     /// Invalid event (e.g., applying inverse without original).
     #[error("invalid event: {0}")]

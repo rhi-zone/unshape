@@ -90,3 +90,82 @@ Unless otherwise documented, these units are assumed:
 - `x`, `y`, `z` - Spatial coordinates
 - `time` - Time in seconds
 - `ctx` - Evaluation context (`&EvalContext`)
+
+## Graph Terminology
+
+Different crates use graph-like structures for different purposes. To avoid confusion, each domain uses distinct terminology:
+
+### Data Flow Domain (resin-core)
+
+For node-based procedural graphs where data flows between processing units:
+
+| Term | Meaning |
+|------|---------|
+| **Node** | Processing unit with typed inputs/outputs |
+| **NodeId** | Identifier for a processing node |
+| **Wire** | Connection from an output port to an input port |
+| **Port** | Input or output slot on a node |
+
+```rust
+// Example: Wire connects port 0 of node A to port 1 of node B
+let wire = Wire { from: (node_a, 0), to: (node_b, 1) };
+```
+
+### Vector Domain (resin-vector)
+
+For 2D vector graphics networks where curves connect spatial positions:
+
+| Term | Meaning |
+|------|---------|
+| **Anchor** | 2D position where curves meet (formerly "Node") |
+| **AnchorId** | Identifier for an anchor point |
+| **Edge** | Curve (line or bezier) connecting two anchors |
+| **EdgeId** | Identifier for an edge/curve |
+| **Region** | Closed area bounded by edges |
+
+```rust
+// Example: Anchor is a point with handle style
+let anchor = Anchor { position: Vec2::new(10.0, 20.0), handle_style: HandleStyle::Smooth };
+```
+
+### Spatial Network Domain (resin-procgen)
+
+For procedural road/river networks:
+
+| Term | Meaning |
+|------|---------|
+| **NetworkNode** | Position in the spatial graph |
+| **NetworkEdge** | Connection between positions |
+| **NodeType** | Role: Source, Sink, Junction, Waypoint |
+
+### Mesh Topology Domain (resin-mesh)
+
+For 3D mesh topology traversal:
+
+| Term | Meaning |
+|------|---------|
+| **Vertex** | 3D position with attributes |
+| **VertexId** | Identifier for a vertex |
+| **HalfEdge** | Directional edge (each edge has two half-edges) |
+| **HalfEdgeId** | Identifier for a half-edge |
+| **Face** | Polygon bounded by edges |
+| **FaceId** | Identifier for a face |
+
+### Skeletal Domain (resin-rig)
+
+For character rigging and animation:
+
+| Term | Meaning |
+|------|---------|
+| **Bone** | Joint in skeletal hierarchy |
+| **BoneId** | Identifier for a bone |
+| **Skeleton** | Tree of bones with parent-child relationships |
+
+### Branching Domain (resin-space-colonization)
+
+For procedural tree/branching structures:
+
+| Term | Meaning |
+|------|---------|
+| **BranchNode** | Growth point in tree structure |
+| **BranchEdge** | Parent-child connection |

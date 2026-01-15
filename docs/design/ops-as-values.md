@@ -180,7 +180,7 @@ Graphs can reference other graphs.
 #[derive(Serialize, Deserialize)]
 struct MeshGraph {
     nodes: Vec<MeshNode>,
-    edges: Vec<(NodeId, PortId, NodeId, PortId)>,
+    wires: Vec<(NodeId, PortId, NodeId, PortId)>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -223,11 +223,11 @@ pub struct Subdivide { pub levels: u32 }
 #[derive(Clone, Serialize, Deserialize)]
 pub struct MapVertices { pub expr: VertexExpr }
 
-// Graph is just Vec<Op> + edges
+// Graph is just Vec<Op> + wires
 #[derive(Serialize, Deserialize)]
 pub struct MeshGraph {
     ops: Vec<MeshOp>,
-    edges: Vec<Edge>,
+    wires: Vec<Wire>,
 }
 
 // Method API is sugar, uses ops internally

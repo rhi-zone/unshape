@@ -1,4 +1,12 @@
 //! Graph container and execution.
+//!
+//! This module provides a data flow graph where nodes process values
+//! and wires connect output ports to input ports.
+//!
+//! # Terminology
+//!
+//! This module uses "Wire" for connections between node ports to distinguish
+//! from geometric edges in mesh/vector domains (see `docs/conventions.md`).
 
 use std::collections::HashMap;
 
@@ -9,10 +17,12 @@ use crate::value::Value;
 /// Unique identifier for a node in a graph.
 pub type NodeId = u32;
 
-/// An edge connecting two nodes.
+/// A wire connecting an output port to an input port.
+///
+/// Wires carry data from one node's output to another node's input.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Edge {
+pub struct Wire {
     /// Source node.
     pub from_node: NodeId,
     /// Output port index on source node.
@@ -23,11 +33,11 @@ pub struct Edge {
     pub to_port: usize,
 }
 
-/// A graph of nodes connected by edges.
+/// A graph of nodes connected by wires.
 #[derive(Default)]
 pub struct Graph {
     nodes: HashMap<NodeId, BoxedNode>,
-    edges: Vec<Edge>,
+    wires: Vec<Wire>,
     next_id: NodeId,
     /// Cached topological order. Invalidated on structure change.
     topo_order: Option<Vec<NodeId>>,
@@ -99,7 +109,7 @@ impl Graph {
             });
         }
 
-        self.edges.push(Edge {
+        self.wires.push(Wire {
             from_node,
             from_port,
             to_node,
@@ -130,7 +140,7 @@ impl Graph {
         }
 
         // Build adjacency list and count in-degrees
-        for edge in &self.edges {
+        for edge in &self.wires {
             adj.get_mut(&edge.from_node).unwrap().push(edge.to_node);
             *in_degree.get_mut(&edge.to_node).unwrap() += 1;
         }
@@ -181,13 +191,13 @@ impl Graph {
             // Gather inputs for this node
             let mut inputs = Vec::with_capacity(num_inputs);
             for port in 0..num_inputs {
-                // Find edge that feeds this input
-                let edge = self
-                    .edges
+                // Find wire that feeds this input
+                let wire = self
+                    .wires
                     .iter()
-                    .find(|e| e.to_node == node_id && e.to_port == port);
+                    .find(|w| w.to_node == node_id && w.to_port == port);
 
-                match edge {
+                match wire {
                     Some(e) => {
                         let value = values
                             .get(&(e.from_node, e.from_port))
@@ -244,9 +254,9 @@ impl Graph {
         self.nodes.len()
     }
 
-    /// Returns the number of edges in the graph.
-    pub fn edge_count(&self) -> usize {
-        self.edges.len()
+    /// Returns the number of wires in the graph.
+    pub fn wire_count(&self) -> usize {
+        self.wires.len()
     }
 
     /// Returns the next node ID that will be assigned.
@@ -254,9 +264,9 @@ impl Graph {
         self.next_id
     }
 
-    /// Returns a slice of all edges.
-    pub fn edges(&self) -> &[Edge] {
-        &self.edges
+    /// Returns a slice of all wires.
+    pub fn wires(&self) -> &[Wire] {
+        &self.wires
     }
 
     /// Iterates over all (NodeId, &BoxedNode) pairs.
@@ -292,15 +302,15 @@ impl Graph {
         Ok(())
     }
 
-    /// Removes a node and all its connected edges.
+    /// Removes a node and all its connected wires.
     pub fn remove_node(&mut self, id: NodeId) -> Result<BoxedNode, GraphError> {
         let node = self.nodes.remove(&id).ok_or(GraphError::NodeNotFound(id))?;
-        self.edges.retain(|e| e.from_node != id && e.to_node != id);
+        self.wires.retain(|w| w.from_node != id && w.to_node != id);
         self.topo_order = None;
         Ok(node)
     }
 
-    /// Disconnects a specific edge.
+    /// Disconnects a specific wire.
     pub fn disconnect(
         &mut self,
         from_node: NodeId,
@@ -309,16 +319,16 @@ impl Graph {
         to_port: usize,
     ) -> Result<(), GraphError> {
         let idx = self
-            .edges
+            .wires
             .iter()
-            .position(|e| {
-                e.from_node == from_node
-                    && e.from_port == from_port
-                    && e.to_node == to_node
-                    && e.to_port == to_port
+            .position(|w| {
+                w.from_node == from_node
+                    && w.from_port == from_port
+                    && w.to_node == to_node
+                    && w.to_port == to_port
             })
-            .ok_or(GraphError::EdgeNotFound)?;
-        self.edges.remove(idx);
+            .ok_or(GraphError::WireNotFound)?;
+        self.wires.remove(idx);
         self.topo_order = None;
         Ok(())
     }

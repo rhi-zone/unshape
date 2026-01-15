@@ -49,7 +49,7 @@ impl DeformerStack {
 ```rust
 struct DeformerGraph {
     nodes: Vec<DeformerNode>,
-    edges: Vec<(NodeId, NodeId)>,  // from -> to
+    wires: Vec<(NodeId, NodeId)>,  // from -> to
 }
 
 impl DeformerGraph {

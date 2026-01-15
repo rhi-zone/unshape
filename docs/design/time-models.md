@@ -372,7 +372,7 @@ fn process_block(&mut self, input: &[f32; BLOCK_SIZE]) -> [f32; BLOCK_SIZE] {
 
 ```rust
 struct AudioGraphState {
-    feedback_values: HashMap<EdgeId, Value>,
+    feedback_values: HashMap<WireId, Value>,
     block_size: usize,
 }
 
@@ -419,11 +419,11 @@ Different domains run at different rates:
 Pros: Clear, no magic, user controls quality
 Cons: Verbose, easy to forget
 
-### B: Automatic conversion on edges
+### B: Automatic conversion on wires
 
 ```rust
-// Edge knows source and dest rates, converts automatically
-struct Edge {
+// Wire knows source and dest rates, converts automatically
+struct Wire {
     from: NodeId,
     to: NodeId,
     rate_conversion: Option<RateConversion>,

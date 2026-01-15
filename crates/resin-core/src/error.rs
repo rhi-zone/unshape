@@ -37,7 +37,7 @@ pub enum GraphError {
     },
 
     /// Type mismatch when connecting ports.
-    #[error("type mismatch on edge: expected {expected}, got {got}")]
+    #[error("type mismatch on wire: expected {expected}, got {got}")]
     TypeMismatch {
         /// Expected type.
         expected: ValueType,
@@ -66,9 +66,9 @@ pub enum GraphError {
     #[error("node already exists: {0}")]
     NodeAlreadyExists(u32),
 
-    /// Edge was not found.
-    #[error("edge not found")]
-    EdgeNotFound,
+    /// Wire was not found.
+    #[error("wire not found")]
+    WireNotFound,
 }
 
 #[cfg(test)]

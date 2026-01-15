@@ -68,16 +68,16 @@ Physics solvers often use iteration. Audio uses streaming.
 
 ## Semantics
 
-### Feedback = Delayed Edge
+### Feedback = Delayed Wire
 
-Every back-edge (edge that creates a cycle) has implicit or explicit delay:
+Every back-edge (wire that creates a cycle) has implicit or explicit delay:
 
 ```rust
-enum Edge {
-    /// Normal edge - value available immediately
+enum Wire {
+    /// Normal wire - value available immediately
     Direct { from: NodeId, to: NodeId },
 
-    /// Feedback edge - value from previous iteration
+    /// Feedback wire - value from previous iteration
     Feedback { from: NodeId, to: NodeId, delay: Delay },
 }
 
@@ -108,11 +108,11 @@ What's the feedback value on first iteration?
 
 Options:
 1. Zero / default
-2. Explicit initial value on edge
+2. Explicit initial value on wire
 3. "Undefined" - let it warm up
 
 ```rust
-struct FeedbackEdge {
+struct FeedbackWire {
     from: NodeId,
     to: NodeId,
     initial: Value,  // value for iteration 0
@@ -121,12 +121,12 @@ struct FeedbackEdge {
 
 ## State Model
 
-Feedback edges ARE the state. No hidden state in nodes.
+Feedback wires ARE the state. No hidden state in nodes.
 
 ```rust
 struct GraphState {
-    /// Values on feedback edges, keyed by edge ID
-    feedback_values: HashMap<EdgeId, Value>,
+    /// Values on feedback wires, keyed by wire ID
+    feedback_values: HashMap<WireId, Value>,
 }
 
 fn evaluate(graph: &Graph, inputs: &Inputs, state: &mut GraphState) -> Outputs {
@@ -215,8 +215,8 @@ impl Graph {
     /// Check if graph has any cycles
     fn is_dag(&self) -> bool;
 
-    /// Get edges that would need to be feedback edges
-    fn find_back_edges(&self) -> Vec<EdgeId>;
+    /// Get wires that would need to be feedback wires
+    fn find_back_wires(&self) -> Vec<WireId>;
 
     /// Validate: every cycle has at least one delay
     fn validate_feedback(&self) -> Result<(), CycleWithoutDelay>;
@@ -230,13 +230,13 @@ impl Graph {
 Recurrence IS statefulness. A recurrent graph:
 - Cannot seek (without replaying from start, or caching)
 - Must evaluate in order
-- Has implicit state (feedback edge values)
+- Has implicit state (feedback wire values)
 
 But it's still deterministic - same inputs + same initial state = same outputs.
 
 ### For Caching
 
-DAG portions can still be cached. Only feedback edges carry state between iterations.
+DAG portions can still be cached. Only feedback wires carry state between iterations.
 
 ```
 [Noise] ──-> [Process] ──-> [+] ──-> Out
@@ -250,19 +250,19 @@ Within one iteration, the DAG can be parallelized. Across iterations, must be se
 
 ### For Serialization
 
-Graph structure + feedback edge values = complete state.
+Graph structure + feedback wire values = complete state.
 
 ```rust
 #[derive(Serialize, Deserialize)]
 struct GraphSnapshot {
     graph: Graph,
-    feedback_state: HashMap<EdgeId, Value>,
+    feedback_state: HashMap<WireId, Value>,
 }
 ```
 
 ## Open Questions
 
-1. **Delay granularity**: One sample? One frame? Configurable per-edge?
+1. **Delay granularity**: One sample? One frame? Configurable per-wire?
 
 2. **Stability**: Feedback coefficient > 1 = explosion. Detect/warn?
 
@@ -277,7 +277,7 @@ struct GraphSnapshot {
 | Concept | DAG | Recurrent |
 |---------|-----|-----------|
 | Cycles | Not allowed | Allowed with delay |
-| State | None | Feedback edge values |
+| State | None | Feedback wire values |
 | Seekable | Yes | No (without replay) |
 | Deterministic | Yes | Yes |
 | Parallelizable | Fully | Per-iteration |

@@ -256,10 +256,12 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
   - `Path3D` now uses `ArcLengthPath<Segment3D>` from unified types
 
 **Medium Priority:**
-- [ ] Graph terminology clarification - distinguish node/edge meanings across domains
-  - Data flow graphs (resin-core): NodeId, Edge with ports
-  - Spatial graphs (resin-vector, resin-procgen): position + connectivity
-  - Topology graphs (resin-mesh): HalfEdge, Vertex, Face
+- [x] Graph terminology clarification - distinguish node/edge meanings across domains
+  - Data flow graphs (resin-core): Node, Wire (port connections)
+  - Vector graphics (resin-vector): Anchor, Edge (spatial curves)
+  - Spatial networks (resin-procgen): NetworkNode, NetworkEdge
+  - Topology (resin-mesh): Vertex, HalfEdge, Face
+  - Documented in `docs/conventions.md` under "Graph Terminology"
 - [x] Transform unification - `resin-transform` crate with `SpatialTransform` trait
   - Implemented for `Transform3D` and `Transform2D`
   - Enables generic algorithms over both transform types

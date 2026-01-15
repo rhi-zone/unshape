@@ -20,11 +20,11 @@ The constrained APIs are views/wrappers that enforce invariants. Users pick the 
 
 | General (internal) | Constrained API |
 |--------------------|-----------------|
-| VectorNetwork (vertices + edges, any degree) | Path (degree ≤ 2, ordered) |
+| VectorNetwork (anchors + edges, any degree) | Path (degree ≤ 2, ordered) |
 
 ```rust
 struct VectorNetwork {
-    vertices: Vec<Vertex>,
+    anchors: Vec<Anchor>,
     edges: Vec<Edge>,
 }
 
@@ -79,7 +79,7 @@ impl IndexedMesh {
 ```rust
 struct AudioGraph {
     nodes: Vec<Box<dyn AudioNode>>,
-    edges: Vec<(NodeId, usize, NodeId, usize)>,  // (from, output, to, input)
+    wires: Vec<(NodeId, usize, NodeId, usize)>,  // (from, output, to, input)
 }
 
 // Chain is a constrained view - linear, no branching
@@ -111,7 +111,7 @@ let synth = Chain::new()
 ```rust
 struct DeformerGraph {
     deformers: Vec<Box<dyn Deformer>>,
-    edges: Vec<(NodeId, NodeId)>,
+    wires: Vec<(NodeId, NodeId)>,
 }
 
 // Stack is a constrained view - linear, no branching
@@ -139,7 +139,7 @@ let deformed = mesh
 ```rust
 struct TextureGraph {
     nodes: Vec<Box<dyn TextureNode>>,
-    edges: Vec<(NodeId, NodeId)>,
+    wires: Vec<(NodeId, NodeId)>,
 }
 
 // Expression-style API for simple cases

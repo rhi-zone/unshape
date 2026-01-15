@@ -1,6 +1,6 @@
 //! Serializable intermediate representations of graph structures.
 
-use rhizome_resin_core::{Edge, NodeId};
+use rhizome_resin_core::{NodeId, Wire};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
@@ -58,8 +58,8 @@ impl SerialNode {
 pub struct SerialGraph {
     /// All nodes in the graph.
     pub nodes: Vec<SerialNode>,
-    /// All edges connecting nodes.
-    pub edges: Vec<Edge>,
+    /// All wires connecting nodes.
+    pub wires: Vec<Wire>,
     /// The next node ID that will be assigned.
     pub next_id: NodeId,
 }
@@ -69,7 +69,7 @@ impl SerialGraph {
     pub fn new() -> Self {
         Self {
             nodes: Vec::new(),
-            edges: Vec::new(),
+            wires: Vec::new(),
             next_id: 0,
         }
     }
@@ -79,9 +79,9 @@ impl SerialGraph {
         self.nodes.len()
     }
 
-    /// Returns the number of edges.
-    pub fn edge_count(&self) -> usize {
-        self.edges.len()
+    /// Returns the number of wires.
+    pub fn wire_count(&self) -> usize {
+        self.wires.len()
     }
 }
 
@@ -115,7 +115,7 @@ mod tests {
     fn test_serial_graph_default() {
         let graph = SerialGraph::default();
         assert_eq!(graph.node_count(), 0);
-        assert_eq!(graph.edge_count(), 0);
+        assert_eq!(graph.wire_count(), 0);
         assert_eq!(graph.next_id, 0);
     }
 
@@ -132,7 +132,7 @@ mod tests {
             "test::Const",
             serde_json::json!({"value": 5.0}),
         ));
-        graph.edges.push(Edge {
+        graph.wires.push(Wire {
             from_node: 1,
             from_port: 0,
             to_node: 0,
@@ -144,7 +144,7 @@ mod tests {
         let loaded: SerialGraph = serde_json::from_str(&json).unwrap();
 
         assert_eq!(loaded.node_count(), 2);
-        assert_eq!(loaded.edge_count(), 1);
+        assert_eq!(loaded.wire_count(), 1);
         assert_eq!(loaded.next_id, 2);
         assert_eq!(loaded.nodes[0].type_name, "test::Add");
     }

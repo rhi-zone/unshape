@@ -25,7 +25,7 @@ struct Path {
 
 ### Vector Network (Figma)
 
-A vector network is a **graph of vertices and edges**:
+A vector network is a **graph of anchors and edges**:
 
 ```
     A ───── B
@@ -38,25 +38,25 @@ A vector network is a **graph of vertices and edges**:
 ```
 
 - Points can have any number of connections
-- Edges connect any two vertices
+- Edges connect any two anchors
 - Regions (faces) are implicit from the topology
 - More like a 2D mesh than a path
 
 ```rust
 struct VectorNetwork {
-    vertices: Vec<Vertex>,
+    anchors: Vec<Anchor>,
     edges: Vec<Edge>,
     // faces derived from edges
 }
 
-struct Vertex {
+struct Anchor {
     position: Vec2,
-    // possibly: corner radius, etc.
+    // possibly: handle style, etc.
 }
 
 struct Edge {
-    start: VertexId,
-    end: VertexId,
+    start: AnchorId,
+    end: AnchorId,
     curve: CurveType,  // line, bezier, etc.
 }
 ```
@@ -71,7 +71,7 @@ Path:                    Network:
 │           │            │           │
 │           │            │           │
 └───────────┘            └───────────┘
-(4 segments, closed)     (4 vertices, 4 edges)
+(4 segments, closed)     (4 anchors, 4 edges)
 ```
 
 ### 2D projection of cube: network required
@@ -104,7 +104,7 @@ Outer path + inner path     Single network with hole
  ╱ ╱╲   ╲                    ╱│    │╲
 ╱ ╱  ╲   ╲                  C─D    E─F
 
-2 paths                     6 vertices, multiple edges
+2 paths                     6 anchors, multiple edges
 ```
 
 ## Trade-offs
@@ -123,17 +123,17 @@ Outer path + inner path     Single network with hole
 - Can't represent branching structures natively
 - Cube projection needs multiple paths or stroke hacks
 - Compound paths (holes) are separate concept
-- Shared vertices are duplicated
+- Shared anchors are duplicated
 
 ### Vector Networks
 
 **Pros:**
 - More general (paths are a subset)
 - Natural for branching structures
-- Shared vertices are actually shared
+- Shared anchors are actually shared
 - Closer to mesh topology (2D mesh, essentially)
 - Regions/fills are topological, not winding-rule based
-- Edit any vertex/edge independently
+- Edit any anchor/edge independently
 
 **Cons:**
 - More complex implementation
@@ -148,7 +148,7 @@ Outer path + inner path     Single network with hole
 1. **Technical drawings**: circuit diagrams, floor plans, graphs
 2. **Geometric constructions**: projections, wireframes
 3. **Connected structures**: flowcharts, node diagrams
-4. **Shared vertices**: when you need "move this point, all connected edges follow"
+4. **Shared anchors**: when you need "move this point, all connected edges follow"
 
 ## When Paths Win
 
@@ -181,7 +181,7 @@ fn network_to_paths(net: &VectorNetwork) -> Vec<Path> {
 }
 ```
 
-Loses the "shared vertex" property - vertices get duplicated.
+Loses the "shared anchor" property - anchors get duplicated.
 
 ### Paths -> Network
 
@@ -189,12 +189,12 @@ Possible but may not capture intent:
 
 ```rust
 fn paths_to_network(paths: &[Path]) -> VectorNetwork {
-    // Add all vertices and edges
-    // Optionally: merge coincident vertices
+    // Add all anchors and edges
+    // Optionally: merge coincident anchors
 }
 ```
 
-Multiple paths through same point become shared vertex.
+Multiple paths through same point become shared anchor.
 
 ## Hybrid Approach?
 
@@ -238,7 +238,7 @@ Key insight: paths are just networks with a constraint (degree ≤ 2). No need t
 ```rust
 // Internal: always a network
 struct VectorNetwork {
-    vertices: Vec<Vertex>,
+    anchors: Vec<Anchor>,
     edges: Vec<Edge>,
 }
 
@@ -252,7 +252,7 @@ impl Path {
 
 impl VectorNetwork {
     fn as_path(&self) -> Option<Path> { ... }  // None if branching
-    fn add_edge(&mut self, a: VertexId, b: VertexId) { ... }
+    fn add_edge(&mut self, a: AnchorId, b: AnchorId) { ... }
 }
 ```
 
@@ -274,14 +274,14 @@ impl VectorNetwork {
 1. Is Figma's network model documented anywhere? (Seems proprietary)
 2. Are there academic papers on vector network algorithms?
 3. What's the actual use case frequency for branching structures?
-4. Could we get 80% of the benefit with "paths + shared vertex references"?
+4. Could we get 80% of the benefit with "paths + shared anchor references"?
 
 ```rust
 // Lighter-weight alternative to full networks?
-struct PathWithSharedVertices {
-    vertices: Vec<Vertex>,
-    paths: Vec<Vec<VertexId>>,  // paths reference shared vertices
+struct PathWithSharedAnchors {
+    anchors: Vec<Anchor>,
+    paths: Vec<Vec<AnchorId>>,  // paths reference shared anchors
 }
 ```
 
-This gets shared-vertex editing without full graph topology.
+This gets shared-anchor editing without full graph topology.
