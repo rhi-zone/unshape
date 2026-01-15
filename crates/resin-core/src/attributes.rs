@@ -35,6 +35,36 @@ pub trait HasPositions {
     }
 }
 
+/// 2D geometry with vertex positions.
+///
+/// This is the 2D equivalent of [`HasPositions`] for 2D geometry types.
+/// Used for vector graphics, gradient meshes, and other 2D shapes.
+pub trait HasPositions2D {
+    /// Returns the number of vertices.
+    fn vertex_count(&self) -> usize;
+
+    /// Returns all vertex positions.
+    fn positions(&self) -> &[Vec2];
+
+    /// Returns mutable access to vertex positions.
+    fn positions_mut(&mut self) -> &mut [Vec2];
+
+    /// Gets a single vertex position.
+    fn get_position(&self, index: usize) -> Option<Vec2> {
+        self.positions().get(index).copied()
+    }
+
+    /// Sets a single vertex position.
+    fn set_position(&mut self, index: usize, position: Vec2) -> bool {
+        if let Some(p) = self.positions_mut().get_mut(index) {
+            *p = position;
+            true
+        } else {
+            false
+        }
+    }
+}
+
 /// Geometry with vertex normals.
 pub trait HasNormals {
     /// Returns all vertex normals.

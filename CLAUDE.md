@@ -90,6 +90,24 @@ This makes history/serialization natural - just collect the ops. See `docs/desig
 - Workspace with sub-crates by domain (e.g., `crates/rhizome-resin-mesh/`, `crates/rhizome-resin-audio/`)
 - Implementation goes in sub-crates, not all in one monolith
 
+### Core Crates
+
+**resin-core** - Foundation for the node graph system:
+- `Graph`, `NodeId`, `Wire` - node graph container and execution
+- `DynNode` trait - dynamic node execution with type-erased inputs/outputs
+- `Value` - runtime value type for graph data flow
+- Attribute traits (`HasPositions`, `HasNormals`, `HasUVs`, `HasColors`, `HasIndices`) - generic geometry abstraction
+
+**resin-op** - Operations as values (dynop system):
+- `DynOp` trait, `OpRegistry`, `Pipeline` - for serializable operations
+- `#[derive(Op)]` macro - derive for domain ops
+
+**resin-serde** - Graph serialization:
+- `SerialGraph`, `NodeRegistry` - JSON/bincode graph format
+
+**resin-field** - Lazy evaluation:
+- `Field<I, O>` trait - composable function abstraction for noise, SDFs, textures
+
 ### Updating CLAUDE.md
 
 Add: workflow patterns, conventions, project-specific knowledge.

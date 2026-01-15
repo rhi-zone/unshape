@@ -18,8 +18,9 @@
 //! assert!(cloud.len() >= 100); // Some points generated
 //! ```
 
-use glam::Vec3;
+use glam::{Vec3, Vec4};
 use rand::Rng;
+use rhizome_resin_core::{HasColors, HasNormals, HasPositions};
 use rhizome_resin_field::{EvalContext, Field};
 use rhizome_resin_mesh::Mesh;
 #[cfg(feature = "serde")]
@@ -41,8 +42,8 @@ pub struct PointCloud {
     pub positions: Vec<Vec3>,
     /// Point normals (same length as positions, or empty).
     pub normals: Vec<Vec3>,
-    /// Point colors as RGB in [0, 1] (same length as positions, or empty).
-    pub colors: Vec<Vec3>,
+    /// Point colors as RGBA in [0, 1] (same length as positions, or empty).
+    pub colors: Vec<Vec4>,
 }
 
 impl PointCloud {
@@ -101,7 +102,7 @@ impl PointCloud {
             self.normals.push(Vec3::ZERO);
         }
         if self.has_colors() {
-            self.colors.push(Vec3::ONE);
+            self.colors.push(Vec4::ONE);
         }
     }
 
@@ -114,7 +115,7 @@ impl PointCloud {
         }
         self.normals.push(normal.normalize_or_zero());
         if self.has_colors() {
-            self.colors.push(Vec3::ONE);
+            self.colors.push(Vec4::ONE);
         }
     }
 
@@ -162,8 +163,46 @@ impl PointCloud {
             self.colors.extend_from_slice(&other.colors);
         } else if self.has_colors() {
             self.colors
-                .extend(std::iter::repeat(Vec3::ONE).take(other.len()));
+                .extend(std::iter::repeat(Vec4::ONE).take(other.len()));
         }
+    }
+}
+
+// ============================================================================
+// Attribute trait implementations
+// ============================================================================
+
+impl HasPositions for PointCloud {
+    fn vertex_count(&self) -> usize {
+        self.positions.len()
+    }
+
+    fn positions(&self) -> &[Vec3] {
+        &self.positions
+    }
+
+    fn positions_mut(&mut self) -> &mut [Vec3] {
+        &mut self.positions
+    }
+}
+
+impl HasNormals for PointCloud {
+    fn normals(&self) -> &[Vec3] {
+        &self.normals
+    }
+
+    fn normals_mut(&mut self) -> &mut [Vec3] {
+        &mut self.normals
+    }
+}
+
+impl HasColors for PointCloud {
+    fn colors(&self) -> &[Vec4] {
+        &self.colors
+    }
+
+    fn colors_mut(&mut self) -> &mut [Vec4] {
+        &mut self.colors
     }
 }
 
@@ -638,8 +677,8 @@ pub fn voxel_downsample(cloud: &PointCloud, voxel_size: f32) -> PointCloud {
         return cloud.clone();
     }
 
-    // Map voxel coordinates to accumulated points
-    let mut voxels: HashMap<(i32, i32, i32), (Vec3, Vec3, Vec3, u32)> = HashMap::new();
+    // Map voxel coordinates to accumulated points (position, normal, color, count)
+    let mut voxels: HashMap<(i32, i32, i32), (Vec3, Vec3, Vec4, u32)> = HashMap::new();
 
     for i in 0..cloud.len() {
         let pos = cloud.positions[i];
@@ -657,12 +696,12 @@ pub fn voxel_downsample(cloud: &PointCloud, voxel_size: f32) -> PointCloud {
         let color = if cloud.has_colors() {
             cloud.colors[i]
         } else {
-            Vec3::ZERO
+            Vec4::ZERO
         };
 
         let entry = voxels
             .entry(voxel)
-            .or_insert((Vec3::ZERO, Vec3::ZERO, Vec3::ZERO, 0));
+            .or_insert((Vec3::ZERO, Vec3::ZERO, Vec4::ZERO, 0));
         entry.0 += pos;
         entry.1 += normal;
         entry.2 += color;
@@ -884,5 +923,54 @@ mod tests {
                 assert!(dist >= config.min_distance * 0.9); // Small tolerance
             }
         }
+    }
+
+    #[test]
+    fn test_has_positions_trait() {
+        use rhizome_resin_core::HasPositions;
+
+        let mut cloud =
+            PointCloud::from_positions(vec![Vec3::ZERO, Vec3::ONE, Vec3::new(2.0, 0.0, 0.0)]);
+
+        assert_eq!(cloud.vertex_count(), 3);
+        assert_eq!(cloud.positions().len(), 3);
+        assert_eq!(cloud.get_position(1), Some(Vec3::ONE));
+
+        // Test mutation through trait
+        cloud.set_position(0, Vec3::new(5.0, 5.0, 5.0));
+        assert_eq!(cloud.positions[0], Vec3::new(5.0, 5.0, 5.0));
+    }
+
+    #[test]
+    fn test_has_normals_trait() {
+        use rhizome_resin_core::HasNormals;
+
+        let mut cloud =
+            PointCloud::from_positions_normals(vec![Vec3::ZERO, Vec3::ONE], vec![Vec3::Y, Vec3::X]);
+
+        assert_eq!(cloud.normals().len(), 2);
+        assert_eq!(cloud.normals()[0], Vec3::Y);
+
+        // Test mutation through trait
+        cloud.normals_mut()[0] = Vec3::Z;
+        assert_eq!(cloud.normals[0], Vec3::Z);
+    }
+
+    #[test]
+    fn test_has_colors_trait() {
+        use rhizome_resin_core::HasColors;
+
+        let mut cloud = PointCloud {
+            positions: vec![Vec3::ZERO, Vec3::ONE],
+            normals: Vec::new(),
+            colors: vec![Vec4::new(1.0, 0.0, 0.0, 1.0), Vec4::new(0.0, 1.0, 0.0, 1.0)],
+        };
+
+        assert_eq!(cloud.colors().len(), 2);
+        assert_eq!(cloud.colors()[0], Vec4::new(1.0, 0.0, 0.0, 1.0));
+
+        // Test mutation through trait
+        cloud.colors_mut()[0] = Vec4::new(0.0, 0.0, 1.0, 1.0);
+        assert_eq!(cloud.colors[0], Vec4::new(0.0, 0.0, 1.0, 1.0));
     }
 }

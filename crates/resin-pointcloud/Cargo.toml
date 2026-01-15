@@ -14,6 +14,7 @@ dynop = ["dep:rhizome-resin-op", "dep:serde_json", "serde"]
 [dependencies]
 glam.workspace = true
 rand.workspace = true
+rhizome-resin-core = { path = "../resin-core" }
 rhizome-resin-mesh = { path = "../resin-mesh" }
 rhizome-resin-field = { path = "../resin-field" }
 rhizome-resin-op = { path = "../resin-op", optional = true }

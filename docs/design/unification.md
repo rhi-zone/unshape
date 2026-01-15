@@ -9,7 +9,7 @@ This document analyzes opportunities for type unification across the resin codeb
 | **Curves/Paths** | ~~Fragmented 2D/3D, mixed function/struct APIs~~ | ~~HIGH~~ | ✅ Done - `resin-curve` crate |
 | **Graphs** | ~~"Node"/"Edge" overloaded across domains~~ | ~~MEDIUM~~ | ✅ Done - terminology in `conventions.md` |
 | **Transforms** | ~~Separate 2D/3D types~~ | ~~MEDIUM~~ | ✅ Done - `SpatialTransform` trait |
-| **Vertex Data** | Per-subsystem Vertex structs | LOW | No |
+| **Vertex Data** | ~~Per-subsystem Vertex structs~~ | ~~LOW~~ | ✅ Partial - traits on SoA types |
 | **Mesh** | Two representations | NONE | Already unified correctly |
 | **Fields** | Trait + implementations | NONE | Well-designed |
 
@@ -143,56 +143,50 @@ This enables generic algorithms over transforms while preserving domain-specific
 
 ### 4. Vertex Attribute Types
 
-**Current state:**
+**Status: ✅ Partially complete**
 
-| Crate | Type | Fields |
-|-------|------|--------|
-| resin-mesh | `Vertex` (in halfedge) | position, normal, uv |
-| resin-mesh | `VertexWeights` | bone indices, weights |
-| resin-rig | `VertexInfluences` | bone/weight pairs |
-| resin-vector | gradient mesh vertex | position, color |
-| resin-physics | soft body vertex | position, velocity, mass |
+**Implemented:**
 
-**Problems:**
+The attribute traits in `resin-core` are now implemented where data layout allows:
 
-1. Each subsystem defines its own vertex struct
-2. Not using existing `Has*` traits from resin-core
-3. Difficult to combine attributes (e.g., skinned + physics vertex)
+| Type | HasPositions | HasNormals | HasColors | HasIndices |
+|------|--------------|-----------|-----------|-----------|
+| `Mesh` | ✅ | ✅ | ❌ | ✅ |
+| `PointCloud` | ✅ | ✅ | ✅ | ❌ |
 
-**Recommended approach:**
+Added `HasPositions2D` trait for 2D geometry types.
 
-Use composition and traits rather than monolithic structs:
+**Design Limitation: SoA vs AoS**
+
+The traits require returning slices (`&[Vec3]`), which only works with **Struct-of-Arrays (SoA)** storage:
 
 ```rust
-// Core position data
-pub struct VertexPosition {
-    pub position: Vec3,
+// SoA - CAN implement traits (returns &[Vec3] slice)
+struct PointCloud {
+    positions: Vec<Vec3>,  // ✅ Can return &self.positions
+    normals: Vec<Vec3>,
 }
 
-// Optional attributes as separate structs
-pub struct VertexNormal {
-    pub normal: Vec3,
-}
-
-pub struct VertexUv {
-    pub uv: Vec2,
-}
-
-pub struct VertexSkin {
-    pub bones: [u32; 4],
-    pub weights: [f32; 4],
-}
-
-// Compose via tuples or wrapper
-type SkinnedVertex = (VertexPosition, VertexNormal, VertexUv, VertexSkin);
-
-// Or use traits for duck typing
-pub trait HasPosition {
-    fn position(&self) -> Vec3;
+// AoS - CANNOT implement traits (no contiguous slice)
+struct SoftBody {
+    vertices: Vec<SoftVertex>,  // ❌ Cannot return &[Vec3] from Vec<SoftVertex>
 }
 ```
 
-This is lower priority because the current approach works, just with some duplication.
+**Types that cannot implement traits:**
+
+| Type | Reason |
+|------|--------|
+| `SoftBody` | Stores `Vec<SoftVertex>` (AoS) |
+| `GradientMesh` | Stores `Vec<GradientVertex>` (AoS) |
+| `HalfEdgeMesh` | Internal topology type, uses `Vertex` struct |
+
+**Why this is acceptable:**
+
+1. The main indexed types (`Mesh`, `PointCloud`) use SoA and implement traits
+2. AoS types like `SoftBody` store additional per-vertex state (velocity, mass) that doesn't fit generic patterns
+3. Converting these to SoA would require breaking changes for marginal benefit
+4. The traits enable generic algorithms on the types that matter most for GPU/rendering
 
 ---
 
@@ -232,7 +226,7 @@ The trait-based design allows composition without type proliferation.
 1. ~~**Curves** (HIGH)~~ - ✅ Complete - `resin-curve` crate with `Curve` trait
 2. ~~**Graph terminology** (MEDIUM)~~ - ✅ Complete - renamed types and documented in `conventions.md`
 3. ~~**Transforms** (MEDIUM)~~ - ✅ Complete - `resin-transform` crate with `SpatialTransform` trait
-4. **Vertex attributes** (LOW) - Works fine, optimize later
+4. ~~**Vertex attributes** (LOW)~~ - ✅ Partial - traits implemented on SoA types (`Mesh`, `PointCloud`); AoS types documented as out-of-scope
 
 ---
 
