@@ -413,12 +413,6 @@ impl HydraulicErosion {
         self
     }
 
-    /// Sets erosion radius.
-    pub fn with_radius(mut self, radius: usize) -> Self {
-        self.radius = radius;
-        self
-    }
-
     /// Runs erosion simulation with the given number of droplets.
     pub fn erode(&self, heightfield: &mut Heightfield, iterations: usize) {
         self.erode_with_seed(heightfield, iterations, 12345);
@@ -609,12 +603,6 @@ impl ThermalErosion {
     /// Creates with default settings.
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Sets the talus angle.
-    pub fn with_talus_angle(mut self, angle: f32) -> Self {
-        self.talus_angle = angle;
-        self
     }
 
     /// Sets the transfer rate.
@@ -913,9 +901,9 @@ mod tests {
 
     #[test]
     fn test_thermal_erosion_settings() {
-        let erosion = ThermalErosion::new()
-            .with_talus_angle(0.3)
-            .with_transfer_rate(0.8);
+        let mut erosion = ThermalErosion::new();
+        erosion.talus_angle = 0.3;
+        erosion = erosion.with_transfer_rate(0.8);
 
         assert_eq!(erosion.talus_angle, 0.3);
         assert_eq!(erosion.transfer_rate, 0.8);
@@ -923,10 +911,8 @@ mod tests {
 
     #[test]
     fn test_hydraulic_erosion_settings() {
-        let erosion = HydraulicErosion::new()
-            .with_inertia(0.1)
-            .with_erosion(0.5)
-            .with_radius(5);
+        let mut erosion = HydraulicErosion::new().with_inertia(0.1).with_erosion(0.5);
+        erosion.radius = 5;
 
         assert_eq!(erosion.inertia, 0.1);
         assert_eq!(erosion.erosion, 0.5);

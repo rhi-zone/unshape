@@ -115,42 +115,6 @@ impl SvgStyle {
         }
     }
 
-    /// Sets the stroke linecap.
-    pub fn with_linecap(mut self, linecap: StrokeLinecap) -> Self {
-        self.stroke_linecap = linecap;
-        self
-    }
-
-    /// Sets the stroke linejoin.
-    pub fn with_linejoin(mut self, linejoin: StrokeLinejoin) -> Self {
-        self.stroke_linejoin = linejoin;
-        self
-    }
-
-    /// Sets the fill opacity.
-    pub fn with_fill_opacity(mut self, opacity: f32) -> Self {
-        self.fill_opacity = opacity;
-        self
-    }
-
-    /// Sets the stroke opacity.
-    pub fn with_stroke_opacity(mut self, opacity: f32) -> Self {
-        self.stroke_opacity = opacity;
-        self
-    }
-
-    /// Sets the stroke dash array.
-    pub fn with_dash(mut self, dasharray: Vec<f32>) -> Self {
-        self.stroke_dasharray = Some(dasharray);
-        self
-    }
-
-    /// Sets the stroke dash offset.
-    pub fn with_dash_offset(mut self, offset: f32) -> Self {
-        self.stroke_dashoffset = offset;
-        self
-    }
-
     /// Converts the style to SVG attribute string.
     fn to_attributes(&self) -> String {
         let mut attrs = String::new();
@@ -1016,7 +980,8 @@ mod tests {
 
     #[test]
     fn test_svg_dashed_stroke() {
-        let style = SvgStyle::stroke("black", 1.0).with_dash(vec![5.0, 3.0]);
+        let mut style = SvgStyle::stroke("black", 1.0);
+        style.stroke_dasharray = Some(vec![5.0, 3.0]);
         let attrs = style.to_attributes();
         assert!(attrs.contains("stroke-dasharray=\"5.000,3.000\""));
     }

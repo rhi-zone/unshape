@@ -187,30 +187,6 @@ impl Building {
             FloorPoint::new(-hw, hd),
         ])
     }
-
-    /// Sets the number of floors.
-    pub fn with_floors(mut self, count: u32) -> Self {
-        self.floor_count = count;
-        self
-    }
-
-    /// Sets the floor height.
-    pub fn with_floor_height(mut self, height: f32) -> Self {
-        self.floor_height = height;
-        self
-    }
-
-    /// Sets the wall configuration.
-    pub fn with_wall_config(mut self, config: WallConfig) -> Self {
-        self.wall_config = config;
-        self
-    }
-
-    /// Sets the roof configuration.
-    pub fn with_roof_config(mut self, config: RoofConfig) -> Self {
-        self.roof_config = config;
-        self
-    }
 }
 
 /// Generates a building mesh.
@@ -759,13 +735,15 @@ mod tests {
 
     #[test]
     fn test_building_with_floors() {
-        let building = Building::rectangle(10.0, 8.0).with_floors(3);
+        let mut building = Building::rectangle(10.0, 8.0);
+        building.floor_count = 3;
         assert_eq!(building.floor_count, 3);
     }
 
     #[test]
     fn test_generate_building() {
-        let building = Building::rectangle(10.0, 8.0).with_floors(2);
+        let mut building = Building::rectangle(10.0, 8.0);
+        building.floor_count = 2;
         let mesh = generate_building(&building);
 
         assert!(!mesh.positions.is_empty());

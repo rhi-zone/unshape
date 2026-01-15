@@ -464,12 +464,6 @@ impl HingeConstraint {
         self
     }
 
-    /// Set angle limits in radians.
-    pub fn with_limits(mut self, min: f32, max: f32) -> Self {
-        self.limits = Some((min, max));
-        self
-    }
-
     /// Set constraint stiffness.
     pub fn with_stiffness(mut self, stiffness: f32) -> Self {
         self.stiffness = stiffness.clamp(0.0, 1.0);

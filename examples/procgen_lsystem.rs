@@ -25,7 +25,11 @@ fn main() {
     let result = lsystem.generate(iterations);
 
     // Interpret as 2D turtle graphics
-    let turtle = Turtle2D::default().with_angle(25.0).with_step(5.0);
+    let turtle = Turtle2D {
+        angle: 25.0,
+        step: 5.0,
+        ..Default::default()
+    };
     let segments = turtle.apply(&result);
 
     println!("\nGenerated {} line segments", segments.len());

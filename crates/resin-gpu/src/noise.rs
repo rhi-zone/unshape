@@ -67,30 +67,6 @@ impl NoiseConfig {
         }
     }
 
-    /// Sets the number of octaves for FBM.
-    pub fn with_octaves(mut self, octaves: u32) -> Self {
-        self.octaves = octaves;
-        self
-    }
-
-    /// Sets the persistence for FBM.
-    pub fn with_persistence(mut self, persistence: f32) -> Self {
-        self.persistence = persistence;
-        self
-    }
-
-    /// Sets the lacunarity for FBM.
-    pub fn with_lacunarity(mut self, lacunarity: f32) -> Self {
-        self.lacunarity = lacunarity;
-        self
-    }
-
-    /// Sets the seed.
-    pub fn with_seed(mut self, seed: u32) -> Self {
-        self.seed = seed;
-        self
-    }
-
     /// Applies this configuration, returning a clone of self.
     ///
     /// This is the identity operation for config structs - the config
@@ -489,7 +465,12 @@ mod tests {
     fn test_fbm_octaves() {
         let ctx = GpuContext::new().unwrap();
 
-        let config = NoiseConfig::new(NoiseType::Perlin, 4.0).with_octaves(4);
+        let config = NoiseConfig {
+            noise_type: NoiseType::Perlin,
+            scale: 4.0,
+            octaves: 4,
+            ..Default::default()
+        };
 
         let texture = generate_noise_texture(&ctx, 128, 128, &config).unwrap();
         let data = texture.read_to_f32(&ctx);

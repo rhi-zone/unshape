@@ -62,30 +62,6 @@ impl Default for PluckSynth {
 }
 
 impl PluckSynth {
-    /// Sets the amplitude.
-    pub fn with_amplitude(mut self, amplitude: f32) -> Self {
-        self.amplitude = amplitude;
-        self
-    }
-
-    /// Sets the damping.
-    pub fn with_damping(mut self, damping: f32) -> Self {
-        self.damping = damping;
-        self
-    }
-
-    /// Sets the brightness.
-    pub fn with_brightness(mut self, brightness: f32) -> Self {
-        self.brightness = brightness;
-        self
-    }
-
-    /// Sets the noise blend (0 = noise, 1 = sawtooth).
-    pub fn with_noise_blend(mut self, blend: f32) -> Self {
-        self.noise_blend = blend;
-        self
-    }
-
     /// Applies this pluck configuration to generate samples.
     ///
     /// Takes pluck input and returns audio samples.
@@ -446,8 +422,20 @@ mod tests {
         let mut ks1 = KarplusStrong::new(44100.0);
         let mut ks2 = KarplusStrong::new(44100.0);
 
-        ks1.pluck(440.0, PluckSynth::default().with_damping(0.1));
-        ks2.pluck(440.0, PluckSynth::default().with_damping(0.9));
+        ks1.pluck(
+            440.0,
+            PluckSynth {
+                damping: 0.1,
+                ..Default::default()
+            },
+        );
+        ks2.pluck(
+            440.0,
+            PluckSynth {
+                damping: 0.9,
+                ..Default::default()
+            },
+        );
 
         // Generate samples
         let mut buf1 = vec![0.0; 5000];
@@ -511,12 +499,13 @@ mod tests {
     }
 
     #[test]
-    fn test_pluck_config_builder() {
-        let config = PluckSynth::default()
-            .with_amplitude(0.5)
-            .with_damping(0.3)
-            .with_brightness(0.8)
-            .with_noise_blend(0.2);
+    fn test_pluck_config_struct() {
+        let config = PluckSynth {
+            amplitude: 0.5,
+            damping: 0.3,
+            brightness: 0.8,
+            noise_blend: 0.2,
+        };
 
         assert_eq!(config.amplitude, 0.5);
         assert_eq!(config.damping, 0.3);

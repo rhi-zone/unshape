@@ -38,12 +38,6 @@ impl PatchParameter {
         }
     }
 
-    /// Sets the unit suffix.
-    pub fn with_unit(mut self, unit: &str) -> Self {
-        self.unit = unit.to_string();
-        self
-    }
-
     /// Returns the current value with modulation applied.
     pub fn modulated_value(&self) -> f32 {
         let range = self.max - self.min;
@@ -72,14 +66,27 @@ impl PatchParameter {
         Self::new("volume", 0.0, 1.0, 0.8)
     }
 
+    /// Creates a parameter with a unit suffix.
+    pub fn with_unit(name: &str, min: f32, max: f32, default: f32, unit: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            min,
+            max,
+            default,
+            value: default,
+            modulation: 0.0,
+            unit: unit.to_string(),
+        }
+    }
+
     /// Common preset: frequency in Hz.
     pub fn frequency(min: f32, max: f32, default: f32) -> Self {
-        Self::new("frequency", min, max, default).with_unit("Hz")
+        Self::with_unit("frequency", min, max, default, "Hz")
     }
 
     /// Common preset: cutoff frequency.
     pub fn cutoff() -> Self {
-        Self::new("cutoff", 20.0, 20000.0, 5000.0).with_unit("Hz")
+        Self::with_unit("cutoff", 20.0, 20000.0, 5000.0, "Hz")
     }
 
     /// Common preset: resonance (0-1).
@@ -89,12 +96,12 @@ impl PatchParameter {
 
     /// Common preset: attack time.
     pub fn attack() -> Self {
-        Self::new("attack", 0.001, 5.0, 0.01).with_unit("s")
+        Self::with_unit("attack", 0.001, 5.0, 0.01, "s")
     }
 
     /// Common preset: decay time.
     pub fn decay() -> Self {
-        Self::new("decay", 0.001, 5.0, 0.1).with_unit("s")
+        Self::with_unit("decay", 0.001, 5.0, 0.1, "s")
     }
 
     /// Common preset: sustain level.
@@ -104,12 +111,12 @@ impl PatchParameter {
 
     /// Common preset: release time.
     pub fn release() -> Self {
-        Self::new("release", 0.001, 10.0, 0.3).with_unit("s")
+        Self::with_unit("release", 0.001, 10.0, 0.3, "s")
     }
 
     /// Common preset: detune in cents.
     pub fn detune() -> Self {
-        Self::new("detune", -100.0, 100.0, 0.0).with_unit("cents")
+        Self::with_unit("detune", -100.0, 100.0, 0.0, "cents")
     }
 
     /// Common preset: pan (-1 to 1).
@@ -191,26 +198,8 @@ impl SynthPatch {
         }
     }
 
-    /// Sets the category.
-    pub fn with_category(mut self, category: &str) -> Self {
-        self.category = category.to_string();
-        self
-    }
-
-    /// Sets the author.
-    pub fn with_author(mut self, author: &str) -> Self {
-        self.author = author.to_string();
-        self
-    }
-
     /// Adds a parameter.
     pub fn add_param(&mut self, param: PatchParameter) -> &mut Self {
-        self.parameters.insert(param.name.clone(), param);
-        self
-    }
-
-    /// Adds a parameter (builder pattern).
-    pub fn with_param(mut self, param: PatchParameter) -> Self {
         self.parameters.insert(param.name.clone(), param);
         self
     }
@@ -251,12 +240,6 @@ impl SynthPatch {
         self
     }
 
-    /// Adds a modulation routing (builder pattern).
-    pub fn with_mod(mut self, routing: ModRouting) -> Self {
-        self.mod_routings.push(routing);
-        self
-    }
-
     /// Applies modulation from a source.
     pub fn apply_modulation(&mut self, source: ModSource, value: f32) {
         for routing in &self.mod_routings {
@@ -282,113 +265,121 @@ impl SynthPatch {
         }
     }
 
-    /// Adds a tag.
-    pub fn with_tag(mut self, tag: &str) -> Self {
-        self.tags.push(tag.to_string());
-        self
-    }
-
     /// Creates a basic subtractive synth patch template.
     pub fn subtractive_template() -> Self {
-        Self::new("Init Subtractive")
-            .with_category("template")
-            .with_param(PatchParameter::volume())
-            .with_param(PatchParameter::frequency(20.0, 20000.0, 440.0))
-            .with_param(PatchParameter::new("waveform", 0.0, 3.0, 0.0))
-            .with_param(PatchParameter::cutoff())
-            .with_param(PatchParameter::resonance())
-            .with_param(PatchParameter::attack())
-            .with_param(PatchParameter::decay())
-            .with_param(PatchParameter::sustain())
-            .with_param(PatchParameter::release())
-            .with_param(PatchParameter::new("filter_env", 0.0, 1.0, 0.5))
-            .with_param(PatchParameter::new("lfo_rate", 0.1, 20.0, 5.0).with_unit("Hz"))
-            .with_param(PatchParameter::new("lfo_depth", 0.0, 1.0, 0.0))
+        let mut patch = Self::new("Init Subtractive");
+        patch.category = "template".to_string();
+        patch.add_param(PatchParameter::volume());
+        patch.add_param(PatchParameter::frequency(20.0, 20000.0, 440.0));
+        patch.add_param(PatchParameter::new("waveform", 0.0, 3.0, 0.0));
+        patch.add_param(PatchParameter::cutoff());
+        patch.add_param(PatchParameter::resonance());
+        patch.add_param(PatchParameter::attack());
+        patch.add_param(PatchParameter::decay());
+        patch.add_param(PatchParameter::sustain());
+        patch.add_param(PatchParameter::release());
+        patch.add_param(PatchParameter::new("filter_env", 0.0, 1.0, 0.5));
+        patch.add_param(PatchParameter::with_unit("lfo_rate", 0.1, 20.0, 5.0, "Hz"));
+        patch.add_param(PatchParameter::new("lfo_depth", 0.0, 1.0, 0.0));
+        patch
     }
 
     /// Creates a basic FM synth patch template.
     pub fn fm_template() -> Self {
-        Self::new("Init FM")
-            .with_category("template")
-            .with_param(PatchParameter::volume())
-            .with_param(PatchParameter::frequency(20.0, 8000.0, 440.0))
-            .with_param(PatchParameter::new("mod_ratio", 0.5, 16.0, 2.0))
-            .with_param(PatchParameter::new("mod_index", 0.0, 20.0, 5.0))
-            .with_param(PatchParameter::attack())
-            .with_param(PatchParameter::decay())
-            .with_param(PatchParameter::sustain())
-            .with_param(PatchParameter::release())
-            .with_param(PatchParameter::new("mod_attack", 0.001, 5.0, 0.001).with_unit("s"))
-            .with_param(PatchParameter::new("mod_decay", 0.001, 5.0, 1.0).with_unit("s"))
+        let mut patch = Self::new("Init FM");
+        patch.category = "template".to_string();
+        patch.add_param(PatchParameter::volume());
+        patch.add_param(PatchParameter::frequency(20.0, 8000.0, 440.0));
+        patch.add_param(PatchParameter::new("mod_ratio", 0.5, 16.0, 2.0));
+        patch.add_param(PatchParameter::new("mod_index", 0.0, 20.0, 5.0));
+        patch.add_param(PatchParameter::attack());
+        patch.add_param(PatchParameter::decay());
+        patch.add_param(PatchParameter::sustain());
+        patch.add_param(PatchParameter::release());
+        patch.add_param(PatchParameter::with_unit(
+            "mod_attack",
+            0.001,
+            5.0,
+            0.001,
+            "s",
+        ));
+        patch.add_param(PatchParameter::with_unit("mod_decay", 0.001, 5.0, 1.0, "s"));
+        patch
     }
 
     /// Preset: warm pad.
     pub fn warm_pad() -> Self {
-        Self::new("Warm Pad")
-            .with_category("pad")
-            .with_tag("warm")
-            .with_tag("ambient")
-            .with_param(PatchParameter::volume())
-            .with_param(PatchParameter::new("waveform", 0.0, 3.0, 1.0)) // Saw
-            .with_param(PatchParameter::new("cutoff", 20.0, 20000.0, 2000.0).with_unit("Hz"))
-            .with_param(PatchParameter::new("resonance", 0.0, 1.0, 0.2))
-            .with_param(PatchParameter::new("attack", 0.001, 5.0, 0.5).with_unit("s"))
-            .with_param(PatchParameter::new("decay", 0.001, 5.0, 0.5).with_unit("s"))
-            .with_param(PatchParameter::new("sustain", 0.0, 1.0, 0.8))
-            .with_param(PatchParameter::new("release", 0.001, 10.0, 1.0).with_unit("s"))
-            .with_param(PatchParameter::detune())
-            .with_mod(ModRouting::new(ModSource::Lfo1, "cutoff", 0.1))
+        let mut patch = Self::new("Warm Pad");
+        patch.category = "pad".to_string();
+        patch.tags = vec!["warm".to_string(), "ambient".to_string()];
+        patch.add_param(PatchParameter::volume());
+        patch.add_param(PatchParameter::new("waveform", 0.0, 3.0, 1.0)); // Saw
+        patch.add_param(PatchParameter::with_unit(
+            "cutoff", 20.0, 20000.0, 2000.0, "Hz",
+        ));
+        patch.add_param(PatchParameter::new("resonance", 0.0, 1.0, 0.2));
+        patch.add_param(PatchParameter::with_unit("attack", 0.001, 5.0, 0.5, "s"));
+        patch.add_param(PatchParameter::with_unit("decay", 0.001, 5.0, 0.5, "s"));
+        patch.add_param(PatchParameter::new("sustain", 0.0, 1.0, 0.8));
+        patch.add_param(PatchParameter::with_unit("release", 0.001, 10.0, 1.0, "s"));
+        patch.add_param(PatchParameter::detune());
+        patch.add_mod(ModRouting::new(ModSource::Lfo1, "cutoff", 0.1));
+        patch
     }
 
     /// Preset: acid bass.
     pub fn acid_bass() -> Self {
-        Self::new("Acid Bass")
-            .with_category("bass")
-            .with_tag("acid")
-            .with_tag("resonant")
-            .with_param(PatchParameter::volume())
-            .with_param(PatchParameter::new("waveform", 0.0, 3.0, 1.0)) // Saw
-            .with_param(PatchParameter::new("cutoff", 20.0, 20000.0, 800.0).with_unit("Hz"))
-            .with_param(PatchParameter::new("resonance", 0.0, 1.0, 0.8))
-            .with_param(PatchParameter::new("attack", 0.001, 5.0, 0.001).with_unit("s"))
-            .with_param(PatchParameter::new("decay", 0.001, 5.0, 0.2).with_unit("s"))
-            .with_param(PatchParameter::new("sustain", 0.0, 1.0, 0.0))
-            .with_param(PatchParameter::new("release", 0.001, 10.0, 0.1).with_unit("s"))
-            .with_param(PatchParameter::new("filter_env", 0.0, 1.0, 0.9))
-            .with_mod(ModRouting::new(ModSource::Envelope1, "cutoff", 0.8))
+        let mut patch = Self::new("Acid Bass");
+        patch.category = "bass".to_string();
+        patch.tags = vec!["acid".to_string(), "resonant".to_string()];
+        patch.add_param(PatchParameter::volume());
+        patch.add_param(PatchParameter::new("waveform", 0.0, 3.0, 1.0)); // Saw
+        patch.add_param(PatchParameter::with_unit(
+            "cutoff", 20.0, 20000.0, 800.0, "Hz",
+        ));
+        patch.add_param(PatchParameter::new("resonance", 0.0, 1.0, 0.8));
+        patch.add_param(PatchParameter::with_unit("attack", 0.001, 5.0, 0.001, "s"));
+        patch.add_param(PatchParameter::with_unit("decay", 0.001, 5.0, 0.2, "s"));
+        patch.add_param(PatchParameter::new("sustain", 0.0, 1.0, 0.0));
+        patch.add_param(PatchParameter::with_unit("release", 0.001, 10.0, 0.1, "s"));
+        patch.add_param(PatchParameter::new("filter_env", 0.0, 1.0, 0.9));
+        patch.add_mod(ModRouting::new(ModSource::Envelope1, "cutoff", 0.8));
+        patch
     }
 
     /// Preset: electric piano.
     pub fn electric_piano() -> Self {
-        Self::new("Electric Piano")
-            .with_category("keys")
-            .with_tag("fm")
-            .with_tag("electric")
-            .with_param(PatchParameter::volume())
-            .with_param(PatchParameter::new("mod_ratio", 0.5, 16.0, 14.0))
-            .with_param(PatchParameter::new("mod_index", 0.0, 20.0, 4.0))
-            .with_param(PatchParameter::new("attack", 0.001, 5.0, 0.001).with_unit("s"))
-            .with_param(PatchParameter::new("decay", 0.001, 5.0, 1.5).with_unit("s"))
-            .with_param(PatchParameter::new("sustain", 0.0, 1.0, 0.3))
-            .with_param(PatchParameter::new("release", 0.001, 10.0, 0.5).with_unit("s"))
-            .with_mod(ModRouting::new(ModSource::Velocity, "mod_index", 0.5))
+        let mut patch = Self::new("Electric Piano");
+        patch.category = "keys".to_string();
+        patch.tags = vec!["fm".to_string(), "electric".to_string()];
+        patch.add_param(PatchParameter::volume());
+        patch.add_param(PatchParameter::new("mod_ratio", 0.5, 16.0, 14.0));
+        patch.add_param(PatchParameter::new("mod_index", 0.0, 20.0, 4.0));
+        patch.add_param(PatchParameter::with_unit("attack", 0.001, 5.0, 0.001, "s"));
+        patch.add_param(PatchParameter::with_unit("decay", 0.001, 5.0, 1.5, "s"));
+        patch.add_param(PatchParameter::new("sustain", 0.0, 1.0, 0.3));
+        patch.add_param(PatchParameter::with_unit("release", 0.001, 10.0, 0.5, "s"));
+        patch.add_mod(ModRouting::new(ModSource::Velocity, "mod_index", 0.5));
+        patch
     }
 
     /// Preset: pluck lead.
     pub fn pluck_lead() -> Self {
-        Self::new("Pluck Lead")
-            .with_category("lead")
-            .with_tag("pluck")
-            .with_tag("bright")
-            .with_param(PatchParameter::volume())
-            .with_param(PatchParameter::new("waveform", 0.0, 3.0, 2.0)) // Square
-            .with_param(PatchParameter::new("cutoff", 20.0, 20000.0, 8000.0).with_unit("Hz"))
-            .with_param(PatchParameter::new("resonance", 0.0, 1.0, 0.3))
-            .with_param(PatchParameter::new("attack", 0.001, 5.0, 0.001).with_unit("s"))
-            .with_param(PatchParameter::new("decay", 0.001, 5.0, 0.3).with_unit("s"))
-            .with_param(PatchParameter::new("sustain", 0.0, 1.0, 0.5))
-            .with_param(PatchParameter::new("release", 0.001, 10.0, 0.2).with_unit("s"))
-            .with_mod(ModRouting::new(ModSource::Envelope1, "cutoff", 0.6))
+        let mut patch = Self::new("Pluck Lead");
+        patch.category = "lead".to_string();
+        patch.tags = vec!["pluck".to_string(), "bright".to_string()];
+        patch.add_param(PatchParameter::volume());
+        patch.add_param(PatchParameter::new("waveform", 0.0, 3.0, 2.0)); // Square
+        patch.add_param(PatchParameter::with_unit(
+            "cutoff", 20.0, 20000.0, 8000.0, "Hz",
+        ));
+        patch.add_param(PatchParameter::new("resonance", 0.0, 1.0, 0.3));
+        patch.add_param(PatchParameter::with_unit("attack", 0.001, 5.0, 0.001, "s"));
+        patch.add_param(PatchParameter::with_unit("decay", 0.001, 5.0, 0.3, "s"));
+        patch.add_param(PatchParameter::new("sustain", 0.0, 1.0, 0.5));
+        patch.add_param(PatchParameter::with_unit("release", 0.001, 10.0, 0.2, "s"));
+        patch.add_mod(ModRouting::new(ModSource::Envelope1, "cutoff", 0.6));
+        patch
     }
 }
 
@@ -548,9 +539,9 @@ mod tests {
 
     #[test]
     fn test_synth_patch() {
-        let mut patch = SynthPatch::new("Test")
-            .with_param(PatchParameter::volume())
-            .with_param(PatchParameter::cutoff());
+        let mut patch = SynthPatch::new("Test");
+        patch.add_param(PatchParameter::volume());
+        patch.add_param(PatchParameter::cutoff());
 
         assert!(patch.get("volume").is_some());
         assert!(patch.set("volume", 0.5));
@@ -559,9 +550,9 @@ mod tests {
 
     #[test]
     fn test_patch_modulation() {
-        let mut patch = SynthPatch::new("Test")
-            .with_param(PatchParameter::cutoff())
-            .with_mod(ModRouting::new(ModSource::Lfo1, "cutoff", 0.5));
+        let mut patch = SynthPatch::new("Test");
+        patch.add_param(PatchParameter::cutoff());
+        patch.add_mod(ModRouting::new(ModSource::Lfo1, "cutoff", 0.5));
 
         patch.apply_modulation(ModSource::Lfo1, 1.0);
 
@@ -612,8 +603,10 @@ mod tests {
 
     #[test]
     fn test_interpolate_patches() {
-        let a = SynthPatch::new("A").with_param(PatchParameter::new("test", 0.0, 100.0, 0.0));
-        let mut b = SynthPatch::new("B").with_param(PatchParameter::new("test", 0.0, 100.0, 100.0));
+        let mut a = SynthPatch::new("A");
+        a.add_param(PatchParameter::new("test", 0.0, 100.0, 0.0));
+        let mut b = SynthPatch::new("B");
+        b.add_param(PatchParameter::new("test", 0.0, 100.0, 100.0));
         b.set("test", 100.0);
 
         let mid = interpolate_patches(&a, &b, 0.5);

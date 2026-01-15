@@ -12,7 +12,7 @@ This document tracks inconsistencies across the resin codebase and plans for nor
 
 ## High Priority
 
-### 1. Transform Representations 🔴
+### 1. Transform Representations 🟢
 
 **Problem:** Three incompatible transform representations across crates.
 
@@ -22,17 +22,12 @@ This document tracks inconsistencies across the resin codebase and plans for nor
 | resin-motion | `Transform2D` | Struct with position, rotation, scale, anchor |
 | resin-rig | `Transform` | Struct with translation: Vec3, rotation: Quat, scale: Vec3 |
 
-**Files:**
-- `crates/resin-mesh/src/mesh.rs:116` - `transform(&mut self, matrix: Mat4)`
-- `crates/resin-motion/src/lib.rs` - `Transform2D` struct
-- `crates/resin-rig/src/transform.rs:7-14` - `Transform` struct
-
-**Issue:** No unified conversion path. Converting between representations requires manual matrix decomposition/composition.
-
-**Proposal:**
-- Keep domain-specific types (Transform2D for motion graphics, Transform for skeletal)
-- Add `impl From<Transform> for Mat4` and similar conversions
-- Consider a `TransformLike` trait with `to_mat4()` method
+**Solution:**
+- Keep domain-specific types (they serve different purposes)
+- Added `From` impls for matrix conversions:
+  - `impl From<Transform> for Mat4` and `impl From<Mat4> for Transform`
+  - `impl From<Transform2D> for Mat3`
+  - `impl From<LinearTransform2D> for Mat2` and `impl From<Mat2> for LinearTransform2D`
 
 ---
 
@@ -114,29 +109,29 @@ Crates with `Lerp` implementations:
 
 ---
 
-### 6. Config Struct Builder Patterns 🔴
+### 6. Config Struct Builder Patterns - SKIPPED
 
-**Problem:** Config structs have inconsistent construction patterns.
+**Original Problem:** Config structs have inconsistent construction patterns.
 
-**With builders (good):**
-- `Transform2D` - has `with_position()`, `with_rotation()`, etc.
+**Decision: Skip this normalization.**
 
-**Without builders (inconsistent):**
-- `BakeConfig`, `SpringConfig`, `WallConfig`, `SoftBodyConfig`, etc.
-- These only have `Default` impl, require field mutation
-
-**Proposal:**
-- Add `with_*` builder methods to all Config structs
-- Consider a derive macro: `#[derive(ConfigBuilder)]`
-- Pattern: all builders return `Self` for chaining
-
+For structs with public fields, Rust's struct literal syntax is cleaner:
 ```rust
-// Desired pattern for all configs
-let config = BakeConfig::default()
-    .with_width(512)
-    .with_height(512)
-    .with_samples(4);
+let config = ClothConfig {
+    damping: 0.5,
+    iterations: 8,
+    ..Default::default()
+};
 ```
+
+Builders (`with_*` methods) are only justified when they:
+- Validate input (`.clamp()`, `.max(1)`)
+- Compute derived values (`with_fps` → `frame_duration = 1.0 / fps`)
+- Hide private fields
+
+Most existing builders in the codebase are just `self.x = x; self` - pure boilerplate.
+
+**Action:** Don't add new builders for simple configs. Existing ones can stay (removing would be churn).
 
 ---
 
@@ -181,8 +176,8 @@ let config = BakeConfig::default()
 1. ~~**Cubic bezier dedup**~~ ✅ - Done: `resin-vector/src/bezier.rs`
 2. ~~**Interpolate trait**~~ ✅ - Done: `resin-easing::Lerp`, impls in rig and color
 3. ~~**Color conversions**~~ ✅ - Done: `From` impls for arrays
-4. **Transform conversions** - Add `From` impls between transform types
-5. **Config builders** - Add `with_*` builder methods
+4. ~~**Transform conversions**~~ ✅ - Done: `From` impls for matrix types
+5. ~~**Config builders**~~ ⏭️ - Skipped: struct literals with `..Default::default()` are cleaner
 6. **Error standardization** - Low priority, cosmetic
 7. **Coordinate docs** - Documentation only
 

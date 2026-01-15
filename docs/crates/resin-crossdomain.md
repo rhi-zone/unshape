@@ -24,18 +24,28 @@ This crate provides utilities for:
 ### Image to Audio (MetaSynth-style)
 Convert images to audio using additive synthesis, where each row represents a frequency band:
 ```rust
-let config = ImageToAudioConfig::new(44100, 10.0)
-    .with_frequency_range(80.0, 8000.0)
-    .with_log_frequency(true);
+let config = ImageToAudioConfig {
+    sample_rate: 44100,
+    duration: 10.0,
+    min_freq: 80.0,
+    max_freq: 8000.0,
+    log_frequency: true,
+};
 let audio = image_to_audio(&image, &config);
 ```
 
 ### Audio to Image (Spectrogram)
 Convert audio to a spectrogram image:
 ```rust
-let config = AudioToImageConfig::new(512, 256)
-    .with_fft(2048, 512)
-    .with_gain(1.5);
+let config = AudioToImageConfig {
+    sample_rate: 44100,
+    width: 512,
+    height: 256,
+    window_size: 2048,
+    hop_size: 512,
+    log_magnitude: true,
+    gain: 1.5,
+};
 let spectrogram = audio_to_image(&audio, 44100, &config);
 
 // Or with phase-based coloring

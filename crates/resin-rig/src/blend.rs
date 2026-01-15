@@ -188,24 +188,6 @@ impl AnimationLayer {
         }
     }
 
-    /// Sets the weight.
-    pub fn with_weight(mut self, weight: f32) -> Self {
-        self.weight = weight;
-        self
-    }
-
-    /// Sets the blend mode.
-    pub fn with_blend_mode(mut self, mode: BlendMode) -> Self {
-        self.blend_mode = mode;
-        self
-    }
-
-    /// Sets a mask of targets this layer affects.
-    pub fn with_mask(mut self, targets: Vec<AnimationTarget>) -> Self {
-        self.mask = Some(targets);
-        self
-    }
-
     /// Updates the layer's playback time.
     pub fn update(&mut self, dt: f32) {
         if !self.active {
@@ -274,8 +256,9 @@ impl AnimationStack {
 
     /// Adds an additive layer on top.
     pub fn with_additive(mut self, clip: AnimationClip, weight: f32) -> Self {
-        self.layers
-            .push(AnimationLayer::additive(clip).with_weight(weight));
+        let mut layer = AnimationLayer::additive(clip);
+        layer.weight = weight;
+        self.layers.push(layer);
         self
     }
 
@@ -785,7 +768,8 @@ mod tests {
         track1.add(0.0, Transform::from_translation(Vec3::new(2.0, 0.0, 0.0)));
         clip.add_transform_track(AnimationTarget::BoneTransform(1), track1);
 
-        let layer = AnimationLayer::new(clip).with_mask(vec![AnimationTarget::BoneTransform(0)]);
+        let mut layer = AnimationLayer::new(clip);
+        layer.mask = Some(vec![AnimationTarget::BoneTransform(0)]);
 
         let pose = layer.sample();
 

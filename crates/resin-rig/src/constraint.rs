@@ -45,18 +45,6 @@ impl PathConstraint {
         }
     }
 
-    /// Sets the position along the path.
-    pub fn with_offset(mut self, offset: f32) -> Self {
-        self.offset = offset;
-        self
-    }
-
-    /// Sets whether to orient to tangent.
-    pub fn with_follow_tangent(mut self, follow: bool) -> Self {
-        self.follow_tangent = follow;
-        self
-    }
-
     /// Sets the forward axis.
     pub fn with_forward_axis(mut self, axis: Vec3) -> Self {
         self.forward_axis = axis.normalize_or_zero();
@@ -192,9 +180,9 @@ mod tests {
         let mut pose = skel.rest_pose();
 
         let path = line3d(Vec3::ZERO, Vec3::new(10.0, 0.0, 0.0));
-        let constraint = PathConstraint::new(bone, path)
-            .with_offset(0.5)
-            .with_follow_tangent(false);
+        let mut constraint = PathConstraint::new(bone, path);
+        constraint.offset = 0.5;
+        constraint.follow_tangent = false;
 
         constraint.apply(&skel, &mut pose);
 
@@ -209,10 +197,9 @@ mod tests {
 
         // Path going in +X direction
         let path = line3d(Vec3::ZERO, Vec3::new(10.0, 0.0, 0.0));
-        let constraint = PathConstraint::new(bone, path)
-            .with_offset(0.5)
-            .with_follow_tangent(true)
-            .with_forward_axis(Vec3::Y);
+        let mut constraint = PathConstraint::new(bone, path).with_forward_axis(Vec3::Y);
+        constraint.offset = 0.5;
+        constraint.follow_tangent = true;
 
         constraint.apply(&skel, &mut pose);
 
@@ -228,7 +215,8 @@ mod tests {
         let mut pose = skel.rest_pose();
 
         let path = line3d(Vec3::ZERO, Vec3::new(10.0, 0.0, 0.0));
-        let constraint = PathConstraint::new(bone, path).with_offset(1.0);
+        let mut constraint = PathConstraint::new(bone, path);
+        constraint.offset = 1.0;
 
         let mut stack = ConstraintStack::new();
         stack.push(constraint);

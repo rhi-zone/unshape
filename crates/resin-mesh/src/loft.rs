@@ -67,18 +67,6 @@ impl Loft {
         }
     }
 
-    /// Sets interpolation steps for smoother surfaces.
-    pub fn with_interpolation(mut self, steps: usize) -> Self {
-        self.interpolation_steps = steps;
-        self
-    }
-
-    /// Sets whether profiles are closed loops.
-    pub fn with_closed_profiles(mut self, closed: bool) -> Self {
-        self.closed_profiles = closed;
-        self
-    }
-
     /// Applies this loft operation to the given profiles.
     pub fn apply(&self, profiles: &[Vec<Vec3>]) -> Mesh {
         loft(profiles, self.clone())
@@ -365,7 +353,8 @@ mod tests {
     fn test_loft_with_interpolation() {
         let profiles = vec![circle_profile(1.0, 0.0, 8), circle_profile(0.5, 1.0, 8)];
 
-        let config = LoftConfig::default().with_interpolation(2);
+        let mut config = LoftConfig::default();
+        config.interpolation_steps = 2;
         let mesh = loft(&profiles, config);
 
         // Should have 4 profiles (original 2 + 2 interpolated)

@@ -363,20 +363,21 @@ mod tests {
         let mut skel = Skeleton::new();
 
         let root = skel
-            .add_bone(
-                Bone::new("root")
-                    .with_transform(Transform::IDENTITY)
-                    .with_length(1.0),
-            )
+            .add_bone(Bone {
+                name: "root".into(),
+                parent: None,
+                local_transform: Transform::IDENTITY,
+                length: 1.0,
+            })
             .id;
 
         let end = skel
-            .add_bone(
-                Bone::new("end")
-                    .with_parent(root)
-                    .with_transform(Transform::from_translation(Vec3::new(0.0, 1.0, 0.0)))
-                    .with_length(1.0),
-            )
+            .add_bone(Bone {
+                name: "end".into(),
+                parent: Some(root),
+                local_transform: Transform::from_translation(Vec3::new(0.0, 1.0, 0.0)),
+                length: 1.0,
+            })
             .id;
 
         let chain = IkChain::new(vec![root, end]);

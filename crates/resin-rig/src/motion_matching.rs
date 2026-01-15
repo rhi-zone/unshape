@@ -127,18 +127,6 @@ impl MotionClip {
         }
     }
 
-    /// Sets whether the clip loops.
-    pub fn with_looping(mut self, looping: bool) -> Self {
-        self.looping = looping;
-        self
-    }
-
-    /// Adds a tag.
-    pub fn with_tag(mut self, tag: impl Into<String>) -> Self {
-        self.tags.push(tag.into());
-        self
-    }
-
     /// Duration of the clip.
     pub fn duration(&self) -> f32 {
         if self.frames.is_empty() {
@@ -684,9 +672,9 @@ mod tests {
 
     #[test]
     fn test_motion_clip_creation() {
-        let clip = MotionClip::new("walk", 30.0)
-            .with_looping(true)
-            .with_tag("locomotion");
+        let mut clip = MotionClip::new("walk", 30.0);
+        clip.looping = true;
+        clip.tags.push("locomotion".to_string());
 
         assert_eq!(clip.name, "walk");
         assert!(clip.looping);
@@ -724,7 +712,8 @@ mod tests {
     fn test_motion_database() {
         let mut db = MotionDatabase::new();
 
-        let clip = MotionClip::new("walk", 30.0).with_tag("locomotion");
+        let mut clip = MotionClip::new("walk", 30.0);
+        clip.tags.push("locomotion".to_string());
         let idx = db.add_clip(clip);
 
         assert_eq!(idx, 0);

@@ -71,18 +71,6 @@ impl Decimate {
         }
     }
 
-    /// Sets the maximum error threshold.
-    pub fn with_max_error(mut self, max_error: f32) -> Self {
-        self.max_error = max_error;
-        self
-    }
-
-    /// Sets whether to preserve boundary edges.
-    pub fn with_preserve_boundary(mut self, preserve: bool) -> Self {
-        self.preserve_boundary = preserve;
-        self
-    }
-
     /// Applies this decimation operation to a mesh.
     pub fn apply(&self, mesh: &Mesh) -> Mesh {
         decimate(mesh, self.clone())
@@ -531,7 +519,8 @@ mod tests {
         let mesh = uv_sphere(16, 8);
 
         // Very small max_error should prevent most collapses
-        let config = DecimateConfig::target_ratio(0.1).with_max_error(0.001);
+        let mut config = DecimateConfig::target_ratio(0.1);
+        config.max_error = 0.001;
         let decimated = decimate(&mesh, config);
 
         // Should have more triangles than with default max_error

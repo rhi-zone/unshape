@@ -606,24 +606,6 @@ impl GenerateMaze {
         }
     }
 
-    /// Sets the algorithm.
-    pub fn with_algorithm(mut self, algorithm: MazeAlgorithm) -> Self {
-        self.algorithm = algorithm;
-        self
-    }
-
-    /// Sets whether to add entrance.
-    pub fn with_entrance(mut self, add: bool) -> Self {
-        self.add_entrance = add;
-        self
-    }
-
-    /// Sets whether to add exit.
-    pub fn with_exit(mut self, add: bool) -> Self {
-        self.add_exit = add;
-        self
-    }
-
     /// Applies this operation to generate a maze.
     pub fn apply(&self, seed: &u64) -> Maze {
         let mut maze = generate_maze(self.width, self.height, self.algorithm, *seed);
@@ -797,10 +779,13 @@ mod tests {
 
     #[test]
     fn test_maze_config() {
-        let config = MazeConfig::new(10, 10)
-            .with_algorithm(MazeAlgorithm::Prim)
-            .with_entrance(true)
-            .with_exit(true);
+        let config = MazeConfig {
+            width: 10,
+            height: 10,
+            algorithm: MazeAlgorithm::Prim,
+            add_entrance: true,
+            add_exit: true,
+        };
 
         let maze = generate_maze_with_config(&config, 12345);
         assert_eq!(maze.width(), 10);

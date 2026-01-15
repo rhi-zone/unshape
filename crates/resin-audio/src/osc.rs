@@ -457,18 +457,6 @@ impl FmOperator {
         }
     }
 
-    /// Sets the output level.
-    pub fn with_level(mut self, level: f32) -> Self {
-        self.level = level;
-        self
-    }
-
-    /// Sets the feedback amount.
-    pub fn with_feedback(mut self, feedback: f32) -> Self {
-        self.feedback = feedback;
-        self
-    }
-
     /// Generates a sample with phase modulation input.
     ///
     /// # Arguments
@@ -545,18 +533,6 @@ impl FmSynth {
     /// Creates a new FM synth with default settings.
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Creates an FM synth with the given algorithm.
-    pub fn with_algorithm(mut self, algorithm: FmAlgorithm) -> Self {
-        self.algorithm = algorithm;
-        self
-    }
-
-    /// Sets the modulation index.
-    pub fn with_mod_index(mut self, index: f32) -> Self {
-        self.mod_index = index;
-        self
     }
 
     /// Sets operator ratios.
@@ -704,47 +680,57 @@ pub mod fm_presets {
 
     /// Electric piano-like timbre.
     pub fn electric_piano() -> FmSynth {
-        FmSynth::new()
-            .with_algorithm(FmAlgorithm::Serial)
-            .with_ratios([1.0, 1.0, 3.0, 1.0])
-            .with_levels([1.0, 0.7, 0.3, 0.0])
-            .with_mod_index(1.5)
+        let mut synth = FmSynth {
+            algorithm: FmAlgorithm::Serial,
+            mod_index: 1.5,
+            ..Default::default()
+        };
+        synth = synth.with_ratios([1.0, 1.0, 3.0, 1.0]);
+        synth.with_levels([1.0, 0.7, 0.3, 0.0])
     }
 
     /// Bell-like timbre.
     pub fn bell() -> FmSynth {
-        FmSynth::new()
-            .with_algorithm(FmAlgorithm::Serial)
-            .with_ratios([1.0, 3.5, 1.0, 7.0])
-            .with_levels([1.0, 0.8, 0.0, 0.5])
-            .with_mod_index(3.0)
+        let mut synth = FmSynth {
+            algorithm: FmAlgorithm::Serial,
+            mod_index: 3.0,
+            ..Default::default()
+        };
+        synth = synth.with_ratios([1.0, 3.5, 1.0, 7.0]);
+        synth.with_levels([1.0, 0.8, 0.0, 0.5])
     }
 
     /// Brass-like timbre.
     pub fn brass() -> FmSynth {
-        FmSynth::new()
-            .with_algorithm(FmAlgorithm::Serial)
-            .with_ratios([1.0, 1.0, 1.0, 1.0])
-            .with_levels([1.0, 0.9, 0.7, 0.0])
-            .with_mod_index(2.0)
+        let mut synth = FmSynth {
+            algorithm: FmAlgorithm::Serial,
+            mod_index: 2.0,
+            ..Default::default()
+        };
+        synth = synth.with_ratios([1.0, 1.0, 1.0, 1.0]);
+        synth.with_levels([1.0, 0.9, 0.7, 0.0])
     }
 
     /// Bass-like timbre.
     pub fn bass() -> FmSynth {
-        FmSynth::new()
-            .with_algorithm(FmAlgorithm::Serial)
-            .with_ratios([1.0, 2.0, 1.0, 1.0])
-            .with_levels([1.0, 0.5, 0.0, 0.0])
-            .with_mod_index(1.0)
+        let mut synth = FmSynth {
+            algorithm: FmAlgorithm::Serial,
+            mod_index: 1.0,
+            ..Default::default()
+        };
+        synth = synth.with_ratios([1.0, 2.0, 1.0, 1.0]);
+        synth.with_levels([1.0, 0.5, 0.0, 0.0])
     }
 
     /// Organ-like timbre.
     pub fn organ() -> FmSynth {
-        FmSynth::new()
-            .with_algorithm(FmAlgorithm::Parallel)
-            .with_ratios([1.0, 2.0, 3.0, 4.0])
-            .with_levels([1.0, 0.5, 0.3, 0.2])
-            .with_mod_index(0.5)
+        let mut synth = FmSynth {
+            algorithm: FmAlgorithm::Parallel,
+            mod_index: 0.5,
+            ..Default::default()
+        };
+        synth = synth.with_ratios([1.0, 2.0, 3.0, 4.0]);
+        synth.with_levels([1.0, 0.5, 0.3, 0.2])
     }
 }
 
@@ -1009,9 +995,11 @@ mod tests {
 
     #[test]
     fn test_fm_synth_serial() {
-        let mut synth = FmSynth::new()
-            .with_algorithm(FmAlgorithm::Serial)
-            .with_mod_index(1.0);
+        let mut synth = FmSynth {
+            algorithm: FmAlgorithm::Serial,
+            mod_index: 1.0,
+            ..Default::default()
+        };
 
         let mut buffer = vec![0.0; 100];
         synth.generate(440.0, 44100.0, &mut buffer);
@@ -1023,9 +1011,11 @@ mod tests {
 
     #[test]
     fn test_fm_synth_parallel() {
-        let mut synth = FmSynth::new()
-            .with_algorithm(FmAlgorithm::Parallel)
-            .with_mod_index(0.5);
+        let mut synth = FmSynth {
+            algorithm: FmAlgorithm::Parallel,
+            mod_index: 0.5,
+            ..Default::default()
+        };
 
         let mut buffer = vec![0.0; 100];
         synth.generate(440.0, 44100.0, &mut buffer);

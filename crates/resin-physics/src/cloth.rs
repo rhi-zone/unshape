@@ -381,12 +381,6 @@ impl Cloth {
         }
     }
 
-    /// Sets the simulation configuration.
-    pub fn with_config(mut self, config: ClothConfig) -> Self {
-        self.config = config;
-        self
-    }
-
     /// Adds a collider.
     pub fn add_collider(&mut self, collider: ClothCollider) {
         self.colliders.push(collider);
@@ -1065,10 +1059,8 @@ mod tests {
 
     #[test]
     fn test_cloth_wind() {
-        let mut cloth = Cloth::grid(Vec3::ZERO, 1.0, 1.0, 3, 3, 1.0).with_config(ClothConfig {
-            gravity: Vec3::ZERO, // No gravity for this test
-            ..Default::default()
-        });
+        let mut cloth = Cloth::grid(Vec3::ZERO, 1.0, 1.0, 3, 3, 1.0);
+        cloth.config.gravity = Vec3::ZERO; // No gravity for this test
         cloth.pin_top_row();
 
         let initial_x = cloth.particles[6].position.x;

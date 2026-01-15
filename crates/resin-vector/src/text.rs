@@ -96,24 +96,6 @@ impl TextLayout {
     pub fn new() -> Self {
         Self::default()
     }
-
-    /// Sets the font size.
-    pub fn with_size(mut self, size: f32) -> Self {
-        self.size = size;
-        self
-    }
-
-    /// Sets the letter spacing.
-    pub fn with_letter_spacing(mut self, spacing: f32) -> Self {
-        self.letter_spacing = spacing;
-        self
-    }
-
-    /// Sets the line height multiplier.
-    pub fn with_line_height(mut self, height: f32) -> Self {
-        self.line_height = height;
-        self
-    }
 }
 
 /// Backwards-compatible type alias.
@@ -343,11 +325,12 @@ mod tests {
     }
 
     #[test]
-    fn test_text_config_builder() {
-        let config = TextConfig::default()
-            .with_size(24.0)
-            .with_letter_spacing(2.0)
-            .with_line_height(1.5);
+    fn test_text_config_struct_init() {
+        let config = TextConfig {
+            size: 24.0,
+            letter_spacing: 2.0,
+            line_height: 1.5,
+        };
 
         assert_eq!(config.size, 24.0);
         assert_eq!(config.letter_spacing, 2.0);

@@ -447,18 +447,6 @@ impl ElementaryCAConfig {
         }
     }
 
-    /// Sets whether the automaton wraps at edges.
-    pub fn with_wrap(mut self, wrap: bool) -> Self {
-        self.wrap = wrap;
-        self
-    }
-
-    /// Sets the seed for random initialization.
-    pub fn with_seed(mut self, seed: u64) -> Self {
-        self.seed = Some(seed);
-        self
-    }
-
     /// Creates the configured ElementaryCA.
     pub fn apply(&self) -> ElementaryCA {
         let mut ca = ElementaryCA::new(self.width, self.rule);
@@ -533,19 +521,6 @@ impl CellularAutomaton2DConfig {
     pub fn seeds(width: usize, height: usize) -> Self {
         let (birth, survive) = rules::SEEDS;
         Self::new(width, height, birth, survive)
-    }
-
-    /// Sets whether the automaton wraps at edges.
-    pub fn with_wrap(mut self, wrap: bool) -> Self {
-        self.wrap = wrap;
-        self
-    }
-
-    /// Sets the seed and density for random initialization.
-    pub fn with_random(mut self, seed: u64, density: f32) -> Self {
-        self.seed = Some(seed);
-        self.density = density;
-        self
     }
 
     /// Creates the configured CellularAutomaton2D.

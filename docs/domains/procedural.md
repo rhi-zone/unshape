@@ -133,11 +133,13 @@ let lsystem = LSystem::new("F")
 let result = lsystem.generate(4);  // 4 iterations
 
 // Interpret as 2D paths
-let config = TurtleConfig::default()
-    .with_angle(90.0)   // Turn angle in degrees
-    .with_length(1.0);  // Segment length
+let turtle = Turtle2D {
+    angle: 90.0,   // Turn angle in degrees
+    step: 1.0,     // Segment length
+    ..Default::default()
+};
 
-let paths = interpret_turtle_2d(&result, &config);
+let paths = turtle.apply(&result);
 ```
 
 ### Turtle Commands

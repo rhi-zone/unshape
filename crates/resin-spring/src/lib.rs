@@ -117,12 +117,6 @@ impl SpringConfig {
         }
     }
 
-    /// Sets damping.
-    pub fn with_damping(mut self, damping: f32) -> Self {
-        self.damping = damping;
-        self
-    }
-
     /// Applies this configuration, returning a copy of self.
     ///
     /// This is the identity operation for config structs - the config
@@ -460,7 +454,11 @@ pub fn create_soft_sphere(center: Vec3, radius: f32, subdivisions: usize) -> Spr
     // Use a threshold based on expected neighbor distance
     let expected_arc = 2.0 * std::f32::consts::PI * radius / segments as f32;
     let threshold = expected_arc * 2.5; // Allow connections to nearby neighbors
-    let config = SpringConfig::with_stiffness(0.5).with_damping(0.05);
+    let config = SpringConfig {
+        stiffness: 0.5,
+        damping: 0.05,
+        ..SpringConfig::default()
+    };
 
     for i in 0..points.len() {
         for j in (i + 1)..points.len() {

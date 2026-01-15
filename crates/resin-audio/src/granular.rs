@@ -89,60 +89,6 @@ impl GranularSynth {
         Self::default()
     }
 
-    /// Sets the grain size in milliseconds.
-    pub fn with_size(mut self, size_ms: f32) -> Self {
-        self.size_ms = size_ms;
-        self
-    }
-
-    /// Sets the grain size jitter.
-    pub fn with_size_jitter(mut self, jitter: f32) -> Self {
-        self.size_jitter = jitter;
-        self
-    }
-
-    /// Sets the position in the source buffer.
-    pub fn with_position(mut self, position: f32) -> Self {
-        self.position = position;
-        self
-    }
-
-    /// Sets the position jitter.
-    pub fn with_position_jitter(mut self, jitter: f32) -> Self {
-        self.position_jitter = jitter;
-        self
-    }
-
-    /// Sets the pitch multiplier.
-    pub fn with_pitch(mut self, pitch: f32) -> Self {
-        self.pitch = pitch;
-        self
-    }
-
-    /// Sets the pitch jitter.
-    pub fn with_pitch_jitter(mut self, jitter: f32) -> Self {
-        self.pitch_jitter = jitter;
-        self
-    }
-
-    /// Sets the grain density.
-    pub fn with_density(mut self, density: f32) -> Self {
-        self.density = density;
-        self
-    }
-
-    /// Sets the pan position.
-    pub fn with_pan(mut self, pan: f32) -> Self {
-        self.pan = pan;
-        self
-    }
-
-    /// Sets the pan jitter.
-    pub fn with_pan_jitter(mut self, jitter: f32) -> Self {
-        self.pan_jitter = jitter;
-        self
-    }
-
     /// Applies this granular synthesis configuration to generate samples.
     ///
     /// Takes a source buffer and sample rate, returns synthesized audio.
@@ -532,12 +478,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_grain_config_builder() {
-        let config = GranularSynth::new()
-            .with_size(100.0)
-            .with_density(20.0)
-            .with_pitch(1.5)
-            .with_position(0.5);
+    fn test_grain_config_struct() {
+        let config = GranularSynth {
+            size_ms: 100.0,
+            density: 20.0,
+            pitch: 1.5,
+            position: 0.5,
+            ..Default::default()
+        };
 
         assert_eq!(config.size_ms, 100.0);
         assert_eq!(config.density, 20.0);

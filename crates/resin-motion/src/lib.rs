@@ -110,24 +110,6 @@ impl Transform2D {
         }
     }
 
-    /// Builder: set position.
-    pub fn with_position(mut self, position: Vec2) -> Self {
-        self.position = position;
-        self
-    }
-
-    /// Builder: set anchor point.
-    pub fn with_anchor(mut self, anchor: Vec2) -> Self {
-        self.anchor = anchor;
-        self
-    }
-
-    /// Builder: set rotation (radians).
-    pub fn with_rotation(mut self, rotation: f32) -> Self {
-        self.rotation = rotation;
-        self
-    }
-
     /// Builder: set rotation (degrees).
     pub fn with_rotation_degrees(mut self, degrees: f32) -> Self {
         self.rotation = degrees.to_radians();
@@ -137,12 +119,6 @@ impl Transform2D {
     /// Builder: set uniform scale.
     pub fn with_scale(mut self, scale: f32) -> Self {
         self.scale = Vec2::splat(scale);
-        self
-    }
-
-    /// Builder: set non-uniform scale.
-    pub fn with_scale_xy(mut self, scale: Vec2) -> Self {
-        self.scale = scale;
         self
     }
 
@@ -232,6 +208,12 @@ impl Lerp for Transform2D {
     }
 }
 
+impl From<Transform2D> for Mat3 {
+    fn from(t: Transform2D) -> Self {
+        t.to_matrix()
+    }
+}
+
 // ============================================================================
 // Layer
 // ============================================================================
@@ -293,30 +275,6 @@ impl Layer {
             content_id: Some(content_id.into()),
             ..Self::new(name)
         }
-    }
-
-    /// Builder: set transform.
-    pub fn with_transform(mut self, transform: Transform2D) -> Self {
-        self.transform = transform;
-        self
-    }
-
-    /// Builder: set opacity.
-    pub fn with_opacity(mut self, opacity: f32) -> Self {
-        self.opacity = opacity;
-        self
-    }
-
-    /// Builder: set blend mode.
-    pub fn with_blend_mode(mut self, blend_mode: BlendMode) -> Self {
-        self.blend_mode = blend_mode;
-        self
-    }
-
-    /// Builder: set visibility.
-    pub fn with_visible(mut self, visible: bool) -> Self {
-        self.visible = visible;
-        self
     }
 
     /// Add a child layer.
@@ -769,6 +727,18 @@ impl LinearTransform2D {
 impl Lerp for LinearTransform2D {
     fn lerp_to(&self, other: &Self, t: f32) -> Self {
         self.lerp(other, t)
+    }
+}
+
+impl From<LinearTransform2D> for glam::Mat2 {
+    fn from(t: LinearTransform2D) -> Self {
+        t.to_matrix()
+    }
+}
+
+impl From<glam::Mat2> for LinearTransform2D {
+    fn from(m: glam::Mat2) -> Self {
+        LinearTransform2D::from_matrix(m)
     }
 }
 
@@ -1261,7 +1231,8 @@ mod tests {
 
     #[test]
     fn test_transform2d_rotation() {
-        let t = Transform2D::new().with_rotation(std::f32::consts::FRAC_PI_2); // 90 degrees
+        let mut t = Transform2D::new();
+        t.rotation = std::f32::consts::FRAC_PI_2; // 90 degrees
         let point = Vec2::new(1.0, 0.0);
         let result = t.transform_point(point);
         // (1, 0) rotated 90 degrees CCW = (0, 1)
@@ -1271,9 +1242,9 @@ mod tests {
     #[test]
     fn test_transform2d_rotation_with_anchor() {
         // Rotate around point (1, 0) instead of origin
-        let t = Transform2D::new()
-            .with_anchor(Vec2::new(1.0, 0.0))
-            .with_rotation(std::f32::consts::FRAC_PI_2);
+        let mut t = Transform2D::new();
+        t.anchor = Vec2::new(1.0, 0.0);
+        t.rotation = std::f32::consts::FRAC_PI_2;
 
         // Point at origin, anchor at (1, 0)
         // After rotation: origin moves to (1, -1) relative to anchor, then anchor restored
@@ -1287,7 +1258,8 @@ mod tests {
 
     #[test]
     fn test_transform2d_scale() {
-        let t = Transform2D::new().with_scale_xy(Vec2::new(2.0, 3.0));
+        let mut t = Transform2D::new();
+        t.scale = Vec2::new(2.0, 3.0);
         let result = t.transform_point(Vec2::new(10.0, 10.0));
         assert!((result - Vec2::new(20.0, 30.0)).length() < 0.001);
     }
@@ -1295,9 +1267,9 @@ mod tests {
     #[test]
     fn test_transform2d_scale_with_anchor() {
         // Scale 2x around point (10, 10)
-        let t = Transform2D::new()
-            .with_anchor(Vec2::new(10.0, 10.0))
-            .with_scale(2.0);
+        let mut t = Transform2D::new();
+        t.anchor = Vec2::new(10.0, 10.0);
+        t.scale = Vec2::splat(2.0);
 
         // Point at (20, 10) - 10 units right of anchor
         // After 2x scale: 20 units right of anchor = (30, 10)
@@ -1312,10 +1284,10 @@ mod tests {
     #[test]
     fn test_transform2d_combined() {
         // Position + rotation + scale
-        let t = Transform2D::new()
-            .with_position(Vec2::new(100.0, 100.0))
-            .with_scale(2.0)
-            .with_rotation(std::f32::consts::FRAC_PI_2);
+        let mut t = Transform2D::new();
+        t.position = Vec2::new(100.0, 100.0);
+        t.scale = Vec2::splat(2.0);
+        t.rotation = std::f32::consts::FRAC_PI_2;
 
         let result = t.transform_point(Vec2::new(1.0, 0.0));
         // (1, 0) * scale 2 = (2, 0)
@@ -1422,7 +1394,9 @@ mod tests {
     fn test_scene_hidden_layers() {
         let mut scene = Scene::new();
         scene.add_layer(Layer::new("visible"));
-        scene.add_layer(Layer::new("hidden").with_visible(false));
+        let mut hidden = Layer::new("hidden");
+        hidden.visible = false;
+        scene.add_layer(hidden);
 
         let resolved = scene.resolve_transforms();
         assert_eq!(resolved.len(), 1);
@@ -1455,10 +1429,10 @@ mod tests {
     #[cfg(feature = "serde")]
     #[test]
     fn test_transform2d_serde() {
-        let t = Transform2D::new()
-            .with_position(Vec2::new(100.0, 50.0))
-            .with_rotation(0.5)
-            .with_scale(2.0);
+        let mut t = Transform2D::new();
+        t.position = Vec2::new(100.0, 50.0);
+        t.rotation = 0.5;
+        t.scale = Vec2::splat(2.0);
 
         let json = serde_json::to_string(&t).unwrap();
         let parsed: Transform2D = serde_json::from_str(&json).unwrap();

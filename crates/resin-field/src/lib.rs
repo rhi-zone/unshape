@@ -641,42 +641,6 @@ impl Terrain2D {
         Self::default()
     }
 
-    /// Sets the random seed.
-    pub fn with_seed(mut self, seed: i32) -> Self {
-        self.seed = seed;
-        self
-    }
-
-    /// Sets the number of octaves.
-    pub fn with_octaves(mut self, octaves: u32) -> Self {
-        self.octaves = octaves;
-        self
-    }
-
-    /// Sets the lacunarity (frequency multiplier).
-    pub fn with_lacunarity(mut self, lacunarity: f32) -> Self {
-        self.lacunarity = lacunarity;
-        self
-    }
-
-    /// Sets the persistence (amplitude multiplier).
-    pub fn with_persistence(mut self, persistence: f32) -> Self {
-        self.persistence = persistence;
-        self
-    }
-
-    /// Sets the overall scale.
-    pub fn with_scale(mut self, scale: f32) -> Self {
-        self.scale = scale;
-        self
-    }
-
-    /// Sets the height exponent.
-    pub fn with_exponent(mut self, exponent: f32) -> Self {
-        self.exponent = exponent;
-        self
-    }
-
     /// Creates a preset for gentle rolling hills.
     pub fn rolling_hills() -> Self {
         Self {
@@ -782,30 +746,6 @@ impl RidgedTerrain2D {
     pub fn new() -> Self {
         Self::default()
     }
-
-    /// Sets the random seed.
-    pub fn with_seed(mut self, seed: i32) -> Self {
-        self.seed = seed;
-        self
-    }
-
-    /// Sets the number of octaves.
-    pub fn with_octaves(mut self, octaves: u32) -> Self {
-        self.octaves = octaves;
-        self
-    }
-
-    /// Sets the overall scale.
-    pub fn with_scale(mut self, scale: f32) -> Self {
-        self.scale = scale;
-        self
-    }
-
-    /// Sets the ridge sharpness.
-    pub fn with_sharpness(mut self, sharpness: f32) -> Self {
-        self.sharpness = sharpness;
-        self
-    }
 }
 
 impl Field<Vec2, f32> for RidgedTerrain2D {
@@ -866,24 +806,6 @@ impl BillowyTerrain2D {
     pub fn new() -> Self {
         Self::default()
     }
-
-    /// Sets the random seed.
-    pub fn with_seed(mut self, seed: i32) -> Self {
-        self.seed = seed;
-        self
-    }
-
-    /// Sets the number of octaves.
-    pub fn with_octaves(mut self, octaves: u32) -> Self {
-        self.octaves = octaves;
-        self
-    }
-
-    /// Sets the overall scale.
-    pub fn with_scale(mut self, scale: f32) -> Self {
-        self.scale = scale;
-        self
-    }
 }
 
 impl Field<Vec2, f32> for BillowyTerrain2D {
@@ -938,30 +860,6 @@ impl IslandTerrain2D {
     /// Creates a new island terrain generator.
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Sets the island radius.
-    pub fn with_radius(mut self, radius: f32) -> Self {
-        self.radius = radius;
-        self
-    }
-
-    /// Sets the island center.
-    pub fn with_center(mut self, center: Vec2) -> Self {
-        self.center = center;
-        self
-    }
-
-    /// Sets the falloff sharpness.
-    pub fn with_falloff(mut self, falloff: f32) -> Self {
-        self.falloff = falloff;
-        self
-    }
-
-    /// Sets the base terrain generator.
-    pub fn with_terrain(mut self, terrain: Terrain2D) -> Self {
-        self.terrain = terrain;
-        self
     }
 }
 
@@ -1190,13 +1088,7 @@ impl Stripes {
         }
     }
 
-    /// Set the frequency.
-    pub fn with_frequency(mut self, frequency: f32) -> Self {
-        self.frequency = frequency;
-        self
-    }
-
-    /// Set the direction.
+    /// Set the direction (will be normalized).
     pub fn with_direction(mut self, direction: Vec2) -> Self {
         self.direction = direction.normalize();
         self
@@ -1248,12 +1140,6 @@ impl SmoothStripes {
             ..Self::default()
         }
     }
-
-    /// Set the frequency.
-    pub fn with_frequency(mut self, frequency: f32) -> Self {
-        self.frequency = frequency;
-        self
-    }
 }
 
 impl Field<Vec2, f32> for SmoothStripes {
@@ -1288,18 +1174,6 @@ impl Brick {
     /// Create a new brick pattern.
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Set the brick scale.
-    pub fn with_scale(mut self, scale: Vec2) -> Self {
-        self.scale = scale;
-        self
-    }
-
-    /// Set the mortar width.
-    pub fn with_mortar(mut self, mortar: f32) -> Self {
-        self.mortar = mortar;
-        self
     }
 }
 
@@ -1344,16 +1218,6 @@ impl Dots {
     pub fn new() -> Self {
         Self::default()
     }
-
-    pub fn with_scale(mut self, scale: f32) -> Self {
-        self.scale = scale;
-        self
-    }
-
-    pub fn with_radius(mut self, radius: f32) -> Self {
-        self.radius = radius;
-        self
-    }
 }
 
 impl Field<Vec2, f32> for Dots {
@@ -1386,16 +1250,6 @@ impl SmoothDots {
     pub fn new() -> Self {
         Self::default()
     }
-
-    pub fn with_scale(mut self, scale: f32) -> Self {
-        self.scale = scale;
-        self
-    }
-
-    pub fn with_radius(mut self, radius: f32) -> Self {
-        self.radius = radius;
-        self
-    }
 }
 
 impl Field<Vec2, f32> for SmoothDots {
@@ -1427,16 +1281,6 @@ impl Default for Voronoi {
 impl Voronoi {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub fn with_scale(mut self, scale: f32) -> Self {
-        self.scale = scale;
-        self
-    }
-
-    pub fn with_seed(mut self, seed: i32) -> Self {
-        self.seed = seed;
-        self
     }
 
     /// Hash function for cell randomization.
@@ -1493,11 +1337,6 @@ impl Default for VoronoiId {
 impl VoronoiId {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub fn with_scale(mut self, scale: f32) -> Self {
-        self.scale = scale;
-        self
     }
 }
 
@@ -2373,12 +2212,6 @@ impl Metaball {
     pub fn new_2d(center: Vec2, radius: f32) -> Self {
         Self::new(center.extend(0.0), radius)
     }
-
-    /// Sets the strength of this metaball.
-    pub fn with_strength(mut self, strength: f32) -> Self {
-        self.strength = strength;
-        self
-    }
 }
 
 /// 2D metaball field - computes the sum of influences at each point.
@@ -3124,18 +2957,6 @@ impl NetworkNode {
             importance: 1.0,
         }
     }
-
-    /// Sets the height.
-    pub fn with_height(mut self, height: f32) -> Self {
-        self.height = height;
-        self
-    }
-
-    /// Sets the importance.
-    pub fn with_importance(mut self, importance: f32) -> Self {
-        self.importance = importance;
-        self
-    }
 }
 
 /// An edge connecting two nodes with a path.
@@ -3163,18 +2984,6 @@ impl NetworkEdge {
             weight: 0.0,
             edge_type: 1.0,
         }
-    }
-
-    /// Sets the path points.
-    pub fn with_path(mut self, path: Vec<Vec2>) -> Self {
-        self.path = path;
-        self
-    }
-
-    /// Sets the weight.
-    pub fn with_weight(mut self, weight: f32) -> Self {
-        self.weight = weight;
-        self
     }
 }
 
@@ -3953,8 +3762,14 @@ mod tests {
     #[test]
     fn test_terrain_deterministic() {
         let ctx = EvalContext::new();
-        let terrain1 = Terrain2D::new().with_seed(42);
-        let terrain2 = Terrain2D::new().with_seed(42);
+        let terrain1 = Terrain2D {
+            seed: 42,
+            ..Default::default()
+        };
+        let terrain2 = Terrain2D {
+            seed: 42,
+            ..Default::default()
+        };
 
         let point = Vec2::new(0.5, 0.5);
         assert_eq!(terrain1.sample(point, &ctx), terrain2.sample(point, &ctx));
@@ -3980,7 +3795,10 @@ mod tests {
 
     #[test]
     fn test_island_terrain() {
-        let terrain = IslandTerrain2D::new().with_radius(1.0);
+        let terrain = IslandTerrain2D {
+            radius: 1.0,
+            ..Default::default()
+        };
         let ctx = EvalContext::new();
 
         // Center should have terrain
@@ -4003,14 +3821,15 @@ mod tests {
     }
 
     #[test]
-    fn test_terrain_builder() {
-        let terrain = Terrain2D::new()
-            .with_seed(123)
-            .with_octaves(4)
-            .with_lacunarity(2.5)
-            .with_persistence(0.4)
-            .with_scale(2.0)
-            .with_exponent(1.5);
+    fn test_terrain_struct_literal() {
+        let terrain = Terrain2D {
+            seed: 123,
+            octaves: 4,
+            lacunarity: 2.5,
+            persistence: 0.4,
+            scale: 2.0,
+            exponent: 1.5,
+        };
 
         assert_eq!(terrain.seed, 123);
         assert_eq!(terrain.octaves, 4);
@@ -4281,7 +4100,10 @@ mod tests {
     #[test]
     fn test_combined_erosion() {
         // Create initial terrain from noise
-        let terrain = Terrain2D::new().with_seed(42);
+        let terrain = Terrain2D {
+            seed: 42,
+            ..Default::default()
+        };
         let mut hm = Heightmap::from_field(&terrain, 32, 32, 0.1);
         hm.normalize();
 
@@ -4310,9 +4132,11 @@ mod tests {
 
     #[test]
     fn test_network_node() {
-        let node = NetworkNode::new(Vec2::new(10.0, 20.0))
-            .with_height(5.0)
-            .with_importance(2.0);
+        let node = NetworkNode {
+            position: Vec2::new(10.0, 20.0),
+            height: 5.0,
+            importance: 2.0,
+        };
 
         assert_eq!(node.position, Vec2::new(10.0, 20.0));
         assert_eq!(node.height, 5.0);
@@ -4321,9 +4145,13 @@ mod tests {
 
     #[test]
     fn test_network_edge() {
-        let edge = NetworkEdge::new(0, 1)
-            .with_weight(10.0)
-            .with_path(vec![Vec2::new(5.0, 5.0)]);
+        let edge = NetworkEdge {
+            start: 0,
+            end: 1,
+            weight: 10.0,
+            path: vec![Vec2::new(5.0, 5.0)],
+            edge_type: 1.0,
+        };
 
         assert_eq!(edge.start, 0);
         assert_eq!(edge.end, 1);

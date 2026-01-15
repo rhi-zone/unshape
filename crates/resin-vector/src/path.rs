@@ -506,30 +506,6 @@ impl CornerRadii {
             bottom_left: 0.0,
         }
     }
-
-    /// Sets the top-left corner radius.
-    pub fn with_top_left(mut self, radius: f32) -> Self {
-        self.top_left = radius;
-        self
-    }
-
-    /// Sets the top-right corner radius.
-    pub fn with_top_right(mut self, radius: f32) -> Self {
-        self.top_right = radius;
-        self
-    }
-
-    /// Sets the bottom-right corner radius.
-    pub fn with_bottom_right(mut self, radius: f32) -> Self {
-        self.bottom_right = radius;
-        self
-    }
-
-    /// Sets the bottom-left corner radius.
-    pub fn with_bottom_left(mut self, radius: f32) -> Self {
-        self.bottom_left = radius;
-        self
-    }
 }
 
 impl Default for CornerRadii {
@@ -821,10 +797,12 @@ mod tests {
     }
 
     #[test]
-    fn test_corner_radii_builder() {
-        let r = CornerRadii::zero()
-            .with_top_left(5.0)
-            .with_bottom_right(10.0);
+    fn test_corner_radii_struct_init() {
+        let r = CornerRadii {
+            top_left: 5.0,
+            bottom_right: 10.0,
+            ..CornerRadii::zero()
+        };
         assert_eq!(r.top_left, 5.0);
         assert_eq!(r.top_right, 0.0);
         assert_eq!(r.bottom_right, 10.0);

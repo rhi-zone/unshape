@@ -32,33 +32,24 @@ pub struct Bone {
     pub length: f32,
 }
 
-impl Bone {
-    /// Creates a new bone.
-    pub fn new(name: impl Into<String>) -> Self {
+impl Default for Bone {
+    fn default() -> Self {
         Self {
-            name: name.into(),
+            name: String::new(),
             parent: None,
             local_transform: Transform::IDENTITY,
             length: 1.0,
         }
     }
+}
 
-    /// Sets the parent bone.
-    pub fn with_parent(mut self, parent: BoneId) -> Self {
-        self.parent = Some(parent);
-        self
-    }
-
-    /// Sets the local transform.
-    pub fn with_transform(mut self, transform: Transform) -> Self {
-        self.local_transform = transform;
-        self
-    }
-
-    /// Sets the bone length.
-    pub fn with_length(mut self, length: f32) -> Self {
-        self.length = length;
-        self
+impl Bone {
+    /// Creates a new bone.
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            ..Default::default()
+        }
     }
 
     /// Returns the tail position in local space.
@@ -278,29 +269,30 @@ mod tests {
         let mut skel = Skeleton::new();
 
         let root = skel
-            .add_bone(
-                Bone::new("root")
-                    .with_transform(Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)))
-                    .with_length(1.0),
-            )
+            .add_bone(Bone {
+                name: "root".into(),
+                parent: None,
+                local_transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                length: 1.0,
+            })
             .id;
 
         let upper = skel
-            .add_bone(
-                Bone::new("upper")
-                    .with_parent(root)
-                    .with_transform(Transform::from_translation(Vec3::new(0.0, 1.0, 0.0)))
-                    .with_length(1.0),
-            )
+            .add_bone(Bone {
+                name: "upper".into(),
+                parent: Some(root),
+                local_transform: Transform::from_translation(Vec3::new(0.0, 1.0, 0.0)),
+                length: 1.0,
+            })
             .id;
 
         let lower = skel
-            .add_bone(
-                Bone::new("lower")
-                    .with_parent(upper)
-                    .with_transform(Transform::from_translation(Vec3::new(0.0, 1.0, 0.0)))
-                    .with_length(1.0),
-            )
+            .add_bone(Bone {
+                name: "lower".into(),
+                parent: Some(upper),
+                local_transform: Transform::from_translation(Vec3::new(0.0, 1.0, 0.0)),
+                length: 1.0,
+            })
             .id;
 
         (skel, root, upper, lower)

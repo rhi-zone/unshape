@@ -123,12 +123,6 @@ impl GltfMesh {
             material: None,
         }
     }
-
-    /// Sets the material for this mesh.
-    pub fn with_material(mut self, material: GltfMaterial) -> Self {
-        self.material = Some(material);
-        self
-    }
 }
 
 /// Builder for exporting meshes to glTF format.
@@ -156,8 +150,11 @@ impl GltfExporter {
         mesh: Mesh,
         material: GltfMaterial,
     ) -> Self {
-        self.meshes
-            .push(GltfMesh::new(name, mesh).with_material(material));
+        self.meshes.push(GltfMesh {
+            name: name.into(),
+            mesh,
+            material: Some(material),
+        });
         self
     }
 

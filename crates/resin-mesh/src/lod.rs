@@ -75,30 +75,6 @@ impl GenerateLodChain {
         self
     }
 
-    /// Sets the minimum triangle count.
-    pub fn with_min_triangles(mut self, min: usize) -> Self {
-        self.min_triangles = min;
-        self
-    }
-
-    /// Sets whether to preserve boundaries.
-    pub fn with_preserve_boundary(mut self, preserve: bool) -> Self {
-        self.preserve_boundary = preserve;
-        self
-    }
-
-    /// Sets the maximum geometric error.
-    pub fn with_max_error(mut self, error: f32) -> Self {
-        self.max_error = error;
-        self
-    }
-
-    /// Sets explicit screen size thresholds.
-    pub fn with_screen_thresholds(mut self, thresholds: Vec<f32>) -> Self {
-        self.screen_thresholds = Some(thresholds);
-        self
-    }
-
     /// Applies this operation to generate a LOD chain.
     pub fn apply(&self, mesh: &Mesh) -> LodChain {
         generate_lod_chain(mesh, self)
@@ -395,11 +371,10 @@ mod tests {
 
     #[test]
     fn test_lod_config_builder() {
-        let config = GenerateLodChain::with_levels(6)
-            .with_reduction_ratio(0.6)
-            .with_min_triangles(100)
-            .with_preserve_boundary(false)
-            .with_max_error(0.1);
+        let mut config = GenerateLodChain::with_levels(6).with_reduction_ratio(0.6);
+        config.min_triangles = 100;
+        config.preserve_boundary = false;
+        config.max_error = 0.1;
 
         assert_eq!(config.levels, 6);
         assert!((config.reduction_ratio - 0.6).abs() < 0.001);

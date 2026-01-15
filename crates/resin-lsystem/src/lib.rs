@@ -13,7 +13,8 @@
 //!     .with_rule(Rule::simple('F', "F+F-F-F+F"));
 //!
 //! let result = lsystem.generate(3);
-//! let segments = Turtle2D::default().with_angle(90.0).apply(&result);
+//! let turtle = Turtle2D { angle: 90.0, ..Default::default() };
+//! let segments = turtle.apply(&result);
 //! ```
 
 #[cfg(feature = "serde")]
@@ -179,24 +180,6 @@ impl Default for Turtle2D {
 }
 
 impl Turtle2D {
-    /// Sets the rotation angle in degrees.
-    pub fn with_angle(mut self, angle: f32) -> Self {
-        self.angle = angle;
-        self
-    }
-
-    /// Sets the step distance.
-    pub fn with_step(mut self, step: f32) -> Self {
-        self.step = step;
-        self
-    }
-
-    /// Sets the scale factor for branches.
-    pub fn with_scale_factor(mut self, factor: f32) -> Self {
-        self.scale_factor = factor;
-        self
-    }
-
     /// Applies this operation to interpret an L-system string.
     pub fn apply(&self, input: &str) -> Vec<TurtleSegment2D> {
         interpret_turtle_2d(input, &self.into())
@@ -231,24 +214,6 @@ impl Default for Turtle3D {
 }
 
 impl Turtle3D {
-    /// Sets the rotation angle in degrees.
-    pub fn with_angle(mut self, angle: f32) -> Self {
-        self.angle = angle;
-        self
-    }
-
-    /// Sets the step distance.
-    pub fn with_step(mut self, step: f32) -> Self {
-        self.step = step;
-        self
-    }
-
-    /// Sets the scale factor for branches.
-    pub fn with_scale_factor(mut self, factor: f32) -> Self {
-        self.scale_factor = factor;
-        self
-    }
-
     /// Applies this operation to interpret an L-system string.
     pub fn apply(&self, input: &str) -> Vec<TurtleSegment3D> {
         interpret_turtle_3d(input, &self.into())
@@ -692,7 +657,10 @@ mod tests {
         let lsystem = LSystem::new("F+F+F+F").with_rule(Rule::simple('F', "F"));
 
         let result = lsystem.generate(0);
-        let turtle = Turtle2D::default().with_angle(90.0);
+        let turtle = Turtle2D {
+            angle: 90.0,
+            ..Default::default()
+        };
         let segments = turtle.apply(&result);
 
         // Should produce 4 segments forming a square
@@ -702,7 +670,10 @@ mod tests {
     #[test]
     fn test_turtle_push_pop() {
         let result = "F[+F]F";
-        let turtle = Turtle2D::default().with_angle(90.0);
+        let turtle = Turtle2D {
+            angle: 90.0,
+            ..Default::default()
+        };
         let segments = turtle.apply(result);
 
         // Should produce 3 segments
@@ -772,7 +743,10 @@ mod tests {
     #[test]
     fn test_turtle_3d() {
         let result = "F+F&F";
-        let turtle = Turtle3D::default().with_angle(90.0);
+        let turtle = Turtle3D {
+            angle: 90.0,
+            ..Default::default()
+        };
         let segments = turtle.apply(result);
 
         assert_eq!(segments.len(), 3);

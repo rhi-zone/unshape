@@ -90,24 +90,6 @@ impl Stroke {
         }
     }
 
-    /// Sets the cap style.
-    pub fn with_cap(mut self, cap: CapStyle) -> Self {
-        self.cap = cap;
-        self
-    }
-
-    /// Sets the join style.
-    pub fn with_join(mut self, join: JoinStyle) -> Self {
-        self.join = join;
-        self
-    }
-
-    /// Sets the miter limit.
-    pub fn with_miter_limit(mut self, limit: f32) -> Self {
-        self.miter_limit = limit;
-        self
-    }
-
     /// Applies this stroke operation to a path, converting it to a filled outline.
     pub fn apply(&self, path: &Path) -> Path {
         stroke_to_path(path, self)
@@ -151,12 +133,6 @@ impl DashPattern {
             pattern: vec![dash, gap, dot, gap],
             offset: 0.0,
         }
-    }
-
-    /// Sets the offset into the pattern.
-    pub fn with_offset(mut self, offset: f32) -> Self {
-        self.offset = offset;
-        self
     }
 }
 
@@ -1029,18 +1005,6 @@ impl PressureStrokeRender {
         }
     }
 
-    /// Sets the cap style.
-    pub fn with_cap(mut self, cap: CapStyle) -> Self {
-        self.cap = cap;
-        self
-    }
-
-    /// Sets the join style.
-    pub fn with_join(mut self, join: JoinStyle) -> Self {
-        self.join = join;
-        self
-    }
-
     /// Calculates width for a given pressure.
     pub fn width_for_pressure(&self, pressure: f32) -> f32 {
         self.min_width + (self.max_width - self.min_width) * pressure.clamp(0.0, 1.0)
@@ -1504,10 +1468,13 @@ mod tests {
     }
 
     #[test]
-    fn test_stroke_config_builder() {
-        let config = StrokeConfig::new(5.0)
-            .with_cap(CapStyle::Round)
-            .with_join(JoinStyle::Bevel);
+    fn test_stroke_config_struct_init() {
+        let config = StrokeConfig {
+            width: 5.0,
+            cap: CapStyle::Round,
+            join: JoinStyle::Bevel,
+            ..StrokeConfig::default()
+        };
         assert_eq!(config.width, 5.0);
         assert_eq!(config.cap, CapStyle::Round);
         assert_eq!(config.join, JoinStyle::Bevel);
@@ -1558,7 +1525,11 @@ mod tests {
     #[test]
     fn test_stroke_to_path_round_cap() {
         let path = crate::line(Vec2::ZERO, Vec2::new(100.0, 0.0));
-        let config = StrokeConfig::new(10.0).with_cap(CapStyle::Round);
+        let config = StrokeConfig {
+            width: 10.0,
+            cap: CapStyle::Round,
+            ..StrokeConfig::default()
+        };
         let outline = stroke_to_path(&path, &config);
         assert!(!outline.is_empty());
     }

@@ -13,10 +13,13 @@
 //! use glam::Vec3;
 //!
 //! // Create a jiggle bone for hair
-//! let mut jiggle = JiggleBone::new()
-//!     .with_stiffness(50.0)
-//!     .with_damping(5.0)
-//!     .with_gravity(Vec3::new(0.0, -9.81, 0.0));
+//! let config = SecondaryConfig {
+//!     stiffness: 50.0,
+//!     damping: 5.0,
+//!     gravity: Vec3::new(0.0, -9.81, 0.0),
+//!     ..SecondaryConfig::default()
+//! };
+//! let mut jiggle = JiggleBone::from_config(config);
 //!
 //! // Update each frame
 //! let parent_position = Vec3::ZERO;
@@ -183,34 +186,10 @@ impl JiggleBone {
         }
     }
 
-    /// Sets the stiffness.
-    pub fn with_stiffness(mut self, stiffness: f32) -> Self {
-        self.config.stiffness = stiffness;
-        self
-    }
-
-    /// Sets the damping.
-    pub fn with_damping(mut self, damping: f32) -> Self {
-        self.config.damping = damping;
-        self
-    }
-
-    /// Sets the gravity.
-    pub fn with_gravity(mut self, gravity: Vec3) -> Self {
-        self.config.gravity = gravity;
-        self
-    }
-
     /// Sets the rest position in local space.
     pub fn with_rest_position(mut self, rest: Vec3) -> Self {
         self.rest_position = rest;
         self.position = rest;
-        self
-    }
-
-    /// Sets the maximum displacement.
-    pub fn with_max_displacement(mut self, max: f32) -> Self {
-        self.config.max_displacement = max;
         self
     }
 
@@ -889,12 +868,6 @@ impl WindForce {
         }
     }
 
-    /// Sets the turbulence frequency.
-    pub fn with_frequency(mut self, frequency: f32) -> Self {
-        self.frequency = frequency;
-        self
-    }
-
     /// Advances time and returns the current wind vector at a position.
     ///
     /// The wind varies based on position and time to simulate turbulence.
@@ -968,10 +941,12 @@ mod tests {
 
     #[test]
     fn test_jiggle_bone_creation() {
-        let bone = JiggleBone::new()
-            .with_stiffness(50.0)
-            .with_damping(5.0)
-            .with_rest_position(Vec3::new(0.0, 1.0, 0.0));
+        let config = SecondaryConfig {
+            stiffness: 50.0,
+            damping: 5.0,
+            ..SecondaryConfig::default()
+        };
+        let bone = JiggleBone::from_config(config).with_rest_position(Vec3::new(0.0, 1.0, 0.0));
 
         assert_eq!(bone.position(), Vec3::new(0.0, 1.0, 0.0));
         assert_eq!(bone.velocity(), Vec3::ZERO);
@@ -979,10 +954,13 @@ mod tests {
 
     #[test]
     fn test_jiggle_bone_update() {
-        let mut bone = JiggleBone::new()
-            .with_stiffness(100.0)
-            .with_damping(10.0)
-            .with_gravity(Vec3::ZERO);
+        let config = SecondaryConfig {
+            stiffness: 100.0,
+            damping: 10.0,
+            gravity: Vec3::ZERO,
+            ..SecondaryConfig::default()
+        };
+        let mut bone = JiggleBone::from_config(config);
 
         // Move parent
         bone.update(Vec3::ZERO, Quat::IDENTITY, 0.016);
@@ -1119,11 +1097,14 @@ mod tests {
 
     #[test]
     fn test_max_displacement() {
-        let mut bone = JiggleBone::new()
-            .with_stiffness(1.0)
-            .with_damping(0.1)
-            .with_max_displacement(0.5)
-            .with_gravity(Vec3::new(0.0, -100.0, 0.0));
+        let config = SecondaryConfig {
+            stiffness: 1.0,
+            damping: 0.1,
+            max_displacement: 0.5,
+            gravity: Vec3::new(0.0, -100.0, 0.0),
+            ..SecondaryConfig::default()
+        };
+        let mut bone = JiggleBone::from_config(config);
 
         // Apply strong gravity for many frames
         for _ in 0..100 {

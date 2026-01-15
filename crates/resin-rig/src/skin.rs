@@ -212,20 +212,21 @@ mod tests {
         let mut skel = Skeleton::new();
 
         let upper = skel
-            .add_bone(
-                Bone::new("upper_arm")
-                    .with_transform(Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)))
-                    .with_length(2.0),
-            )
+            .add_bone(Bone {
+                name: "upper_arm".into(),
+                parent: None,
+                local_transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                length: 2.0,
+            })
             .id;
 
         let lower = skel
-            .add_bone(
-                Bone::new("lower_arm")
-                    .with_parent(upper)
-                    .with_transform(Transform::from_translation(Vec3::new(0.0, 2.0, 0.0)))
-                    .with_length(2.0),
-            )
+            .add_bone(Bone {
+                name: "lower_arm".into(),
+                parent: Some(upper),
+                local_transform: Transform::from_translation(Vec3::new(0.0, 2.0, 0.0)),
+                length: 2.0,
+            })
             .id;
 
         (skel, upper, lower)

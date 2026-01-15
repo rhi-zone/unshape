@@ -273,12 +273,6 @@ impl Oscillator {
             ..Default::default()
         }
     }
-
-    /// Sets amplitude.
-    pub fn with_amplitude(mut self, amplitude: f32) -> Self {
-        self.amplitude = amplitude;
-        self
-    }
 }
 
 impl AudioNode for Oscillator {
@@ -620,18 +614,6 @@ impl LfoNode {
         Self {
             lfo: Lfo::with_frequency(frequency),
         }
-    }
-
-    /// Set the LFO amplitude.
-    pub fn with_amplitude(mut self, amplitude: f32) -> Self {
-        self.lfo.amplitude = amplitude;
-        self
-    }
-
-    /// Set the LFO DC offset.
-    pub fn with_offset(mut self, offset: f32) -> Self {
-        self.lfo.offset = offset;
-        self
     }
 }
 

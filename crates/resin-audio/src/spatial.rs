@@ -170,12 +170,6 @@ impl SpatialSource {
         }
     }
 
-    /// Sets the source velocity.
-    pub fn with_velocity(mut self, velocity: Vec3) -> Self {
-        self.velocity = velocity;
-        self
-    }
-
     /// Makes the source directional.
     pub fn with_cone(mut self, direction: Vec3, inner: f32, outer: f32, outer_gain: f32) -> Self {
         self.direction = direction.normalize();

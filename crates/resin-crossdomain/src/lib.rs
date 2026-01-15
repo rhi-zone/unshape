@@ -268,19 +268,6 @@ impl ImageToAudio {
         }
     }
 
-    /// Sets the frequency range.
-    pub fn with_frequency_range(mut self, min: f32, max: f32) -> Self {
-        self.min_freq = min;
-        self.max_freq = max;
-        self
-    }
-
-    /// Sets whether to use logarithmic frequency scaling.
-    pub fn with_log_frequency(mut self, log: bool) -> Self {
-        self.log_frequency = log;
-        self
-    }
-
     /// Applies this operation to an image.
     pub fn apply(&self, image: &ImageField) -> Vec<f32> {
         image_to_audio(image, self)
@@ -389,19 +376,6 @@ impl AudioToImage {
         }
     }
 
-    /// Sets the FFT parameters.
-    pub fn with_fft(mut self, window_size: usize, hop_size: usize) -> Self {
-        self.window_size = window_size;
-        self.hop_size = hop_size;
-        self
-    }
-
-    /// Sets the gain.
-    pub fn with_gain(mut self, gain: f32) -> Self {
-        self.gain = gain;
-        self
-    }
-
     /// Applies this operation to audio samples.
     pub fn apply(&self, audio: &[f32]) -> ImageField {
         audio_to_image(audio, self.sample_rate, self)
@@ -416,7 +390,7 @@ pub type AudioToImageConfig = AudioToImage;
 /// The resulting image represents frequency (vertical) vs time (horizontal),
 /// with brightness indicating magnitude.
 pub fn audio_to_image(audio: &[f32], sample_rate: u32, config: &AudioToImageConfig) -> ImageField {
-    let stft_config = StftConfig::new(config.window_size).with_hop_size(config.hop_size);
+    let stft_config = StftConfig::with_hop(config.window_size, config.hop_size);
     let stft = stft_with_sample_rate(audio, &stft_config, Some(sample_rate));
     let magnitudes = stft.magnitude();
 
@@ -477,7 +451,7 @@ pub fn audio_to_image_colored(
     sample_rate: u32,
     config: &AudioToImageConfig,
 ) -> ImageField {
-    let stft_config = StftConfig::new(config.window_size).with_hop_size(config.hop_size);
+    let stft_config = StftConfig::with_hop(config.window_size, config.hop_size);
     let stft = stft_with_sample_rate(audio, &stft_config, Some(sample_rate));
     let magnitudes = stft.magnitude();
     let phases = stft.phase();
@@ -776,9 +750,13 @@ mod tests {
 
     #[test]
     fn test_image_to_audio_config() {
-        let config = ImageToAudioConfig::new(44100, 2.0)
-            .with_frequency_range(100.0, 4000.0)
-            .with_log_frequency(false);
+        let config = ImageToAudioConfig {
+            sample_rate: 44100,
+            duration: 2.0,
+            min_freq: 100.0,
+            max_freq: 4000.0,
+            log_frequency: false,
+        };
         assert_eq!(config.sample_rate, 44100);
         assert_eq!(config.duration, 2.0);
         assert_eq!(config.min_freq, 100.0);
@@ -813,9 +791,15 @@ mod tests {
 
     #[test]
     fn test_audio_to_image_config() {
-        let config = AudioToImageConfig::new(44100, 512, 256)
-            .with_fft(1024, 256)
-            .with_gain(2.0);
+        let config = AudioToImageConfig {
+            sample_rate: 44100,
+            width: 512,
+            height: 256,
+            window_size: 1024,
+            hop_size: 256,
+            log_magnitude: true,
+            gain: 2.0,
+        };
         assert_eq!(config.sample_rate, 44100);
         assert_eq!(config.width, 512);
         assert_eq!(config.height, 256);
@@ -849,7 +833,15 @@ mod tests {
             })
             .collect();
 
-        let config = AudioToImageConfig::new(sample_rate, 128, 64).with_fft(1024, 256);
+        let config = AudioToImageConfig {
+            sample_rate,
+            width: 128,
+            height: 64,
+            window_size: 1024,
+            hop_size: 256,
+            log_magnitude: true,
+            gain: 1.0,
+        };
         let image = audio_to_image(&audio, sample_rate, &config);
 
         let (w, h) = image.dimensions();

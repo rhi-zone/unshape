@@ -169,12 +169,6 @@ impl ParticleSystem {
         }
     }
 
-    /// Sets the random seed.
-    pub fn with_seed(mut self, seed: u64) -> Self {
-        self.rng = ParticleRng::new(seed);
-        self
-    }
-
     /// Returns the current particle count.
     pub fn count(&self) -> usize {
         self.particles.len()

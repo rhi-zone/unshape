@@ -141,6 +141,18 @@ impl Lerp for Transform {
     }
 }
 
+impl From<Transform> for Mat4 {
+    fn from(t: Transform) -> Self {
+        t.to_matrix()
+    }
+}
+
+impl From<Mat4> for Transform {
+    fn from(m: Mat4) -> Self {
+        Transform::from_matrix(m)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -427,18 +427,6 @@ impl ProceduralWalk {
         }
     }
 
-    /// Sets the gait configuration.
-    pub fn with_config(mut self, config: GaitConfig) -> Self {
-        self.config = config;
-        self
-    }
-
-    /// Sets the gait pattern.
-    pub fn with_pattern(mut self, pattern: GaitPattern) -> Self {
-        self.pattern = pattern;
-        self
-    }
-
     /// Returns ground height at current position (for terrain adaptation).
     /// Override this for actual terrain.
     pub fn ground_height_at(&self, _position: Vec3) -> f32 {
@@ -754,9 +742,9 @@ mod tests {
     #[test]
     fn test_quadruped_trot() {
         let mut walk =
-            ProceduralWalk::quadruped(Vec3::new(0.0, 0.5, 0.0), Quat::IDENTITY, 0.3, 0.6, 0.4)
-                .with_pattern(GaitPattern::QuadrupedTrot)
-                .with_config(GaitConfig::quadruped_trot());
+            ProceduralWalk::quadruped(Vec3::new(0.0, 0.5, 0.0), Quat::IDENTITY, 0.3, 0.6, 0.4);
+        walk.pattern = GaitPattern::QuadrupedTrot;
+        walk.config = GaitConfig::quadruped_trot();
 
         let velocity = Vec3::new(0.0, 0.0, 1.5);
 

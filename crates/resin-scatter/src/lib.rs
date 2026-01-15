@@ -139,31 +139,6 @@ impl Scatter {
         }
     }
 
-    /// Sets the random seed.
-    pub fn with_seed(mut self, seed: u64) -> Self {
-        self.seed = seed;
-        self
-    }
-
-    /// Sets scale range.
-    pub fn with_scale_range(mut self, min: f32, max: f32) -> Self {
-        self.min_scale = min;
-        self.max_scale = max;
-        self
-    }
-
-    /// Enables random rotation.
-    pub fn with_random_rotation(mut self) -> Self {
-        self.random_rotation = true;
-        self
-    }
-
-    /// Sets alignment axis.
-    pub fn with_alignment(mut self, axis: Vec3) -> Self {
-        self.align_axis = Some(axis);
-        self
-    }
-
     /// Applies this operation to generate instances.
     pub fn apply(&self) -> Vec<Instance> {
         scatter_random_with_config(self.min, self.max, self.count, self.clone())
@@ -204,7 +179,15 @@ impl Rng {
 
 /// Scatters instances randomly within a box volume.
 pub fn scatter_random(min: Vec3, max: Vec3, count: usize, seed: u64) -> Vec<Instance> {
-    scatter_random_with_config(min, max, count, ScatterConfig::default().with_seed(seed))
+    scatter_random_with_config(
+        min,
+        max,
+        count,
+        ScatterConfig {
+            seed,
+            ..Default::default()
+        },
+    )
 }
 
 /// Scatters instances randomly with full configuration.

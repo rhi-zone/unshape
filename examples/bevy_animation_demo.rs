@@ -46,35 +46,30 @@ fn setup(
     let mut skeleton = Skeleton::new();
 
     let shoulder = skeleton
-        .add_bone(
-            Bone::new("shoulder")
-                .with_transform(ResinTransform::from_translation(glam::Vec3::new(
-                    0.0, 0.0, 0.0,
-                )))
-                .with_length(1.5),
-        )
+        .add_bone(Bone {
+            name: "shoulder".into(),
+            local_transform: ResinTransform::from_translation(glam::Vec3::new(0.0, 0.0, 0.0)),
+            length: 1.5,
+            ..Default::default()
+        })
         .id;
 
     let upper_arm = skeleton
-        .add_bone(
-            Bone::new("upper_arm")
-                .with_parent(shoulder)
-                .with_transform(ResinTransform::from_translation(glam::Vec3::new(
-                    0.0, 1.5, 0.0,
-                )))
-                .with_length(1.5),
-        )
+        .add_bone(Bone {
+            name: "upper_arm".into(),
+            parent: Some(shoulder),
+            local_transform: ResinTransform::from_translation(glam::Vec3::new(0.0, 1.5, 0.0)),
+            length: 1.5,
+        })
         .id;
 
     let forearm = skeleton
-        .add_bone(
-            Bone::new("forearm")
-                .with_parent(upper_arm)
-                .with_transform(ResinTransform::from_translation(glam::Vec3::new(
-                    0.0, 1.5, 0.0,
-                )))
-                .with_length(1.0),
-        )
+        .add_bone(Bone {
+            name: "forearm".into(),
+            parent: Some(upper_arm),
+            local_transform: ResinTransform::from_translation(glam::Vec3::new(0.0, 1.5, 0.0)),
+            length: 1.0,
+        })
         .id;
 
     let pose = skeleton.rest_pose();

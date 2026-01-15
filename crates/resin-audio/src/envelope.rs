@@ -225,24 +225,6 @@ impl Lfo {
         }
     }
 
-    /// Sets the waveform.
-    pub fn waveform(mut self, waveform: LfoWaveform) -> Self {
-        self.waveform = waveform;
-        self
-    }
-
-    /// Sets the amplitude.
-    pub fn amplitude(mut self, amplitude: f32) -> Self {
-        self.amplitude = amplitude;
-        self
-    }
-
-    /// Sets the DC offset.
-    pub fn offset(mut self, offset: f32) -> Self {
-        self.offset = offset;
-        self
-    }
-
     /// Returns the current phase (0.0 to 1.0).
     pub fn phase(&self) -> f32 {
         self.phase
@@ -515,7 +497,9 @@ mod tests {
 
     #[test]
     fn test_lfo_amplitude_offset() {
-        let lfo = Lfo::new().amplitude(0.5).offset(0.5);
+        let mut lfo = Lfo::new();
+        lfo.amplitude = 0.5;
+        lfo.offset = 0.5;
 
         // Should range from 0 to 1 instead of -1 to 1
         let min = lfo.sample_at(0.75); // sine minimum

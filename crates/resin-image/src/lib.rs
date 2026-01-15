@@ -1312,20 +1312,6 @@ impl ChromaticAberration {
         }
     }
 
-    /// Sets the center point for radial offset.
-    pub fn with_center(mut self, x: f32, y: f32) -> Self {
-        self.center = (x, y);
-        self
-    }
-
-    /// Sets individual channel offsets.
-    pub fn with_offsets(mut self, red: f32, green: f32, blue: f32) -> Self {
-        self.red_offset = red;
-        self.green_offset = green;
-        self.blue_offset = blue;
-        self
-    }
-
     /// Applies this operation to an image.
     pub fn apply(&self, image: &ImageField) -> ImageField {
         chromatic_aberration(image, self)
@@ -1455,19 +1441,6 @@ impl Levels {
             input_white,
             ..Default::default()
         }
-    }
-
-    /// Sets the gamma value.
-    pub fn with_gamma(mut self, gamma: f32) -> Self {
-        self.gamma = gamma;
-        self
-    }
-
-    /// Sets the output range.
-    pub fn with_output(mut self, black: f32, white: f32) -> Self {
-        self.output_black = black;
-        self.output_white = white;
-        self
     }
 
     /// Applies this operation to an image.
@@ -1622,24 +1595,6 @@ impl HslAdjustment {
             saturation: 0.0,
             lightness: amount,
         }
-    }
-
-    /// Sets the hue shift.
-    pub fn with_hue(mut self, shift: f32) -> Self {
-        self.hue_shift = shift;
-        self
-    }
-
-    /// Sets the saturation adjustment.
-    pub fn with_saturation(mut self, amount: f32) -> Self {
-        self.saturation = amount;
-        self
-    }
-
-    /// Sets the lightness adjustment.
-    pub fn with_lightness(mut self, amount: f32) -> Self {
-        self.lightness = amount;
-        self
     }
 }
 
@@ -1823,12 +1778,6 @@ impl LensDistortion {
         }
     }
 
-    /// Sets the distortion center.
-    pub fn with_center(mut self, x: f32, y: f32) -> Self {
-        self.center = (x, y);
-        self
-    }
-
     /// Applies this operation to an image.
     pub fn apply(&self, image: &ImageField) -> ImageField {
         lens_distortion(image, self)
@@ -1938,12 +1887,6 @@ impl WaveDistortion {
             frequency_y: frequency,
             phase: 0.0,
         }
-    }
-
-    /// Sets the phase offset.
-    pub fn with_phase(mut self, phase: f32) -> Self {
-        self.phase = phase;
-        self
     }
 
     /// Applies this operation to an image.
@@ -4455,9 +4398,12 @@ mod tests {
 
     #[test]
     fn test_chromatic_aberration_config_builder() {
-        let config = ChromaticAberrationConfig::new(0.01)
-            .with_center(0.3, 0.7)
-            .with_offsets(0.02, 0.01, -0.01);
+        let config = ChromaticAberrationConfig {
+            red_offset: 0.02,
+            green_offset: 0.01,
+            blue_offset: -0.01,
+            center: (0.3, 0.7),
+        };
 
         assert_eq!(config.center, (0.3, 0.7));
         assert_eq!(config.red_offset, 0.02);

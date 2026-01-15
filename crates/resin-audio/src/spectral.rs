@@ -304,6 +304,8 @@ impl Default for Stft {
 
 impl Stft {
     /// Creates a new STFT config with the given window size.
+    ///
+    /// Hop size defaults to window_size / 4.
     pub fn new(window_size: usize) -> Self {
         Self {
             window_size,
@@ -312,17 +314,15 @@ impl Stft {
         }
     }
 
-    /// Sets the hop size.
-    pub fn with_hop_size(mut self, hop_size: usize) -> Self {
-        self.hop_size = hop_size;
-        self
-    }
-
-    /// Sets the window function.
-    pub fn with_window(mut self, window: Vec<f32>) -> Self {
-        assert_eq!(window.len(), self.window_size);
-        self.window = window;
-        self
+    /// Creates a new STFT config with explicit window and hop sizes.
+    ///
+    /// Uses a Hann window function.
+    pub fn with_hop(window_size: usize, hop_size: usize) -> Self {
+        Self {
+            window_size,
+            hop_size,
+            window: hann_window(window_size),
+        }
     }
 
     /// Applies this STFT configuration to a signal.
@@ -661,12 +661,6 @@ impl TimeStretch {
         assert!(size.is_power_of_two(), "Window size must be power of 2");
         self.window_size = size;
         self.analysis_hop = size / 4;
-        self
-    }
-
-    /// Sets whether to preserve transients.
-    pub fn with_preserve_transients(mut self, preserve: bool) -> Self {
-        self.preserve_transients = preserve;
         self
     }
 
@@ -1009,7 +1003,7 @@ mod tests {
             .map(|i| (2.0 * PI * 440.0 * i as f32 / 44100.0).sin())
             .collect();
 
-        let config = Stft::new(1024).with_hop_size(256);
+        let config = Stft::new(1024); // hop_size defaults to window_size/4 = 256
         let stft_result = stft(&signal, &config);
 
         assert!(stft_result.num_frames() > 0);

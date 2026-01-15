@@ -496,18 +496,6 @@ impl GenerateRiver {
         }
     }
 
-    /// Sets the river configuration.
-    pub fn with_config(mut self, config: RiverConfig) -> Self {
-        self.config = config;
-        self
-    }
-
-    /// Sets the meander strength.
-    pub fn with_meander(mut self, strength: f32) -> Self {
-        self.config.meander_strength = strength;
-        self
-    }
-
     /// Applies this operation to generate a river network.
     pub fn apply(&self, seed: &u64) -> RiverNetwork {
         RiverNetwork::generate_river(self.source, self.sink, self.config.clone(), *seed)

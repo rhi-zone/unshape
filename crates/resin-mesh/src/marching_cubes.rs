@@ -66,18 +66,6 @@ impl MarchingCubes {
         }
     }
 
-    /// Sets resolution.
-    pub fn with_resolution(mut self, resolution: usize) -> Self {
-        self.resolution = resolution;
-        self
-    }
-
-    /// Sets iso-value.
-    pub fn with_iso_value(mut self, iso_value: f32) -> Self {
-        self.iso_value = iso_value;
-        self
-    }
-
     /// Applies marching cubes to an SdfGrid.
     pub fn apply(&self, sdf: &SdfGrid) -> Mesh {
         // Use the SdfGrid's bounds if our bounds are defaults
@@ -537,7 +525,8 @@ mod tests {
     #[test]
     fn test_sphere_sdf() {
         let sdf = |p: Vec3| p.length() - 1.0;
-        let config = MarchingCubesConfig::default().with_resolution(16);
+        let mut config = MarchingCubesConfig::default();
+        config.resolution = 16;
 
         let mesh = marching_cubes(sdf, config);
 
@@ -552,7 +541,8 @@ mod tests {
             let q = p.abs() - Vec3::splat(0.5);
             q.max(Vec3::ZERO).length() + q.x.max(q.y).max(q.z).min(0.0)
         };
-        let config = MarchingCubesConfig::default().with_resolution(16);
+        let mut config = MarchingCubesConfig::default();
+        config.resolution = 16;
 
         let mesh = marching_cubes(sdf, config);
 
@@ -568,7 +558,8 @@ mod tests {
             let q = Vec2::new(Vec2::new(p.x, p.z).length() - r1, p.y);
             q.length() - r2
         };
-        let config = MarchingCubesConfig::default().with_resolution(24);
+        let mut config = MarchingCubesConfig::default();
+        config.resolution = 24;
 
         let mesh = marching_cubes(sdf, config);
 
@@ -600,8 +591,8 @@ mod tests {
     #[test]
     fn test_custom_bounds() {
         let sdf = |p: Vec3| p.length() - 1.0;
-        let config = MarchingCubesConfig::with_bounds(Vec3::splat(-2.0), Vec3::splat(2.0))
-            .with_resolution(16);
+        let mut config = MarchingCubesConfig::with_bounds(Vec3::splat(-2.0), Vec3::splat(2.0));
+        config.resolution = 16;
 
         let mesh = marching_cubes(sdf, config);
 
@@ -619,20 +610,16 @@ mod tests {
         let sdf = |p: Vec3| p.length() - 0.5;
 
         // Small sphere (radius 0.5)
-        let mesh1 = marching_cubes(
-            &sdf,
-            MarchingCubesConfig::default()
-                .with_resolution(8)
-                .with_iso_value(0.0),
-        );
+        let mut config1 = MarchingCubesConfig::default();
+        config1.resolution = 8;
+        config1.iso_value = 0.0;
+        let mesh1 = marching_cubes(&sdf, config1);
 
         // Larger sphere (radius 0.7) - still fits in bounds
-        let mesh2 = marching_cubes(
-            &sdf,
-            MarchingCubesConfig::default()
-                .with_resolution(8)
-                .with_iso_value(0.2),
-        );
+        let mut config2 = MarchingCubesConfig::default();
+        config2.resolution = 8;
+        config2.iso_value = 0.2;
+        let mesh2 = marching_cubes(&sdf, config2);
 
         // Both should generate geometry
         assert!(mesh1.triangle_count() > 0);
@@ -643,8 +630,13 @@ mod tests {
     fn test_resolution() {
         let sdf = |p: Vec3| p.length() - 0.5;
 
-        let low_res = marching_cubes(sdf, MarchingCubesConfig::default().with_resolution(4));
-        let high_res = marching_cubes(sdf, MarchingCubesConfig::default().with_resolution(16));
+        let mut low_res_config = MarchingCubesConfig::default();
+        low_res_config.resolution = 4;
+        let low_res = marching_cubes(sdf, low_res_config);
+
+        let mut high_res_config = MarchingCubesConfig::default();
+        high_res_config.resolution = 16;
+        let high_res = marching_cubes(sdf, high_res_config);
 
         // Higher resolution should produce more triangles
         assert!(high_res.triangle_count() > low_res.triangle_count());

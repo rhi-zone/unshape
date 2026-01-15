@@ -349,12 +349,6 @@ impl Poisson {
         }
     }
 
-    /// Sets the maximum attempts per point.
-    pub fn with_max_attempts(mut self, max_attempts: u32) -> Self {
-        self.max_attempts = max_attempts;
-        self
-    }
-
     /// Applies this Poisson disk sampling operation to a mesh.
     pub fn apply(&self, mesh: &Mesh) -> PointCloud {
         sample_mesh_poisson(mesh, self)
@@ -563,12 +557,6 @@ impl RemoveOutliers {
             k,
             ..Default::default()
         }
-    }
-
-    /// Sets the standard deviation ratio threshold.
-    pub fn with_std_ratio(mut self, std_ratio: f32) -> Self {
-        self.std_ratio = std_ratio;
-        self
     }
 
     /// Applies this outlier removal operation to a point cloud.

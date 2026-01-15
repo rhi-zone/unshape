@@ -10,7 +10,7 @@
 //! use rhizome_resin_vector::{Hatch, hatch_rect, cross_hatch_rect};
 //!
 //! // Simple parallel hatching
-//! let config = Hatch::new().with_spacing(5.0).with_angle(45.0);
+//! let config = Hatch { spacing: 5.0, angle: 45.0, ..Hatch::default() };
 //! let lines = hatch_rect(Vec2::ZERO, Vec2::new(100.0, 100.0), &config);
 //!
 //! // Cross-hatching
@@ -54,37 +54,28 @@ impl Hatch {
         Self::default()
     }
 
-    /// Sets the spacing between hatch lines.
-    pub fn with_spacing(mut self, spacing: f32) -> Self {
-        self.spacing = spacing;
-        self
-    }
-
-    /// Sets the angle of hatch lines in degrees.
-    pub fn with_angle(mut self, angle: f32) -> Self {
-        self.angle = angle;
-        self
-    }
-
-    /// Sets the offset for the first line.
-    pub fn with_offset(mut self, offset: f32) -> Self {
-        self.offset = offset;
-        self
-    }
-
     /// Creates horizontal hatching (angle = 0).
     pub fn horizontal() -> Self {
-        Self::new().with_angle(0.0)
+        Self {
+            angle: 0.0,
+            ..Self::default()
+        }
     }
 
     /// Creates vertical hatching (angle = 90).
     pub fn vertical() -> Self {
-        Self::new().with_angle(90.0)
+        Self {
+            angle: 90.0,
+            ..Self::default()
+        }
     }
 
     /// Creates diagonal hatching (angle = 45).
     pub fn diagonal() -> Self {
-        Self::new().with_angle(45.0)
+        Self {
+            angle: 45.0,
+            ..Self::default()
+        }
     }
 }
 
@@ -500,14 +491,21 @@ mod tests {
 
     #[test]
     fn test_hatch_config() {
-        let config = HatchConfig::new().with_spacing(10.0).with_angle(30.0);
+        let config = HatchConfig {
+            spacing: 10.0,
+            angle: 30.0,
+            ..HatchConfig::default()
+        };
         assert_eq!(config.spacing, 10.0);
         assert_eq!(config.angle, 30.0);
     }
 
     #[test]
     fn test_hatch_rect_horizontal() {
-        let config = HatchConfig::horizontal().with_spacing(10.0);
+        let config = HatchConfig {
+            spacing: 10.0,
+            ..HatchConfig::horizontal()
+        };
         let lines = hatch_rect(Vec2::ZERO, Vec2::new(100.0, 50.0), &config);
 
         // Should have multiple horizontal lines
@@ -521,7 +519,10 @@ mod tests {
 
     #[test]
     fn test_hatch_rect_vertical() {
-        let config = HatchConfig::vertical().with_spacing(10.0);
+        let config = HatchConfig {
+            spacing: 10.0,
+            ..HatchConfig::vertical()
+        };
         let lines = hatch_rect(Vec2::ZERO, Vec2::new(50.0, 100.0), &config);
 
         assert!(!lines.is_empty());
@@ -534,7 +535,10 @@ mod tests {
 
     #[test]
     fn test_hatch_rect_diagonal() {
-        let config = HatchConfig::diagonal().with_spacing(10.0);
+        let config = HatchConfig {
+            spacing: 10.0,
+            ..HatchConfig::diagonal()
+        };
         let lines = hatch_rect(Vec2::ZERO, Vec2::new(100.0, 100.0), &config);
 
         assert!(!lines.is_empty());
@@ -542,7 +546,10 @@ mod tests {
 
     #[test]
     fn test_cross_hatch_rect() {
-        let config = HatchConfig::diagonal().with_spacing(10.0);
+        let config = HatchConfig {
+            spacing: 10.0,
+            ..HatchConfig::diagonal()
+        };
         let lines = cross_hatch_rect(Vec2::ZERO, Vec2::new(100.0, 100.0), &config, 90.0);
 
         // Should have lines from both directions
@@ -557,7 +564,10 @@ mod tests {
             Vec2::new(0.0, 100.0),
         ];
 
-        let config = HatchConfig::horizontal().with_spacing(10.0);
+        let config = HatchConfig {
+            spacing: 10.0,
+            ..HatchConfig::horizontal()
+        };
         let lines = hatch_polygon(&polygon, &config);
 
         assert!(!lines.is_empty());
@@ -578,7 +588,10 @@ mod tests {
             Vec2::new(0.0, 100.0),
         ];
 
-        let config = HatchConfig::horizontal().with_spacing(10.0);
+        let config = HatchConfig {
+            spacing: 10.0,
+            ..HatchConfig::horizontal()
+        };
         let lines = hatch_polygon(&polygon, &config);
 
         // Should have roughly 10 lines (100 / 10)
