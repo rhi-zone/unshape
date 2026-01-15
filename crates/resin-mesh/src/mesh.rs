@@ -1,7 +1,7 @@
 //! Core mesh types.
 
 use glam::{Vec2, Vec3};
-use rhizome_resin_core::{HasIndices, HasNormals, HasPositions, HasUVs};
+use rhizome_resin_geometry::{HasIndices, HasNormals, HasPositions, HasUVs};
 
 /// A 3D mesh with indexed triangle topology.
 ///

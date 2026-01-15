@@ -20,8 +20,8 @@
 
 use glam::{Vec3, Vec4};
 use rand::Rng;
-use rhizome_resin_core::{HasColors, HasNormals, HasPositions};
 use rhizome_resin_field::{EvalContext, Field};
+use rhizome_resin_geometry::{HasColors, HasNormals, HasPositions};
 use rhizome_resin_mesh::Mesh;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -927,7 +927,7 @@ mod tests {
 
     #[test]
     fn test_has_positions_trait() {
-        use rhizome_resin_core::HasPositions;
+        use rhizome_resin_geometry::HasPositions;
 
         let mut cloud =
             PointCloud::from_positions(vec![Vec3::ZERO, Vec3::ONE, Vec3::new(2.0, 0.0, 0.0)]);
@@ -943,7 +943,7 @@ mod tests {
 
     #[test]
     fn test_has_normals_trait() {
-        use rhizome_resin_core::HasNormals;
+        use rhizome_resin_geometry::HasNormals;
 
         let mut cloud =
             PointCloud::from_positions_normals(vec![Vec3::ZERO, Vec3::ONE], vec![Vec3::Y, Vec3::X]);
@@ -958,7 +958,7 @@ mod tests {
 
     #[test]
     fn test_has_colors_trait() {
-        use rhizome_resin_core::HasColors;
+        use rhizome_resin_geometry::HasColors;
 
         let mut cloud = PointCloud {
             positions: vec![Vec3::ZERO, Vec3::ONE],

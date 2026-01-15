@@ -92,11 +92,15 @@ This makes history/serialization natural - just collect the ops. See `docs/desig
 
 ### Core Crates
 
-**resin-core** - Foundation for the node graph system:
+**resin-core** - Node graph system:
 - `Graph`, `NodeId`, `Wire` - node graph container and execution
 - `DynNode` trait - dynamic node execution with type-erased inputs/outputs
 - `Value` - runtime value type for graph data flow
-- Attribute traits (`HasPositions`, `HasNormals`, `HasUVs`, `HasColors`, `HasIndices`) - generic geometry abstraction
+
+**resin-geometry** - Geometry attribute traits:
+- `HasPositions`, `HasPositions2D` - vertex positions (3D/2D)
+- `HasNormals`, `HasUVs`, `HasColors`, `HasIndices` - other vertex attributes
+- `Geometry`, `FullGeometry` - composite trait bounds
 
 **resin-op** - Operations as values (dynop system):
 - `DynOp` trait, `OpRegistry`, `Pipeline` - for serializable operations
