@@ -4033,6 +4033,7 @@ name = "rhizome-resin-rig"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "rhizome-resin-curve",
  "rhizome-resin-easing",
  "rhizome-resin-op",
  "serde",
@@ -4083,6 +4084,7 @@ name = "rhizome-resin-spline"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "rhizome-resin-curve",
 ]
 
 [[package]]
@@ -4110,6 +4112,7 @@ dependencies = [
  "glam",
  "rhizome-resin-color",
  "rhizome-resin-core",
+ "rhizome-resin-curve",
  "rhizome-resin-op",
  "serde",
  "serde_json",

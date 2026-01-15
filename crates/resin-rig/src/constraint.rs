@@ -3,7 +3,7 @@
 //! Constraints modify a pose after it has been computed, applying
 //! effects like path following, IK, look-at, etc.
 
-use crate::{BoneId, Path3D, Pose, Skeleton, Transform};
+use crate::{BoneId, Path3D, Path3DExt, Pose, Skeleton, Transform};
 use glam::{Quat, Vec3};
 
 /// A constraint that modifies bone transforms.
@@ -60,7 +60,7 @@ impl PathConstraint {
 
 impl Constraint for PathConstraint {
     fn apply(&self, skeleton: &Skeleton, pose: &mut Pose) {
-        let sample = self.path.sample(self.offset);
+        let sample = self.path.sample_at(self.offset);
 
         // Get parent world transform to convert to local space
         let parent_world = skeleton

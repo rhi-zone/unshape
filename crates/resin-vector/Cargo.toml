@@ -14,6 +14,7 @@ dynop = ["dep:rhizome-resin-op", "dep:serde_json", "serde"]
 glam.workspace = true
 rhizome-resin-core = { path = "../resin-core" }
 rhizome-resin-color = { path = "../resin-color" }
+rhizome-resin-curve = { path = "../resin-curve" }
 rhizome-resin-op = { path = "../resin-op", optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }

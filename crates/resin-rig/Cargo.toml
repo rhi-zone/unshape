@@ -12,6 +12,7 @@ dynop = ["dep:rhizome-resin-op", "dep:serde_json", "serde"]
 [dependencies]
 glam.workspace = true
 thiserror.workspace = true
+rhizome-resin-curve = { path = "../resin-curve" }
 rhizome-resin-easing = { path = "../resin-easing" }
 rhizome-resin-op = { path = "../resin-op", optional = true }
 serde = { workspace = true, optional = true }

@@ -1,9 +1,12 @@
 //! 2D vector graphics for resin.
 //!
 //! Provides path primitives, vector networks, and operations for 2D vector art.
+//!
+//! Types implement the [`Curve`] trait from `resin-curve` for unified curve operations.
 
 pub mod bezier;
 mod boolean;
+mod curve_impl;
 mod delaunay;
 mod geometry;
 mod gradient_mesh;
@@ -14,6 +17,12 @@ pub mod rasterize;
 mod stroke;
 pub mod svg;
 mod text;
+
+// Re-export curve types for convenience
+pub use rhizome_resin_curve::{
+    Arc, ArcLengthPath, CubicBezier, Curve, Line, Path as CurvePath, QuadBezier, Segment2D,
+    VectorSpace,
+};
 
 pub use boolean::{
     Bounds2D, ClosestPoint, CurveIntersection, CurveSegment, FillRule, SplitCurve,

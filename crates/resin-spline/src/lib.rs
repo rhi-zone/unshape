@@ -4,8 +4,16 @@
 //! - [`CubicBezier`] - Cubic Bezier curves
 //! - [`CatmullRom`] - Catmull-Rom splines (pass through control points)
 //! - [`BSpline`] - B-spline curves
+//! - [`Nurbs`] - Non-Uniform Rational B-Splines
+//!
+//! All types implement the [`Curve`] trait from `resin-curve` for Vec2/Vec3.
 
 use glam::{Vec2, Vec3};
+
+mod curve_impl;
+
+// Re-export Curve trait for convenience
+pub use rhizome_resin_curve::Curve;
 
 /// Trait for types that can be interpolated along a curve.
 pub trait Interpolatable:

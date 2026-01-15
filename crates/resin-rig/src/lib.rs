@@ -41,7 +41,7 @@ pub use motion_matching::{
     MotionMatcher, MotionMatching, MotionMatchingConfig, MotionQuery, apply_frame_to_pose,
     blend_frames, compute_match_cost, find_best_match,
 };
-pub use path3d::{Path3D, Path3DBuilder, PathCommand3D, PathSample, line3d, polyline3d};
+pub use path3d::{Path3D, Path3DBuilder, Path3DExt, PathSample, line3d, polyline3d};
 pub use secondary::{
     Drag, FollowThrough, JiggleBone, JiggleChain, JiggleMesh, OverlappingAction,
     RotationFollowThrough, Secondary, SecondaryConfig, SecondaryMotion, WindForce,

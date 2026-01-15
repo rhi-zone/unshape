@@ -8,3 +8,4 @@ repository = "https://github.com/rhizome-lab/resin"
 
 [dependencies]
 glam.workspace = true
+rhizome-resin-curve.workspace = true
