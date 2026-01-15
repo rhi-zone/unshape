@@ -16,3 +16,10 @@ serde = { workspace = true, optional = true }
 rhizome-resin-op = { path = "../resin-op", optional = true }
 serde_json = { version = "1", optional = true }
 thiserror.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "effects"
+harness = false

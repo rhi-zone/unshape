@@ -1,9 +1,166 @@
 //! Audio effects for sound design.
 //!
 //! Provides classic effects: reverb, chorus, phaser, flanger.
+//!
+//! # Architecture
+//!
+//! Effects are built from low-level primitives in [`crate::primitive`].
+//! Many effects share the same underlying structure with different default
+//! parameters - for example, [`Chorus`] and [`Flanger`] are both instances
+//! of [`ModulatedDelay`].
 
 use crate::filter::{Biquad, BiquadCoeffs};
 use crate::graph::{AudioContext, AudioNode};
+use crate::primitive::{DelayLine, Mix, PhaseOsc};
+
+// ============================================================================
+// ModulatedDelay (Chorus/Flanger unified)
+// ============================================================================
+
+/// Modulated delay effect - the foundation for chorus and flanger.
+///
+/// Uses an LFO to modulate the delay time, creating movement and depth.
+/// Chorus and flanger are the same effect with different parameters:
+/// - Chorus: longer delay (10-30ms), subtle modulation, little feedback
+/// - Flanger: shorter delay (1-10ms), more modulation, more feedback
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_audio::effects::{ModulatedDelay, chorus, flanger};
+///
+/// // Using constructor functions
+/// let mut chorus_effect = chorus(44100.0);
+/// let mut flanger_effect = flanger(44100.0);
+///
+/// // Or create directly with custom parameters
+/// let mut custom = ModulatedDelay::new(44100.0, 0.015, 0.002, 0.8, 0.5, 0.3);
+/// ```
+pub struct ModulatedDelay {
+    delay: DelayLine<true>,
+    lfo: PhaseOsc,
+    /// Base delay in samples.
+    base_delay: f32,
+    /// Modulation depth in samples.
+    depth: f32,
+    /// Phase increment per sample (rate / sample_rate).
+    phase_inc: f32,
+    /// Dry/wet mix (0 = dry, 1 = wet).
+    pub mix: f32,
+    /// Feedback amount (-1 to 1).
+    pub feedback: f32,
+    /// Minimum delay to prevent artifacts.
+    min_delay: f32,
+}
+
+impl ModulatedDelay {
+    /// Creates a modulated delay with custom parameters.
+    ///
+    /// # Arguments
+    /// * `sample_rate` - Sample rate in Hz
+    /// * `delay` - Base delay in seconds
+    /// * `depth` - Modulation depth in seconds
+    /// * `rate` - Modulation rate in Hz
+    /// * `mix` - Dry/wet mix (0-1)
+    /// * `feedback` - Feedback amount (-1 to 1, clamped to ±0.95)
+    pub fn new(
+        sample_rate: f32,
+        delay: f32,
+        depth: f32,
+        rate: f32,
+        mix: f32,
+        feedback: f32,
+    ) -> Self {
+        let base_delay = delay * sample_rate;
+        let depth_samples = depth * sample_rate;
+        let max_delay = base_delay + depth_samples * 2.0;
+        let buffer_size = (max_delay as usize + 1).max(256);
+
+        Self {
+            delay: DelayLine::new(buffer_size),
+            lfo: PhaseOsc::new(),
+            base_delay,
+            depth: depth_samples,
+            phase_inc: rate / sample_rate,
+            mix,
+            feedback: feedback.clamp(-0.95, 0.95),
+            min_delay: 1.0,
+        }
+    }
+
+    /// Sets the modulation rate in Hz.
+    pub fn set_rate(&mut self, rate: f32, sample_rate: f32) {
+        self.phase_inc = rate / sample_rate;
+    }
+
+    /// Sets the modulation depth in seconds.
+    pub fn set_depth(&mut self, depth: f32, sample_rate: f32) {
+        self.depth = depth * sample_rate;
+    }
+
+    /// Processes a single sample.
+    #[inline]
+    pub fn process(&mut self, input: f32) -> f32 {
+        // LFO modulates delay time
+        let lfo_val = self.lfo.sine();
+        self.lfo.advance(self.phase_inc);
+
+        let delay_samples = (self.base_delay + lfo_val * self.depth).max(self.min_delay);
+        let delayed = self.delay.read_interp(delay_samples);
+
+        // Write with feedback
+        self.delay.write(input + delayed * self.feedback);
+
+        // Mix dry and wet
+        Mix::blend(input, delayed, self.mix)
+    }
+
+    /// Clears the delay buffer and resets LFO.
+    pub fn clear(&mut self) {
+        self.delay.clear();
+        self.lfo.reset();
+    }
+}
+
+impl AudioNode for ModulatedDelay {
+    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
+        ModulatedDelay::process(self, input)
+    }
+
+    fn reset(&mut self) {
+        self.clear();
+    }
+}
+
+/// Creates a chorus effect (modulated delay with typical chorus parameters).
+///
+/// Chorus uses longer delays (20ms) with subtle modulation and minimal feedback
+/// to create a thickening, doubling effect.
+pub fn chorus(sample_rate: f32) -> ModulatedDelay {
+    ModulatedDelay::new(
+        sample_rate,
+        0.02,  // 20ms delay
+        0.003, // 3ms depth
+        0.5,   // 0.5 Hz rate
+        0.5,   // 50% mix
+        0.0,   // no feedback
+    )
+}
+
+/// Creates a flanger effect (modulated delay with typical flanger parameters).
+///
+/// Flanger uses shorter delays (3ms) with more modulation and feedback
+/// to create sweeping, jet-like sounds.
+pub fn flanger(sample_rate: f32) -> ModulatedDelay {
+    ModulatedDelay::new(
+        sample_rate,
+        0.003, // 3ms delay
+        0.002, // 2ms depth
+        0.3,   // 0.3 Hz rate
+        0.5,   // 50% mix
+        0.7,   // 70% feedback
+    )
+}
 
 // ============================================================================
 // Reverb
@@ -1837,5 +1994,37 @@ mod tests {
             equal_pairs > 50,
             "Downsampling should create repeated samples"
         );
+    }
+
+    #[test]
+    fn test_modulated_delay() {
+        let mut effect = ModulatedDelay::new(44100.0, 0.01, 0.002, 1.0, 0.5, 0.3);
+
+        // Process some samples
+        let mut outputs = Vec::new();
+        for i in 0..1000 {
+            let input = (i as f32 * 0.1).sin();
+            outputs.push(effect.process(input));
+        }
+
+        // Should have varying output (due to modulation)
+        let variance: f32 = outputs.windows(2).map(|w| (w[1] - w[0]).abs()).sum();
+        assert!(variance > 0.0);
+    }
+
+    #[test]
+    fn test_chorus_flanger_constructors() {
+        let mut chorus_effect = chorus(44100.0);
+        let mut flanger_effect = flanger(44100.0);
+
+        // Both should process without panic
+        for i in 0..100 {
+            let input = (i as f32 * 0.1).sin();
+            chorus_effect.process(input);
+            flanger_effect.process(input);
+        }
+
+        // Chorus has less feedback than flanger by default
+        assert!(chorus_effect.feedback.abs() < flanger_effect.feedback.abs());
     }
 }

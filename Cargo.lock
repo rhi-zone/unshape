@@ -3708,6 +3708,7 @@ dependencies = [
 name = "rhizome-resin-audio"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "rhizome-resin-core",
  "rhizome-resin-op",
  "serde",

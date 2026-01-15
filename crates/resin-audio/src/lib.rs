@@ -13,6 +13,7 @@ pub mod patch;
 pub mod pattern;
 pub mod percussion;
 pub mod physical;
+pub mod primitive;
 pub mod room;
 pub mod spatial;
 pub mod spectral;
@@ -21,8 +22,8 @@ pub mod wav;
 
 pub use effects::{
     Bitcrusher, Chorus, Compressor, Convolution, ConvolutionConfig, ConvolutionReverb, Distortion,
-    DistortionMode, Flanger, Limiter, NoiseGate, Phaser, Reverb, Tremolo, convolution_reverb,
-    generate_room_ir,
+    DistortionMode, Flanger, Limiter, ModulatedDelay, NoiseGate, Phaser, Reverb, Tremolo, chorus,
+    convolution_reverb, flanger, generate_room_ir,
 };
 pub use envelope::{Adsr, AdsrState, Ar, Lfo, LfoWaveform};
 pub use filter::{
