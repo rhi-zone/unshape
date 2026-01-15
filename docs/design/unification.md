@@ -264,6 +264,54 @@ Both domains process signals through chains of effects, but use different execut
 
 3. **Parallelism** - Audio is inherently sequential (sample N depends on sample N-1 for stateful effects). Graphics is embarrassingly parallel (each pixel independent).
 
+**Audio effect primitive decomposition:**
+
+Analysis of `resin-audio/src/effects.rs` reveals that effects are *not* orthogonal - they're compositions of a small set of shared primitives:
+
+| Primitive | Description | Used by |
+|-----------|-------------|---------|
+| **Delay line** | Circular buffer with read/write | Reverb, Chorus, Flanger, Limiter |
+| **LFO** | Phase accumulator → waveform | Chorus, Flanger, Phaser, Tremolo |
+| **Envelope follower** | Attack/release smoothing | Compressor, Limiter, NoiseGate |
+| **Filter** | Biquad, allpass, comb | Reverb, Distortion, Phaser |
+| **Waveshaper** | Transfer function | Distortion, Bitcrusher |
+| **Feedback** | Output → input routing | Reverb, Chorus, Flanger, Phaser |
+| **Mix** | Dry/wet blend | Almost all effects |
+
+Effect decomposition into primitives:
+
+```
+Chorus   = Delay + (LFO → delay_time) + Feedback + Mix
+Flanger  = Delay + (LFO → delay_time) + Feedback + Mix  // same as Chorus, different params!
+Phaser   = Allpass[] + (LFO → filter_freq) + Feedback + Mix
+Tremolo  = LFO → amplitude  // simplest modulation effect
+Reverb   = Comb[] parallel + Allpass[] series + Mix
+         where Comb = Delay + Feedback + LPF (damping)
+Compressor = EnvelopeFollower → GainControl
+Limiter    = Lookahead + EnvelopeFollower → GainControl
+NoiseGate  = EnvelopeFollower → GateControl
+Distortion = Waveshaper + Filter (tone)
+Bitcrusher = SampleHold + Quantize
+```
+
+**Key insight:** Chorus and Flanger are *literally the same effect* with different default parameters. Most "modulation effects" follow the pattern `LFO → some_parameter`.
+
+**Implications for unification:**
+
+This suggests a primitive-based architecture could work for both domains:
+
+| Audio Primitive | Graphics Equivalent |
+|-----------------|---------------------|
+| Delay line | Texture buffer / history |
+| LFO | Animated parameter / time-varying field |
+| Envelope follower | (no direct equivalent - stateless) |
+| Filter (blur in frequency) | Convolution kernel / blur |
+| Waveshaper | Color curve / transfer function |
+| Feedback | Recursive field evaluation |
+| Mix | Field blending (lerp, add, multiply) |
+
+Graphics already has some of these as `Field` combinators (`.map()` = waveshaper, `.mix()` = mix). Missing: blur/convolution, feedback/recursion.
+
 **Potential unification opportunities:**
 
 1. **Modulation routing** - Audio has `ModSource` → parameter mapping (LFO, envelope, velocity to any parameter). Graphics could use same pattern for animating field parameters over time.
@@ -276,12 +324,12 @@ Both domains process signals through chains of effects, but use different execut
 
 **Questions to resolve:**
 
-- Is the eager/lazy distinction fundamental, or could audio effects be made lazy for offline processing?
-- Should `GraphicsEffect` trait mirror `AudioNode`, or is `Field` composition sufficient?
-- Would a unified modulation system benefit both domains?
-- Is the lack of graphics effects a gap to fill, or is the `Field` abstraction intentionally lower-level?
+- Should we refactor audio effects to expose primitives (Delay, LFO, EnvelopeFollower) as composable building blocks?
+- Can graphics adopt the same primitive vocabulary where applicable (blur = convolution, color curves = waveshaper)?
+- Is the eager/lazy distinction fundamental, or could audio primitives be made lazy for offline processing?
+- Should LFO / animated parameters be a shared abstraction for both domains?
 
-**Decision:** TBD - needs further exploration of use cases.
+**Decision:** TBD - primitive-based architecture looks promising, needs prototyping.
 
 ---
 
