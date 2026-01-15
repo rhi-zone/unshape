@@ -188,6 +188,205 @@ impl JitCompiler {
         // Safety: The code lives in self.module. Caller must ensure compiler outlives result.
         Ok(unsafe { CompiledScalar::new(code_ptr, 1, 1) })
     }
+
+    /// Compiles a SIMD block processing function for an affine transform.
+    ///
+    /// Processes 4 samples at a time using f32x4 SIMD operations.
+    /// Signature: `fn(input: *const f32, output: *mut f32, len: usize)`
+    ///
+    /// # Returns
+    ///
+    /// A `CompiledSimdBlock` that processes buffers of samples.
+    pub fn compile_affine_simd(&mut self, gain: f32, offset: f32) -> JitResult<CompiledSimdBlock> {
+        use cranelift::ir::{AbiParam, InstBuilder, MemFlags, condcodes::IntCC, types};
+        use cranelift_frontend::FunctionBuilder;
+
+        // Signature: fn(input: *const f32, output: *mut f32, len: usize)
+        let ptr_type = types::I64;
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(ptr_type)); // input ptr
+        sig.params.push(AbiParam::new(ptr_type)); // output ptr
+        sig.params.push(AbiParam::new(ptr_type)); // length
+
+        let func_name = self.next_func_name("jit_affine_simd");
+        let func_id = self
+            .module
+            .declare_function(&func_name, Linkage::Export, &sig)?;
+
+        self.ctx.func.signature = sig;
+
+        {
+            let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut self.builder_ctx);
+
+            // Create blocks
+            let entry = builder.create_block();
+            let simd_loop = builder.create_block();
+            let simd_body = builder.create_block();
+            let scalar_loop = builder.create_block();
+            let scalar_body = builder.create_block();
+            let exit = builder.create_block();
+
+            builder.append_block_params_for_function_params(entry);
+            builder.switch_to_block(entry);
+
+            let input_ptr = builder.block_params(entry)[0];
+            let output_ptr = builder.block_params(entry)[1];
+            let len = builder.block_params(entry)[2];
+
+            // Constants
+            let zero = builder.ins().iconst(ptr_type, 0);
+            let four = builder.ins().iconst(ptr_type, 4);
+            let sixteen = builder.ins().iconst(ptr_type, 16); // 4 * sizeof(f32)
+
+            // SIMD constants - splat gain and offset to f32x4
+            let is_identity_gain = (gain - 1.0).abs() < 1e-10;
+            let is_zero_offset = offset.abs() < 1e-10;
+
+            let gain_scalar = builder.ins().f32const(gain);
+            let gain_vec = builder.ins().splat(types::F32X4, gain_scalar);
+            let offset_scalar = builder.ins().f32const(offset);
+            let offset_vec = builder.ins().splat(types::F32X4, offset_scalar);
+
+            // Calculate SIMD iterations: len / 4
+            let simd_count = builder.ins().udiv(len, four);
+            let remainder_start = builder.ins().imul(simd_count, four);
+
+            // Jump to SIMD loop
+            builder.ins().jump(simd_loop, &[zero]);
+
+            // SIMD loop header
+            builder.switch_to_block(simd_loop);
+            builder.append_block_param(simd_loop, ptr_type); // i (in units of 4)
+            let simd_i = builder.block_params(simd_loop)[0];
+
+            let simd_done =
+                builder
+                    .ins()
+                    .icmp(IntCC::UnsignedGreaterThanOrEqual, simd_i, simd_count);
+            builder
+                .ins()
+                .brif(simd_done, scalar_loop, &[remainder_start], simd_body, &[]);
+
+            // SIMD loop body
+            builder.switch_to_block(simd_body);
+
+            // Calculate byte offset: i * 4 * 4 = i * 16
+            let byte_offset = builder.ins().imul(simd_i, sixteen);
+            let in_addr = builder.ins().iadd(input_ptr, byte_offset);
+            let out_addr = builder.ins().iadd(output_ptr, byte_offset);
+
+            // Load 4 floats as f32x4
+            let mem = MemFlags::new();
+            let input_vec = builder.ins().load(types::F32X4, mem, in_addr, 0);
+
+            // Apply affine transform
+            let output_vec = match (is_identity_gain, is_zero_offset) {
+                (true, true) => input_vec,
+                (true, false) => builder.ins().fadd(input_vec, offset_vec),
+                (false, true) => builder.ins().fmul(input_vec, gain_vec),
+                (false, false) => {
+                    let mul = builder.ins().fmul(input_vec, gain_vec);
+                    builder.ins().fadd(mul, offset_vec)
+                }
+            };
+
+            // Store result
+            builder.ins().store(mem, output_vec, out_addr, 0);
+
+            // Increment and loop
+            let one = builder.ins().iconst(ptr_type, 1);
+            let next_i = builder.ins().iadd(simd_i, one);
+            builder.ins().jump(simd_loop, &[next_i]);
+
+            // Scalar loop header (for remainder)
+            builder.switch_to_block(scalar_loop);
+            builder.append_block_param(scalar_loop, ptr_type); // scalar index
+            let scalar_i = builder.block_params(scalar_loop)[0];
+
+            let scalar_done = builder
+                .ins()
+                .icmp(IntCC::UnsignedGreaterThanOrEqual, scalar_i, len);
+            builder.ins().brif(scalar_done, exit, &[], scalar_body, &[]);
+
+            // Scalar loop body
+            builder.switch_to_block(scalar_body);
+
+            let scalar_byte_offset = builder.ins().ishl_imm(scalar_i, 2); // * 4
+            let scalar_in_addr = builder.ins().iadd(input_ptr, scalar_byte_offset);
+            let scalar_out_addr = builder.ins().iadd(output_ptr, scalar_byte_offset);
+
+            let scalar_input = builder.ins().load(types::F32, mem, scalar_in_addr, 0);
+
+            let scalar_output = match (is_identity_gain, is_zero_offset) {
+                (true, true) => scalar_input,
+                (true, false) => builder.ins().fadd(scalar_input, offset_scalar),
+                (false, true) => builder.ins().fmul(scalar_input, gain_scalar),
+                (false, false) => {
+                    let mul = builder.ins().fmul(scalar_input, gain_scalar);
+                    builder.ins().fadd(mul, offset_scalar)
+                }
+            };
+
+            builder.ins().store(mem, scalar_output, scalar_out_addr, 0);
+
+            let next_scalar_i = builder.ins().iadd_imm(scalar_i, 1);
+            builder.ins().jump(scalar_loop, &[next_scalar_i]);
+
+            // Exit
+            builder.switch_to_block(exit);
+            builder.ins().return_(&[]);
+
+            // Seal blocks
+            builder.seal_block(entry);
+            builder.seal_block(simd_loop);
+            builder.seal_block(simd_body);
+            builder.seal_block(scalar_loop);
+            builder.seal_block(scalar_body);
+            builder.seal_block(exit);
+
+            builder.finalize();
+        }
+
+        self.module.define_function(func_id, &mut self.ctx)?;
+        self.module.clear_context(&mut self.ctx);
+        self.module.finalize_definitions()?;
+
+        let code_ptr = self.module.get_finalized_function(func_id);
+
+        Ok(unsafe { CompiledSimdBlock::new(code_ptr) })
+    }
+}
+
+/// A JIT-compiled SIMD block processing function.
+///
+/// Processes arrays of f32 values using SIMD operations.
+#[cfg(feature = "cranelift")]
+pub struct CompiledSimdBlock {
+    func: fn(*const f32, *mut f32, usize),
+}
+
+#[cfg(feature = "cranelift")]
+impl CompiledSimdBlock {
+    /// Creates a new compiled SIMD block function.
+    ///
+    /// # Safety
+    ///
+    /// The function pointer must be valid.
+    pub(crate) unsafe fn new(func: *const u8) -> Self {
+        Self {
+            func: unsafe { std::mem::transmute(func) },
+        }
+    }
+
+    /// Processes a block of samples.
+    ///
+    /// # Panics
+    ///
+    /// Panics if input and output lengths don't match.
+    pub fn process(&self, input: &[f32], output: &mut [f32]) {
+        assert_eq!(input.len(), output.len());
+        (self.func)(input.as_ptr(), output.as_mut_ptr(), input.len());
+    }
 }
 
 /// Stub compiler when cranelift feature is disabled.

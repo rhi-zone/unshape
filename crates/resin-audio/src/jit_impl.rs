@@ -1,13 +1,13 @@
 //! JitCompilable implementations for audio nodes.
 //!
 //! This module implements the generic `JitCompilable` trait from `resin-jit`
-//! for audio-specific node types.
+//! for audio-specific node types. Both scalar and SIMD implementations are provided.
 
 #![cfg(feature = "cranelift")]
 
-use cranelift::ir::{InstBuilder, Value};
+use cranelift::ir::{InstBuilder, Value, types};
 use cranelift_frontend::FunctionBuilder;
-use rhizome_resin_jit::{JitCategory, JitCompilable, JitContext};
+use rhizome_resin_jit::{JitCategory, JitCompilable, JitContext, SimdCompilable, SimdWidth};
 
 use crate::graph::{AffineNode, Clip, Constant, SoftClip};
 
@@ -116,6 +116,121 @@ impl JitCompilable for Constant {
         _ctx: &mut JitContext,
     ) -> Vec<Value> {
         vec![builder.ins().f32const(self.0)]
+    }
+}
+
+// ============================================================================
+// SIMD Implementations
+// ============================================================================
+
+impl SimdCompilable for AffineNode {
+    fn emit_simd_ir(
+        &self,
+        inputs: &[Value],
+        builder: &mut FunctionBuilder<'_>,
+        ctx: &mut JitContext,
+        width: SimdWidth,
+    ) -> Vec<Value> {
+        let input_vec = inputs[0];
+        let simd_type = ctx.simd_type(width);
+
+        // Optimize based on values
+        let is_identity_gain = (self.gain - 1.0).abs() < 1e-10;
+        let is_zero_offset = self.offset.abs() < 1e-10;
+
+        let output = match (is_identity_gain, is_zero_offset) {
+            (true, true) => input_vec,
+            (true, false) => {
+                // Splat offset to vector and add
+                let o_scalar = builder.ins().f32const(self.offset);
+                let o_vec = builder.ins().splat(simd_type, o_scalar);
+                builder.ins().fadd(input_vec, o_vec)
+            }
+            (false, true) => {
+                // Splat gain to vector and multiply
+                let g_scalar = builder.ins().f32const(self.gain);
+                let g_vec = builder.ins().splat(simd_type, g_scalar);
+                builder.ins().fmul(input_vec, g_vec)
+            }
+            (false, false) => {
+                // Full affine: output = input * gain + offset
+                let g_scalar = builder.ins().f32const(self.gain);
+                let g_vec = builder.ins().splat(simd_type, g_scalar);
+                let o_scalar = builder.ins().f32const(self.offset);
+                let o_vec = builder.ins().splat(simd_type, o_scalar);
+
+                let mul = builder.ins().fmul(input_vec, g_vec);
+                builder.ins().fadd(mul, o_vec)
+            }
+        };
+
+        vec![output]
+    }
+}
+
+impl SimdCompilable for Clip {
+    fn emit_simd_ir(
+        &self,
+        inputs: &[Value],
+        builder: &mut FunctionBuilder<'_>,
+        ctx: &mut JitContext,
+        width: SimdWidth,
+    ) -> Vec<Value> {
+        let input_vec = inputs[0];
+        let simd_type = ctx.simd_type(width);
+
+        // Splat min/max to vectors
+        let min_scalar = builder.ins().f32const(self.min);
+        let min_vec = builder.ins().splat(simd_type, min_scalar);
+        let max_scalar = builder.ins().f32const(self.max);
+        let max_vec = builder.ins().splat(simd_type, max_scalar);
+
+        // Vector clamp: fmax(fmin(input, max), min)
+        let clamped_high = builder.ins().fmin(input_vec, max_vec);
+        let output = builder.ins().fmax(clamped_high, min_vec);
+
+        vec![output]
+    }
+}
+
+impl SimdCompilable for SoftClip {
+    fn emit_simd_ir(
+        &self,
+        inputs: &[Value],
+        builder: &mut FunctionBuilder<'_>,
+        ctx: &mut JitContext,
+        width: SimdWidth,
+    ) -> Vec<Value> {
+        let input_vec = inputs[0];
+        let simd_type = ctx.simd_type(width);
+
+        // Apply drive: driven = input * drive
+        let drive_scalar = builder.ins().f32const(self.drive);
+        let drive_vec = builder.ins().splat(simd_type, drive_scalar);
+        let driven = builder.ins().fmul(input_vec, drive_vec);
+
+        // Soft clip: x / (1 + |x|)
+        let abs_x = builder.ins().fabs(driven);
+        let one_scalar = builder.ins().f32const(1.0);
+        let one_vec = builder.ins().splat(simd_type, one_scalar);
+        let denom = builder.ins().fadd(one_vec, abs_x);
+        let output = builder.ins().fdiv(driven, denom);
+
+        vec![output]
+    }
+}
+
+impl SimdCompilable for Constant {
+    fn emit_simd_ir(
+        &self,
+        _inputs: &[Value],
+        builder: &mut FunctionBuilder<'_>,
+        ctx: &mut JitContext,
+        width: SimdWidth,
+    ) -> Vec<Value> {
+        let simd_type = ctx.simd_type(width);
+        let scalar = builder.ins().f32const(self.0);
+        vec![builder.ins().splat(simd_type, scalar)]
     }
 }
 
