@@ -55,6 +55,8 @@ fn generate_benchmark_effects() {
             SerialAudioNode::Lfo { rate: 0.5 },
             SerialAudioNode::Delay {
                 max_samples: max_delay,
+                feedback: 0.0,
+                mix: 0.5,
             },
             SerialAudioNode::Mix { mix: 0.5 },
         ],
@@ -72,9 +74,8 @@ fn generate_benchmark_effects() {
     code.push_str(&generate_effect(&chorus_graph, "GeneratedChorus"));
     code.push_str("\n\n");
 
-    // Flanger: LFO (0.3Hz) modulating delay time
+    // Flanger: LFO (0.3Hz) modulating delay time with feedback
     // Match FlangerOptimized: rate=0.3, base=3ms, depth=2ms, feedback=0.7, mix=0.5
-    // Note: basic codegen doesn't support feedback yet, so this is a simplified flanger
     let base_delay = 3.0 * sample_rate / 1000.0;
     let depth = 2.0 * sample_rate / 1000.0;
     let max_delay = ((3.0 + 2.0 * 2.0) * sample_rate / 1000.0) as usize + 1;
@@ -84,6 +85,8 @@ fn generate_benchmark_effects() {
             SerialAudioNode::Lfo { rate: 0.3 },
             SerialAudioNode::Delay {
                 max_samples: max_delay,
+                feedback: 0.7,
+                mix: 0.5,
             },
         ],
         audio_wires: vec![],
