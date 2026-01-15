@@ -700,13 +700,156 @@ impl crate::graph::AudioNode for TremoloOptimized {
     }
 }
 
+/// Optimized flanger effect (LFO modulating delay time).
+///
+/// Flanger = LFO → delay time, with feedback. Simpler than chorus (no mixer).
+pub struct FlangerOptimized {
+    lfo: crate::primitive::PhaseOsc,
+    delay: crate::primitive::DelayLine<true>,
+    phase_inc: f32,
+    base_delay: f32,
+    depth: f32,
+    feedback: f32,
+}
+
+impl FlangerOptimized {
+    /// Create a new optimized flanger.
+    pub fn new(
+        rate: f32,
+        base_delay_ms: f32,
+        depth_ms: f32,
+        feedback: f32,
+        sample_rate: f32,
+    ) -> Self {
+        let base_delay = base_delay_ms * sample_rate / 1000.0;
+        let depth = depth_ms * sample_rate / 1000.0;
+        let max_delay = ((base_delay_ms + depth_ms * 2.0) * sample_rate / 1000.0) as usize + 1;
+
+        Self {
+            lfo: crate::primitive::PhaseOsc::new(),
+            delay: crate::primitive::DelayLine::new(max_delay),
+            phase_inc: rate / sample_rate,
+            base_delay,
+            depth,
+            feedback,
+        }
+    }
+
+    /// Create from match result.
+    pub fn from_match(m: &MatchResult, sample_rate: f32) -> Self {
+        let rate = m.get_param(0, "rate").unwrap_or(0.3);
+        let (base_delay, depth) = m.get_modulation(0, 1).unwrap_or((220.0, 130.0)); // ~5ms, ~3ms at 44.1kHz
+        let feedback = m.get_param(1, "feedback").unwrap_or(0.7);
+
+        let max_delay = (base_delay + depth * 2.0) as usize + 1;
+
+        Self {
+            lfo: crate::primitive::PhaseOsc::new(),
+            delay: crate::primitive::DelayLine::new(max_delay),
+            phase_inc: rate / sample_rate,
+            base_delay,
+            depth,
+            feedback,
+        }
+    }
+}
+
+impl crate::graph::AudioNode for FlangerOptimized {
+    #[inline]
+    fn process(&mut self, input: f32, _ctx: &crate::graph::AudioContext) -> f32 {
+        let lfo_out = self.lfo.sine();
+        self.lfo.advance(self.phase_inc);
+
+        let delay_time = self.base_delay + lfo_out * self.depth;
+        let delayed = self.delay.read_interp(delay_time);
+
+        let to_delay = input + delayed * self.feedback;
+        self.delay.write(to_delay);
+
+        delayed
+    }
+
+    fn reset(&mut self) {
+        self.lfo.reset();
+        self.delay.clear();
+    }
+}
+
+/// Optimized chorus effect (LFO modulating delay time with mix).
+///
+/// Chorus = LFO → delay time, mixed with dry signal.
+pub struct ChorusOptimized {
+    lfo: crate::primitive::PhaseOsc,
+    delay: crate::primitive::DelayLine<true>,
+    phase_inc: f32,
+    base_delay: f32,
+    depth: f32,
+    mix: f32,
+}
+
+impl ChorusOptimized {
+    /// Create a new optimized chorus.
+    pub fn new(rate: f32, base_delay_ms: f32, depth_ms: f32, mix: f32, sample_rate: f32) -> Self {
+        let base_delay = base_delay_ms * sample_rate / 1000.0;
+        let depth = depth_ms * sample_rate / 1000.0;
+        let max_delay = ((base_delay_ms + depth_ms * 2.0) * sample_rate / 1000.0) as usize + 1;
+
+        Self {
+            lfo: crate::primitive::PhaseOsc::new(),
+            delay: crate::primitive::DelayLine::new(max_delay),
+            phase_inc: rate / sample_rate,
+            base_delay,
+            depth,
+            mix,
+        }
+    }
+
+    /// Create from match result.
+    pub fn from_match(m: &MatchResult, sample_rate: f32) -> Self {
+        let rate = m.get_param(0, "rate").unwrap_or(0.8);
+        let (base_delay, depth) = m.get_modulation(0, 1).unwrap_or((880.0, 220.0)); // ~20ms, ~5ms at 44.1kHz
+        let mix = m.get_param(2, "mix").unwrap_or(0.5);
+
+        let max_delay = (base_delay + depth * 2.0) as usize + 1;
+
+        Self {
+            lfo: crate::primitive::PhaseOsc::new(),
+            delay: crate::primitive::DelayLine::new(max_delay),
+            phase_inc: rate / sample_rate,
+            base_delay,
+            depth,
+            mix,
+        }
+    }
+}
+
+impl crate::graph::AudioNode for ChorusOptimized {
+    #[inline]
+    fn process(&mut self, input: f32, _ctx: &crate::graph::AudioContext) -> f32 {
+        let lfo_out = self.lfo.sine();
+        self.lfo.advance(self.phase_inc);
+
+        let delay_time = self.base_delay + lfo_out * self.depth;
+        self.delay.write(input);
+        let wet = self.delay.read_interp(delay_time);
+
+        // Mix dry and wet
+        input * (1.0 - self.mix) + wet * self.mix
+    }
+
+    fn reset(&mut self) {
+        self.lfo.reset();
+        self.delay.clear();
+    }
+}
+
 // ============================================================================
 // Default Patterns
 // ============================================================================
 
 /// Returns the default set of effect patterns.
 pub fn default_patterns() -> Vec<Pattern> {
-    vec![tremolo_pattern()]
+    vec![tremolo_pattern(), flanger_pattern(), chorus_pattern()]
 }
 
 /// Pattern for tremolo: LFO modulating a gain node.
@@ -730,11 +873,64 @@ fn tremolo_pattern() -> Pattern {
             external_inputs: vec![1],          // External audio enters at Gain
             external_outputs: vec![1],         // Audio leaves from Gain
         },
-        build: |m| {
-            // Default sample rate - in practice would come from context
-            Box::new(TremoloOptimized::from_match(m, 44100.0))
-        },
+        build: |m| Box::new(TremoloOptimized::from_match(m, 44100.0)),
         priority: 0,
+    }
+}
+
+/// Pattern for flanger: LFO modulating delay time (no mixer).
+fn flanger_pattern() -> Pattern {
+    Pattern {
+        name: "flanger",
+        required: fingerprint!(Lfo: 1, Delay: 1),
+        structure: PatternStructure {
+            nodes: vec![
+                PatternNode {
+                    node_type: NodeType::Lfo,
+                    constraints: vec![],
+                },
+                PatternNode {
+                    node_type: NodeType::Delay,
+                    constraints: vec![],
+                },
+            ],
+            audio_wires: vec![],               // LFO doesn't send audio to Delay
+            param_wires: vec![(0, 1, "time")], // LFO modulates Delay's time param
+            external_inputs: vec![1],          // External audio enters at Delay
+            external_outputs: vec![1],         // Audio leaves from Delay
+        },
+        build: |m| Box::new(FlangerOptimized::from_match(m, 44100.0)),
+        priority: 0,
+    }
+}
+
+/// Pattern for chorus: LFO modulating delay time with mixer.
+fn chorus_pattern() -> Pattern {
+    Pattern {
+        name: "chorus",
+        required: fingerprint!(Lfo: 1, Delay: 1, Mix: 1),
+        structure: PatternStructure {
+            nodes: vec![
+                PatternNode {
+                    node_type: NodeType::Lfo,
+                    constraints: vec![],
+                },
+                PatternNode {
+                    node_type: NodeType::Delay,
+                    constraints: vec![],
+                },
+                PatternNode {
+                    node_type: NodeType::Mix,
+                    constraints: vec![],
+                },
+            ],
+            audio_wires: vec![(1, 2)],         // Delay → Mixer
+            param_wires: vec![(0, 1, "time")], // LFO modulates Delay's time param
+            external_inputs: vec![1],          // External audio enters at Delay
+            external_outputs: vec![2],         // Audio leaves from Mixer
+        },
+        build: |m| Box::new(ChorusOptimized::from_match(m, 44100.0)),
+        priority: 10, // Higher priority than flanger (more specific)
     }
 }
 
@@ -832,5 +1028,103 @@ mod tests {
         let ctx = AudioContext::new(44100.0);
         let output = graph.process(1.0, &ctx);
         assert!(output.abs() <= 1.0); // Should be in valid range
+    }
+
+    #[test]
+    fn test_flanger_pattern_match() {
+        use crate::graph::AudioGraph;
+        use crate::primitive::{DelayNode, LfoNode};
+
+        // Build a flanger graph
+        let mut graph = AudioGraph::new();
+        let lfo = graph.add(LfoNode::with_freq(0.3, 44100.0));
+        let delay = graph.add(DelayNode::new(500));
+
+        graph.connect_input(delay);
+        graph.set_output(delay);
+        graph.modulate(lfo, delay, DelayNode::PARAM_TIME, 220.0, 130.0);
+
+        // Verify fingerprint matches
+        let fp = compute_fingerprint(&graph);
+        let pattern = flanger_pattern();
+        assert!(fp.contains(&pattern.required));
+
+        // Verify structural match
+        let match_result = structural_match(&graph, &pattern);
+        assert!(match_result.is_some());
+        assert_eq!(match_result.unwrap().pattern_name, "flanger");
+    }
+
+    #[test]
+    fn test_optimize_flanger_graph() {
+        use crate::graph::{AudioContext, AudioGraph};
+        use crate::primitive::{DelayNode, LfoNode};
+
+        let mut graph = AudioGraph::new();
+        let lfo = graph.add(LfoNode::with_freq(0.3, 44100.0));
+        let delay = graph.add(DelayNode::new(500));
+
+        graph.connect_input(delay);
+        graph.set_output(delay);
+        graph.modulate(lfo, delay, DelayNode::PARAM_TIME, 220.0, 130.0);
+
+        assert_eq!(graph.node_count(), 2);
+        optimize_graph(&mut graph, &default_patterns());
+        assert_eq!(graph.node_count(), 1);
+
+        let ctx = AudioContext::new(44100.0);
+        let output = graph.process(1.0, &ctx);
+        assert!(output.abs() <= 2.0); // With feedback, might exceed 1.0 briefly
+    }
+
+    #[test]
+    fn test_chorus_pattern_match() {
+        use crate::graph::AudioGraph;
+        use crate::primitive::{DelayNode, LfoNode, MixNode};
+
+        // Build a chorus graph
+        let mut graph = AudioGraph::new();
+        let lfo = graph.add(LfoNode::with_freq(0.8, 44100.0));
+        let delay = graph.add(DelayNode::new(2000));
+        let mixer = graph.add(MixNode::new(0.5));
+
+        graph.connect_input(delay);
+        graph.connect(delay, mixer);
+        graph.set_output(mixer);
+        graph.modulate(lfo, delay, DelayNode::PARAM_TIME, 880.0, 220.0);
+
+        // Verify fingerprint matches
+        let fp = compute_fingerprint(&graph);
+        let pattern = chorus_pattern();
+        assert!(fp.contains(&pattern.required));
+
+        // Verify structural match
+        let match_result = structural_match(&graph, &pattern);
+        assert!(match_result.is_some());
+        assert_eq!(match_result.unwrap().pattern_name, "chorus");
+    }
+
+    #[test]
+    fn test_optimize_chorus_graph() {
+        use crate::graph::{AudioContext, AudioGraph};
+        use crate::primitive::{DelayNode, LfoNode, MixNode};
+
+        let mut graph = AudioGraph::new();
+        let lfo = graph.add(LfoNode::with_freq(0.8, 44100.0));
+        let delay = graph.add(DelayNode::new(2000));
+        let mixer = graph.add(MixNode::new(0.5));
+
+        graph.connect_input(delay);
+        graph.connect(delay, mixer);
+        graph.set_output(mixer);
+        graph.modulate(lfo, delay, DelayNode::PARAM_TIME, 880.0, 220.0);
+
+        assert_eq!(graph.node_count(), 3);
+        optimize_graph(&mut graph, &default_patterns());
+        assert_eq!(graph.node_count(), 1);
+
+        let ctx = AudioContext::new(44100.0);
+        let output = graph.process(1.0, &ctx);
+        assert!(output.abs() <= 1.5);
     }
 }
