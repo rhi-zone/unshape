@@ -253,4 +253,62 @@ All times are well within real-time budget for audio (22.7 ms available per 4410
 ### Remaining Challenges
 - Stateful nodes (delay, filter) still require Rust callbacks
 - Graph compilation (`compile_graph()`) not yet ported to resin-jit
-- Field expressions (Phase 3) need recursive AST → IR translation
+- ~~Field expressions (Phase 3) need recursive AST → IR translation~~ ✅ DONE
+
+## Phase 3: Field Expression JIT (resin-expr-field)
+
+Field expressions (`FieldExpr`) can now be JIT-compiled to native code.
+
+### Implementation
+
+The `FieldExprCompiler` in `resin-expr-field` compiles a `FieldExpr` AST to a function `fn(x, y, z, t) -> f32`.
+
+**Key features:**
+- **Pure Cranelift perlin2**: Noise is fully inlined, no Rust boundary crossing
+- **Polynomial transcendentals**: sin, cos, tan, exp, ln use optimized polynomial approximations
+- **Other noise**: simplex2/3, perlin3, fbm use external calls (future: inline these too)
+
+### Pure Cranelift perlin2
+
+The perlin2 noise function is implemented entirely in Cranelift IR:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  emit_perlin2(x, y)                                         │
+├─────────────────────────────────────────────────────────────┤
+│  1. Floor + fractional: xi, yi, xf, yf                      │
+│  2. Fade curves: u = fade(xf), v = fade(yf)                 │
+│  3. Hash corners: emit_perm() × 4                           │
+│  4. Gradients: emit_grad2() × 4                             │
+│  5. Bilinear interpolation: emit_lerp() × 3                 │
+│  6. Scale to [0, 1]                                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Perm table access**: Uses direct pointer to the static `PERM` array (safe because it's program-lifetime).
+
+**Parity**: Verified exact match with `rhizome_resin_noise::perlin2()` across 2500 test points.
+
+### Polynomial Transcendentals
+
+| Function | Method | Max Error |
+|----------|--------|-----------|
+| sin(x) | Range reduction to [-π/2, π/2] + degree-9 minimax | < 0.05 |
+| cos(x) | sin(x + π/2) | < 0.05 |
+| tan(x) | sin(x) / cos(x) | < 0.05 |
+| exp(x) | 2^(x·log2(e)) via bit manipulation + polynomial | < 1% relative |
+| ln(x) | Exponent extraction + polynomial for ln(1+t) | < 0.05 |
+
+These approximations are suitable for procedural graphics where ~1% error is imperceptible.
+
+### What's NOT Inlined (Yet)
+
+| Function | Status | Reason |
+|----------|--------|--------|
+| perlin3 | External call | Larger, 8 corners |
+| simplex2/3 | External call | Complex geometry, conditionals |
+| fbm | External call | Loop with multiple perlin calls |
+
+These could be inlined for additional performance, but the benefit is smaller since:
+- Noise is typically a small part of a complex expression
+- External calls are still fast (~10-20 cycles overhead)

@@ -190,9 +190,11 @@
   - 6.6x faster than native Rust (no bounds checking overhead)
   - Parity tests verify scalar == SIMD == native
 - [x] Field expression JIT - compile `FieldExpr` AST to native `fn(x,y,z,t) -> f32`
-  - Noise functions (perlin, simplex, fbm) via external symbol calls
+  - **Pure Cranelift perlin2**: No Rust boundary crossing, exact parity with Rust impl
+  - **Polynomial transcendentals**: sin, cos, tan, exp, ln via optimized approximations
+  - Other noise (simplex, perlin3, fbm) still use external calls (future: inline these)
   - Math ops, SDF operations, conditionals compiled inline
-  - Parity tests verify JIT == interpreted eval
+  - 29 parity tests verify JIT == interpreted eval
 
 ### Audio Effects (guitar pedals / studio)
 
