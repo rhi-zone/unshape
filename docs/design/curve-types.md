@@ -24,7 +24,7 @@ impl Interpolatable for Vec2 {}
 impl Interpolatable for Vec3 {}
 ```
 
-**Gap:** `Interpolatable` lacks `length()` method needed for arc length calculation. The `Curve` trait may need additional bounds or a separate `VectorSpace` trait.
+**Gap:** `Interpolatable` lacks `length()` method needed for arc length calculation. Solution: separate `VectorSpace` trait (see Design Decisions).
 
 **Existing segment enum:** stroke.rs has:
 
@@ -74,10 +74,19 @@ This is the "more code paths" problem.
 Using an associated type for 2D/3D genericity:
 
 ```rust
+/// Vector operations needed for arc length calculation.
+pub trait VectorSpace: Interpolatable {
+    fn length(&self) -> f32;
+    fn normalize(&self) -> Self;
+}
+
+impl VectorSpace for Vec2 { /* trivial */ }
+impl VectorSpace for Vec3 { /* trivial */ }
+
 /// Unified curve interface for any dimension.
 pub trait Curve: Clone {
-    /// Point type: Vec2, Vec3, or any Interpolatable
-    type Point: Interpolatable;
+    /// Point type: Vec2, Vec3, or any VectorSpace
+    type Point: VectorSpace;
 
     /// Point at parameter t ∈ [0, 1]
     fn position_at(&self, t: f32) -> Self::Point;
@@ -379,12 +388,18 @@ trait Curve3DExt: Curve<Point = Vec3> {
 
 ```rust
 // ═══════════════════════════════════════════════════════════════════════════
-// Core Trait (in resin-vector or resin-curve)
+// Core Traits (in resin-curve)
 // ═══════════════════════════════════════════════════════════════════════════
+
+/// Vector operations needed for arc length calculation.
+pub trait VectorSpace: Interpolatable {
+    fn length(&self) -> f32;
+    fn normalize(&self) -> Self;
+}
 
 /// Unified curve interface for any dimension.
 pub trait Curve: Clone {
-    type Point: Interpolatable;
+    type Point: VectorSpace;
 
     fn position_at(&self, t: f32) -> Self::Point;
     fn tangent_at(&self, t: f32) -> Self::Point;
@@ -477,6 +492,31 @@ pub trait Curve2DExt: Curve<Point = Vec2> {
 pub trait Curve3DExt: Curve<Point = Vec3> {
     fn bounding_box(&self) -> Aabb;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Arc-Length Parameterization (opt-in wrapper)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Wrapper that caches cumulative segment lengths for uniform-speed sampling.
+pub struct ArcLengthPath<C: Curve> {
+    path: Path<C>,
+    cumulative_lengths: Vec<f32>,
+    total_length: f32,
+}
+
+impl<C: Curve> ArcLengthPath<C> {
+    pub fn new(path: Path<C>) -> Self {
+        // Compute and cache cumulative lengths
+    }
+
+    /// Sample at arc-length parameter t ∈ [0, 1].
+    /// Unlike Path::position_at, this gives uniform speed along the path.
+    pub fn position_at(&self, t: f32) -> C::Point {
+        // Binary search cumulative_lengths, interpolate
+    }
+
+    pub fn total_length(&self) -> f32 { self.total_length }
+}
 ```
 
 ## Conclusion
@@ -533,29 +573,14 @@ pub trait Curve3DExt: Curve<Point = Vec3> {
 4. **Remove duplicate implementations**
 5. **Delete `PathCommand` enum** - replace with direct `Segment2D` construction
 
-## Open Questions
+## Design Decisions
 
-1. **Crate location:** Should `Curve` trait live in:
-   - `resin-vector` (current 2D home)?
-   - `resin-spline` (already has generic bezier)?
-   - New `resin-curve` crate (clean separation)?
+1. **Crate location:** New `resin-curve` crate for clean separation.
 
-2. **NURBS integration:** Should `Nurbs<V>` implement `Curve`? It's already in resin-spline and can represent arcs exactly.
+2. **NURBS integration:** Yes, `Nurbs<V>` implements `Curve`. Convenient for users even though `to_cubics()` is approximate.
 
-3. **Arc-length parameterization:** Path3D has valuable arc-length caching. Should this be:
-   - Part of `Path<C>` (always available)?
-   - A separate wrapper `ArcLengthPath<C>`?
-   - A method `path.with_arc_length_cache()`?
+3. **Arc-length parameterization:** Separate `ArcLengthPath<C>` wrapper. Keeps `Path<C>` simple, opt-in overhead.
 
-4. **Method naming:** Current code uses mix of:
-   - `evaluate(t)` (resin-spline)
-   - `position_at(t)` (resin-rig)
-   - `point_at(t)` (proposed)
+4. **Method naming:** `position_at()` - matches resin-rig's existing API.
 
-   Recommendation: `position_at()` - matches resin-rig's arc-length API and is clear.
-
-5. **Interpolatable bounds:** The current `Interpolatable` trait lacks `length()` needed for arc length. Options:
-   - Extend `Interpolatable` to include `fn length(&self) -> f32`
-   - Create separate `VectorSpace` trait with length/normalize
-   - Use concrete bounds like `Curve<Point: HasLength>` where needed
-   - Provide default `length()` implementations only for known types via specialization
+5. **Vector bounds:** Separate `VectorSpace` trait with `length()` and `normalize()`. The `Curve` trait bounds on `Point: Interpolatable + VectorSpace`. Trivial for Vec2/Vec3.
