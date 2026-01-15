@@ -58,9 +58,8 @@ fn generate_benchmark_effects() {
                 feedback: 0.0,
                 mix: 0.5,
             },
-            SerialAudioNode::Mix { mix: 0.5 },
         ],
-        audio_wires: vec![(1, 2)],
+        audio_wires: vec![],
         param_wires: vec![SerialParamWire {
             from: 0,
             to: 1,
@@ -69,7 +68,7 @@ fn generate_benchmark_effects() {
             scale: depth,
         }],
         input_node: Some(1),
-        output_node: Some(2),
+        output_node: Some(1),
     };
     code.push_str(&generate_effect(&chorus_graph, "GeneratedChorus"));
     code.push_str("\n\n");
