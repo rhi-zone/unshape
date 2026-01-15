@@ -1,0 +1,10 @@
+[package]
+name = "rhizome-resin-curve"
+version = "0.1.0"
+edition = "2024"
+description = "Unified curve trait and types for 2D/3D paths"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rhizome-lab/resin"
+
+[dependencies]
+glam.workspace = true
