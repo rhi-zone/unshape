@@ -235,21 +235,39 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 
 ### Codebase Normalization
 
-> **Status:** 🔴 Not started - see `docs/design/normalization.md` for full analysis
+> **Status:** ✅ Complete - see `docs/design/normalization.md`
+
+- [x] Transform representations - added `From` conversions between Mat4/Transform2D/Transform
+- [x] Interpolation trait - `Lerp` in resin-easing, implemented for common types
+- [x] Cubic bezier dedup - consolidated in `resin-vector/src/bezier.rs`
+- [x] Color conversions - `From<[f32; 4]> for Rgba` and vice versa
+- [x] Config builders - removed ~170 boilerplate builders, kept only useful ones
+- [x] Error handling - standardized on thiserror across all crates
+- [x] Coordinate docs - documented in `docs/conventions.md`
+
+### Type Unification
+
+> **Status:** 🔴 Not started - see `docs/design/unification.md` for full analysis
 
 **High Priority:**
-- [ ] Transform representations - add `From` conversions between Mat4/Transform2D/Transform
-- [ ] Interpolate trait - move to resin-core, implement for all common types
-- [ ] Cubic bezier dedup - consolidate 3 identical implementations in resin-vector
+- [ ] Curve trait unification - implement trait-based `Curve` design from `docs/design/curve-types.md`
+  - Unify `Path`, `Path3D`, `CubicBezier<T>`, bezier functions
+  - Create `Segment` enum with single-point trait dispatch
+  - Make `Path<C: Curve>` generic over curve type
 
 **Medium Priority:**
-- [ ] Color conversions - `From<[f32; 4]> for Rgba` and vice versa
-- [ ] Sampling interfaces - document Field trait adoption guidance
-- [ ] Config builders - add `with_*` methods to all Config structs
+- [ ] Graph terminology clarification - distinguish node/edge meanings across domains
+  - Data flow graphs (resin-core): NodeId, Edge with ports
+  - Spatial graphs (resin-vector, resin-procgen): position + connectivity
+  - Topology graphs (resin-mesh): HalfEdge, Vertex, Face
+- [ ] Transform unification - consider generic `Transform<V, R>` (V=Vec2/Vec3, R=f32/Quat)
+  - Currently: `Transform` (3D) and `Transform2D` separate
+  - 2D has additional properties (anchor, skew)
 
 **Low Priority:**
-- [ ] Error handling - standardize on thiserror across all crates
-- [ ] Coordinate docs - document conventions in CLAUDE.md
+- [ ] Vertex attribute unification - use traits instead of per-subsystem Vertex structs
+  - Currently: separate Vertex types in mesh, rig, vector, physics
+  - Use resin-core traits (`HasPositions`, `HasNormals`, `HasUVs`)
 
 ### Architecture / Future Extraction
 
