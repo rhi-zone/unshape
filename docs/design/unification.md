@@ -383,6 +383,15 @@ Constructor functions (`chorus()`, `flanger()`, `tremolo()`, `phaser()`) provide
 
 **Decision:** Primitive-based architecture validated. Effects are constructor functions returning composition structs.
 
+**Graph-based effects exploration:**
+
+Extended the architecture to support effects as graph configurations (see `audio-graph-primitives.md`):
+- `AudioGraph` with parameter modulation (`modulate()` wires node output → param)
+- Primitive nodes: `DelayNode`, `LfoNode`, `GainNode`, `AllpassNode`, `MixNode`, `EnvelopeNode`
+- Graph-based constructors: `tremolo_graph()`, `chorus_graph()`, `flanger_graph()`
+
+Benchmark results showed significant overhead (1.65x-3.76x) from wire iteration and dyn dispatch per sample. Optimization strategies documented; Cranelift JIT is a potential path to zero-overhead graph execution.
+
 ---
 
 ## Related Documents

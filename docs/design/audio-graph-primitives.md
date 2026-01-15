@@ -267,31 +267,81 @@ Recommendation: Keep `AudioGraph` separate for now, but design `Modulatable<T>` 
 
 ## Performance Considerations
 
-### Overhead Sources
+### Benchmark Results
 
-| Source | Impact | Mitigation |
-|--------|--------|------------|
-| Node iteration | Low | Small graphs (3-5 nodes) |
-| Dyn dispatch | Low | Called once per sample per node |
-| Param lookup | Low | Index-based, no string lookup at runtime |
-| Modulation math | Negligible | One multiply-add per modulated param |
+Actual benchmarks show significant overhead:
 
-### Why This Should Be Fast
+| Effect | Composition | Graph | Overhead |
+|--------|-------------|-------|----------|
+| Tremolo | 191 µs | 718 µs | **3.76x slower** |
+| Chorus | 747 µs | 1,637 µs | **2.19x slower** |
+| Flanger | 742 µs | 1,224 µs | **1.65x slower** |
 
-1. **Small graphs** - Chorus is ~3 nodes, not 100
-2. **No allocation** - All storage pre-allocated
-3. **Linear iteration** - Topological order cached
-4. **Same math** - Modulation is just `base + output * scale`
+*(Times are for processing 1 second of audio at 44.1kHz)*
 
-The hardcoded compositions do the same work, just with the structure baked in. The graph makes the structure explicit but shouldn't add overhead.
+### Overhead Sources (Actual)
 
-### Benchmark Strategy
+The prediction that overhead would be low was **wrong**. Actual sources:
 
-Before removing compositions:
-1. Benchmark current compositions
-2. Implement graph versions
-3. Compare - should be within 10%
-4. If slower, profile and optimize graph execution
+| Source | Impact | Why |
+|--------|--------|-----|
+| Wire iteration | **HIGH** | Scanning `Vec<ParamWire>` and `Vec<AudioWire>` on every sample |
+| Dynamic dispatch | **MODERATE** | `Box<dyn AudioNode>` vtable lookup per node per sample |
+| set_param calls | **MODERATE** | Function call overhead even when params haven't changed |
+| Output vector | **LOW** | Writing to `outputs[i]` vs direct field access |
+
+### Optimization Strategies
+
+**1. Pre-compute wire lookups**
+```rust
+struct NodeExecInfo {
+    audio_inputs: SmallVec<[NodeIndex; 4]>,  // Which nodes feed this one
+    param_mods: SmallVec<[(NodeIndex, usize, f32, f32); 2]>,  // (from, param, base, scale)
+}
+```
+Build once when graph structure changes, iterate small vecs per node instead of filtering all wires.
+
+**2. Control-rate parameter updates**
+LFOs don't need sample-accurate modulation. Update params every N samples:
+```rust
+if sample_count % 64 == 0 {
+    // Apply modulation
+}
+```
+
+**3. Monomorphization / code generation**
+For small fixed graphs, generate specialized code that inlines the graph structure. Options:
+- Proc macro at compile time
+- Cranelift JIT at runtime (see below)
+
+**4. SIMD batching**
+Process N samples at once, amortizing per-node overhead.
+
+### Cranelift JIT Consideration
+
+Cranelift could JIT-compile graph configurations into native code, eliminating:
+- Wire iteration (baked into generated code)
+- Dynamic dispatch (concrete function calls)
+- set_param overhead (params computed inline)
+
+**Pros:**
+- Near-zero overhead for any graph configuration
+- Users get composition-level performance without writing Rust
+- Graph changes trigger recompilation (acceptable for effect design, not live modulation)
+
+**Cons:**
+- Significant complexity (cranelift dependency, IR generation)
+- Compile latency when graph changes (~1-10ms typical)
+- Platform support considerations (cranelift targets)
+- Debugging JIT code is harder
+
+**Verdict:** Worth exploring if simpler optimizations don't close the gap. Start with pre-computed wire lookups.
+
+### Acceptable Overhead?
+
+For context, 1.6ms to process 1 second of audio = **0.16% CPU** at real-time rate. Even the slowest graph version (chorus at 1.6ms) is well under real-time requirements.
+
+However, effects are often chained. A chain of 10 graph-based effects at 2x overhead could matter. And the principle of "graph should be as fast as hardcoded" is worth pursuing.
 
 ## Future: Control Rate
 
