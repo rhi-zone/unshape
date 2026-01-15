@@ -136,7 +136,8 @@
   - Feature-gated: `cranelift` feature in resin-audio
   - Block processing via `BlockProcessor` trait to amortize function call overhead
   - Per-sample JIT has ~15 cycle overhead; block processing amortizes across 64+ samples
-  - Proof-of-concept in `resin-audio/src/jit.rs`, full graph compilation WIP
+  - Proof-of-concept in `resin-audio/src/jit.rs`, stateful nodes supported
+  - See `docs/design/jit-optimization-log.md` for performance analysis
 - [x] Static graph compilation - build.rs codegen from SerialAudioGraph
   - `resin-audio-codegen` crate with `generate_effect()` function
   - Topological sort + generic node processing (not pattern-matching)
@@ -148,7 +149,34 @@
   - All tiers implement `BlockProcessor::process_block()`
   - Blanket impl for `AudioNode` types loops over per-sample `process()`
   - JIT uses native block impl for efficiency
-- [ ] SIMD batch processing - process N samples at once within block (future optimization)
+
+### Graph Optimization Passes (pre-codegen)
+
+> **Goal:** Transform graphs to reduce node count before execution/compilation.
+> Works at graph level, not tied to any codegen backend. Benefits both dynamic execution and JIT.
+
+**Algebraic Fusion:**
+- [ ] Affine chain fusion - `Gain(a) -> Offset(b) -> Gain(c) -> Offset(d)` → single multiply-add
+  - Any sequence of linear ops becomes `output = input * combined_gain + combined_offset`
+  - Reduces N nodes to 1 fused node
+- [ ] Filter cascading - consecutive biquads can combine coefficients
+- [ ] Delay merging - consecutive delays become single buffer with combined length
+
+**Simplification:**
+- [ ] Identity elimination - remove `Gain(1.0)`, `Offset(0.0)`, `PassThrough`
+- [ ] Dead node elimination - remove nodes not connected to output
+- [ ] Constant folding - `Constant(a) -> Gain(b)` → `Constant(a*b)`
+- [ ] Constant propagation - track known-constant inputs through graph
+
+**Implementation:**
+- [ ] `GraphOptimizer` trait - `fn optimize(&self, graph: &mut Graph)`
+- [ ] Composable passes - chain optimizers: `AffineChainFusion.then(IdentityElim).then(DeadNodeElim)`
+- [ ] Generic over graph type - works on `AudioGraph`, `FieldGraph`, etc.
+- [ ] Preserve semantics - optimization must not change output
+
+**Future (post-optimization):**
+- [ ] Generalized JIT in `resin-jit` crate - extract from audio, apply to any optimized graph
+- [ ] SIMD codegen - vectorize pure-math chains (4-8 samples at once)
 
 ### Audio Effects (guitar pedals / studio)
 

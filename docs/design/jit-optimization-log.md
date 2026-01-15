@@ -66,12 +66,62 @@ Native Rust's 2.6 µs vs JIT's 20 µs:
 - Native: Context values stay in registers
 - JIT: Every access is a memory load/store
 
-## Next Steps to Try
+## Decision: Graph Optimization Passes First
 
-1. **Hoist dt outside the loop** - Load once before loop, only update time/index inside
-2. **Use registers for time tracking** - Keep time in a register, write back once at end
-3. **Generate SIMD code** - Use Cranelift's SIMD instructions for pure-math chains
-4. **Profile the generated code** - Look at actual x86 output to understand what's happening
+Rather than optimizing JIT codegen, focus on **graph-level optimization passes** that run before any execution/compilation. These benefit both dynamic execution and JIT.
+
+### Why This Approach
+
+1. **JIT isn't the bottleneck** - Dynamic dispatch at 44.1kHz is fast enough
+2. **Optimization passes have broader value** - Work for audio, fields, images, any graph
+3. **Reduce external function calls** - Fusing 10 nodes to 2 = 8 fewer calls/sample
+4. **Codegen is mechanical** - The hard part is recognizing patterns, not emitting code
+
+### Planned Optimization Passes
+
+**Algebraic Fusion:**
+```
+Gain(0.5) -> Offset(1.0) -> Gain(2.0) -> Offset(-0.5)
+```
+Becomes:
+```
+AffineNode { gain: 1.0, offset: 0.5 }  // output = input * 1.0 + 0.5
+```
+
+**Simplification:**
+- `IdentityElim` - Remove `Gain(1.0)`, `Offset(0.0)`, `PassThrough`
+- `DeadNodeElim` - Remove unreachable nodes
+- `ConstantFold` - `Constant(2.0) -> Gain(0.5)` → `Constant(1.0)`
+
+### Implementation Plan
+
+1. Define `GraphOptimizer` trait
+2. Implement `AffineChainFusion` pass
+3. Implement `IdentityElim` pass
+4. Implement `DeadNodeElim` pass
+5. Test on audio graphs, then generalize
+
+### Future
+
+Once optimization passes work well:
+- Extract JIT to `resin-jit` crate (generic over graph type)
+- Add SIMD codegen for pure-math chains
+- Apply to field expressions, image pipelines
+
+## Appendix: Raw Numbers
+
+All benchmarks on 44100 samples (1 second of audio):
+
+| Implementation | Time | Per-sample |
+|----------------|------|------------|
+| Native Rust loop | 15 µs | 0.34 ns |
+| BlockProcessor (Gain) | 2.6 µs | 0.06 ns |
+| JIT block (pure math) | 20 µs | 0.45 ns |
+| JIT block (stateful) | 120 µs | 2.7 ns |
+| Per-sample JIT | 60-85 µs | 1.4-1.9 ns |
+| External fn call | ~71 µs | 1.6 ns |
+
+Even the slowest (120 µs) is well within real-time budget for audio.
 
 ## Observations
 
