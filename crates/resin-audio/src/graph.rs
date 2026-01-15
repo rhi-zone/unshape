@@ -267,6 +267,19 @@ pub struct ParamWire {
     pub scale: f32,
 }
 
+/// Pre-computed execution info for a single node.
+///
+/// Built once when graph structure changes, used on every sample.
+#[derive(Debug, Clone, Default)]
+struct NodeExecInfo {
+    /// Indices of nodes that feed audio into this node.
+    audio_inputs: Vec<NodeIndex>,
+    /// Parameter modulations: (source_node, param_index, base, scale).
+    param_mods: Vec<(NodeIndex, usize, f32, f32)>,
+    /// Whether this node receives external input.
+    receives_input: bool,
+}
+
 /// Audio graph with parameter modulation support.
 ///
 /// Unlike [`Chain`] which is linear, `AudioGraph` supports arbitrary routing
@@ -307,6 +320,12 @@ pub struct AudioGraph {
     output_node: Option<NodeIndex>,
     /// Cached node outputs (reused each process call).
     outputs: Vec<f32>,
+    /// Pre-computed per-node execution info. None means needs rebuild.
+    exec_info: Option<Vec<NodeExecInfo>>,
+    /// Sample counter for control-rate updates.
+    sample_count: u32,
+    /// Control rate divisor (update params every N samples). 0 = every sample.
+    control_rate: u32,
 }
 
 impl AudioGraph {
@@ -319,7 +338,21 @@ impl AudioGraph {
             input_node: None,
             output_node: None,
             outputs: Vec::new(),
+            exec_info: None,
+            sample_count: 0,
+            control_rate: 0, // 0 = audio rate (every sample)
         }
+    }
+
+    /// Sets control rate divisor for parameter updates.
+    ///
+    /// Parameters are updated every `rate` samples. Set to 0 for audio-rate
+    /// updates (every sample). Typical values: 32, 64, 128.
+    ///
+    /// Control-rate updates reduce CPU but add latency to modulation.
+    /// For LFO modulation, 64 samples (~1.5ms at 44.1kHz) is usually fine.
+    pub fn set_control_rate(&mut self, rate: u32) {
+        self.control_rate = rate;
     }
 
     /// Adds a node to the graph and returns its index.
@@ -327,17 +360,20 @@ impl AudioGraph {
         let index = self.nodes.len();
         self.nodes.push(Box::new(node));
         self.outputs.push(0.0);
+        self.exec_info = None; // Invalidate cache
         index
     }
 
     /// Connects audio output of one node to input of another.
     pub fn connect(&mut self, from: NodeIndex, to: NodeIndex) {
         self.audio_wires.push(AudioWire { from, to });
+        self.exec_info = None; // Invalidate cache
     }
 
     /// Connects external input to a node.
     pub fn connect_input(&mut self, to: NodeIndex) {
         self.input_node = Some(to);
+        self.exec_info = None; // Invalidate cache
     }
 
     /// Sets which node provides the graph output.
@@ -371,6 +407,7 @@ impl AudioGraph {
             base,
             scale,
         });
+        self.exec_info = None; // Invalidate cache
     }
 
     /// Modulates by parameter name (convenience wrapper).
@@ -397,24 +434,73 @@ impl AudioGraph {
         self.nodes.len()
     }
 
+    /// Builds per-node execution info from wires.
+    fn build_exec_info(&mut self) {
+        let mut info: Vec<NodeExecInfo> = (0..self.nodes.len())
+            .map(|_| NodeExecInfo::default())
+            .collect();
+
+        // Build audio input lists
+        for wire in &self.audio_wires {
+            info[wire.to].audio_inputs.push(wire.from);
+        }
+
+        // Build param modulation lists
+        for wire in &self.param_wires {
+            info[wire.to]
+                .param_mods
+                .push((wire.from, wire.param, wire.base, wire.scale));
+        }
+
+        // Mark input node
+        if let Some(input_idx) = self.input_node {
+            info[input_idx].receives_input = true;
+        }
+
+        self.exec_info = Some(info);
+    }
+
+    /// Ensures exec_info is built.
+    #[inline]
+    fn ensure_compiled(&mut self) {
+        if self.exec_info.is_none() {
+            self.build_exec_info();
+        }
+    }
+
     /// Processes one sample through the graph.
     ///
     /// Evaluates nodes in index order. Nodes receive the sum of all connected
     /// inputs. Parameters are modulated before each node processes.
     pub fn process(&mut self, input: f32, ctx: &AudioContext) -> f32 {
+        self.ensure_compiled();
+
+        // Check if we should update params this sample
+        let update_params = self.control_rate == 0 || self.sample_count == 0;
+        self.sample_count = if self.control_rate == 0 {
+            0
+        } else {
+            (self.sample_count + 1) % self.control_rate
+        };
+
         // Clear outputs
         for out in &mut self.outputs {
             *out = 0.0;
         }
 
+        // Safety: we just ensured exec_info is Some
+        let exec_info = self.exec_info.as_ref().unwrap();
+
         // Process each node in order
         for i in 0..self.nodes.len() {
-            // Apply parameter modulation
-            for wire in &self.param_wires {
-                if wire.to == i {
-                    let mod_value = self.outputs[wire.from];
-                    let param_value = wire.base + mod_value * wire.scale;
-                    self.nodes[i].set_param(wire.param, param_value);
+            let info = &exec_info[i];
+
+            // Apply parameter modulation only at control rate
+            if update_params {
+                for &(from, param, base, scale) in &info.param_mods {
+                    let mod_value = self.outputs[from];
+                    let param_value = base + mod_value * scale;
+                    self.nodes[i].set_param(param, param_value);
                 }
             }
 
@@ -422,15 +508,13 @@ impl AudioGraph {
             let mut node_input = 0.0;
 
             // External input
-            if self.input_node == Some(i) {
+            if info.receives_input {
                 node_input += input;
             }
 
-            // Inputs from other nodes
-            for wire in &self.audio_wires {
-                if wire.to == i {
-                    node_input += self.outputs[wire.from];
-                }
+            // Inputs from other nodes (iterate small per-node vec)
+            for &from in &info.audio_inputs {
+                node_input += self.outputs[from];
             }
 
             // Process and store output
