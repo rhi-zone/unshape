@@ -7,7 +7,7 @@
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rhizome_resin_audio::effects::{
     Bitcrusher, Chorus, Compressor, Distortion, Flanger, Limiter, NoiseGate, Phaser, Reverb,
-    Tremolo, chorus, flanger,
+    Tremolo, chorus, flanger, tremolo,
 };
 
 const SAMPLE_RATE: f32 = 44100.0;
@@ -90,11 +90,22 @@ fn bench_phaser(c: &mut Criterion) {
 fn bench_tremolo(c: &mut Criterion) {
     let signal = test_signal(ONE_SECOND);
 
+    // Old implementation
     c.bench_function("tremolo_1sec", |b| {
-        let mut tremolo = Tremolo::new(SAMPLE_RATE, 5.0, 0.5);
+        let mut effect = Tremolo::new(SAMPLE_RATE, 5.0, 0.5);
         b.iter(|| {
             for &sample in &signal {
-                black_box(tremolo.process(sample));
+                black_box(effect.process(sample));
+            }
+        });
+    });
+
+    // New implementation using primitives
+    c.bench_function("tremolo_new_1sec", |b| {
+        let mut effect = tremolo(SAMPLE_RATE, 5.0, 0.5);
+        b.iter(|| {
+            for &sample in &signal {
+                black_box(effect.process(sample));
             }
         });
     });

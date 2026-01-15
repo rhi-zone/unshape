@@ -163,6 +163,83 @@ pub fn flanger(sample_rate: f32) -> ModulatedDelay {
 }
 
 // ============================================================================
+// AmplitudeMod (Tremolo)
+// ============================================================================
+
+/// Amplitude modulation effect - the foundation for tremolo.
+///
+/// Uses an LFO to modulate the signal amplitude, creating a pulsing effect.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_audio::effects::{AmplitudeMod, tremolo};
+///
+/// let mut trem = tremolo(44100.0, 5.0, 0.5); // 5Hz, 50% depth
+/// let output = trem.process(1.0);
+/// ```
+pub struct AmplitudeMod {
+    lfo: PhaseOsc,
+    /// Phase increment per sample (rate / sample_rate).
+    phase_inc: f32,
+    /// Modulation depth (0-1).
+    pub depth: f32,
+}
+
+impl AmplitudeMod {
+    /// Creates an amplitude modulator.
+    ///
+    /// # Arguments
+    /// * `sample_rate` - Sample rate in Hz
+    /// * `rate` - Modulation rate in Hz
+    /// * `depth` - Modulation depth (0-1)
+    pub fn new(sample_rate: f32, rate: f32, depth: f32) -> Self {
+        Self {
+            lfo: PhaseOsc::new(),
+            phase_inc: rate / sample_rate,
+            depth: depth.clamp(0.0, 1.0),
+        }
+    }
+
+    /// Sets the modulation rate in Hz.
+    pub fn set_rate(&mut self, rate: f32, sample_rate: f32) {
+        self.phase_inc = rate / sample_rate;
+    }
+
+    /// Processes a single sample.
+    #[inline]
+    pub fn process(&mut self, input: f32) -> f32 {
+        // Unipolar LFO (0 to 1)
+        let lfo_val = self.lfo.sine_uni();
+        self.lfo.advance(self.phase_inc);
+
+        // Modulate amplitude: at depth=1, goes from 0 to 1
+        let mod_amount = 1.0 - self.depth * lfo_val;
+        input * mod_amount
+    }
+
+    /// Resets the LFO phase.
+    pub fn reset(&mut self) {
+        self.lfo.reset();
+    }
+}
+
+impl AudioNode for AmplitudeMod {
+    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
+        AmplitudeMod::process(self, input)
+    }
+
+    fn reset(&mut self) {
+        AmplitudeMod::reset(self);
+    }
+}
+
+/// Creates a tremolo effect (amplitude modulation).
+pub fn tremolo(sample_rate: f32, rate: f32, depth: f32) -> AmplitudeMod {
+    AmplitudeMod::new(sample_rate, rate, depth)
+}
+
+// ============================================================================
 // Reverb
 // ============================================================================
 
