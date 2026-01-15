@@ -30,6 +30,7 @@ cranelift-jit = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion.workspace = true
+rhizome-resin-audio-macros = { workspace = true }
 
 [[bench]]
 name = "effects"
