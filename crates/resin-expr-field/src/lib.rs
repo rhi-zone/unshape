@@ -3,6 +3,8 @@
 //! Provides `ExprField` which evaluates expressions as spatial fields,
 //! and noise expression functions for use in expressions.
 //!
+//! This crate also provides JIT compilation for `FieldExpr` via the `cranelift` feature.
+//!
 //! # Example
 //!
 //! ```
@@ -18,6 +20,12 @@
 //! let ctx = EvalContext::new();
 //! let value: f32 = field.sample(Vec2::new(0.5, 0.5), &ctx);
 //! ```
+
+#[cfg(feature = "cranelift")]
+pub mod jit_impl;
+
+#[cfg(feature = "cranelift")]
+pub use jit_impl::{CompiledFieldExpr, FieldExprCompiler, FieldJitError, FieldJitResult};
 
 use glam::{Vec2, Vec3};
 use rhizome_dew_core::{Expr, ParseError};

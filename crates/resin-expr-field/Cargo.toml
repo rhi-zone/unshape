@@ -9,8 +9,16 @@ repository = "https://github.com/rhizome-lab/resin"
 [features]
 default = []
 serde = ["dep:serde", "glam/serde"]
+cranelift = ["dep:rhizome-resin-jit", "rhizome-resin-jit/cranelift", "dep:cranelift", "dep:cranelift-frontend", "dep:cranelift-jit", "dep:cranelift-module", "dep:cranelift-native"]
 
 [dependencies]
+rhizome-resin-jit = { path = "../resin-jit", optional = true }
+cranelift = { workspace = true, optional = true }
+cranelift-frontend = { workspace = true, optional = true }
+cranelift-jit = { workspace = true, optional = true }
+cranelift-module = { workspace = true, optional = true }
+cranelift-native = { workspace = true, optional = true }
+thiserror.workspace = true
 glam.workspace = true
 rhizome-dew-core = { git = "https://github.com/rhizome-lab/dew" }
 rhizome-dew-scalar = { git = "https://github.com/rhizome-lab/dew" }
