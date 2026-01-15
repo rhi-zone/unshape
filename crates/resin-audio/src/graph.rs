@@ -684,6 +684,21 @@ impl AudioGraph {
         self.nodes.get(node).and_then(|n| n.get_param(param_idx))
     }
 
+    /// Takes a node out of the graph, replacing it with a passthrough.
+    ///
+    /// Used by JIT compilation to move stateful nodes into the compiled graph.
+    /// Returns `None` if the index is out of bounds.
+    pub fn take_node(&mut self, node: NodeIndex) -> Option<Box<dyn AudioNode>> {
+        if node < self.nodes.len() {
+            Some(std::mem::replace(
+                &mut self.nodes[node],
+                Box::new(PassThrough),
+            ))
+        } else {
+            None
+        }
+    }
+
     /// Adds a boxed node to the graph with a known type ID.
     ///
     /// Use this when the concrete type is known. For unknown types, use
