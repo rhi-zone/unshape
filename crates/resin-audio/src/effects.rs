@@ -240,6 +240,151 @@ pub fn tremolo(sample_rate: f32, rate: f32, depth: f32) -> AmplitudeMod {
 }
 
 // ============================================================================
+// AllpassBank (Phaser)
+// ============================================================================
+
+use crate::primitive::Allpass1;
+
+/// Cascaded allpass filter bank - the foundation for phaser effects.
+///
+/// Uses an LFO to modulate the allpass coefficient, sweeping the notch
+/// frequencies across a range. Multiple stages create deeper notches.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_audio::effects::{AllpassBank, phaser};
+///
+/// let mut ph = phaser(44100.0);
+/// let output = ph.process(1.0);
+/// ```
+pub struct AllpassBank {
+    stages: Vec<Allpass1>,
+    lfo: PhaseOsc,
+    /// Phase increment per sample.
+    phase_inc: f32,
+    /// Minimum sweep frequency in Hz.
+    pub min_freq: f32,
+    /// Maximum sweep frequency in Hz.
+    pub max_freq: f32,
+    /// Dry/wet mix (0 = dry, 1 = wet).
+    pub mix: f32,
+    /// Feedback amount (0-1).
+    pub feedback: f32,
+    /// Previous output for feedback.
+    feedback_sample: f32,
+    /// Sample rate for coefficient calculation.
+    sample_rate: f32,
+}
+
+impl AllpassBank {
+    /// Creates an allpass bank with custom parameters.
+    ///
+    /// # Arguments
+    /// * `sample_rate` - Sample rate in Hz
+    /// * `num_stages` - Number of allpass stages (2-12, even numbers work best)
+    /// * `rate` - Modulation rate in Hz
+    /// * `min_freq` - Minimum sweep frequency in Hz
+    /// * `max_freq` - Maximum sweep frequency in Hz
+    /// * `mix` - Dry/wet mix (0-1)
+    /// * `feedback` - Feedback amount (0-1)
+    pub fn new(
+        sample_rate: f32,
+        num_stages: usize,
+        rate: f32,
+        min_freq: f32,
+        max_freq: f32,
+        mix: f32,
+        feedback: f32,
+    ) -> Self {
+        let num_stages = num_stages.clamp(2, 12);
+
+        Self {
+            stages: (0..num_stages).map(|_| Allpass1::new()).collect(),
+            lfo: PhaseOsc::new(),
+            phase_inc: rate / sample_rate,
+            min_freq,
+            max_freq,
+            mix,
+            feedback: feedback.clamp(0.0, 0.95),
+            feedback_sample: 0.0,
+            sample_rate,
+        }
+    }
+
+    /// Sets the modulation rate in Hz.
+    pub fn set_rate(&mut self, rate: f32) {
+        self.phase_inc = rate / self.sample_rate;
+    }
+
+    /// Sets the sweep frequency range.
+    pub fn set_range(&mut self, min_freq: f32, max_freq: f32) {
+        self.min_freq = min_freq;
+        self.max_freq = max_freq;
+    }
+
+    /// Processes a single sample.
+    #[inline]
+    pub fn process(&mut self, input: f32) -> f32 {
+        // LFO sweeps the notch frequency
+        let lfo_val = self.lfo.sine_uni(); // 0 to 1
+        self.lfo.advance(self.phase_inc);
+
+        let freq = self.min_freq + (self.max_freq - self.min_freq) * lfo_val;
+
+        // Calculate allpass coefficient from frequency
+        let coeff = (std::f32::consts::PI * freq / self.sample_rate).tan();
+        let a1 = (coeff - 1.0) / (coeff + 1.0);
+
+        // Apply feedback
+        let input_with_fb = input + self.feedback_sample * self.feedback;
+
+        // Process through allpass stages
+        let mut output = input_with_fb;
+        for stage in &mut self.stages {
+            output = stage.process(output, a1);
+        }
+
+        self.feedback_sample = output;
+
+        // Mix: wet signal is sum of input and phase-shifted output
+        Mix::blend(input, (input + output) * 0.5, self.mix)
+    }
+
+    /// Resets all filter states.
+    pub fn clear(&mut self) {
+        for stage in &mut self.stages {
+            stage.clear();
+        }
+        self.lfo.reset();
+        self.feedback_sample = 0.0;
+    }
+}
+
+impl AudioNode for AllpassBank {
+    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
+        AllpassBank::process(self, input)
+    }
+
+    fn reset(&mut self) {
+        self.clear();
+    }
+}
+
+/// Creates a phaser effect (cascaded allpass filters with LFO modulation).
+pub fn phaser(sample_rate: f32) -> AllpassBank {
+    AllpassBank::new(
+        sample_rate,
+        4,      // 4 stages
+        0.5,    // 0.5 Hz rate
+        100.0,  // 100 Hz min
+        1000.0, // 1000 Hz max
+        0.5,    // 50% mix
+        0.7,    // 70% feedback
+    )
+}
+
+// ============================================================================
 // Reverb
 // ============================================================================
 
