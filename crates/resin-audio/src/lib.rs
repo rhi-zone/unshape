@@ -10,6 +10,8 @@ pub mod granular;
 pub mod graph;
 #[cfg(feature = "cranelift")]
 pub mod jit;
+#[cfg(feature = "cranelift")]
+mod jit_impl;
 pub mod midi;
 #[cfg(feature = "optimize")]
 pub mod optimize;
