@@ -3766,6 +3766,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "rhizome-resin-curve"
+version = "0.1.0"
+dependencies = [
+ "glam",
+]
+
+[[package]]
 name = "rhizome-resin-easing"
 version = "0.1.0"
 dependencies = [
