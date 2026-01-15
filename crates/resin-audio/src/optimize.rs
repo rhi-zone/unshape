@@ -1290,6 +1290,253 @@ pub fn eliminate_dead_nodes(graph: &mut AudioGraph) -> usize {
     removed
 }
 
+/// Fold constant values through affine operations.
+///
+/// When a `Constant(a)` feeds into an `AffineNode { gain, offset }`,
+/// the result is a known constant `a * gain + offset`, so we can replace
+/// both nodes with a single `Constant`.
+///
+/// # Example
+///
+/// ```text
+/// Before:
+///   Constant(2.0) -> Gain(3.0) -> Offset(1.0) -> Output
+///
+/// After:
+///   Constant(7.0) -> Output
+///   // Because: 2.0 * 3.0 + 1.0 = 7.0
+/// ```
+pub fn fold_constants(graph: &mut AudioGraph) -> usize {
+    let mut folded = 0;
+
+    loop {
+        let fold = find_constant_affine_pair(graph);
+        if fold.is_none() {
+            break;
+        }
+        let (const_idx, affine_idx, result_value) = fold.unwrap();
+
+        // Replace the affine node with the folded constant
+        let new_const = graph.add(crate::graph::Constant(result_value));
+
+        // Rewire: anything the affine fed should now be fed by new constant
+        let wires: Vec<_> = graph.audio_wires().to_vec();
+        for wire in &wires {
+            if wire.from == affine_idx {
+                graph.connect(new_const, wire.to);
+            }
+        }
+
+        // Update output if needed
+        if graph.output_node() == Some(affine_idx) {
+            graph.set_output(new_const);
+        }
+
+        // Remove both old nodes (affine first since it has higher index typically)
+        let mut to_remove = vec![const_idx, affine_idx];
+        to_remove.sort_by(|a, b| b.cmp(a)); // Reverse order
+        for idx in to_remove {
+            graph.remove_node(idx);
+        }
+
+        folded += 1;
+    }
+
+    folded
+}
+
+/// Find a Constant -> Affine pair that can be folded.
+fn find_constant_affine_pair(graph: &AudioGraph) -> Option<(NodeIndex, NodeIndex, f32)> {
+    let wires = graph.audio_wires();
+
+    for wire in wires {
+        // Check if source is a Constant
+        let src_type = graph.node_type(wire.from);
+        if src_type != Some(NodeType::Constant) {
+            continue;
+        }
+
+        // Check if dest is an Affine
+        let dst_type = graph.node_type(wire.to);
+        if dst_type != Some(NodeType::Affine) {
+            continue;
+        }
+
+        // Make sure the affine has only this one input (no other audio inputs)
+        let input_count = wires.iter().filter(|w| w.to == wire.to).count();
+        if input_count != 1 {
+            continue;
+        }
+
+        // Make sure the constant has only this one output (not used elsewhere)
+        let output_count = wires.iter().filter(|w| w.from == wire.from).count();
+        if output_count != 1 {
+            continue;
+        }
+
+        // Get the constant value and affine params
+        let const_value = graph.node_param_value(wire.from, 0).unwrap_or(0.0);
+        let gain = graph.node_param_value(wire.to, 0).unwrap_or(1.0);
+        let offset = graph.node_param_value(wire.to, 1).unwrap_or(0.0);
+
+        // Compute folded value
+        let result = const_value * gain + offset;
+
+        return Some((wire.from, wire.to, result));
+    }
+
+    None
+}
+
+/// Propagate constant values through chains of affine operations.
+///
+/// This is more aggressive than `fold_constants` - it tracks which nodes
+/// have known constant outputs and propagates through longer chains.
+///
+/// # Example
+///
+/// ```text
+/// Before:
+///   Constant(1.0) -> Gain(2.0) -> Offset(3.0) -> Gain(4.0) -> Output
+///
+/// After:
+///   Constant(20.0) -> Output
+///   // Because: ((1.0 * 2.0) + 3.0) * 4.0 = 20.0
+/// ```
+pub fn propagate_constants(graph: &mut AudioGraph) -> usize {
+    // This pass combines constant folding with affine chain fusion
+    // Run both passes in a loop until no more changes
+    let mut propagated = 0;
+
+    loop {
+        let folded = fold_constants(graph);
+        let fused = fuse_affine_chains(graph);
+
+        if folded == 0 && fused == 0 {
+            break;
+        }
+        propagated += folded + fused;
+    }
+
+    propagated
+}
+
+/// Merge consecutive delay nodes with zero feedback.
+///
+/// When two `DelayNode` instances with `feedback == 0` are connected in series,
+/// they can be merged into a single delay with combined time.
+///
+/// # Example
+///
+/// ```text
+/// Before:
+///   Input -> Delay(100 samples) -> Delay(50 samples) -> Output
+///
+/// After:
+///   Input -> Delay(150 samples) -> Output
+/// ```
+///
+/// # Limitations
+///
+/// - Only merges delays with zero feedback (feedback creates recurrence)
+/// - Uses a conservative max buffer size (sum of both delay times + margin)
+pub fn merge_delays(graph: &mut AudioGraph) -> usize {
+    let mut merged = 0;
+
+    loop {
+        let pair = find_delay_pair(graph);
+        if pair.is_none() {
+            break;
+        }
+        let (first_idx, second_idx, combined_time) = pair.unwrap();
+
+        // Create merged delay with buffer large enough for combined time
+        let max_samples = (combined_time * 1.5) as usize + 100; // Add margin
+        let mut new_delay = crate::primitive::DelayNode::new(max_samples);
+        new_delay.set_time(combined_time);
+
+        let new_node = graph.add(new_delay);
+
+        // Rewire: inputs to first -> new node
+        let wires: Vec<_> = graph.audio_wires().to_vec();
+        for wire in &wires {
+            if wire.to == first_idx && wire.from != second_idx {
+                graph.connect(wire.from, new_node);
+            }
+        }
+
+        // Rewire: outputs from second -> new node
+        for wire in &wires {
+            if wire.from == second_idx && wire.to != first_idx {
+                graph.connect(new_node, wire.to);
+            }
+        }
+
+        // Update input/output references
+        if graph.input_node() == Some(first_idx) {
+            graph.connect_input(new_node);
+        }
+        if graph.output_node() == Some(second_idx) {
+            graph.set_output(new_node);
+        }
+
+        // Remove old nodes (in reverse order)
+        let mut to_remove = vec![first_idx, second_idx];
+        to_remove.sort_by(|a, b| b.cmp(a));
+        for idx in to_remove {
+            graph.remove_node(idx);
+        }
+
+        merged += 1;
+    }
+
+    merged
+}
+
+/// Find a pair of consecutive delays with zero feedback.
+fn find_delay_pair(graph: &AudioGraph) -> Option<(NodeIndex, NodeIndex, f32)> {
+    let wires = graph.audio_wires();
+
+    for wire in wires {
+        // Check if both nodes are delays
+        if graph.node_type(wire.from) != Some(NodeType::Delay) {
+            continue;
+        }
+        if graph.node_type(wire.to) != Some(NodeType::Delay) {
+            continue;
+        }
+
+        // Check that first delay only outputs to second (single out-edge)
+        let out_count = wires.iter().filter(|w| w.from == wire.from).count();
+        if out_count != 1 {
+            continue;
+        }
+
+        // Check that second delay only receives from first (single in-edge)
+        let in_count = wires.iter().filter(|w| w.to == wire.to).count();
+        if in_count != 1 {
+            continue;
+        }
+
+        // Check feedback is zero for both
+        // PARAM_FEEDBACK = 1 for DelayNode
+        let feedback1 = graph.node_param_value(wire.from, 1).unwrap_or(0.0);
+        let feedback2 = graph.node_param_value(wire.to, 1).unwrap_or(0.0);
+
+        if feedback1.abs() > 1e-6 || feedback2.abs() > 1e-6 {
+            continue;
+        }
+
+        // Get delay times (PARAM_TIME = 0)
+        let time1 = graph.node_param_value(wire.from, 0).unwrap_or(0.0);
+        let time2 = graph.node_param_value(wire.to, 0).unwrap_or(0.0);
+
+        return Some((wire.from, wire.to, time1 + time2));
+    }
+
+    None
+}
+
 /// Run all graph optimization passes.
 ///
 /// Returns the total number of nodes removed/fused.
@@ -1299,13 +1546,15 @@ pub fn run_optimization_passes(graph: &mut AudioGraph) -> usize {
     // Run passes until no more changes
     loop {
         let fused = fuse_affine_chains(graph);
+        let folded = fold_constants(graph);
+        let delays = merge_delays(graph);
         let identities = eliminate_identities(graph);
         let dead = eliminate_dead_nodes(graph);
 
-        if fused == 0 && identities == 0 && dead == 0 {
+        if fused == 0 && folded == 0 && delays == 0 && identities == 0 && dead == 0 {
             break;
         }
-        total += fused + identities + dead;
+        total += fused + folded + delays + identities + dead;
     }
 
     total
@@ -1742,5 +1991,225 @@ mod tests {
 
         let removed = eliminate_dead_nodes(&mut graph);
         assert_eq!(removed, 0); // Can't determine liveness without output
+    }
+
+    // ========================================================================
+    // Constant Folding Tests
+    // ========================================================================
+
+    #[test]
+    fn test_fold_constant_through_gain() {
+        use crate::graph::{AffineNode, AudioGraph, Constant};
+
+        // Build: Constant(2.0) -> Gain(3.0) -> Output
+        // Result should be Constant(6.0)
+        let mut graph = AudioGraph::new();
+        let c = graph.add(Constant(2.0));
+        let g = graph.add(AffineNode::gain(3.0));
+
+        graph.connect(c, g);
+        graph.set_output(g);
+
+        assert_eq!(graph.node_count(), 2);
+
+        let folded = fold_constants(&mut graph);
+        assert_eq!(folded, 1);
+        assert_eq!(graph.node_count(), 1);
+
+        // Verify output
+        let ctx = AudioContext::new(44100.0);
+        let out = graph.process(0.0, &ctx);
+        assert!((out - 6.0).abs() < 1e-6, "expected 6.0, got {}", out);
+    }
+
+    #[test]
+    fn test_fold_constant_through_offset() {
+        use crate::graph::{AffineNode, AudioGraph, Constant};
+
+        // Build: Constant(2.0) -> Offset(5.0) -> Output
+        // Result should be Constant(7.0)
+        let mut graph = AudioGraph::new();
+        let c = graph.add(Constant(2.0));
+        let o = graph.add(AffineNode::offset(5.0));
+
+        graph.connect(c, o);
+        graph.set_output(o);
+
+        assert_eq!(graph.node_count(), 2);
+
+        let folded = fold_constants(&mut graph);
+        assert_eq!(folded, 1);
+        assert_eq!(graph.node_count(), 1);
+
+        // Verify output
+        let ctx = AudioContext::new(44100.0);
+        let out = graph.process(0.0, &ctx);
+        assert!((out - 7.0).abs() < 1e-6, "expected 7.0, got {}", out);
+    }
+
+    #[test]
+    fn test_fold_constant_through_affine() {
+        use crate::graph::{AffineNode, AudioGraph, Constant};
+
+        // Build: Constant(2.0) -> Affine(3.0, 1.0) -> Output
+        // Result should be Constant(2.0 * 3.0 + 1.0 = 7.0)
+        let mut graph = AudioGraph::new();
+        let c = graph.add(Constant(2.0));
+        let a = graph.add(AffineNode::new(3.0, 1.0));
+
+        graph.connect(c, a);
+        graph.set_output(a);
+
+        assert_eq!(graph.node_count(), 2);
+
+        let folded = fold_constants(&mut graph);
+        assert_eq!(folded, 1);
+        assert_eq!(graph.node_count(), 1);
+
+        // Verify output
+        let ctx = AudioContext::new(44100.0);
+        let out = graph.process(0.0, &ctx);
+        assert!((out - 7.0).abs() < 1e-6, "expected 7.0, got {}", out);
+    }
+
+    #[test]
+    fn test_fold_constant_chain() {
+        use crate::graph::{AffineNode, AudioGraph, Constant};
+
+        // Build: Constant(1.0) -> Gain(2.0) -> Offset(3.0) -> Gain(4.0) -> Output
+        // Result should be Constant(((1.0 * 2.0) + 3.0) * 4.0 = 20.0)
+        let mut graph = AudioGraph::new();
+        let c = graph.add(Constant(1.0));
+        let g1 = graph.add(AffineNode::gain(2.0));
+        let o = graph.add(AffineNode::offset(3.0));
+        let g2 = graph.add(AffineNode::gain(4.0));
+
+        graph.connect(c, g1);
+        graph.connect(g1, o);
+        graph.connect(o, g2);
+        graph.set_output(g2);
+
+        assert_eq!(graph.node_count(), 4);
+
+        // Use propagate_constants which runs both fold and fuse
+        let propagated = propagate_constants(&mut graph);
+        assert!(propagated > 0);
+        assert_eq!(graph.node_count(), 1);
+
+        // Verify output
+        let ctx = AudioContext::new(44100.0);
+        let out = graph.process(0.0, &ctx);
+        assert!((out - 20.0).abs() < 1e-6, "expected 20.0, got {}", out);
+    }
+
+    // ========================================================================
+    // Delay Merging Tests
+    // ========================================================================
+
+    #[test]
+    fn test_merge_simple_delays() {
+        use crate::graph::AudioGraph;
+        use crate::primitive::DelayNode;
+
+        // Build: Input -> Delay(100) -> Delay(50) -> Output
+        let mut graph = AudioGraph::new();
+
+        let mut d1 = DelayNode::new(200);
+        d1.set_time(100.0);
+        let d1_idx = graph.add(d1);
+
+        let mut d2 = DelayNode::new(100);
+        d2.set_time(50.0);
+        let d2_idx = graph.add(d2);
+
+        graph.connect_input(d1_idx);
+        graph.connect(d1_idx, d2_idx);
+        graph.set_output(d2_idx);
+
+        assert_eq!(graph.node_count(), 2);
+
+        let merged = merge_delays(&mut graph);
+        assert_eq!(merged, 1);
+        assert_eq!(graph.node_count(), 1);
+
+        // The merged delay should have time = 150
+        let merged_time = graph.node_param_value(0, 0).unwrap_or(0.0);
+        assert!(
+            (merged_time - 150.0).abs() < 1e-6,
+            "expected 150.0, got {}",
+            merged_time
+        );
+    }
+
+    #[test]
+    fn test_no_merge_with_feedback() {
+        use crate::graph::AudioGraph;
+        use crate::primitive::DelayNode;
+
+        // Build: Input -> Delay(100, feedback=0.5) -> Delay(50) -> Output
+        let mut graph = AudioGraph::new();
+        let mut d1 = DelayNode::new(200);
+        d1.set_feedback(0.5); // Has feedback, shouldn't merge
+        let d1_idx = graph.add(d1);
+        let d2 = graph.add(DelayNode::new(100));
+
+        graph.connect_input(d1_idx);
+        graph.connect(d1_idx, d2);
+        graph.set_output(d2);
+
+        assert_eq!(graph.node_count(), 2);
+
+        let merged = merge_delays(&mut graph);
+        assert_eq!(merged, 0); // Should not merge due to feedback
+        assert_eq!(graph.node_count(), 2);
+    }
+
+    #[test]
+    fn test_merge_delay_chain() {
+        use crate::graph::AudioGraph;
+        use crate::primitive::DelayNode;
+
+        // Build: Input -> Delay(50) -> Delay(30) -> Delay(20) -> Output
+        let mut graph = AudioGraph::new();
+
+        let mut d1 = DelayNode::new(100);
+        d1.set_time(50.0);
+        let d1_idx = graph.add(d1);
+
+        let mut d2 = DelayNode::new(100);
+        d2.set_time(30.0);
+        let d2_idx = graph.add(d2);
+
+        let mut d3 = DelayNode::new(100);
+        d3.set_time(20.0);
+        let d3_idx = graph.add(d3);
+
+        graph.connect_input(d1_idx);
+        graph.connect(d1_idx, d2_idx);
+        graph.connect(d2_idx, d3_idx);
+        graph.set_output(d3_idx);
+
+        assert_eq!(graph.node_count(), 3);
+
+        // Merge delays iteratively
+        let mut total_merged = 0;
+        loop {
+            let merged = merge_delays(&mut graph);
+            if merged == 0 {
+                break;
+            }
+            total_merged += merged;
+        }
+
+        assert_eq!(total_merged, 2); // Two merge operations
+        assert_eq!(graph.node_count(), 1);
+
+        // Total delay should be 100
+        let merged_time = graph.node_param_value(0, 0).unwrap_or(0.0);
+        assert!(
+            (merged_time - 100.0).abs() < 1e-6,
+            "expected 100.0, got {}",
+            merged_time
+        );
     }
 }
