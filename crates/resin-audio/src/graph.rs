@@ -310,6 +310,8 @@ struct NodeExecInfo {
 /// ```
 pub struct AudioGraph {
     nodes: Vec<Box<dyn AudioNode>>,
+    /// Type IDs for each node (for pattern matching).
+    node_type_ids: Vec<std::any::TypeId>,
     /// Audio signal routing (node → node).
     audio_wires: Vec<AudioWire>,
     /// Parameter modulation routing (node → param).
@@ -333,6 +335,7 @@ impl AudioGraph {
     pub fn new() -> Self {
         Self {
             nodes: Vec::new(),
+            node_type_ids: Vec::new(),
             audio_wires: Vec::new(),
             param_wires: Vec::new(),
             input_node: None,
@@ -359,6 +362,7 @@ impl AudioGraph {
     pub fn add<N: AudioNode + 'static>(&mut self, node: N) -> NodeIndex {
         let index = self.nodes.len();
         self.nodes.push(Box::new(node));
+        self.node_type_ids.push(std::any::TypeId::of::<N>());
         self.outputs.push(0.0);
         self.exec_info = None; // Invalidate cache
         index
@@ -546,6 +550,146 @@ impl AudioGraph {
         for node in &mut self.nodes {
             node.reset();
         }
+    }
+
+    // ========================================================================
+    // Methods for graph optimization / pattern matching
+    // ========================================================================
+
+    /// Returns the audio wires.
+    pub fn audio_wires(&self) -> &[AudioWire] {
+        &self.audio_wires
+    }
+
+    /// Returns the param wires.
+    pub fn param_wires(&self) -> &[ParamWire] {
+        &self.param_wires
+    }
+
+    /// Returns the input node index if set.
+    pub fn input_node(&self) -> Option<NodeIndex> {
+        self.input_node
+    }
+
+    /// Returns the output node index if set.
+    pub fn output_node(&self) -> Option<NodeIndex> {
+        self.output_node
+    }
+
+    /// Returns the type ID of a node.
+    pub fn node_type_id(&self, index: NodeIndex) -> Option<std::any::TypeId> {
+        self.node_type_ids.get(index).copied()
+    }
+
+    /// Returns the NodeType enum for a node (for pattern matching).
+    #[cfg(feature = "optimize")]
+    pub fn node_type(&self, index: NodeIndex) -> Option<crate::optimize::NodeType> {
+        self.node_type_id(index)
+            .map(crate::optimize::NodeType::from_type_id)
+    }
+
+    /// Returns the name of a parameter on a node.
+    pub fn node_param_name(&self, node: NodeIndex, param_idx: usize) -> Option<&'static str> {
+        self.nodes
+            .get(node)
+            .and_then(|n| n.params().get(param_idx))
+            .map(|p| p.name)
+    }
+
+    /// Adds a boxed node to the graph with a known type ID.
+    ///
+    /// Use this when the concrete type is known. For unknown types, use
+    /// `add_boxed_unknown` (the node won't be matchable in pattern optimization).
+    pub fn add_boxed_typed(
+        &mut self,
+        node: Box<dyn AudioNode>,
+        type_id: std::any::TypeId,
+    ) -> NodeIndex {
+        let index = self.nodes.len();
+        self.nodes.push(node);
+        self.node_type_ids.push(type_id);
+        self.outputs.push(0.0);
+        self.exec_info = None;
+        index
+    }
+
+    /// Adds a boxed node with unknown type.
+    ///
+    /// The node won't be matchable in pattern optimization.
+    pub fn add_boxed(&mut self, node: Box<dyn AudioNode>) -> NodeIndex {
+        // Use unit type as a placeholder - won't match any pattern
+        self.add_boxed_typed(node, std::any::TypeId::of::<()>())
+    }
+
+    /// Reconnects an audio wire from one destination to another.
+    pub fn reconnect_audio(&mut self, from: NodeIndex, _old_to: NodeIndex, new_to: NodeIndex) {
+        for wire in &mut self.audio_wires {
+            if wire.from == from {
+                wire.to = new_to;
+            }
+        }
+        self.exec_info = None;
+    }
+
+    /// Removes a node from the graph.
+    ///
+    /// Warning: This invalidates indices! Nodes after the removed index shift down.
+    pub fn remove_node(&mut self, index: NodeIndex) {
+        if index >= self.nodes.len() {
+            return;
+        }
+
+        // Remove the node and associated data
+        self.nodes.remove(index);
+        self.node_type_ids.remove(index);
+        self.outputs.remove(index);
+
+        // Update wire indices
+        self.audio_wires.retain_mut(|w| {
+            if w.from == index || w.to == index {
+                return false; // Remove wires to/from deleted node
+            }
+            // Adjust indices for nodes that shifted
+            if w.from > index {
+                w.from -= 1;
+            }
+            if w.to > index {
+                w.to -= 1;
+            }
+            true
+        });
+
+        self.param_wires.retain_mut(|w| {
+            if w.from == index || w.to == index {
+                return false;
+            }
+            if w.from > index {
+                w.from -= 1;
+            }
+            if w.to > index {
+                w.to -= 1;
+            }
+            true
+        });
+
+        // Update input/output references
+        if let Some(ref mut input) = self.input_node {
+            if *input == index {
+                self.input_node = None;
+            } else if *input > index {
+                *input -= 1;
+            }
+        }
+
+        if let Some(ref mut output) = self.output_node {
+            if *output == index {
+                self.output_node = None;
+            } else if *output > index {
+                *output -= 1;
+            }
+        }
+
+        self.exec_info = None;
     }
 }
 

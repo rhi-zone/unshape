@@ -9,6 +9,10 @@ description = "Audio synthesis for resin"
 default = []
 serde = ["dep:serde"]
 dynop = ["dep:rhizome-resin-op", "dep:serde_json", "serde"]
+# Graph pattern matching and optimization
+optimize = []
+# Experimental: JIT compilation for audio graphs
+cranelift = ["dep:cranelift", "dep:cranelift-frontend", "dep:cranelift-native", "dep:cranelift-module", "dep:cranelift-jit"]
 
 [dependencies]
 rhizome-resin-core = { path = "../resin-core" }
@@ -16,6 +20,13 @@ serde = { workspace = true, optional = true }
 rhizome-resin-op = { path = "../resin-op", optional = true }
 serde_json = { version = "1", optional = true }
 thiserror.workspace = true
+
+# JIT compilation (optional)
+cranelift = { workspace = true, optional = true }
+cranelift-frontend = { workspace = true, optional = true }
+cranelift-native = { workspace = true, optional = true }
+cranelift-module = { workspace = true, optional = true }
+cranelift-jit = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion.workspace = true

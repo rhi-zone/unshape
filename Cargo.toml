@@ -36,6 +36,13 @@ proc-macro2 = "1"
 # Benchmarking
 criterion = "0.5"
 
+# JIT compilation (optional)
+cranelift = { package = "cranelift-codegen", version = "0.113" }
+cranelift-frontend = "0.113"
+cranelift-native = "0.113"
+cranelift-module = "0.113"
+cranelift-jit = "0.113"
+
 # Bevy (for examples) - no audio features to avoid ALSA dependency
 bevy = { version = "0.15", default-features = false, features = [
     "bevy_core_pipeline",

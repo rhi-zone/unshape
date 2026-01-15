@@ -346,6 +346,69 @@ For context, 1.6ms to process 1 second of audio = **0.16% CPU** at real-time rat
 
 However, effects are often chained. A chain of 10 graph-based effects at 2x overhead could matter. And the principle of "graph should be as fast as hardcoded" is worth pursuing.
 
+## Performance Tiers
+
+Four compilation tiers offer different tradeoffs:
+
+| Tier | Feature | Overhead | Flexibility | Complexity |
+|------|---------|----------|-------------|------------|
+| 1. **Dynamic graph** | default | ~1.3-3x | Full runtime flexibility | Low |
+| 2. **Pre-monomorphized** | `compositions` | ~0% | Fixed effect set | Low |
+| 3. **Cranelift JIT** | `cranelift` | ~0-5% | Runtime flexibility | High |
+| 4. **Proc macro** | `static-graphs` | ~0% | Compile-time only | Medium |
+
+### Tier 1: Dynamic AudioGraph (default)
+
+The default. Graphs are built at runtime, nodes are boxed trait objects.
+
+**Overhead sources:** dyn dispatch per node per sample, output vector indexing.
+
+**When to use:** Most cases. Real-time audio is feasible (0.16% CPU for 1 second of chorus).
+
+### Tier 2: Pre-monomorphized Compositions (`compositions` feature)
+
+Concrete struct types like `TremoloEffect`, `ChorusEffect` with hardcoded node wiring.
+
+**Trade-off:** Binary size cost (each composition is its own type), limited to "blessed" patterns.
+
+**When to use:** Maximum performance for known effect patterns, embedded/size-constrained.
+
+### Tier 3: Cranelift JIT (`cranelift` feature)
+
+JIT-compile graphs to native code at runtime. Eliminates dyn dispatch and wire iteration.
+
+**Trade-off:** ~1-10ms compilation latency when graph changes, significant implementation complexity, harder to debug.
+
+**When to use:** Real-time synthesis where graph structure is fixed per session but not at compile time.
+
+**Status:** Proof-of-concept in `jit.rs`. Tests pass for simple gain/tremolo. Full implementation would require:
+- Codegen for each node type (~20 node types)
+- Handling stateful nodes (pass buffer pointers or embed in data section)
+- More complex control flow for modulation routing
+
+### Tier 4: Static Graph Compilation (proc macro)
+
+Generate plain Rust code from graph definitions at compile time. Gets full LTO optimization.
+
+```rust
+// Example syntax (not yet implemented)
+graph_effect! {
+    name: MyTremolo,
+    nodes: [
+        lfo: LfoNode::with_freq(5.0, SAMPLE_RATE),
+        gain: GainNode::new(1.0),
+    ],
+    audio: [input -> gain -> output],
+    modulation: [lfo -> gain.gain(base: 0.5, scale: 0.5)],
+}
+```
+
+**Trade-off:** Graphs must be known at compile time.
+
+**When to use:** Library authors providing optimized effects, maximum performance.
+
+**Status:** Not yet implemented. Lower complexity than Cranelift, better debugging.
+
 ## Future: Control Rate
 
 Currently deferred, but the design supports it:
