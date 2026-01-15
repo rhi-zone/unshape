@@ -385,6 +385,142 @@ pub fn phaser(sample_rate: f32) -> AllpassBank {
 }
 
 // ============================================================================
+// Graph-based Effects
+// ============================================================================
+//
+// These demonstrate the target architecture: effects as graph configurations
+// rather than dedicated structs. Each function returns an AudioGraph wired
+// with primitives.
+
+use crate::graph::AudioGraph;
+use crate::primitive::{DelayNode, GainNode, LfoNode, MixNode};
+
+/// Creates a tremolo effect using the graph architecture.
+///
+/// Tremolo = LFO modulating amplitude.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_audio::effects::tremolo_graph;
+/// use rhizome_resin_audio::graph::AudioContext;
+///
+/// let mut effect = tremolo_graph(44100.0, 5.0, 0.5);
+/// let ctx = AudioContext::new(44100.0);
+/// let output = effect.process(1.0, &ctx);
+/// ```
+pub fn tremolo_graph(sample_rate: f32, rate: f32, depth: f32) -> AudioGraph {
+    let mut g = AudioGraph::new();
+
+    let lfo = g.add(LfoNode::with_freq(rate, sample_rate));
+    let gain = g.add(GainNode::new(1.0));
+
+    g.connect_input(gain);
+    g.set_output(gain);
+
+    // LFO modulates gain: base = 1-depth/2, scale = depth/2
+    // So gain varies from (1-depth) to 1
+    let base = 1.0 - depth * 0.5;
+    let scale = depth * 0.5;
+    g.modulate(lfo, gain, GainNode::PARAM_GAIN, base, scale);
+
+    g
+}
+
+/// Creates a chorus effect using the graph architecture.
+///
+/// Chorus = modulated delay + dry/wet mix.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_audio::effects::chorus_graph;
+/// use rhizome_resin_audio::graph::AudioContext;
+///
+/// let mut effect = chorus_graph(44100.0);
+/// let ctx = AudioContext::new(44100.0);
+/// let output = effect.process(0.5, &ctx);
+/// ```
+pub fn chorus_graph(sample_rate: f32) -> AudioGraph {
+    let mut g = AudioGraph::new();
+
+    // Chorus parameters
+    let base_delay_ms = 20.0;
+    let depth_ms = 5.0;
+    let rate_hz = 0.8;
+    let mix = 0.5;
+
+    let base_delay_samples = base_delay_ms * sample_rate / 1000.0;
+    let depth_samples = depth_ms * sample_rate / 1000.0;
+    let max_delay = ((base_delay_ms + depth_ms * 2.0) * sample_rate / 1000.0) as usize + 1;
+
+    let lfo = g.add(LfoNode::with_freq(rate_hz, sample_rate));
+    let delay = g.add(DelayNode::new(max_delay));
+    let mixer = g.add(MixNode::new(mix));
+
+    // Audio path: input -> delay -> mixer (as wet), input -> mixer (as dry via param)
+    g.connect_input(delay);
+    g.connect(delay, mixer);
+    g.set_output(mixer);
+
+    // LFO modulates delay time
+    g.modulate(
+        lfo,
+        delay,
+        DelayNode::PARAM_TIME,
+        base_delay_samples,
+        depth_samples,
+    );
+
+    // We need dry signal in mixer - use input node connection
+    // Note: MixNode.dry is set via param, input provides wet
+    g.connect_input(mixer); // mixer receives input as its "process" input (wet)
+
+    // Actually for proper dry/wet, we need the mixer to know the dry signal.
+    // The MixNode has a PARAM_DRY that we can set. But we can't easily route
+    // the input to a parameter. For now, the mixer's "dry" comes from set_param.
+    // This is a limitation - ideally we'd have multi-input nodes.
+
+    g
+}
+
+/// Creates a flanger effect using the graph architecture.
+///
+/// Flanger = short modulated delay with feedback.
+pub fn flanger_graph(sample_rate: f32) -> AudioGraph {
+    let mut g = AudioGraph::new();
+
+    // Flanger: shorter delay than chorus, more feedback
+    let base_delay_ms = 5.0;
+    let depth_ms = 3.0;
+    let rate_hz = 0.3;
+    let feedback = 0.7;
+
+    let base_delay_samples = base_delay_ms * sample_rate / 1000.0;
+    let depth_samples = depth_ms * sample_rate / 1000.0;
+    let max_delay = ((base_delay_ms + depth_ms * 2.0) * sample_rate / 1000.0) as usize + 1;
+
+    let lfo = g.add(LfoNode::with_freq(rate_hz, sample_rate));
+    let mut delay_node = DelayNode::new(max_delay);
+    delay_node.set_feedback(feedback);
+    let delay = g.add(delay_node);
+
+    g.connect_input(delay);
+    g.set_output(delay);
+
+    // LFO modulates delay time
+    g.modulate(
+        lfo,
+        delay,
+        DelayNode::PARAM_TIME,
+        base_delay_samples,
+        depth_samples,
+    );
+
+    g
+}
+
+// ============================================================================
 // Reverb
 // ============================================================================
 
