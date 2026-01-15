@@ -90,6 +90,14 @@ pub trait AudioNode: Send {
     /// Called by the graph executor to apply modulation before processing.
     /// Index corresponds to the parameter's position in [`params()`].
     fn set_param(&mut self, _index: usize, _value: f32) {}
+
+    /// Gets a parameter's current value by index.
+    ///
+    /// Returns `None` if the index is out of bounds.
+    /// Used by JIT compilation to extract parameter values at compile time.
+    fn get_param(&self, _index: usize) -> Option<f32> {
+        None
+    }
 }
 
 /// Trait for block-based audio processing.
@@ -669,6 +677,13 @@ impl AudioGraph {
             .map(|p| p.name)
     }
 
+    /// Returns the current value of a parameter on a node.
+    ///
+    /// Used by JIT compilation to extract parameter values at compile time.
+    pub fn node_param_value(&self, node: NodeIndex, param_idx: usize) -> Option<f32> {
+        self.nodes.get(node).and_then(|n| n.get_param(param_idx))
+    }
+
     /// Adds a boxed node to the graph with a known type ID.
     ///
     /// Use this when the concrete type is known. For unknown types, use
@@ -897,6 +912,10 @@ impl AudioNode for Gain {
     fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
         input * self.value
     }
+
+    fn get_param(&self, index: usize) -> Option<f32> {
+        if index == 0 { Some(self.value) } else { None }
+    }
 }
 
 /// DC offset node.
@@ -916,6 +935,10 @@ impl Offset {
 impl AudioNode for Offset {
     fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
         input + self.value
+    }
+
+    fn get_param(&self, index: usize) -> Option<f32> {
+        if index == 0 { Some(self.value) } else { None }
     }
 }
 
@@ -949,6 +972,14 @@ impl Default for Clip {
 impl AudioNode for Clip {
     fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
         input.clamp(self.min, self.max)
+    }
+
+    fn get_param(&self, index: usize) -> Option<f32> {
+        match index {
+            0 => Some(self.min),
+            1 => Some(self.max),
+            _ => None,
+        }
     }
 }
 
@@ -1272,6 +1303,10 @@ pub struct Constant(pub f32);
 impl AudioNode for Constant {
     fn process(&mut self, _input: f32, _ctx: &AudioContext) -> f32 {
         self.0
+    }
+
+    fn get_param(&self, index: usize) -> Option<f32> {
+        if index == 0 { Some(self.0) } else { None }
     }
 }
 

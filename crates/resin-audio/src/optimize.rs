@@ -118,6 +118,7 @@ fn build_node_type_registry() -> HashMap<TypeId, NodeType> {
     map.insert(TypeId::of::<crate::graph::Clip>(), NodeType::Clip);
     map.insert(TypeId::of::<crate::graph::SoftClip>(), NodeType::SoftClip);
     map.insert(TypeId::of::<crate::graph::Offset>(), NodeType::Offset);
+    map.insert(TypeId::of::<crate::graph::Gain>(), NodeType::Gain);
     map.insert(TypeId::of::<crate::graph::Constant>(), NodeType::Constant);
     map.insert(
         TypeId::of::<crate::graph::PassThrough>(),

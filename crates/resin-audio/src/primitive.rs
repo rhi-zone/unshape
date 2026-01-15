@@ -758,6 +758,14 @@ impl AudioNode for GainNode {
             self.gain = value;
         }
     }
+
+    fn get_param(&self, index: usize) -> Option<f32> {
+        if index == Self::PARAM_GAIN {
+            Some(self.gain)
+        } else {
+            None
+        }
+    }
 }
 
 /// Mix node for dry/wet blending.
