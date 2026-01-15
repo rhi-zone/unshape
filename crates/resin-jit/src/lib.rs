@@ -253,85 +253,119 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_parity_identity() {
+    /// Simple LCG for deterministic pseudo-random test data
+    fn pseudo_random(seed: u32, count: usize) -> Vec<f32> {
+        let mut state = seed;
+        (0..count)
+            .map(|_| {
+                state = state.wrapping_mul(1103515245).wrapping_add(12345);
+                // Map to [-10.0, 10.0] range
+                ((state >> 16) as f32 / 32768.0) * 10.0 - 10.0
+            })
+            .collect()
+    }
+
+    /// Helper to verify parity between scalar, SIMD, and native
+    fn assert_parity(gain: f32, offset: f32, input: &[f32]) {
         let mut compiler = JitCompiler::new(JitConfig::default()).unwrap();
-        let scalar = compiler.compile_affine(1.0, 0.0).unwrap();
-        let simd = compiler.compile_affine_simd(1.0, 0.0).unwrap();
+        let scalar = compiler.compile_affine(gain, offset).unwrap();
+        let simd = compiler.compile_affine_simd(gain, offset).unwrap();
 
-        let input: Vec<f32> = (0..1000).map(|i| (i as f32) * 0.1 - 50.0).collect();
-        let mut output_simd = vec![0.0; 1000];
-        let mut output_native = vec![0.0; 1000];
+        let mut output_simd = vec![0.0; input.len()];
+        let mut output_native = vec![0.0; input.len()];
 
-        simd.process(&input, &mut output_simd);
-        native_affine(&input, &mut output_native, 1.0, 0.0);
+        simd.process(input, &mut output_simd);
+        native_affine(input, &mut output_native, gain, offset);
 
-        for i in 0..1000 {
+        for i in 0..input.len() {
             let scalar_val = scalar.call_f32(input[i]);
+            let tolerance = (scalar_val.abs() * 1e-5).max(1e-6);
+
             assert!(
-                (scalar_val - output_simd[i]).abs() < 1e-6,
-                "scalar vs simd mismatch at {}: {} vs {}",
+                (scalar_val - output_simd[i]).abs() < tolerance,
+                "scalar vs simd mismatch at {}: {} vs {} (input={}, gain={}, offset={})",
                 i,
                 scalar_val,
-                output_simd[i]
+                output_simd[i],
+                input[i],
+                gain,
+                offset
             );
             assert!(
-                (scalar_val - output_native[i]).abs() < 1e-6,
-                "scalar vs native mismatch at {}: {} vs {}",
+                (scalar_val - output_native[i]).abs() < tolerance,
+                "scalar vs native mismatch at {}: {} vs {} (input={}, gain={}, offset={})",
                 i,
                 scalar_val,
-                output_native[i]
+                output_native[i],
+                input[i],
+                gain,
+                offset
             );
         }
     }
 
     #[test]
-    fn test_parity_gain_and_offset() {
-        let gain = 0.7;
-        let offset = -3.5;
+    fn test_parity_typical_audio() {
+        // Typical audio processing: -1.0 to 1.0 range
+        let input: Vec<f32> = (0..4096)
+            .map(|i| ((i as f32 / 4096.0) * 2.0 * std::f32::consts::PI).sin())
+            .collect();
 
-        let mut compiler = JitCompiler::new(JitConfig::default()).unwrap();
-        let scalar = compiler.compile_affine(gain, offset).unwrap();
-        let simd = compiler.compile_affine_simd(gain, offset).unwrap();
+        // Various gain/offset combos used in audio
+        assert_parity(1.0, 0.0, &input); // identity
+        assert_parity(0.5, 0.0, &input); // half gain
+        assert_parity(2.0, 0.0, &input); // double gain
+        assert_parity(1.0, 0.5, &input); // DC offset
+        assert_parity(0.7, 0.3, &input); // typical mix
+        assert_parity(-1.0, 0.0, &input); // phase invert
+        assert_parity(0.0, 0.5, &input); // silence + offset
+    }
 
-        // Test various buffer sizes including non-aligned
-        for size in [1, 3, 4, 7, 8, 15, 16, 100, 1023, 1024] {
-            let input: Vec<f32> = (0..size).map(|i| (i as f32) * 0.01 - 5.0).collect();
-            let mut output_simd = vec![0.0; size];
-            let mut output_native = vec![0.0; size];
+    #[test]
+    fn test_parity_random_data() {
+        // Pseudo-random data with various seeds
+        for seed in [42u32, 12345, 98765, 0xDEADBEEF] {
+            let input = pseudo_random(seed, 1024);
+            assert_parity(0.8, -0.2, &input);
+            assert_parity(1.5, 0.5, &input);
+            assert_parity(0.1, 10.0, &input);
+        }
+    }
 
-            simd.process(&input, &mut output_simd);
-            native_affine(&input, &mut output_native, gain, offset);
+    #[test]
+    fn test_parity_varied_buffer_sizes() {
+        let input_base = pseudo_random(777, 2048);
 
-            for i in 0..size {
-                let scalar_val = scalar.call_f32(input[i]);
-                assert!(
-                    (scalar_val - output_simd[i]).abs() < 1e-5,
-                    "size={} scalar vs simd mismatch at {}: {} vs {}",
-                    size,
-                    i,
-                    scalar_val,
-                    output_simd[i]
-                );
-                assert!(
-                    (scalar_val - output_native[i]).abs() < 1e-5,
-                    "size={} scalar vs native mismatch at {}: {} vs {}",
-                    size,
-                    i,
-                    scalar_val,
-                    output_native[i]
-                );
+        // Test alignment edge cases
+        for size in [
+            1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 255, 256, 1000,
+            1023, 1024, 2048,
+        ] {
+            let input = &input_base[..size];
+            assert_parity(0.75, -1.25, input);
+        }
+    }
+
+    #[test]
+    fn test_parity_varied_parameters() {
+        let input = pseudo_random(999, 512);
+
+        // Test many gain/offset combinations
+        let gains = [
+            0.0, 0.001, 0.1, 0.5, 1.0, 2.0, 10.0, 100.0, -0.5, -1.0, -2.0,
+        ];
+        let offsets = [0.0, 0.001, 0.1, 1.0, 10.0, -0.5, -1.0, -10.0];
+
+        for &gain in &gains {
+            for &offset in &offsets {
+                assert_parity(gain, offset, &input);
             }
         }
     }
 
     #[test]
     fn test_parity_edge_values() {
-        // Test with edge case values: zero, negative, large, small
-        let mut compiler = JitCompiler::new(JitConfig::default()).unwrap();
-        let scalar = compiler.compile_affine(2.5, -1.0).unwrap();
-        let simd = compiler.compile_affine_simd(2.5, -1.0).unwrap();
-
+        // Edge case values
         let input = vec![
             0.0,
             -0.0,
@@ -345,33 +379,22 @@ mod tests {
             -1e-10,
             std::f32::consts::PI,
             std::f32::consts::E,
+            f32::MAX / 2.0,
+            f32::MIN / 2.0,
         ];
-        let mut output_simd = vec![0.0; input.len()];
-        let mut output_native = vec![0.0; input.len()];
 
-        simd.process(&input, &mut output_simd);
-        native_affine(&input, &mut output_native, 2.5, -1.0);
+        assert_parity(1.0, 0.0, &input);
+        assert_parity(0.5, 0.0, &input);
+        assert_parity(1.0, 1.0, &input);
+    }
 
-        for i in 0..input.len() {
-            let scalar_val = scalar.call_f32(input[i]);
-            // Use relative error for large values
-            let tolerance = (scalar_val.abs() * 1e-5).max(1e-6);
-            assert!(
-                (scalar_val - output_simd[i]).abs() < tolerance,
-                "edge scalar vs simd mismatch at {}: {} vs {} (input={})",
-                i,
-                scalar_val,
-                output_simd[i],
-                input[i]
-            );
-            assert!(
-                (scalar_val - output_native[i]).abs() < tolerance,
-                "edge scalar vs native mismatch at {}: {} vs {} (input={})",
-                i,
-                scalar_val,
-                output_native[i],
-                input[i]
-            );
-        }
+    #[test]
+    fn test_parity_large_buffer() {
+        // Simulate 1 second of audio at 44.1kHz
+        let input: Vec<f32> = (0..44100)
+            .map(|i| ((i as f32 / 44100.0) * 440.0 * 2.0 * std::f32::consts::PI).sin() * 0.8)
+            .collect();
+
+        assert_parity(0.5, 0.1, &input);
     }
 }
