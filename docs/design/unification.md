@@ -329,7 +329,34 @@ Graphics already has some of these as `Field` combinators (`.map()` = waveshaper
 - Is the eager/lazy distinction fundamental, or could audio primitives be made lazy for offline processing?
 - Should LFO / animated parameters be a shared abstraction for both domains?
 
-**Decision:** TBD - primitive-based architecture looks promising, needs prototyping.
+**Performance considerations:**
+
+Decomposing effects into primitives has potential overhead:
+
+| Concern | Impact | Mitigation |
+|---------|--------|------------|
+| Function call overhead | Negligible | Rust inlines aggressively, especially generics |
+| Cache locality | Moderate | Keep primitive state in contiguous struct |
+| Virtual dispatch | Moderate | Use concrete types, not `Box<dyn Primitive>` |
+
+Actual cost drivers in audio are `sin()` calls and buffer cache misses, not abstraction. Decomposition could *help* via control-rate LFO batching and SIMD.
+
+**Approach:** Benchmark current implementation, save results, then refactor and compare. Avoid maintaining parallel implementations.
+
+**Dynamic dispatch strategy:**
+
+Current `resin-audio` uses dyn at the right level:
+
+```
+Chain level:     Vec<Box<dyn AudioNode>>  ← dyn (runtime flexible)
+Within effects:  concrete fields          ← static (performance)
+```
+
+Use cases for dyn: runtime-configurable chains, serialization, plugin systems, node graphs.
+
+NOT needed within effects - primitives should be concrete generic types that compose into effect structs, which implement `AudioNode` for chain-level dyn dispatch.
+
+**Decision:** TBD - primitive-based architecture looks promising, needs prototyping with before/after benchmarks.
 
 ---
 
