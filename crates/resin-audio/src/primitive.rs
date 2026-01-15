@@ -480,6 +480,350 @@ impl Mix {
 // Tests
 // ============================================================================
 
+// ============================================================================
+// AudioNode implementations
+// ============================================================================
+
+use crate::graph::{AudioContext, AudioNode, ParamDescriptor};
+
+/// Delay node wrapping DelayLine<true> for use in graphs.
+///
+/// Parameters:
+/// - `time`: Delay time in samples (modulatable)
+pub struct DelayNode {
+    delay: DelayLine<true>,
+    time: f32,
+    feedback: f32,
+}
+
+impl DelayNode {
+    /// Parameter index for delay time.
+    pub const PARAM_TIME: usize = 0;
+    /// Parameter index for feedback.
+    pub const PARAM_FEEDBACK: usize = 1;
+
+    const PARAMS: &'static [ParamDescriptor] = &[
+        ParamDescriptor::new("time", 100.0, 0.0, 44100.0),
+        ParamDescriptor::new("feedback", 0.0, -0.99, 0.99),
+    ];
+
+    /// Create a delay node with given max buffer size.
+    pub fn new(max_samples: usize) -> Self {
+        Self {
+            delay: DelayLine::new(max_samples),
+            time: 100.0,
+            feedback: 0.0,
+        }
+    }
+
+    /// Create from max time in seconds.
+    pub fn from_time(max_seconds: f32, sample_rate: f32) -> Self {
+        Self {
+            delay: DelayLine::from_time(max_seconds, sample_rate),
+            time: 100.0,
+            feedback: 0.0,
+        }
+    }
+
+    /// Set delay time in samples.
+    pub fn set_time(&mut self, samples: f32) {
+        self.time = samples.max(0.0);
+    }
+
+    /// Set feedback amount (-0.99 to 0.99).
+    pub fn set_feedback(&mut self, feedback: f32) {
+        self.feedback = feedback.clamp(-0.99, 0.99);
+    }
+}
+
+impl AudioNode for DelayNode {
+    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
+        let output = self.delay.read_interp(self.time);
+        self.delay.write(input + output * self.feedback);
+        output
+    }
+
+    fn reset(&mut self) {
+        self.delay.clear();
+    }
+
+    fn params(&self) -> &'static [ParamDescriptor] {
+        Self::PARAMS
+    }
+
+    fn set_param(&mut self, index: usize, value: f32) {
+        match index {
+            Self::PARAM_TIME => self.time = value.max(0.0),
+            Self::PARAM_FEEDBACK => self.feedback = value.clamp(-0.99, 0.99),
+            _ => {}
+        }
+    }
+}
+
+/// LFO node wrapping PhaseOsc for use in graphs.
+///
+/// Outputs a modulation signal (-1 to 1 by default).
+///
+/// Parameters:
+/// - `rate`: Phase increment per sample (freq / sample_rate)
+pub struct LfoNode {
+    osc: PhaseOsc,
+    rate: f32,
+}
+
+impl LfoNode {
+    /// Parameter index for rate.
+    pub const PARAM_RATE: usize = 0;
+
+    const PARAMS: &'static [ParamDescriptor] = &[ParamDescriptor::new("rate", 0.0001, 0.0, 0.1)];
+
+    /// Create an LFO node.
+    pub fn new() -> Self {
+        Self {
+            osc: PhaseOsc::new(),
+            rate: 0.0001, // ~4.4 Hz at 44.1kHz
+        }
+    }
+
+    /// Create with frequency and sample rate.
+    pub fn with_freq(freq: f32, sample_rate: f32) -> Self {
+        Self {
+            osc: PhaseOsc::new(),
+            rate: freq / sample_rate,
+        }
+    }
+
+    /// Set rate directly (phase increment per sample).
+    pub fn set_rate(&mut self, rate: f32) {
+        self.rate = rate;
+    }
+
+    /// Set frequency given sample rate.
+    pub fn set_freq(&mut self, freq: f32, sample_rate: f32) {
+        self.rate = freq / sample_rate;
+    }
+}
+
+impl Default for LfoNode {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AudioNode for LfoNode {
+    fn process(&mut self, _input: f32, _ctx: &AudioContext) -> f32 {
+        let out = self.osc.sine();
+        self.osc.advance(self.rate);
+        out
+    }
+
+    fn reset(&mut self) {
+        self.osc.reset();
+    }
+
+    fn params(&self) -> &'static [ParamDescriptor] {
+        Self::PARAMS
+    }
+
+    fn set_param(&mut self, index: usize, value: f32) {
+        if index == Self::PARAM_RATE {
+            self.rate = value;
+        }
+    }
+}
+
+/// Envelope follower node for dynamics processing.
+///
+/// Outputs the envelope level of the input signal.
+pub struct EnvelopeNode {
+    follower: EnvelopeFollower,
+}
+
+impl EnvelopeNode {
+    /// Create an envelope follower with given attack/release times.
+    pub fn new(attack: f32, release: f32, sample_rate: f32) -> Self {
+        Self {
+            follower: EnvelopeFollower::new(attack, release, sample_rate),
+        }
+    }
+}
+
+impl AudioNode for EnvelopeNode {
+    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
+        self.follower.process(input)
+    }
+
+    fn reset(&mut self) {
+        self.follower.reset();
+    }
+}
+
+/// First-order allpass node for phaser effects.
+///
+/// Parameters:
+/// - `coeff`: Filter coefficient (controls notch frequency)
+pub struct AllpassNode {
+    filter: Allpass1,
+    coeff: f32,
+}
+
+impl AllpassNode {
+    /// Parameter index for coefficient.
+    pub const PARAM_COEFF: usize = 0;
+
+    const PARAMS: &'static [ParamDescriptor] = &[ParamDescriptor::new("coeff", 0.5, -1.0, 1.0)];
+
+    /// Create an allpass node.
+    pub fn new() -> Self {
+        Self {
+            filter: Allpass1::new(),
+            coeff: 0.5,
+        }
+    }
+
+    /// Set the filter coefficient.
+    pub fn set_coeff(&mut self, coeff: f32) {
+        self.coeff = coeff;
+    }
+}
+
+impl Default for AllpassNode {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AudioNode for AllpassNode {
+    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
+        self.filter.process(input, self.coeff)
+    }
+
+    fn reset(&mut self) {
+        self.filter.clear();
+    }
+
+    fn params(&self) -> &'static [ParamDescriptor] {
+        Self::PARAMS
+    }
+
+    fn set_param(&mut self, index: usize, value: f32) {
+        if index == Self::PARAM_COEFF {
+            self.coeff = value;
+        }
+    }
+}
+
+/// Gain node that multiplies input by a modulatable amount.
+///
+/// Parameters:
+/// - `gain`: Multiplier (can be modulated for tremolo, VCA, etc.)
+pub struct GainNode {
+    gain: f32,
+}
+
+impl GainNode {
+    /// Parameter index for gain.
+    pub const PARAM_GAIN: usize = 0;
+
+    const PARAMS: &'static [ParamDescriptor] = &[ParamDescriptor::new("gain", 1.0, 0.0, 10.0)];
+
+    /// Create a gain node with given initial gain.
+    pub fn new(gain: f32) -> Self {
+        Self { gain }
+    }
+
+    /// Set the gain.
+    pub fn set_gain(&mut self, gain: f32) {
+        self.gain = gain;
+    }
+}
+
+impl Default for GainNode {
+    fn default() -> Self {
+        Self::new(1.0)
+    }
+}
+
+impl AudioNode for GainNode {
+    fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
+        input * self.gain
+    }
+
+    fn params(&self) -> &'static [ParamDescriptor] {
+        Self::PARAMS
+    }
+
+    fn set_param(&mut self, index: usize, value: f32) {
+        if index == Self::PARAM_GAIN {
+            self.gain = value;
+        }
+    }
+}
+
+/// Mix node for dry/wet blending.
+///
+/// Takes the input as "wet" signal, stores "dry" internally, outputs blend.
+/// Note: For graph use, typically connect dry→input of mix node,
+/// and modulate the mix parameter.
+///
+/// Parameters:
+/// - `mix`: Blend amount (0 = dry, 1 = wet)
+pub struct MixNode {
+    mix: f32,
+    dry: f32,
+}
+
+impl MixNode {
+    /// Parameter index for mix amount.
+    pub const PARAM_MIX: usize = 0;
+    /// Parameter index for dry signal.
+    pub const PARAM_DRY: usize = 1;
+
+    const PARAMS: &'static [ParamDescriptor] = &[
+        ParamDescriptor::new("mix", 0.5, 0.0, 1.0),
+        ParamDescriptor::new("dry", 0.0, -10.0, 10.0),
+    ];
+
+    /// Create a mix node.
+    pub fn new(mix: f32) -> Self {
+        Self { mix, dry: 0.0 }
+    }
+
+    /// Set the mix amount (0 = dry, 1 = wet).
+    pub fn set_mix(&mut self, mix: f32) {
+        self.mix = mix.clamp(0.0, 1.0);
+    }
+
+    /// Set the dry signal (for when dry isn't routed through graph).
+    pub fn set_dry(&mut self, dry: f32) {
+        self.dry = dry;
+    }
+}
+
+impl Default for MixNode {
+    fn default() -> Self {
+        Self::new(0.5)
+    }
+}
+
+impl AudioNode for MixNode {
+    fn process(&mut self, wet: f32, _ctx: &AudioContext) -> f32 {
+        Mix::blend(self.dry, wet, self.mix)
+    }
+
+    fn params(&self) -> &'static [ParamDescriptor] {
+        Self::PARAMS
+    }
+
+    fn set_param(&mut self, index: usize, value: f32) {
+        match index {
+            Self::PARAM_MIX => self.mix = value.clamp(0.0, 1.0),
+            Self::PARAM_DRY => self.dry = value,
+            _ => {}
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -607,5 +951,136 @@ mod tests {
         assert!((Mix::blend(1.0, 0.0, 0.0) - 1.0).abs() < 0.001); // Full dry
         assert!((Mix::blend(1.0, 0.0, 1.0) - 0.0).abs() < 0.001); // Full wet
         assert!((Mix::blend(1.0, 0.0, 0.5) - 0.5).abs() < 0.001); // 50/50
+    }
+
+    // ========================================================================
+    // AudioNode implementation tests
+    // ========================================================================
+
+    #[test]
+    fn test_delay_node_audio_node() {
+        let ctx = AudioContext::new(44100.0);
+        let mut delay = DelayNode::new(1000);
+        delay.set_time(100.0);
+
+        // Write impulse
+        let out1 = delay.process(1.0, &ctx);
+        assert!(out1.abs() < 0.001); // No output yet
+
+        // Process silence until delay time
+        for _ in 0..99 {
+            delay.process(0.0, &ctx);
+        }
+
+        // Should get impulse back
+        let out2 = delay.process(0.0, &ctx);
+        assert!((out2 - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_delay_node_set_param() {
+        let mut delay = DelayNode::new(1000);
+
+        // Set via index
+        delay.set_param(DelayNode::PARAM_TIME, 200.0);
+        delay.set_param(DelayNode::PARAM_FEEDBACK, 0.5);
+
+        assert!((delay.time - 200.0).abs() < 0.001);
+        assert!((delay.feedback - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_lfo_node_audio_node() {
+        let ctx = AudioContext::new(44100.0);
+        let mut lfo = LfoNode::with_freq(1.0, 44100.0); // 1 Hz
+
+        // Collect one cycle worth of samples
+        let mut samples = Vec::new();
+        for _ in 0..44100 {
+            samples.push(lfo.process(0.0, &ctx));
+        }
+
+        // Should have completed ~1 cycle, find min and max
+        let min = samples.iter().cloned().fold(f32::MAX, f32::min);
+        let max = samples.iter().cloned().fold(f32::MIN, f32::max);
+
+        assert!(min < -0.9);
+        assert!(max > 0.9);
+    }
+
+    #[test]
+    fn test_lfo_node_params() {
+        let lfo = LfoNode::new();
+        let params = lfo.params();
+
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0].name, "rate");
+    }
+
+    #[test]
+    fn test_allpass_node_audio_node() {
+        let ctx = AudioContext::new(44100.0);
+        let mut ap = AllpassNode::new();
+
+        // Process constant input - should converge
+        let mut output = 0.0;
+        for _ in 0..100 {
+            output = ap.process(1.0, &ctx);
+        }
+
+        assert!((output - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_allpass_node_set_param() {
+        let mut ap = AllpassNode::new();
+        ap.set_param(AllpassNode::PARAM_COEFF, 0.7);
+        assert!((ap.coeff - 0.7).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_gain_node_audio_node() {
+        let ctx = AudioContext::new(44100.0);
+        let mut gain = GainNode::new(2.0);
+
+        let out = gain.process(0.5, &ctx);
+        assert!((out - 1.0).abs() < 0.001);
+
+        // Modulate gain
+        gain.set_param(GainNode::PARAM_GAIN, 0.5);
+        let out2 = gain.process(1.0, &ctx);
+        assert!((out2 - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_mix_node_audio_node() {
+        let ctx = AudioContext::new(44100.0);
+        let mut mix = MixNode::new(0.5);
+        mix.set_dry(1.0);
+
+        // 50% mix: (1.0 * 0.5) + (wet * 0.5)
+        let out = mix.process(0.0, &ctx); // wet = 0
+        assert!((out - 0.5).abs() < 0.001);
+
+        let out2 = mix.process(1.0, &ctx); // wet = 1
+        assert!((out2 - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_envelope_node_audio_node() {
+        let ctx = AudioContext::new(44100.0);
+        let mut env = EnvelopeNode::new(0.001, 0.01, 44100.0);
+
+        // Attack
+        for _ in 0..100 {
+            env.process(1.0, &ctx);
+        }
+        assert!(env.follower.level() > 0.5);
+
+        // Release
+        for _ in 0..1000 {
+            env.process(0.0, &ctx);
+        }
+        assert!(env.follower.level() < 0.1);
     }
 }

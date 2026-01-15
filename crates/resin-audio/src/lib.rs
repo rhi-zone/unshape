@@ -36,7 +36,7 @@ pub use granular::{
 pub use graph::{
     AdsrNode, ArNode, AudioContext, AudioNode, BiquadNode, Chain, Clip, Constant, DelayNode,
     FeedbackDelayNode, Gain, HighPassNode, LfoNode, LowPassNode, Mixer, Offset, Oscillator,
-    PassThrough, RingMod, Silence, SoftClip, Waveform,
+    ParamDescriptor, PassThrough, RingMod, Silence, SoftClip, Waveform,
 };
 pub use midi::{
     Channel, ControlValue, Controller, MidiMessage, Note, Program, Velocity, amplitude_to_velocity,
@@ -62,6 +62,11 @@ pub use percussion::{
     PlateSynth, noise_burst,
 };
 pub use physical::{ExtendedKarplusStrong, KarplusStrong, PluckConfig, PluckSynth, PolyStrings};
+pub use primitive::{
+    Allpass1, AllpassNode, DelayLine, DelayNode as PrimitiveDelayNode, EnvelopeFollower,
+    EnvelopeNode, GainNode as PrimitiveGainNode, LfoNode as PrimitiveLfoNode, MixNode, PhaseOsc,
+    Smoother,
+};
 pub use room::{
     EarlyReflection, RoomAcoustics, RoomGeometry, RoomMaterial, RoomMode, RoomModes, RoomSurfaces,
     calculate_early_reflections, calculate_room_modes, calculate_rt60_eyring,

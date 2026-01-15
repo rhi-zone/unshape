@@ -44,6 +44,31 @@ impl AudioContext {
     }
 }
 
+/// Describes a modulatable parameter on an audio node.
+#[derive(Debug, Clone, Copy)]
+pub struct ParamDescriptor {
+    /// Parameter name.
+    pub name: &'static str,
+    /// Default value.
+    pub default: f32,
+    /// Minimum value.
+    pub min: f32,
+    /// Maximum value.
+    pub max: f32,
+}
+
+impl ParamDescriptor {
+    /// Creates a new parameter descriptor.
+    pub const fn new(name: &'static str, default: f32, min: f32, max: f32) -> Self {
+        Self {
+            name,
+            default,
+            min,
+            max,
+        }
+    }
+}
+
 /// Trait for audio processing nodes.
 pub trait AudioNode: Send {
     /// Processes a single sample.
@@ -51,6 +76,20 @@ pub trait AudioNode: Send {
 
     /// Resets the node's internal state.
     fn reset(&mut self) {}
+
+    /// Returns descriptors for modulatable parameters.
+    ///
+    /// Override this to expose parameters that can be modulated by other nodes
+    /// in a graph. Parameters are set via [`set_param`] before each [`process`] call.
+    fn params(&self) -> &'static [ParamDescriptor] {
+        &[]
+    }
+
+    /// Sets a parameter value by index.
+    ///
+    /// Called by the graph executor to apply modulation before processing.
+    /// Index corresponds to the parameter's position in [`params()`].
+    fn set_param(&mut self, _index: usize, _value: f32) {}
 }
 
 // ============================================================================
