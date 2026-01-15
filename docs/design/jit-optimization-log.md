@@ -312,3 +312,48 @@ These approximations are suitable for procedural graphics where ~1% error is imp
 These could be inlined for additional performance, but the benefit is smaller since:
 - Noise is typically a small part of a complex expression
 - External calls are still fast (~10-20 cycles overhead)
+
+### Benchmark Results (10,000 evaluations)
+
+| Expression | Interpreted | JIT | Speedup |
+|------------|------------|-----|---------|
+| `perlin(x*4, y*4) * 0.5 + 0.5` | 415 µs | 110 µs | **3.8x** |
+| `sin(x*π) * cos(y*π)` | 284 µs | 73 µs | **3.9x** |
+| `sdf_circle(x, y, 0.5)` | 83 µs | 48 µs | **1.7x** |
+| Compile time | - | 363 µs | - |
+
+### Why the Speedups?
+
+**Perlin (3.8x) - Same precision, faster execution:**
+- ✅ Exact parity with Rust impl (verified across 2500 points)
+- No Rust function call overhead (~10-20 cycles saved per call)
+- All operations fully inlined (no dynamic dispatch)
+- Cranelift optimizer sees whole computation graph
+- Direct PERM table lookup via pointer (no bounds checking)
+
+**Trig (3.9x) - Lower precision approximations:**
+- ⚠️ Uses polynomial approximations instead of libm
+- Max error ~0.05 (vs libm's ~1e-7)
+- Acceptable for procedural graphics (imperceptible)
+- Interpreted calls `f32::sin()`/`f32::cos()` → libm → ~50-100 cycles each
+- JIT uses ~15-20 instruction polynomial → ~10-15 cycles each
+
+**SDF (1.7x) - Same precision, less overhead:**
+- ✅ Same arithmetic (sqrt, sub, mul)
+- Speedup from eliminating:
+  - AST traversal per eval (~5 enum matches)
+  - HashMap lookup for variables
+  - Box indirection for child expressions
+
+### When to Use JIT
+
+| Evaluations | Interpreted | JIT (incl. compile) | Winner |
+|-------------|-------------|---------------------|--------|
+| 1 | 0.04 µs | 363 µs | Interpreted |
+| 100 | 4 µs | 364 µs | Interpreted |
+| 1,000 | 42 µs | 374 µs | Interpreted |
+| **10,000** | 415 µs | 473 µs | **~Equal** |
+| 100,000 | 4.2 ms | 1.5 ms | **JIT 2.8x** |
+| 1,000,000 | 42 ms | 11 ms | **JIT 3.8x** |
+
+**Rule of thumb:** JIT is worth it for >10k evaluations (e.g., 100×100 texture)
