@@ -234,6 +234,254 @@ impl AudioNode for Mixer {
 }
 
 // ============================================================================
+// AudioGraph with Parameter Modulation
+// ============================================================================
+
+/// Index for a node in the audio graph.
+pub type NodeIndex = usize;
+
+/// Audio wire connecting one node's output to another's input.
+#[derive(Debug, Clone, Copy)]
+pub struct AudioWire {
+    /// Source node index.
+    pub from: NodeIndex,
+    /// Destination node index.
+    pub to: NodeIndex,
+}
+
+/// Parameter modulation wire.
+///
+/// Connects a node's output to another node's parameter with scaling.
+/// Final param value = base + (source_output * scale)
+#[derive(Debug, Clone, Copy)]
+pub struct ParamWire {
+    /// Source node index (provides modulation signal).
+    pub from: NodeIndex,
+    /// Destination node index.
+    pub to: NodeIndex,
+    /// Parameter index on destination node.
+    pub param: usize,
+    /// Base value for the parameter.
+    pub base: f32,
+    /// Scale factor for modulation.
+    pub scale: f32,
+}
+
+/// Audio graph with parameter modulation support.
+///
+/// Unlike [`Chain`] which is linear, `AudioGraph` supports arbitrary routing
+/// and parameter modulation (connecting one node's output to another's parameter).
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_audio::graph::{AudioGraph, AudioContext};
+/// use rhizome_resin_audio::primitive::{LfoNode, DelayNode, GainNode};
+///
+/// let mut graph = AudioGraph::new();
+///
+/// // Build a simple tremolo: LFO modulates gain
+/// let lfo = graph.add(LfoNode::with_freq(5.0, 44100.0));
+/// let gain = graph.add(GainNode::new(1.0));
+///
+/// // Audio path: input → gain → output
+/// graph.connect_input(gain);
+/// graph.set_output(gain);
+///
+/// // Modulation: LFO → gain parameter (base=0.5, scale=0.5 means 0-1 range)
+/// graph.modulate(lfo, gain, GainNode::PARAM_GAIN, 0.5, 0.5);
+///
+/// // Process
+/// let ctx = AudioContext::new(44100.0);
+/// let output = graph.process(1.0, &ctx);
+/// ```
+pub struct AudioGraph {
+    nodes: Vec<Box<dyn AudioNode>>,
+    /// Audio signal routing (node → node).
+    audio_wires: Vec<AudioWire>,
+    /// Parameter modulation routing (node → param).
+    param_wires: Vec<ParamWire>,
+    /// Which node receives external input.
+    input_node: Option<NodeIndex>,
+    /// Which node provides output.
+    output_node: Option<NodeIndex>,
+    /// Cached node outputs (reused each process call).
+    outputs: Vec<f32>,
+}
+
+impl AudioGraph {
+    /// Creates an empty audio graph.
+    pub fn new() -> Self {
+        Self {
+            nodes: Vec::new(),
+            audio_wires: Vec::new(),
+            param_wires: Vec::new(),
+            input_node: None,
+            output_node: None,
+            outputs: Vec::new(),
+        }
+    }
+
+    /// Adds a node to the graph and returns its index.
+    pub fn add<N: AudioNode + 'static>(&mut self, node: N) -> NodeIndex {
+        let index = self.nodes.len();
+        self.nodes.push(Box::new(node));
+        self.outputs.push(0.0);
+        index
+    }
+
+    /// Connects audio output of one node to input of another.
+    pub fn connect(&mut self, from: NodeIndex, to: NodeIndex) {
+        self.audio_wires.push(AudioWire { from, to });
+    }
+
+    /// Connects external input to a node.
+    pub fn connect_input(&mut self, to: NodeIndex) {
+        self.input_node = Some(to);
+    }
+
+    /// Sets which node provides the graph output.
+    pub fn set_output(&mut self, node: NodeIndex) {
+        self.output_node = Some(node);
+    }
+
+    /// Adds parameter modulation.
+    ///
+    /// The source node's output modulates the destination's parameter:
+    /// `param_value = base + source_output * scale`
+    ///
+    /// # Arguments
+    /// * `from` - Source node (modulator)
+    /// * `to` - Destination node
+    /// * `param` - Parameter index on destination
+    /// * `base` - Base value when modulator is 0
+    /// * `scale` - How much modulation affects the parameter
+    pub fn modulate(
+        &mut self,
+        from: NodeIndex,
+        to: NodeIndex,
+        param: usize,
+        base: f32,
+        scale: f32,
+    ) {
+        self.param_wires.push(ParamWire {
+            from,
+            to,
+            param,
+            base,
+            scale,
+        });
+    }
+
+    /// Modulates by parameter name (convenience wrapper).
+    ///
+    /// Looks up the parameter index by name. Panics if not found.
+    pub fn modulate_named(
+        &mut self,
+        from: NodeIndex,
+        to: NodeIndex,
+        param_name: &str,
+        base: f32,
+        scale: f32,
+    ) {
+        let params = self.nodes[to].params();
+        let param_idx = params
+            .iter()
+            .position(|p| p.name == param_name)
+            .unwrap_or_else(|| panic!("parameter '{}' not found on node {}", param_name, to));
+        self.modulate(from, to, param_idx, base, scale);
+    }
+
+    /// Returns the number of nodes.
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
+
+    /// Processes one sample through the graph.
+    ///
+    /// Evaluates nodes in index order. Nodes receive the sum of all connected
+    /// inputs. Parameters are modulated before each node processes.
+    pub fn process(&mut self, input: f32, ctx: &AudioContext) -> f32 {
+        // Clear outputs
+        for out in &mut self.outputs {
+            *out = 0.0;
+        }
+
+        // Process each node in order
+        for i in 0..self.nodes.len() {
+            // Apply parameter modulation
+            for wire in &self.param_wires {
+                if wire.to == i {
+                    let mod_value = self.outputs[wire.from];
+                    let param_value = wire.base + mod_value * wire.scale;
+                    self.nodes[i].set_param(wire.param, param_value);
+                }
+            }
+
+            // Gather audio input
+            let mut node_input = 0.0;
+
+            // External input
+            if self.input_node == Some(i) {
+                node_input += input;
+            }
+
+            // Inputs from other nodes
+            for wire in &self.audio_wires {
+                if wire.to == i {
+                    node_input += self.outputs[wire.from];
+                }
+            }
+
+            // Process and store output
+            self.outputs[i] = self.nodes[i].process(node_input, ctx);
+        }
+
+        // Return output node's value
+        self.output_node.map(|i| self.outputs[i]).unwrap_or(0.0)
+    }
+
+    /// Processes a buffer of samples.
+    pub fn process_buffer(&mut self, buffer: &mut [f32], ctx: &mut AudioContext) {
+        for sample in buffer {
+            *sample = self.process(*sample, ctx);
+            ctx.advance();
+        }
+    }
+
+    /// Generates samples (no input).
+    pub fn generate(&mut self, buffer: &mut [f32], ctx: &mut AudioContext) {
+        for sample in buffer {
+            *sample = self.process(0.0, ctx);
+            ctx.advance();
+        }
+    }
+
+    /// Resets all nodes.
+    pub fn reset(&mut self) {
+        for node in &mut self.nodes {
+            node.reset();
+        }
+    }
+}
+
+impl Default for AudioGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AudioNode for AudioGraph {
+    fn process(&mut self, input: f32, ctx: &AudioContext) -> f32 {
+        AudioGraph::process(self, input, ctx)
+    }
+
+    fn reset(&mut self) {
+        AudioGraph::reset(self);
+    }
+}
+
+// ============================================================================
 // Built-in Audio Nodes
 // ============================================================================
 
@@ -867,5 +1115,126 @@ mod tests {
 
         // Should produce some output
         assert!(output.abs() <= 1.0);
+    }
+
+    // ========================================================================
+    // AudioGraph tests
+    // ========================================================================
+
+    #[test]
+    fn test_audio_graph_simple_passthrough() {
+        use crate::primitive::GainNode;
+
+        let mut graph = AudioGraph::new();
+        let gain = graph.add(GainNode::new(1.0));
+        graph.connect_input(gain);
+        graph.set_output(gain);
+
+        let ctx = AudioContext::new(44100.0);
+        let out = graph.process(0.5, &ctx);
+        assert!((out - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_audio_graph_gain() {
+        use crate::primitive::GainNode;
+
+        let mut graph = AudioGraph::new();
+        let gain = graph.add(GainNode::new(2.0));
+        graph.connect_input(gain);
+        graph.set_output(gain);
+
+        let ctx = AudioContext::new(44100.0);
+        let out = graph.process(0.5, &ctx);
+        assert!((out - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_audio_graph_chain() {
+        use crate::primitive::GainNode;
+
+        let mut graph = AudioGraph::new();
+        let gain1 = graph.add(GainNode::new(2.0));
+        let gain2 = graph.add(GainNode::new(0.5));
+
+        graph.connect_input(gain1);
+        graph.connect(gain1, gain2);
+        graph.set_output(gain2);
+
+        let ctx = AudioContext::new(44100.0);
+        let out = graph.process(1.0, &ctx);
+        // 1.0 * 2.0 * 0.5 = 1.0
+        assert!((out - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_audio_graph_parameter_modulation() {
+        use crate::primitive::{GainNode, LfoNode};
+
+        let mut graph = AudioGraph::new();
+
+        // LFO modulates gain
+        let lfo = graph.add(LfoNode::with_freq(10.0, 44100.0));
+        let gain = graph.add(GainNode::new(1.0));
+
+        graph.connect_input(gain);
+        graph.set_output(gain);
+
+        // Modulate gain: base=0.5, scale=0.5 (so gain varies 0-1)
+        graph.modulate(lfo, gain, GainNode::PARAM_GAIN, 0.5, 0.5);
+
+        let ctx = AudioContext::new(44100.0);
+
+        // Collect outputs over one LFO cycle
+        let mut outputs = Vec::new();
+        for _ in 0..4410 {
+            // ~1/10th second = one 10Hz cycle
+            outputs.push(graph.process(1.0, &ctx));
+        }
+
+        // Should have variation due to modulation
+        let min = outputs.iter().cloned().fold(f32::MAX, f32::min);
+        let max = outputs.iter().cloned().fold(f32::MIN, f32::max);
+
+        // With base=0.5, scale=0.5, and LFO going -1 to 1,
+        // gain should vary from 0 to 1
+        assert!(min < 0.1, "min was {}", min);
+        assert!(max > 0.9, "max was {}", max);
+    }
+
+    #[test]
+    fn test_audio_graph_modulate_named() {
+        use crate::primitive::GainNode;
+
+        let mut graph = AudioGraph::new();
+        let lfo = graph.add(Oscillator::sine(5.0)); // Use oscillator as modulator
+        let gain = graph.add(GainNode::new(1.0));
+
+        graph.connect_input(gain);
+        graph.set_output(gain);
+
+        // Modulate by name
+        graph.modulate_named(lfo, gain, "gain", 0.5, 0.5);
+
+        assert_eq!(graph.param_wires.len(), 1);
+        assert_eq!(graph.param_wires[0].param, GainNode::PARAM_GAIN);
+    }
+
+    #[test]
+    fn test_audio_graph_as_audio_node() {
+        use crate::primitive::GainNode;
+
+        // AudioGraph implements AudioNode, so can be nested in Chain
+        let mut inner = AudioGraph::new();
+        let gain = inner.add(GainNode::new(2.0));
+        inner.connect_input(gain);
+        inner.set_output(gain);
+
+        let mut chain = Chain::new().with(inner).with(GainNode::new(0.5));
+
+        let ctx = AudioContext::new(44100.0);
+        let out = chain.process(1.0, &ctx);
+        // 1.0 * 2.0 * 0.5 = 1.0
+        assert!((out - 1.0).abs() < 0.001);
     }
 }
