@@ -4,9 +4,10 @@
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rhizome_resin_audio::effects::{
-    Bitcrusher, Compressor, Distortion, Limiter, NoiseGate, Reverb, chorus, flanger, phaser,
-    tremolo,
+    Bitcrusher, Compressor, Distortion, Limiter, NoiseGate, Reverb, chorus, chorus_graph, flanger,
+    flanger_graph, phaser, tremolo, tremolo_graph,
 };
+use rhizome_resin_audio::graph::AudioContext;
 
 const SAMPLE_RATE: f32 = 44100.0;
 const ONE_SECOND: usize = 44100;
@@ -154,6 +155,52 @@ fn bench_bitcrusher(c: &mut Criterion) {
     });
 }
 
+// ============================================================================
+// Graph-based effects (for comparison)
+// ============================================================================
+
+fn bench_tremolo_graph(c: &mut Criterion) {
+    let signal = test_signal(ONE_SECOND);
+
+    c.bench_function("tremolo_graph_1sec", |b| {
+        let mut effect = tremolo_graph(SAMPLE_RATE, 5.0, 0.5);
+        let ctx = AudioContext::new(SAMPLE_RATE);
+        b.iter(|| {
+            for &sample in &signal {
+                black_box(effect.process(sample, &ctx));
+            }
+        });
+    });
+}
+
+fn bench_chorus_graph(c: &mut Criterion) {
+    let signal = test_signal(ONE_SECOND);
+
+    c.bench_function("chorus_graph_1sec", |b| {
+        let mut effect = chorus_graph(SAMPLE_RATE);
+        let ctx = AudioContext::new(SAMPLE_RATE);
+        b.iter(|| {
+            for &sample in &signal {
+                black_box(effect.process(sample, &ctx));
+            }
+        });
+    });
+}
+
+fn bench_flanger_graph(c: &mut Criterion) {
+    let signal = test_signal(ONE_SECOND);
+
+    c.bench_function("flanger_graph_1sec", |b| {
+        let mut effect = flanger_graph(SAMPLE_RATE);
+        let ctx = AudioContext::new(SAMPLE_RATE);
+        b.iter(|| {
+            for &sample in &signal {
+                black_box(effect.process(sample, &ctx));
+            }
+        });
+    });
+}
+
 criterion_group!(
     benches,
     bench_chorus,
@@ -166,5 +213,9 @@ criterion_group!(
     bench_limiter,
     bench_noise_gate,
     bench_bitcrusher,
+    // Graph-based versions
+    bench_tremolo_graph,
+    bench_chorus_graph,
+    bench_flanger_graph,
 );
 criterion_main!(benches);
