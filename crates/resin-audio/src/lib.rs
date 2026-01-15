@@ -23,7 +23,8 @@ pub mod wav;
 pub use effects::{
     AllpassBank, AmplitudeMod, Bitcrusher, Compressor, Convolution, ConvolutionConfig,
     ConvolutionReverb, Distortion, DistortionMode, Limiter, ModulatedDelay, NoiseGate, Reverb,
-    chorus, convolution_reverb, flanger, generate_room_ir, phaser, tremolo,
+    chorus, chorus_graph, convolution_reverb, flanger, flanger_graph, generate_room_ir, phaser,
+    tremolo, tremolo_graph,
 };
 pub use envelope::{Adsr, AdsrState, Ar, Lfo, LfoWaveform};
 pub use filter::{
