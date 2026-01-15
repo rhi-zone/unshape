@@ -5,7 +5,7 @@
 //! - Additive animation layers
 //! - 1D/2D blend trees for parametric blending
 
-use crate::{AnimationClip, AnimationTarget, Interpolate, Transform};
+use crate::{AnimationClip, AnimationTarget, Interpolate, Lerp, Transform};
 use glam::Vec3;
 use std::collections::HashMap;
 
@@ -62,12 +62,12 @@ impl AnimationPose {
         // Blend existing transforms
         for (target, other_transform) in &other.transforms {
             if let Some(self_transform) = self.transforms.get_mut(target) {
-                *self_transform = self_transform.lerp(other_transform, weight);
+                *self_transform = self_transform.lerp_to(other_transform, weight);
             } else {
                 // New target - lerp from identity
                 self.transforms.insert(
                     target.clone(),
-                    Transform::IDENTITY.lerp(other_transform, weight),
+                    Transform::IDENTITY.lerp_to(other_transform, weight),
                 );
             }
         }
@@ -75,20 +75,20 @@ impl AnimationPose {
         // Blend existing floats
         for (target, other_value) in &other.floats {
             if let Some(self_value) = self.floats.get_mut(target) {
-                *self_value = self_value.lerp(other_value, weight);
+                *self_value = self_value.lerp_to(other_value, weight);
             } else {
                 self.floats
-                    .insert(target.clone(), 0.0_f32.lerp(other_value, weight));
+                    .insert(target.clone(), 0.0_f32.lerp_to(other_value, weight));
             }
         }
 
         // Blend existing vec3s
         for (target, other_value) in &other.vec3s {
             if let Some(self_value) = self.vec3s.get_mut(target) {
-                *self_value = self_value.lerp(*other_value, weight);
+                *self_value = self_value.lerp_to(other_value, weight);
             } else {
                 self.vec3s
-                    .insert(target.clone(), Vec3::ZERO.lerp(*other_value, weight));
+                    .insert(target.clone(), Vec3::ZERO.lerp_to(other_value, weight));
             }
         }
     }

@@ -1,6 +1,7 @@
 //! Transform type for skeletal animation.
 
 use glam::{Mat4, Quat, Vec3};
+use rhizome_resin_easing::Lerp;
 
 /// A 3D transform (translation, rotation, scale).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -131,6 +132,12 @@ impl Transform {
             rotation: self.rotation.slerp(other.rotation, t),
             scale: self.scale.lerp(other.scale, t),
         }
+    }
+}
+
+impl Lerp for Transform {
+    fn lerp_to(&self, other: &Self, t: f32) -> Self {
+        self.lerp(other, t)
     }
 }
 

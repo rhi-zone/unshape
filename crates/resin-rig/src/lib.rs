@@ -26,7 +26,8 @@ mod skin;
 mod transform;
 
 pub use animation::{
-    AnimationClip, AnimationPlayer, AnimationTarget, Interpolate, Interpolation, Keyframe, Track,
+    AnimationClip, AnimationPlayer, AnimationTarget, Interpolate, Interpolation, Keyframe, Lerp,
+    Track,
 };
 pub use blend::{AnimationLayer, AnimationPose, AnimationStack, BlendMode, BlendNode, Crossfade};
 pub use constraint::{Constraint, ConstraintStack, PathConstraint};

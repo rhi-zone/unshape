@@ -7,4 +7,4 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/rhizome-lab/resin"
 
 [dependencies]
-glam = "0.30"
+glam.workspace = true

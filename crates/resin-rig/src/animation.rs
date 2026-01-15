@@ -4,6 +4,7 @@
 
 use crate::Transform;
 use glam::{Quat, Vec3};
+pub use rhizome_resin_easing::Lerp;
 use std::collections::HashMap;
 
 /// Interpolation method between keyframes.
@@ -18,35 +19,15 @@ pub enum Interpolation {
     Cubic,
 }
 
-/// A value that can be interpolated.
-pub trait Interpolate: Clone + Default {
-    /// Interpolates between two values.
-    fn lerp(&self, other: &Self, t: f32) -> Self;
-}
+/// A value that can be interpolated in animation tracks.
+///
+/// This extends [`Lerp`] with `Clone + Default` requirements needed for
+/// animation sampling (cloning keyframe values, providing defaults for empty tracks).
+///
+/// Blanket implementation is provided for any `T: Lerp + Clone + Default`.
+pub trait Interpolate: Lerp + Clone + Default {}
 
-impl Interpolate for f32 {
-    fn lerp(&self, other: &Self, t: f32) -> Self {
-        self + (other - self) * t
-    }
-}
-
-impl Interpolate for Vec3 {
-    fn lerp(&self, other: &Self, t: f32) -> Self {
-        Vec3::lerp(*self, *other, t)
-    }
-}
-
-impl Interpolate for Quat {
-    fn lerp(&self, other: &Self, t: f32) -> Self {
-        self.slerp(*other, t)
-    }
-}
-
-impl Interpolate for Transform {
-    fn lerp(&self, other: &Self, t: f32) -> Self {
-        Transform::lerp(self, other, t)
-    }
-}
+impl<T: Lerp + Clone + Default> Interpolate for T {}
 
 /// A keyframe with a time and value.
 #[derive(Debug, Clone)]
@@ -158,7 +139,9 @@ impl<T: Interpolate> Track<T> {
 
                 return match curr.interpolation {
                     Interpolation::Step => curr.value.clone(),
-                    Interpolation::Linear | Interpolation::Cubic => curr.value.lerp(&next.value, t),
+                    Interpolation::Linear | Interpolation::Cubic => {
+                        curr.value.lerp_to(&next.value, t)
+                    }
                 };
             }
         }
@@ -338,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_track_sample_linear() {
-        let mut track = Track::new();
+        let mut track: Track<f32> = Track::new();
         track.add(0.0, 0.0);
         track.add(1.0, 10.0);
 
