@@ -72,6 +72,41 @@ pub struct ParamDescriptor {
 }
 ```
 
+### BlockProcessor Trait
+
+For tier-agnostic code, use `BlockProcessor` which all tiers implement:
+
+```rust
+pub trait BlockProcessor: Send {
+    fn process_block(&mut self, input: &[f32], output: &mut [f32], ctx: &mut AudioContext);
+    fn reset(&mut self);
+}
+
+// Blanket impl for AudioNode types (Tier 1/2/4)
+impl<T: AudioNode> BlockProcessor for T {
+    fn process_block(&mut self, input: &[f32], output: &mut [f32], ctx: &mut AudioContext) {
+        for (inp, out) in input.iter().zip(output.iter_mut()) {
+            *out = self.process(*inp, ctx);
+            ctx.advance();
+        }
+    }
+}
+
+// JIT (Tier 3) implements BlockProcessor natively
+impl BlockProcessor for CompiledGraph { ... }
+```
+
+Code written against `BlockProcessor` works with any tier:
+
+```rust
+fn apply_effect<P: BlockProcessor>(effect: &mut P, audio: &mut [f32], sample_rate: f32) {
+    let mut output = vec![0.0; audio.len()];
+    let mut ctx = AudioContext::new(sample_rate);
+    effect.process_block(audio, &mut output, &mut ctx);
+    audio.copy_from_slice(&output);
+}
+```
+
 Example primitive implementations:
 
 ```rust
@@ -419,11 +454,18 @@ The optimized compositions use primitives directly with no abstraction overhead,
 
 JIT-compile graphs to native code at runtime. Eliminates dyn dispatch and wire iteration.
 
-**Trade-off:** ~1-10ms compilation latency when graph changes, significant implementation complexity, harder to debug. Function call overhead can hurt simple effects.
+**Block Processing:** JIT uses block-based processing via `BlockProcessor::process_block()` to amortize function call overhead. Per-sample JIT calls have ~15 cycle overhead that dominates simple effects. Block processing amortizes this across 64-512 samples.
 
-**When to use:** Large graphs where per-node dispatch overhead accumulates. Not beneficial for simple effects where function call overhead dominates.
+```rust
+// JIT only supports block processing (no per-sample process())
+compiled.process_block(&input, &mut output, &mut ctx);
+```
 
-**Status:** Proof-of-concept in `jit.rs`. Tests pass for simple gain/tremolo.
+**Trade-off:** ~1-10ms compilation latency when graph changes, significant implementation complexity, harder to debug.
+
+**When to use:** User-designed effects at runtime (not known at compile time). For compile-time known graphs, prefer Tier 4 (codegen).
+
+**Status:** Proof-of-concept in `jit.rs`. Simple gain/tremolo tests pass. Full graph compilation with block processing implemented.
 
 ### Tier 4: Build.rs Code Generation (`codegen` module)
 

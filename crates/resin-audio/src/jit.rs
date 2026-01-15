@@ -1,7 +1,19 @@
 //! JIT compilation for audio graphs using Cranelift.
 //!
-//! This module provides experimental JIT compilation for `AudioGraph` instances,
+//! This module provides JIT compilation for `AudioGraph` instances,
 //! eliminating dynamic dispatch and wire iteration overhead at runtime.
+//!
+//! # Block Processing
+//!
+//! Unlike other tiers, JIT uses block-based processing to amortize function call
+//! overhead. Instead of `process(sample) -> sample`, use:
+//!
+//! ```ignore
+//! compiled.process_block(&input, &mut output, &mut ctx);
+//! ```
+//!
+//! This is intentional - per-sample JIT calls have ~15 cycle overhead that
+//! dominates simple effects. Block processing amortizes this across 64-512 samples.
 //!
 //! # Status
 //!
@@ -9,32 +21,18 @@
 //! The current implementation has significant limitations:
 //!
 //! - Only supports a subset of node types (gain, simple math)
-//! - Doesn't handle stateful nodes (delay lines, filters) yet
-//! - Requires unsafe code to call JIT-compiled functions
-//!
-//! # Example
-//!
-//! ```ignore
-//! use rhizome_resin_audio::jit::JitCompiler;
-//! use rhizome_resin_audio::graph::AudioGraph;
-//!
-//! let graph = /* build your graph */;
-//! let mut compiler = JitCompiler::new()?;
-//! let compiled = compiler.compile(&graph)?;
-//!
-//! // Process samples using JIT code
-//! let output = unsafe { compiled.process(input) };
-//! ```
+//! - Stateful nodes (delays, filters) call back into Rust
+//! - Block processing not yet implemented for full graphs
 //!
 //! # When to use
 //!
 //! JIT compilation is beneficial when:
+//! - Users design custom effects at runtime (not known at compile time)
 //! - The graph structure is fixed during processing
-//! - Processing many samples (compilation has ~1-10ms latency)
-//! - Dynamic dispatch overhead is measurable in your workload
+//! - Processing blocks of samples (64+ samples per call)
 //!
-//! For most use cases, the optimized `AudioGraph` (control-rate, cached wire lookups)
-//! is sufficient. Consider JIT only after profiling shows graph overhead.
+//! For compile-time known graphs, prefer Tier 4 (codegen) which has zero overhead.
+//! For common effect patterns, prefer Tier 2 (pattern matching).
 
 #![cfg(feature = "cranelift")]
 
@@ -297,15 +295,28 @@ use std::collections::HashMap;
 
 /// A JIT-compiled audio graph.
 ///
-/// Processes samples using generated native code, eliminating dynamic
+/// Processes sample blocks using generated native code, eliminating dynamic
 /// dispatch and wire iteration overhead. Stateful nodes (delays, filters)
 /// are handled by embedding Rust closures that the JIT code calls.
+///
+/// # Block Processing
+///
+/// Unlike `AudioNode`, `CompiledGraph` only supports block processing via
+/// [`BlockProcessor::process_block`]. This is intentional - per-sample JIT
+/// calls have function call overhead that dominates simple effects.
+///
+/// ```ignore
+/// let mut output = vec![0.0; input.len()];
+/// compiled.process_block(&input, &mut output, &mut ctx);
+/// ```
 pub struct CompiledGraph {
-    /// The JIT-compiled process function.
-    /// Signature: fn(input: f32, state: *mut GraphState) -> f32
-    func: fn(f32, *mut GraphState) -> f32,
+    /// The JIT-compiled block process function.
+    /// Signature: fn(input: *const f32, output: *mut f32, len: usize, state: *mut GraphState)
+    func: fn(*const f32, *mut f32, usize, *mut GraphState),
     /// Mutable state for stateful nodes.
     state: Box<GraphState>,
+    /// Sample rate for context updates.
+    sample_rate: f32,
 }
 
 /// State container for a compiled graph.
@@ -320,20 +331,29 @@ struct GraphState {
     ctx: AudioContext,
 }
 
-impl CompiledGraph {
-    /// Processes a sample through the compiled graph.
-    #[inline]
-    pub fn process(&mut self, input: f32) -> f32 {
-        (self.func)(input, self.state.as_mut())
+impl crate::graph::BlockProcessor for CompiledGraph {
+    fn process_block(&mut self, input: &[f32], output: &mut [f32], ctx: &mut AudioContext) {
+        debug_assert_eq!(
+            input.len(),
+            output.len(),
+            "input and output buffers must be same length"
+        );
+        // Update state context from caller's context
+        self.state.ctx = *ctx;
+        // Call JIT-compiled function
+        (self.func)(
+            input.as_ptr(),
+            output.as_mut_ptr(),
+            input.len(),
+            self.state.as_mut(),
+        );
+        // Advance caller's context
+        for _ in 0..input.len() {
+            ctx.advance();
+        }
     }
 
-    /// Advances the audio context time.
-    pub fn advance(&mut self) {
-        self.state.ctx.advance();
-    }
-
-    /// Resets the graph state.
-    pub fn reset(&mut self) {
+    fn reset(&mut self) {
         for v in &mut self.state.values {
             *v = 0.0;
         }
@@ -342,21 +362,31 @@ impl CompiledGraph {
 }
 
 impl JitCompiler {
-    /// Compiles an `AudioGraph` to native code.
+    /// Compiles an `AudioGraph` to native code with block processing.
     ///
     /// # Approach
     ///
     /// 1. Analyze graph to determine processing order (topological sort)
     /// 2. For pure math nodes (gain, offset, clip): generate inline Cranelift IR
     /// 3. For stateful nodes (LFO, delay, filter): generate calls to Rust closures
-    /// 4. Wire outputs directly - no intermediate storage for simple chains
+    /// 4. Generate a loop that processes the entire block
+    ///
+    /// # Block Processing
+    ///
+    /// The generated code processes samples in a loop, amortizing function call
+    /// overhead across the block. This is critical for performance - per-sample
+    /// JIT calls have ~15 cycle overhead that dominates simple effects.
     ///
     /// # Limitations
     ///
     /// - Modulation routing is "baked in" at compile time
     /// - Parameter changes after compilation aren't supported
     /// - Some node types may not be supported (returns error)
-    pub fn compile_graph(&mut self, graph: &AudioGraph) -> JitResult<CompiledGraph> {
+    pub fn compile_graph(
+        &mut self,
+        graph: &AudioGraph,
+        sample_rate: f32,
+    ) -> JitResult<CompiledGraph> {
         // Get processing order
         let order = compute_processing_order(graph);
         if order.is_empty() {
@@ -370,15 +400,16 @@ impl JitCompiler {
         let node_info = self.analyze_graph(graph, &order)?;
 
         // Build the function
-        // Signature: fn(input: f32, state: *mut GraphState) -> f32
+        // Signature: fn(input: *const f32, output: *mut f32, len: usize, state: *mut GraphState)
         let mut sig = self.module.make_signature();
-        sig.params.push(AbiParam::new(types::F32)); // input
+        sig.params.push(AbiParam::new(types::I64)); // input pointer
+        sig.params.push(AbiParam::new(types::I64)); // output pointer
+        sig.params.push(AbiParam::new(types::I64)); // length
         sig.params.push(AbiParam::new(types::I64)); // state pointer
-        sig.returns.push(AbiParam::new(types::F32));
 
         let func_id = self
             .module
-            .declare_function("jit_graph", Linkage::Export, &sig)?;
+            .declare_function("jit_graph_block", Linkage::Export, &sig)?;
 
         self.ctx.func.signature = sig;
 
@@ -398,18 +429,50 @@ impl JitCompiler {
 
         {
             let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut self.builder_ctx);
+
+            // Create blocks for loop structure
             let entry = builder.create_block();
+            let loop_header = builder.create_block();
+            let loop_body = builder.create_block();
+            let loop_exit = builder.create_block();
+
             builder.append_block_params_for_function_params(entry);
             builder.switch_to_block(entry);
-            builder.seal_block(entry);
 
-            let input_val = builder.block_params(entry)[0];
-            let state_ptr = builder.block_params(entry)[1];
+            let input_ptr = builder.block_params(entry)[0];
+            let output_ptr = builder.block_params(entry)[1];
+            let len = builder.block_params(entry)[2];
+            let state_ptr = builder.block_params(entry)[3];
 
             // Import the external function reference
             let stateful_func_ref = self
                 .module
                 .declare_func_in_func(stateful_func_id, builder.func);
+
+            // Initialize loop counter
+            let zero = builder.ins().iconst(types::I64, 0);
+            builder.ins().jump(loop_header, &[zero]);
+
+            // Loop header: check if i < len
+            builder.switch_to_block(loop_header);
+            builder.append_block_param(loop_header, types::I64); // loop counter
+            let i = builder.block_params(loop_header)[0];
+            let cond =
+                builder
+                    .ins()
+                    .icmp(cranelift::ir::condcodes::IntCC::UnsignedLessThan, i, len);
+            builder.ins().brif(cond, loop_body, &[], loop_exit, &[]);
+
+            // Loop body: process one sample
+            builder.switch_to_block(loop_body);
+
+            // Load input sample: input[i]
+            let byte_offset = builder.ins().imul_imm(i, 4); // f32 is 4 bytes
+            let input_addr = builder.ins().iadd(input_ptr, byte_offset);
+            let input_val =
+                builder
+                    .ins()
+                    .load(types::F32, cranelift::ir::MemFlags::new(), input_addr, 0);
 
             // Track values for each node
             let mut node_values: HashMap<NodeIndex, cranelift::ir::Value> = HashMap::new();
@@ -485,18 +548,38 @@ impl JitCompiler {
                 node_values.insert(idx, output_val);
             }
 
-            // Return output node's value
+            // Get output value
             let output_val = output_idx
                 .and_then(|idx| node_values.get(&idx).copied())
                 .unwrap_or(input_val);
 
-            builder.ins().return_(&[output_val]);
+            // Store output sample: output[i] = output_val
+            let output_addr = builder.ins().iadd(output_ptr, byte_offset);
+            builder
+                .ins()
+                .store(cranelift::ir::MemFlags::new(), output_val, output_addr, 0);
+
+            // Increment counter and loop
+            let one = builder.ins().iconst(types::I64, 1);
+            let next_i = builder.ins().iadd(i, one);
+            builder.ins().jump(loop_header, &[next_i]);
+
+            // Loop exit
+            builder.switch_to_block(loop_exit);
+            builder.ins().return_(&[]);
+
+            // Seal all blocks
+            builder.seal_block(entry);
+            builder.seal_block(loop_header);
+            builder.seal_block(loop_body);
+            builder.seal_block(loop_exit);
+
             builder.finalize();
         }
 
         // Define the external function for stateful processing
         // This will be called by the JIT code
-        let process_stateful_ptr = process_stateful_node as *const u8;
+        let _process_stateful_ptr = process_stateful_node as *const u8;
 
         // Create a new module with the external function symbol
         self.module.define_function(func_id, &mut self.ctx)?;
@@ -509,7 +592,8 @@ impl JitCompiler {
         self.module.finalize_definitions()?;
 
         let code_ptr = self.module.get_finalized_function(func_id);
-        let func: fn(f32, *mut GraphState) -> f32 = unsafe { mem::transmute(code_ptr) };
+        let func: fn(*const f32, *mut f32, usize, *mut GraphState) =
+            unsafe { mem::transmute(code_ptr) };
 
         // Create state with processors for stateful nodes
         let mut processors: Vec<Box<dyn FnMut(f32) -> f32 + Send>> = Vec::new();
@@ -527,18 +611,19 @@ impl JitCompiler {
         let state = Box::new(GraphState {
             values: vec![0.0; num_nodes],
             processors,
-            ctx: AudioContext::new(44100.0),
+            ctx: AudioContext::new(sample_rate),
         });
 
-        Ok(CompiledGraph { func, state })
+        Ok(CompiledGraph {
+            func,
+            state,
+            sample_rate,
+        })
 
         // Note: The external function registration doesn't work this way in Cranelift.
         // This is a simplified demonstration. A real implementation would need to:
         // 1. Use JITBuilder::symbol() to register external functions before creating the module
         // 2. Or use a different approach like function pointers in the state struct
-        //
-        // For now, return an error indicating this is not fully implemented
-        // Err(JitError::Graph("full graph JIT not yet implemented - external function linkage needed".to_string()))
     }
 
     /// Analyzes graph nodes to determine compilation strategy.
@@ -733,6 +818,25 @@ mod tests {
         // LFO at -1: gain = 0.0
         let out3 = compiled.process(1.0, -1.0);
         assert!(out3.abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_block_processor_trait() {
+        use crate::graph::{AudioContext, BlockProcessor, Gain};
+
+        // Test that AudioNode types get BlockProcessor via blanket impl
+        let mut gain = Gain::new(0.5);
+        let input = vec![1.0, 2.0, 3.0, 4.0];
+        let mut output = vec![0.0; 4];
+        let mut ctx = AudioContext::new(44100.0);
+
+        gain.process_block(&input, &mut output, &mut ctx);
+
+        assert!((output[0] - 0.5).abs() < 0.0001);
+        assert!((output[1] - 1.0).abs() < 0.0001);
+        assert!((output[2] - 1.5).abs() < 0.0001);
+        assert!((output[3] - 2.0).abs() < 0.0001);
+        assert_eq!(ctx.sample_index, 4);
     }
 
     // Note: Full graph compilation test requires cranelift external symbol support
