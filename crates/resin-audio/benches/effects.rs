@@ -321,6 +321,35 @@ fn bench_gain_rust(c: &mut Criterion) {
     });
 }
 
+// Block-based JIT compilation benchmark
+#[cfg(all(feature = "cranelift", feature = "optimize"))]
+fn bench_gain_jit_block(c: &mut Criterion) {
+    use rhizome_resin_audio::graph::{AudioGraph, BlockProcessor, Gain};
+    use rhizome_resin_audio::jit::JitCompiler;
+
+    let signal = test_signal(ONE_SECOND);
+    let mut output = vec![0.0; ONE_SECOND];
+
+    c.bench_function("gain_jit_block_1sec", |b| {
+        // Build graph
+        let mut graph = AudioGraph::new();
+        let gain_node = graph.add(Gain::new(0.5));
+        graph.connect_input(gain_node);
+        graph.set_output(gain_node);
+
+        // Compile to native code
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut compiled = compiler.compile_graph(graph, SAMPLE_RATE).unwrap();
+        let mut ctx = AudioContext::new(SAMPLE_RATE);
+
+        b.iter(|| {
+            ctx.reset();
+            compiled.process_block(&signal, &mut output, &mut ctx);
+            black_box(&output);
+        });
+    });
+}
+
 // ============================================================================
 // Block processing comparison
 // ============================================================================
@@ -470,16 +499,25 @@ criterion_group!(
 #[cfg(feature = "cranelift")]
 criterion_group!(jit_benches, bench_tremolo_jit, bench_gain_jit,);
 
+#[cfg(all(feature = "cranelift", feature = "optimize"))]
+criterion_group!(jit_graph_benches, bench_gain_jit_block,);
+
 // Main macro combinations for different feature sets
 #[cfg(all(feature = "optimize", feature = "cranelift", feature = "codegen-bench"))]
-criterion_main!(benches, optimized_benches, jit_benches, codegen_benches);
+criterion_main!(
+    benches,
+    optimized_benches,
+    jit_benches,
+    jit_graph_benches,
+    codegen_benches
+);
 
 #[cfg(all(
     feature = "optimize",
     feature = "cranelift",
     not(feature = "codegen-bench")
 ))]
-criterion_main!(benches, optimized_benches, jit_benches);
+criterion_main!(benches, optimized_benches, jit_benches, jit_graph_benches);
 
 #[cfg(all(
     feature = "optimize",

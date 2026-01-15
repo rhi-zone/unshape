@@ -8,6 +8,7 @@ use crate::osc;
 
 /// Audio processing context passed to nodes.
 #[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub struct AudioContext {
     /// Sample rate in Hz.
     pub sample_rate: f32,

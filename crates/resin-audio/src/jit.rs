@@ -92,7 +92,6 @@ impl JitCompiler {
         // Register external symbols BEFORE creating the module
         // This allows JIT code to call back into Rust for stateful node processing
         builder.symbol("process_stateful_node", process_stateful_node as *const u8);
-        builder.symbol("advance_context", advance_context as *const u8);
 
         let module = JITModule::new(builder);
         let ctx = module.make_context();
@@ -328,13 +327,15 @@ pub struct CompiledGraph {
 /// State container for a compiled graph.
 ///
 /// Holds closures for stateful node processing and current values.
+#[repr(C)]
 struct GraphState {
+    /// Audio context for processors that need it.
+    /// First field for predictable offset (0).
+    ctx: AudioContext,
     /// Per-node values (current output).
     values: Vec<f32>,
     /// Stateful processors - closures that process input with context.
     processors: Vec<Box<dyn FnMut(f32, &AudioContext) -> f32 + Send>>,
-    /// Audio context for processors that need it.
-    ctx: AudioContext,
 }
 
 impl crate::graph::BlockProcessor for CompiledGraph {
@@ -405,6 +406,11 @@ impl JitCompiler {
         // Analyze nodes - determine which are pure math vs stateful
         let node_info = self.analyze_graph(&graph, &order)?;
 
+        // Check if we have any stateful nodes (need context advancement)
+        let has_stateful = node_info
+            .values()
+            .any(|info| matches!(info, NodeInfo::Stateful { .. }));
+
         // Build the function
         // Signature: fn(input: *const f32, output: *mut f32, len: usize, state: *mut GraphState)
         let mut sig = self.module.make_signature();
@@ -433,15 +439,6 @@ impl JitCompiler {
             &stateful_sig,
         )?;
 
-        // Declare external function for advancing context
-        // extern fn advance_context(state: *mut GraphState)
-        let mut advance_sig = self.module.make_signature();
-        advance_sig.params.push(AbiParam::new(types::I64)); // state pointer
-
-        let advance_func_id =
-            self.module
-                .declare_function("advance_context", Linkage::Import, &advance_sig)?;
-
         {
             let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut self.builder_ctx);
 
@@ -459,13 +456,10 @@ impl JitCompiler {
             let len = builder.block_params(entry)[2];
             let state_ptr = builder.block_params(entry)[3];
 
-            // Import the external function references
+            // Import the external function reference for stateful node processing
             let stateful_func_ref = self
                 .module
                 .declare_func_in_func(stateful_func_id, builder.func);
-            let advance_func_ref = self
-                .module
-                .declare_func_in_func(advance_func_id, builder.func);
 
             // Initialize loop counter
             let zero = builder.ins().iconst(types::I64, 0);
@@ -577,8 +571,23 @@ impl JitCompiler {
                 .ins()
                 .store(cranelift::ir::MemFlags::new(), output_val, output_addr, 0);
 
-            // Advance audio context for next sample
-            builder.ins().call(advance_func_ref, &[state_ptr]);
+            // Only advance context if we have stateful nodes that need it
+            if has_stateful {
+                // GraphState layout: ctx at offset 0 (repr(C))
+                // AudioContext layout: sample_rate(4), time(4), dt(4), pad(4), sample_index(8)
+                let mem = cranelift::ir::MemFlags::new();
+
+                // time += dt (time at offset 4, dt at offset 8)
+                let time_val = builder.ins().load(types::F32, mem, state_ptr, 4);
+                let dt_val = builder.ins().load(types::F32, mem, state_ptr, 8);
+                let new_time = builder.ins().fadd(time_val, dt_val);
+                builder.ins().store(mem, new_time, state_ptr, 4);
+
+                // sample_index += 1 (at offset 16)
+                let idx_val = builder.ins().load(types::I64, mem, state_ptr, 16);
+                let new_idx = builder.ins().iadd_imm(idx_val, 1);
+                builder.ins().store(mem, new_idx, state_ptr, 16);
+            }
 
             // Increment counter and loop
             let one = builder.ins().iconst(types::I64, 1);
@@ -810,15 +819,6 @@ extern "C" fn process_stateful_node(state: *mut GraphState, node_idx: i32, input
         } else {
             input
         }
-    }
-}
-
-/// Advances the audio context after each sample.
-/// Called by JIT code at the end of each sample loop iteration.
-extern "C" fn advance_context(state: *mut GraphState) {
-    unsafe {
-        let state = &mut *state;
-        state.ctx.advance();
     }
 }
 
