@@ -637,27 +637,39 @@ impl JitCompiler {
             let node_info = {
                 use crate::optimize::NodeType;
                 match graph.node_type(idx) {
-                    Some(NodeType::Gain) => NodeInfo::PureMath {
-                        op: MathOp::Gain(1.0), // Would need to extract actual value
-                    },
-                    Some(NodeType::Offset) => NodeInfo::PureMath {
-                        op: MathOp::Offset(0.0),
-                    },
-                    Some(NodeType::Clip) => NodeInfo::PureMath {
-                        op: MathOp::Clip {
-                            min: -1.0,
-                            max: 1.0,
-                        },
-                    },
+                    Some(NodeType::Gain) => {
+                        // Extract actual gain value from node
+                        let gain = graph.node_param_value(idx, 0).unwrap_or(1.0);
+                        NodeInfo::PureMath {
+                            op: MathOp::Gain(gain),
+                        }
+                    }
+                    Some(NodeType::Offset) => {
+                        let offset = graph.node_param_value(idx, 0).unwrap_or(0.0);
+                        NodeInfo::PureMath {
+                            op: MathOp::Offset(offset),
+                        }
+                    }
+                    Some(NodeType::Clip) => {
+                        // Clip nodes typically have min (param 0) and max (param 1)
+                        let min = graph.node_param_value(idx, 0).unwrap_or(-1.0);
+                        let max = graph.node_param_value(idx, 1).unwrap_or(1.0);
+                        NodeInfo::PureMath {
+                            op: MathOp::Clip { min, max },
+                        }
+                    }
                     Some(NodeType::SoftClip) => NodeInfo::PureMath {
                         op: MathOp::SoftClip,
                     },
                     Some(NodeType::PassThrough) => NodeInfo::PureMath {
                         op: MathOp::PassThrough,
                     },
-                    Some(NodeType::Constant) => NodeInfo::PureMath {
-                        op: MathOp::Constant(0.0),
-                    },
+                    Some(NodeType::Constant) => {
+                        let value = graph.node_param_value(idx, 0).unwrap_or(0.0);
+                        NodeInfo::PureMath {
+                            op: MathOp::Constant(value),
+                        }
+                    }
                     Some(NodeType::Silence) => NodeInfo::PureMath {
                         op: MathOp::Constant(0.0),
                     },
@@ -891,5 +903,50 @@ mod tests {
         assert!((output[0] - 1.0).abs() < 0.0001);
         assert!((output[1] - (-1.0)).abs() < 0.0001);
         assert!((output[2] - 0.5).abs() < 0.0001);
+    }
+
+    #[test]
+    #[cfg(feature = "optimize")]
+    fn test_compile_graph_gain_param() {
+        use crate::graph::{AudioContext, AudioGraph, BlockProcessor, Gain};
+
+        // Create a graph with a specific gain value
+        let mut graph = AudioGraph::new();
+        let gain_node = graph.add(Gain::new(0.5)); // 50% gain
+        graph.connect_input(gain_node);
+        graph.set_output(gain_node);
+
+        // Compile it
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut compiled = compiler.compile_graph(&graph, 44100.0).unwrap();
+
+        // Test block processing
+        let input = vec![1.0, 2.0, -1.0, 0.0];
+        let mut output = vec![0.0; 4];
+        let mut ctx = AudioContext::new(44100.0);
+
+        compiled.process_block(&input, &mut output, &mut ctx);
+
+        // Output should be input * 0.5
+        assert!(
+            (output[0] - 0.5).abs() < 0.0001,
+            "expected 0.5, got {}",
+            output[0]
+        );
+        assert!(
+            (output[1] - 1.0).abs() < 0.0001,
+            "expected 1.0, got {}",
+            output[1]
+        );
+        assert!(
+            (output[2] - (-0.5)).abs() < 0.0001,
+            "expected -0.5, got {}",
+            output[2]
+        );
+        assert!(
+            (output[3] - 0.0).abs() < 0.0001,
+            "expected 0.0, got {}",
+            output[3]
+        );
     }
 }
