@@ -326,7 +326,7 @@ fn bench_gain_rust(c: &mut Criterion) {
 // ============================================================================
 
 use rhizome_resin_audio::graph::AudioNode;
-use rhizome_resin_audio::primitive::{GainNode, LfoNode};
+use rhizome_resin_audio::primitive::{DelayNode, GainNode, LfoNode, MixNode};
 use rhizome_resin_audio_macros::graph_effect;
 
 // Define a static tremolo using the proc macro
@@ -347,6 +347,62 @@ fn bench_tremolo_macro(c: &mut Criterion) {
 
     c.bench_function("tremolo_macro_1sec", |b| {
         let mut effect = StaticTremolo::new();
+        b.iter(|| {
+            for &sample in &signal {
+                black_box(effect.process(sample, &ctx));
+            }
+        });
+    });
+}
+
+// Full chorus using proc macro with audio_params for dry/wet
+graph_effect! {
+    name: StaticChorus,
+    nodes: {
+        lfo: LfoNode::with_freq(0.5, 44100.0),
+        delay: DelayNode::from_time(0.05, 44100.0),
+        mix: MixNode::new(0.5),
+    },
+    audio: [input -> delay, delay -> mix],
+    modulation: [lfo -> delay.time(base: 300.0, scale: 130.0)],
+    audio_params: [input -> mix.dry],
+    output: mix,
+}
+
+fn bench_chorus_macro(c: &mut Criterion) {
+    let signal = test_signal(ONE_SECOND);
+    let ctx = AudioContext::new(SAMPLE_RATE);
+
+    c.bench_function("chorus_macro_1sec", |b| {
+        let mut effect = StaticChorus::new();
+        b.iter(|| {
+            for &sample in &signal {
+                black_box(effect.process(sample, &ctx));
+            }
+        });
+    });
+}
+
+// Full flanger using proc macro (with feedback approximation)
+graph_effect! {
+    name: StaticFlanger,
+    nodes: {
+        lfo: LfoNode::with_freq(0.25, 44100.0),
+        delay: DelayNode::from_time(0.02, 44100.0),
+        mix: MixNode::new(0.5),
+    },
+    audio: [input -> delay, delay -> mix],
+    modulation: [lfo -> delay.time(base: 44.0, scale: 88.0)],
+    audio_params: [input -> mix.dry],
+    output: mix,
+}
+
+fn bench_flanger_macro(c: &mut Criterion) {
+    let signal = test_signal(ONE_SECOND);
+    let ctx = AudioContext::new(SAMPLE_RATE);
+
+    c.bench_function("flanger_macro_1sec", |b| {
+        let mut effect = StaticFlanger::new();
         b.iter(|| {
             for &sample in &signal {
                 black_box(effect.process(sample, &ctx));
@@ -376,6 +432,8 @@ criterion_group!(
     bench_gain_rust,
     // Tier 4: Proc macro
     bench_tremolo_macro,
+    bench_chorus_macro,
+    bench_flanger_macro,
 );
 
 #[cfg(feature = "optimize")]
