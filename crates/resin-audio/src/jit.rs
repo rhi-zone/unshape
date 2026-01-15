@@ -87,7 +87,12 @@ impl JitCompiler {
             .finish(settings::Flags::new(flag_builder))
             .map_err(|e| JitError::Graph(e.to_string()))?;
 
-        let builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
+        let mut builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
+
+        // Register external symbols BEFORE creating the module
+        // This allows JIT code to call back into Rust for stateful node processing
+        builder.symbol("process_stateful_node", process_stateful_node as *const u8);
+
         let module = JITModule::new(builder);
         let ctx = module.make_context();
 
@@ -585,10 +590,6 @@ impl JitCompiler {
         self.module.define_function(func_id, &mut self.ctx)?;
         self.module.clear_context(&mut self.ctx);
 
-        // We need to provide the external symbol before finalizing
-        // For now, we'll use a workaround by recompiling
-        // In practice, you'd register this before defining functions
-
         self.module.finalize_definitions()?;
 
         let code_ptr = self.module.get_finalized_function(func_id);
@@ -619,11 +620,6 @@ impl JitCompiler {
             state,
             sample_rate,
         })
-
-        // Note: The external function registration doesn't work this way in Cranelift.
-        // This is a simplified demonstration. A real implementation would need to:
-        // 1. Use JITBuilder::symbol() to register external functions before creating the module
-        // 2. Or use a different approach like function pointers in the state struct
     }
 
     /// Analyzes graph nodes to determine compilation strategy.
@@ -839,7 +835,61 @@ mod tests {
         assert_eq!(ctx.sample_index, 4);
     }
 
-    // Note: Full graph compilation test requires cranelift external symbol support
-    // which is complex to set up. The compile_graph function demonstrates the
-    // approach but isn't fully functional without additional Cranelift setup.
+    #[test]
+    #[cfg(feature = "optimize")]
+    fn test_compile_graph_passthrough() {
+        use crate::graph::{AudioContext, AudioGraph, BlockProcessor, PassThrough};
+
+        // Create a simple passthrough graph
+        let mut graph = AudioGraph::new();
+        let node = graph.add(PassThrough);
+        graph.connect_input(node);
+        graph.set_output(node);
+
+        // Compile it
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut compiled = compiler.compile_graph(&graph, 44100.0).unwrap();
+
+        // Test block processing
+        let input = vec![1.0, 2.0, 3.0, 4.0];
+        let mut output = vec![0.0; 4];
+        let mut ctx = AudioContext::new(44100.0);
+
+        compiled.process_block(&input, &mut output, &mut ctx);
+
+        // PassThrough should return input unchanged
+        assert!((output[0] - 1.0).abs() < 0.0001, "got {}", output[0]);
+        assert!((output[1] - 2.0).abs() < 0.0001, "got {}", output[1]);
+        assert!((output[2] - 3.0).abs() < 0.0001, "got {}", output[2]);
+        assert!((output[3] - 4.0).abs() < 0.0001, "got {}", output[3]);
+    }
+
+    #[test]
+    #[cfg(feature = "optimize")]
+    fn test_compile_graph_chain() {
+        use crate::graph::{AudioContext, AudioGraph, BlockProcessor, PassThrough};
+
+        // Create a chain: input -> passthrough -> passthrough -> output
+        let mut graph = AudioGraph::new();
+        let p1 = graph.add(PassThrough);
+        let p2 = graph.add(PassThrough);
+        graph.connect_input(p1);
+        graph.connect(p1, p2);
+        graph.set_output(p2);
+
+        // Compile it
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut compiled = compiler.compile_graph(&graph, 44100.0).unwrap();
+
+        // Test block processing
+        let input = vec![1.0, -1.0, 0.5];
+        let mut output = vec![0.0; 3];
+        let mut ctx = AudioContext::new(44100.0);
+
+        compiled.process_block(&input, &mut output, &mut ctx);
+
+        assert!((output[0] - 1.0).abs() < 0.0001);
+        assert!((output[1] - (-1.0)).abs() < 0.0001);
+        assert!((output[2] - 0.5).abs() < 0.0001);
+    }
 }
