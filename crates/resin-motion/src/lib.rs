@@ -29,6 +29,7 @@
 //! ```
 
 use glam::{Mat3, Vec2};
+pub use rhizome_resin_easing::Lerp;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -222,6 +223,12 @@ impl Transform2D {
             skew: self.skew + (other.skew - self.skew) * t,
             skew_axis: self.skew_axis + (other.skew_axis - self.skew_axis) * t,
         }
+    }
+}
+
+impl Lerp for Transform2D {
+    fn lerp_to(&self, other: &Self, t: f32) -> Self {
+        self.lerp(other, t)
     }
 }
 
@@ -759,11 +766,17 @@ impl LinearTransform2D {
     }
 }
 
+impl Lerp for LinearTransform2D {
+    fn lerp_to(&self, other: &Self, t: f32) -> Self {
+        self.lerp(other, t)
+    }
+}
+
 // ============================================================================
 // Motion implementations for Transform2D
 // ============================================================================
 
-use rhizome_resin_motion_fn::{Eased, Lerp, Motion, Spring};
+use rhizome_resin_motion_fn::{Eased, Lerp as MotionLerp, Motion, Spring};
 
 // Re-export motion types for convenience
 pub use rhizome_resin_motion_fn::{
@@ -805,9 +818,9 @@ fn spring_value(from: f32, to: f32, stiffness: f32, damping: f32, t: f32) -> f32
 
 // Note: Constant<Transform2D> uses blanket impl from rhizome_resin_motion_fn
 
-// -- Lerp<Transform2D> --
+// -- MotionLerp<Transform2D> --
 
-impl Motion<Transform2D> for Lerp<Transform2D> {
+impl Motion<Transform2D> for MotionLerp<Transform2D> {
     fn at(&self, t: f32) -> Transform2D {
         let progress = (t / self.duration).clamp(0.0, 1.0);
         self.from.lerp(&self.to, progress)
@@ -908,9 +921,9 @@ impl Motion<Transform2D> for Spring<Transform2D> {
 
 // Note: Constant<LinearTransform2D> uses blanket impl from rhizome_resin_motion_fn
 
-// -- Lerp<LinearTransform2D> --
+// -- MotionLerp<LinearTransform2D> --
 
-impl Motion<LinearTransform2D> for Lerp<LinearTransform2D> {
+impl Motion<LinearTransform2D> for MotionLerp<LinearTransform2D> {
     fn at(&self, t: f32) -> LinearTransform2D {
         let progress = (t / self.duration).clamp(0.0, 1.0);
         self.from.lerp(&self.to, progress)
@@ -1661,7 +1674,7 @@ mod tests {
     fn test_motion_transform2d_lerp() {
         let from = Transform2D::from_position(Vec2::ZERO);
         let to = Transform2D::from_position(Vec2::new(100.0, 100.0));
-        let motion = Lerp::new(from, to, 1.0);
+        let motion = MotionLerp::new(from, to, 1.0);
 
         let at_half: Transform2D = motion.at(0.5);
         assert!((at_half.position - Vec2::new(50.0, 50.0)).length() < 0.001);
@@ -1729,7 +1742,7 @@ mod tests {
     fn test_motion_linear_lerp() {
         let from = LinearTransform2D::from_rotation(0.0);
         let to = LinearTransform2D::from_rotation(1.0);
-        let motion = Lerp::new(from, to, 1.0);
+        let motion = MotionLerp::new(from, to, 1.0);
 
         let at_half: LinearTransform2D = motion.at(0.5);
         assert!((at_half.rotation - 0.5).abs() < 0.001);

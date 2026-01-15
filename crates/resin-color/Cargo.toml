@@ -12,4 +12,5 @@ serde = ["dep:serde"]
 
 [dependencies]
 glam.workspace = true
+rhizome-resin-easing = { path = "../resin-easing" }
 serde = { workspace = true, optional = true }

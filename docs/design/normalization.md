@@ -36,55 +36,45 @@ This document tracks inconsistencies across the resin codebase and plans for nor
 
 ---
 
-### 2. Interpolation Trait Fragmentation 🔴
+### 2. Interpolation Trait Fragmentation 🟢
 
 **Problem:** `lerp` implemented independently in 6+ crates with no shared trait.
 
-**Locations:**
-- `resin-color/src/lib.rs` - `Rgba::lerp()`, `Hsl::lerp()`, etc.
-- `resin-motion/src/lib.rs` - `Transform2D::lerp()`
-- `resin-noise/src/lib.rs` - `fn lerp(a: f32, b: f32, t: f32)`
-- `resin-rig/src/animation.rs:22` - `trait Interpolate` with `lerp()` (local)
-- `resin-rig/src/transform.rs` - `Transform::lerp()`
-- `resin-image/src/lib.rs` - inline lerp closures
-
-**Issue:** `resin-rig` has a good `Interpolate` trait but it's not exported or used elsewhere. Color types can't be animated with the rig system.
-
-**Proposal:**
-- Move `Interpolate` trait to `resin-core`
-- Implement for: `f32`, `Vec2`, `Vec3`, `Vec4`, `Quat`, `Rgba`, `Hsl`, `Transform`, `Transform2D`
-- Deprecate standalone `lerp()` methods in favor of trait
+**Solution:**
+- Added `Lerp` trait to `resin-easing` (chosen over `resin-core` to respect SRP)
+- Implemented for: `f32`, `f64`, `Vec2`, `Vec3`, `Vec4`, `Quat`, `[T; N]`
+- `resin-rig` now uses `resin-easing::Lerp` with `Interpolate` as supertrait (`Lerp + Clone + Default`)
+- `resin-color` implements `Lerp` for `LinearRgb`, `Hsl`, `Hsv`, `Rgba`
 
 ```rust
-// In resin-core
-pub trait Interpolate {
-    fn lerp(&self, other: &Self, t: f32) -> Self;
+// In resin-easing/src/lib.rs
+pub trait Lerp {
+    fn lerp_to(&self, other: &Self, t: f32) -> Self;
 }
 ```
 
+Crates with `Lerp` implementations:
+- `resin-easing`: `f32`, `f64`, `Vec2`, `Vec3`, `Vec4`, `Quat`, `[T; N]`
+- `resin-rig`: `Transform`
+- `resin-color`: `LinearRgb`, `Hsl`, `Hsv`, `Rgba`
+- `resin-motion`: `Transform2D`, `LinearTransform2D`
+
 ---
 
-### 3. Duplicated Cubic Bezier 🔴
+### 3. Duplicated Cubic Bezier 🟢
 
 **Problem:** Identical cubic bezier evaluation implemented 3 times in resin-vector.
 
-**Files:**
-- `crates/resin-vector/src/rasterize.rs:~150` - `fn cubic_bezier(p0, p1, p2, p3, t) -> Vec2`
-- `crates/resin-vector/src/boolean.rs` - `fn cubic_bezier(p0, p1, p2, p3, t) -> Vec2`
-- `crates/resin-vector/src/stroke.rs` - `fn cubic_point(p0, p1, p2, p3, t) -> Vec2`
-
-**Issue:** All three are private, mathematically identical, independently written.
-
-**Proposal:**
-- Create `crates/resin-vector/src/bezier.rs` with public bezier utilities
-- Export: `cubic_point()`, `cubic_tangent()`, `cubic_split()`, `quadratic_point()`, etc.
-- Update rasterize, boolean, stroke to use shared implementation
+**Solution:**
+- Created `crates/resin-vector/src/bezier.rs` with shared bezier utilities
+- Updated `rasterize.rs`, `boolean.rs`, `stroke.rs` to use shared module
+- Exported functions: `quadratic_point`, `quadratic_tangent`, `cubic_point`, `cubic_tangent`, `cubic_split`, `quadratic_split`, `cubic_bounds`
 
 ---
 
 ## Medium Priority
 
-### 4. Color Representation Inconsistency 🔴
+### 4. Color Representation Inconsistency 🟢
 
 **Problem:** Color stored as arrays in some places, structs in others.
 
@@ -94,12 +84,11 @@ pub trait Interpolate {
 | `ImageField.sample_uv()` returns | `Rgba` struct |
 | `resin-color` types | `Rgba`, `LinearRgb`, `Hsl` structs |
 
-**Issue:** Constant conversion between `[f32; 4]` and `Rgba`. No single canonical type.
-
-**Proposal:**
-- Keep `[f32; 4]` for storage (cache-friendly, SIMD-compatible)
-- Add `impl From<[f32; 4]> for Rgba` and `impl From<Rgba> for [f32; 4]`
-- Document convention: arrays for bulk storage, structs for API boundaries
+**Solution:**
+- Added `From` conversions in `resin-color`:
+  - `impl From<[f32; 3]> for LinearRgb` and `impl From<LinearRgb> for [f32; 3]`
+  - `impl From<[f32; 4]> for Rgba` and `impl From<Rgba> for [f32; 4]`
+- Convention: arrays for bulk storage, structs for API boundaries
 
 ---
 
@@ -189,11 +178,11 @@ let config = BakeConfig::default()
 
 ## Implementation Order
 
-1. **Cubic bezier dedup** - Quick win, single crate, low risk
-2. **Interpolate trait** - High value, enables cross-crate animation
-3. **Transform conversions** - Add `From` impls without breaking changes
-4. **Config builders** - Additive, non-breaking
-5. **Color conversions** - Add `From` impls
+1. ~~**Cubic bezier dedup**~~ ✅ - Done: `resin-vector/src/bezier.rs`
+2. ~~**Interpolate trait**~~ ✅ - Done: `resin-easing::Lerp`, impls in rig and color
+3. ~~**Color conversions**~~ ✅ - Done: `From` impls for arrays
+4. **Transform conversions** - Add `From` impls between transform types
+5. **Config builders** - Add `with_*` builder methods
 6. **Error standardization** - Low priority, cosmetic
 7. **Coordinate docs** - Documentation only
 

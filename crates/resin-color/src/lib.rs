@@ -3,6 +3,7 @@
 //! Provides color spaces, conversions, and gradient interpolation.
 
 use glam::Vec3;
+pub use rhizome_resin_easing::Lerp;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -332,6 +333,62 @@ impl Rgba {
     /// Premultiplies RGB by alpha.
     pub fn premultiply(self) -> Self {
         Self::new(self.r * self.a, self.g * self.a, self.b * self.a, self.a)
+    }
+}
+
+// ============================================================================
+// Lerp Trait Implementations
+// ============================================================================
+
+impl Lerp for LinearRgb {
+    fn lerp_to(&self, other: &Self, t: f32) -> Self {
+        self.lerp(*other, t)
+    }
+}
+
+impl Lerp for Hsl {
+    fn lerp_to(&self, other: &Self, t: f32) -> Self {
+        self.lerp(*other, t)
+    }
+}
+
+impl Lerp for Hsv {
+    fn lerp_to(&self, other: &Self, t: f32) -> Self {
+        self.lerp(*other, t)
+    }
+}
+
+impl Lerp for Rgba {
+    fn lerp_to(&self, other: &Self, t: f32) -> Self {
+        self.lerp(*other, t)
+    }
+}
+
+// ============================================================================
+// From Conversions for Arrays
+// ============================================================================
+
+impl From<[f32; 3]> for LinearRgb {
+    fn from(arr: [f32; 3]) -> Self {
+        Self::new(arr[0], arr[1], arr[2])
+    }
+}
+
+impl From<LinearRgb> for [f32; 3] {
+    fn from(c: LinearRgb) -> Self {
+        [c.r, c.g, c.b]
+    }
+}
+
+impl From<[f32; 4]> for Rgba {
+    fn from(arr: [f32; 4]) -> Self {
+        Self::new(arr[0], arr[1], arr[2], arr[3])
+    }
+}
+
+impl From<Rgba> for [f32; 4] {
+    fn from(c: Rgba) -> Self {
+        [c.r, c.g, c.b, c.a]
     }
 }
 
@@ -783,5 +840,65 @@ mod tests {
         let _ = presets::heat().sample_rgb(0.5);
         let _ = presets::viridis().sample_rgb(0.5);
         let _ = presets::inferno().sample_rgb(0.5);
+    }
+
+    #[test]
+    fn test_lerp_trait() {
+        // Test LinearRgb Lerp
+        let a = LinearRgb::BLACK;
+        let b = LinearRgb::WHITE;
+        let mid = a.lerp_to(&b, 0.5);
+        assert!((mid.r - 0.5).abs() < 0.01);
+        assert!((mid.g - 0.5).abs() < 0.01);
+        assert!((mid.b - 0.5).abs() < 0.01);
+
+        // Test Rgba Lerp
+        let a = Rgba::new(0.0, 0.0, 0.0, 0.0);
+        let b = Rgba::new(1.0, 1.0, 1.0, 1.0);
+        let mid = a.lerp_to(&b, 0.5);
+        assert!((mid.r - 0.5).abs() < 0.01);
+        assert!((mid.a - 0.5).abs() < 0.01);
+
+        // Test Hsl Lerp (with hue wrapping)
+        let a = Hsl::new(0.1, 0.5, 0.5);
+        let b = Hsl::new(0.3, 0.5, 0.5);
+        let mid = a.lerp_to(&b, 0.5);
+        assert!((mid.h - 0.2).abs() < 0.01);
+
+        // Test Hsv Lerp
+        let a = Hsv::new(0.0, 0.0, 0.0);
+        let b = Hsv::new(0.5, 1.0, 1.0);
+        let mid = a.lerp_to(&b, 0.5);
+        assert!((mid.h - 0.25).abs() < 0.01);
+        assert!((mid.s - 0.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_array_conversions() {
+        // LinearRgb <-> [f32; 3]
+        let arr = [0.2, 0.4, 0.6];
+        let color: LinearRgb = arr.into();
+        assert!((color.r - 0.2).abs() < 0.001);
+        assert!((color.g - 0.4).abs() < 0.001);
+        assert!((color.b - 0.6).abs() < 0.001);
+
+        let back: [f32; 3] = color.into();
+        assert!((back[0] - 0.2).abs() < 0.001);
+        assert!((back[1] - 0.4).abs() < 0.001);
+        assert!((back[2] - 0.6).abs() < 0.001);
+
+        // Rgba <-> [f32; 4]
+        let arr = [0.1, 0.2, 0.3, 0.4];
+        let color: Rgba = arr.into();
+        assert!((color.r - 0.1).abs() < 0.001);
+        assert!((color.g - 0.2).abs() < 0.001);
+        assert!((color.b - 0.3).abs() < 0.001);
+        assert!((color.a - 0.4).abs() < 0.001);
+
+        let back: [f32; 4] = color.into();
+        assert!((back[0] - 0.1).abs() < 0.001);
+        assert!((back[1] - 0.2).abs() < 0.001);
+        assert!((back[2] - 0.3).abs() < 0.001);
+        assert!((back[3] - 0.4).abs() < 0.001);
     }
 }

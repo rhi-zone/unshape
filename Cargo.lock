@@ -3735,6 +3735,7 @@ name = "rhizome-resin-color"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "rhizome-resin-easing",
  "serde",
 ]
 
@@ -3914,6 +3915,7 @@ version = "0.1.0"
 dependencies = [
  "glam",
  "rhizome-resin-color",
+ "rhizome-resin-easing",
  "rhizome-resin-motion-fn",
  "rhizome-resin-noise",
  "serde",
