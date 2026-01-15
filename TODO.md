@@ -130,6 +130,19 @@
 - [x] Room acoustics simulation - image-source early reflections (RoomAcoustics, calculate_early_reflections, generate_ir)
 - [x] Synthesizer patch system - preset save/load, modulation routing (SynthPatch, PatchBank, ModRouting)
 
+### Graph Compilation (general, not audio-specific)
+
+- [ ] Cranelift JIT - compile graphs to native code at runtime, eliminating dyn dispatch overhead
+  - Feature-gated: `cranelift` feature in resin-core or dedicated resin-jit crate
+  - Applicable to any `Graph<T>` or `AudioGraph` where max perf needed
+- [ ] Static graph compilation - proc macro to monomorphize fixed graph structures (LTO-style inlining)
+  - For users who want max perf and know graph structure at compile time
+  - Generate concrete types from graph definitions
+- [ ] Feature-gated pre-monomorphized compositions - opt-in hardcoded effect structs
+  - Users who want dynamic graphs use AudioGraph
+  - Users who want max perf opt into `compositions` feature for concrete types
+- [ ] SIMD batch processing - process N samples at once to amortize per-node overhead
+
 ### Audio Effects (guitar pedals / studio)
 
 - [x] Compressor - dynamic range compression with attack/release/threshold/ratio (Compressor)

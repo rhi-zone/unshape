@@ -7,7 +7,11 @@ pub mod envelope;
 pub mod filter;
 pub mod granular;
 pub mod graph;
+#[cfg(feature = "cranelift")]
+pub mod jit;
 pub mod midi;
+#[cfg(feature = "optimize")]
+pub mod optimize;
 pub mod osc;
 pub mod patch;
 pub mod pattern;
