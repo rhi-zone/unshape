@@ -49,6 +49,8 @@ pub use error::GpuError;
 pub use kernels::{
     CpuNoiseData, NoiseTextureKernel, NoiseTextureNode, ParameterizedNoiseNode, register_kernels,
 };
+#[cfg(feature = "image-expr")]
+pub use kernels::{MapPixelsKernel, MapPixelsNode, RemapUvKernel, RemapUvNode};
 pub use noise::{NoiseConfig, NoiseType, generate_noise_texture_gpu, noise_texture_gpu};
 pub use texture::{GpuTexture, TextureFormat};
 

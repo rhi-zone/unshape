@@ -39,6 +39,21 @@
 
 ## Backlog
 
+### Compute Backend Architecture
+
+- [ ] NodeExecutor trait - decouple node execution from evaluation logic
+  - Extract node execution into `NodeExecutor` trait with `execute(node, inputs, ctx)` method
+  - `LazyEvaluator` delegates to injected executor (default = direct node.execute())
+  - `BackendNodeExecutor` wraps `Scheduler` for GPU routing
+  - Eliminates duplication between LazyEvaluator and BackendAwareEvaluator
+  ```rust
+  pub trait NodeExecutor: Send + Sync {
+      fn execute(&self, node: &dyn DynNode, inputs: &[Value], ctx: &EvalContext) -> Result<Vec<Value>, GraphError>;
+  }
+  ```
+- [ ] Pass node reference to GpuKernel::execute() - kernels need access to node params (expressions, configs)
+  - Currently kernels only get inputs, but nodes like RemapUvNode store expressions internally
+
 ### Constructive Modeling (Blender-style workflow)
 
 > **Goal:** Interactive mesh editing - start from primitive, select elements, transform, extrude, etc.
