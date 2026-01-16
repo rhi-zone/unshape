@@ -6,6 +6,8 @@
 //! - [`DynNode`] - Trait for dynamic node execution
 //! - [`Value`] - Runtime value type for graph data
 //! - [`EvalContext`] - Evaluation context (time, cancellation, quality hints)
+//! - [`Evaluator`] - Trait for evaluation strategies
+//! - [`LazyEvaluator`] - Lazy evaluator with caching
 //!
 //! For geometry attribute traits, see `resin-geometry`.
 
@@ -16,7 +18,11 @@ mod node;
 mod value;
 
 pub use error::{GraphError, TypeError};
-pub use eval::{CancellationMode, CancellationToken, EvalContext, EvalProgress, FeedbackState};
+pub use eval::{
+    CacheEntry, CacheKey, CachePolicy, CancellationMode, CancellationToken, ErrorHandling,
+    EvalCache, EvalContext, EvalProgress, EvalResult, Evaluator, FeedbackState, KeepAllPolicy,
+    LazyEvaluator,
+};
 pub use glam;
 pub use graph::{Graph, NodeId, Wire};
 pub use node::{BoxedNode, DynNode, PortDescriptor};

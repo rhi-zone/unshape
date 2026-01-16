@@ -2,13 +2,32 @@
 //!
 //! This module provides the execution context for node evaluation,
 //! including cancellation, progress reporting, and evaluation parameters.
+//!
+//! # Evaluation Strategies
+//!
+//! The [`Evaluator`] trait allows different evaluation strategies:
+//! - [`LazyEvaluator`]: Only computes nodes needed for requested outputs, with caching
+//! - The eager evaluator in [`Graph::execute`](crate::Graph::execute) computes all nodes
+//!
+//! # Example
+//!
+//! ```ignore
+//! use resin_core::{Graph, LazyEvaluator, Evaluator, EvalContext};
+//!
+//! let graph = /* build graph */;
+//! let mut evaluator = LazyEvaluator::new();
+//! let ctx = EvalContext::new();
+//! let outputs = evaluator.evaluate(&graph, &[output_node], &ctx)?;
+//! ```
 
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use crate::graph::NodeId;
+use crate::error::GraphError;
+use crate::graph::{Graph, NodeId};
 use crate::value::Value;
 
 /// Token for cooperative cancellation of graph evaluation.
@@ -223,6 +242,384 @@ impl FeedbackState {
     }
 }
 
+// ============================================================================
+// Error Handling
+// ============================================================================
+
+/// How errors should be handled during evaluation.
+///
+/// This is a per-request configuration - different contexts want different behavior.
+pub enum ErrorHandling {
+    /// Stop on first error, return Err (default).
+    FailFast,
+
+    /// Propagate errors as `Value::Error`, continue evaluation.
+    /// Downstream nodes receive the error and can propagate or handle it.
+    Propagate,
+
+    /// Use fallback values for failed nodes.
+    /// The function receives (node_id, error) and returns Some(value) to use,
+    /// or None to propagate the error.
+    Fallback {
+        default_fn: Box<dyn Fn(NodeId, &GraphError) -> Option<Value> + Send>,
+    },
+}
+
+impl Default for ErrorHandling {
+    fn default() -> Self {
+        Self::FailFast
+    }
+}
+
+impl ErrorHandling {
+    /// Create a fallback handler using a static map of defaults.
+    pub fn fallback_map(defaults: HashMap<NodeId, Value>) -> Self {
+        Self::Fallback {
+            default_fn: Box::new(move |id, _| defaults.get(&id).cloned()),
+        }
+    }
+}
+
+// ============================================================================
+// Cache Policy
+// ============================================================================
+
+/// Key for cache lookup: (node_id, hash of input values).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CacheKey {
+    pub node_id: NodeId,
+    pub input_hash: u64,
+}
+
+impl CacheKey {
+    /// Create a cache key from node ID and input values.
+    pub fn new(node_id: NodeId, inputs: &[Value]) -> Self {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        for input in inputs {
+            input.hash(&mut hasher);
+        }
+        Self {
+            node_id,
+            input_hash: hasher.finish(),
+        }
+    }
+}
+
+/// Entry in the evaluation cache.
+#[derive(Debug, Clone)]
+pub struct CacheEntry {
+    /// Cached output values.
+    pub outputs: Vec<Value>,
+    /// When this entry was created.
+    pub created_at: Instant,
+    /// When this entry was last accessed.
+    pub last_accessed: Instant,
+    /// Size estimate in bytes (for memory-bounded caches).
+    pub size_bytes: usize,
+}
+
+/// Policy for cache retention and eviction.
+pub trait CachePolicy: Send {
+    /// Called after node evaluation - should we cache this result?
+    fn should_cache(&self, node: NodeId, outputs: &[Value]) -> bool;
+
+    /// Called before lookup - is this entry still valid?
+    fn is_valid(&self, key: &CacheKey, entry: &CacheEntry) -> bool;
+
+    /// Called on memory pressure or explicit clear. Returns bytes freed.
+    fn evict(&mut self, cache: &mut EvalCache) -> usize;
+}
+
+/// Cache that keeps all entries (never evicts).
+#[derive(Debug, Default)]
+pub struct KeepAllPolicy;
+
+impl CachePolicy for KeepAllPolicy {
+    fn should_cache(&self, _node: NodeId, _outputs: &[Value]) -> bool {
+        true
+    }
+
+    fn is_valid(&self, _key: &CacheKey, _entry: &CacheEntry) -> bool {
+        true
+    }
+
+    fn evict(&mut self, _cache: &mut EvalCache) -> usize {
+        0 // Never evicts
+    }
+}
+
+/// Evaluation cache for memoizing node outputs.
+#[derive(Debug, Default)]
+pub struct EvalCache {
+    entries: HashMap<CacheKey, CacheEntry>,
+}
+
+impl EvalCache {
+    /// Create an empty cache.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Get a cached result if available.
+    pub fn get(&mut self, key: &CacheKey) -> Option<&CacheEntry> {
+        if let Some(entry) = self.entries.get_mut(key) {
+            entry.last_accessed = Instant::now();
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    /// Store a result in the cache.
+    pub fn insert(&mut self, key: CacheKey, outputs: Vec<Value>) {
+        let size_bytes = outputs.iter().map(|_| 64).sum(); // rough estimate
+        let now = Instant::now();
+        self.entries.insert(
+            key,
+            CacheEntry {
+                outputs,
+                created_at: now,
+                last_accessed: now,
+                size_bytes,
+            },
+        );
+    }
+
+    /// Clear all entries.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+    }
+
+    /// Number of cached entries.
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Check if cache is empty.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Remove a specific entry.
+    pub fn remove(&mut self, key: &CacheKey) -> Option<CacheEntry> {
+        self.entries.remove(key)
+    }
+
+    /// Iterate over all keys (for eviction policies).
+    pub fn keys(&self) -> impl Iterator<Item = &CacheKey> {
+        self.entries.keys()
+    }
+}
+
+// ============================================================================
+// Evaluator Trait
+// ============================================================================
+
+/// Result of graph evaluation.
+#[derive(Debug)]
+pub struct EvalResult {
+    /// Output values for each requested node, in order.
+    /// Each inner Vec contains the outputs for one node.
+    pub outputs: Vec<Vec<Value>>,
+
+    /// Nodes that were computed (for debugging/profiling).
+    pub computed_nodes: Vec<NodeId>,
+
+    /// Nodes that were served from cache.
+    pub cached_nodes: Vec<NodeId>,
+
+    /// Total evaluation time.
+    pub elapsed: Duration,
+}
+
+/// Trait for graph evaluation strategies.
+///
+/// Different evaluators can implement different strategies:
+/// - Lazy evaluation (only compute what's needed)
+/// - Eager evaluation (compute everything)
+/// - Incremental evaluation (recompute only dirty nodes)
+/// - Parallel evaluation (compute independent nodes concurrently)
+pub trait Evaluator {
+    /// Evaluate the graph and return outputs for the requested nodes.
+    ///
+    /// # Arguments
+    /// * `graph` - The graph to evaluate
+    /// * `outputs` - Node IDs whose outputs to return
+    /// * `ctx` - Evaluation context (time, cancellation, etc.)
+    ///
+    /// # Returns
+    /// Output values for each requested node, or error if evaluation fails.
+    fn evaluate(
+        &mut self,
+        graph: &Graph,
+        outputs: &[NodeId],
+        ctx: &EvalContext,
+    ) -> Result<EvalResult, GraphError>;
+
+    /// Invalidate cached results for a node and its dependents.
+    fn invalidate(&mut self, node: NodeId);
+
+    /// Clear all cached results.
+    fn clear_cache(&mut self);
+}
+
+// ============================================================================
+// Lazy Evaluator
+// ============================================================================
+
+/// Lazy evaluator that only computes nodes needed for requested outputs.
+///
+/// Features:
+/// - Recursive pull-based evaluation
+/// - Memoization of computed values
+/// - Caching with pluggable policy
+pub struct LazyEvaluator {
+    cache: EvalCache,
+    policy: Box<dyn CachePolicy>,
+}
+
+impl Default for LazyEvaluator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl LazyEvaluator {
+    /// Create a new lazy evaluator with default cache policy (KeepAll).
+    pub fn new() -> Self {
+        Self {
+            cache: EvalCache::new(),
+            policy: Box::new(KeepAllPolicy),
+        }
+    }
+
+    /// Create a lazy evaluator with a custom cache policy.
+    pub fn with_policy(policy: impl CachePolicy + 'static) -> Self {
+        Self {
+            cache: EvalCache::new(),
+            policy: Box::new(policy),
+        }
+    }
+
+    /// Recursively evaluate a node, using cache when possible.
+    fn evaluate_node(
+        &mut self,
+        graph: &Graph,
+        node_id: NodeId,
+        ctx: &EvalContext,
+        computed: &mut Vec<NodeId>,
+        cached: &mut Vec<NodeId>,
+    ) -> Result<Vec<Value>, GraphError> {
+        // Check for cancellation
+        if ctx.is_cancelled() {
+            return Err(GraphError::Cancelled);
+        }
+
+        let node = graph
+            .get_node(node_id)
+            .ok_or(GraphError::NodeNotFound(node_id))?;
+
+        let inputs_desc = node.inputs();
+        let num_inputs = inputs_desc.len();
+
+        // Gather inputs by recursively evaluating upstream nodes
+        let mut inputs = Vec::with_capacity(num_inputs);
+        for port in 0..num_inputs {
+            // Find wire that feeds this input
+            let wire = graph
+                .wires()
+                .iter()
+                .find(|w| w.to_node == node_id && w.to_port == port);
+
+            match wire {
+                Some(w) => {
+                    // Recursively evaluate the upstream node
+                    let upstream_outputs =
+                        self.evaluate_node(graph, w.from_node, ctx, computed, cached)?;
+                    let value = upstream_outputs.get(w.from_port).cloned().ok_or_else(|| {
+                        GraphError::ExecutionError(format!(
+                            "missing output port {} on node {}",
+                            w.from_port, w.from_node
+                        ))
+                    })?;
+                    inputs.push(value);
+                }
+                None => {
+                    return Err(GraphError::UnconnectedInput {
+                        node: node_id,
+                        port,
+                    });
+                }
+            }
+        }
+
+        // Check cache
+        let cache_key = CacheKey::new(node_id, &inputs);
+        if let Some(entry) = self.cache.get(&cache_key) {
+            if self.policy.is_valid(&cache_key, entry) {
+                cached.push(node_id);
+                return Ok(entry.outputs.clone());
+            }
+        }
+
+        // Execute node
+        let outputs = node.execute(&inputs, ctx)?;
+
+        // Cache result if policy allows
+        if self.policy.should_cache(node_id, &outputs) {
+            self.cache.insert(cache_key, outputs.clone());
+        }
+
+        computed.push(node_id);
+        Ok(outputs)
+    }
+}
+
+impl Evaluator for LazyEvaluator {
+    fn evaluate(
+        &mut self,
+        graph: &Graph,
+        outputs: &[NodeId],
+        ctx: &EvalContext,
+    ) -> Result<EvalResult, GraphError> {
+        let start = Instant::now();
+        let mut computed = Vec::new();
+        let mut cached = Vec::new();
+        let mut results = Vec::with_capacity(outputs.len());
+
+        for &node_id in outputs {
+            let node_outputs =
+                self.evaluate_node(graph, node_id, ctx, &mut computed, &mut cached)?;
+            results.push(node_outputs);
+        }
+
+        Ok(EvalResult {
+            outputs: results,
+            computed_nodes: computed,
+            cached_nodes: cached,
+            elapsed: start.elapsed(),
+        })
+    }
+
+    fn invalidate(&mut self, node: NodeId) {
+        // Remove all cache entries for this node
+        // Note: This doesn't invalidate dependents - for that we'd need dependency tracking
+        let keys_to_remove: Vec<_> = self
+            .cache
+            .keys()
+            .filter(|k| k.node_id == node)
+            .cloned()
+            .collect();
+        for key in keys_to_remove {
+            self.cache.remove(&key);
+        }
+    }
+
+    fn clear_cache(&mut self) {
+        self.cache.clear();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -289,5 +686,56 @@ mod tests {
 
         state.clear();
         assert!(state.get(0, 0).is_none());
+    }
+
+    #[test]
+    fn test_cache_key() {
+        let key1 = CacheKey::new(0, &[Value::F32(1.0), Value::F32(2.0)]);
+        let key2 = CacheKey::new(0, &[Value::F32(1.0), Value::F32(2.0)]);
+        let key3 = CacheKey::new(0, &[Value::F32(1.0), Value::F32(3.0)]);
+        let key4 = CacheKey::new(1, &[Value::F32(1.0), Value::F32(2.0)]);
+
+        // Same inputs should produce same key
+        assert_eq!(key1, key2);
+        assert_eq!(key1.input_hash, key2.input_hash);
+
+        // Different inputs should produce different hash
+        assert_ne!(key1.input_hash, key3.input_hash);
+
+        // Different node should produce different key
+        assert_ne!(key1, key4);
+    }
+
+    #[test]
+    fn test_eval_cache() {
+        let mut cache = EvalCache::new();
+        assert!(cache.is_empty());
+
+        let key = CacheKey::new(0, &[Value::F32(1.0)]);
+        cache.insert(key, vec![Value::F32(2.0)]);
+
+        assert_eq!(cache.len(), 1);
+        assert!(!cache.is_empty());
+
+        let entry = cache.get(&key).unwrap();
+        assert_eq!(entry.outputs, vec![Value::F32(2.0)]);
+
+        cache.clear();
+        assert!(cache.is_empty());
+    }
+
+    #[test]
+    fn test_keep_all_policy() {
+        let policy = KeepAllPolicy;
+        let key = CacheKey::new(0, &[]);
+        let entry = CacheEntry {
+            outputs: vec![Value::F32(1.0)],
+            created_at: Instant::now(),
+            last_accessed: Instant::now(),
+            size_bytes: 64,
+        };
+
+        assert!(policy.should_cache(0, &[Value::F32(1.0)]));
+        assert!(policy.is_valid(&key, &entry));
     }
 }
