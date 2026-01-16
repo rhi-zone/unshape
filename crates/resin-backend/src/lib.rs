@@ -44,7 +44,7 @@ pub use cpu::CpuBackend;
 pub use error::BackendError;
 pub use policy::ExecutionPolicy;
 pub use registry::BackendRegistry;
-pub use scheduler::{BackendEvalResult, Scheduler};
+pub use scheduler::{BackendAwareEvaluator, BackendEvalResult, Scheduler};
 
 // Re-export core types for convenience
 pub use rhizome_resin_core::{DataLocation, DynNode, EvalContext, GraphValue, Value};

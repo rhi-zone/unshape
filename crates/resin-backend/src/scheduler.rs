@@ -188,6 +188,261 @@ pub struct BackendEvalResult {
     pub total_cost: Cost,
 }
 
+// ============================================================================
+// Backend-Aware Evaluator
+// ============================================================================
+
+use rhizome_resin_core::{
+    CacheKey, CachePolicy, EvalCache, EvalResult, Evaluator, Graph, GraphError, KeepAllPolicy,
+};
+use std::time::Instant;
+
+/// Evaluator that routes node execution through compute backends.
+///
+/// This evaluator implements lazy evaluation with caching, similar to
+/// [`LazyEvaluator`](rhizome_resin_core::LazyEvaluator), but routes each
+/// node's execution through the [`Scheduler`] to select the best backend.
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_resin_backend::{
+///     BackendAwareEvaluator, BackendRegistry, ExecutionPolicy, Scheduler,
+/// };
+/// use rhizome_resin_core::{Graph, EvalContext, Evaluator};
+///
+/// // Set up registry with CPU and optionally GPU
+/// let registry = BackendRegistry::with_cpu();
+/// let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
+///
+/// // Create evaluator
+/// let mut evaluator = BackendAwareEvaluator::new(scheduler);
+///
+/// // Evaluate graph - backends selected automatically per node
+/// let result = evaluator.evaluate(&graph, &[output_node], &ctx)?;
+/// ```
+pub struct BackendAwareEvaluator {
+    scheduler: Scheduler,
+    cache: EvalCache,
+    policy: Box<dyn CachePolicy>,
+}
+
+impl BackendAwareEvaluator {
+    /// Creates a new backend-aware evaluator with the given scheduler.
+    pub fn new(scheduler: Scheduler) -> Self {
+        Self {
+            scheduler,
+            cache: EvalCache::new(),
+            policy: Box::new(KeepAllPolicy),
+        }
+    }
+
+    /// Creates an evaluator with a custom cache policy.
+    pub fn with_cache_policy(scheduler: Scheduler, policy: impl CachePolicy + 'static) -> Self {
+        Self {
+            scheduler,
+            cache: EvalCache::new(),
+            policy: Box::new(policy),
+        }
+    }
+
+    /// Returns a reference to the scheduler.
+    pub fn scheduler(&self) -> &Scheduler {
+        &self.scheduler
+    }
+
+    /// Returns a mutable reference to the scheduler.
+    pub fn scheduler_mut(&mut self) -> &mut Scheduler {
+        &mut self.scheduler
+    }
+
+    /// Recursively evaluate a node using backends.
+    fn evaluate_node(
+        &mut self,
+        graph: &Graph,
+        node_id: NodeId,
+        ctx: &EvalContext,
+        computed: &mut Vec<NodeId>,
+        cached: &mut Vec<NodeId>,
+        backend_assignments: &mut Vec<(NodeId, String)>,
+    ) -> Result<Vec<Value>, GraphError> {
+        // Check for cancellation
+        if ctx.is_cancelled() {
+            return Err(GraphError::Cancelled);
+        }
+
+        let node = graph
+            .get_node(node_id)
+            .ok_or(GraphError::NodeNotFound(node_id))?;
+
+        let inputs_desc = node.inputs();
+        let num_inputs = inputs_desc.len();
+
+        // Gather inputs by recursively evaluating upstream nodes
+        let mut inputs = Vec::with_capacity(num_inputs);
+        for port in 0..num_inputs {
+            let wire = graph
+                .wires()
+                .iter()
+                .find(|w| w.to_node == node_id && w.to_port == port);
+
+            match wire {
+                Some(w) => {
+                    let upstream_outputs = self.evaluate_node(
+                        graph,
+                        w.from_node,
+                        ctx,
+                        computed,
+                        cached,
+                        backend_assignments,
+                    )?;
+                    let value = upstream_outputs.get(w.from_port).cloned().ok_or_else(|| {
+                        GraphError::ExecutionError(format!(
+                            "missing output port {} on node {}",
+                            w.from_port, w.from_node
+                        ))
+                    })?;
+                    inputs.push(value);
+                }
+                None => {
+                    return Err(GraphError::UnconnectedInput {
+                        node: node_id,
+                        port,
+                    });
+                }
+            }
+        }
+
+        // Check cache
+        let cache_key = CacheKey::new(node_id, &inputs);
+        if let Some(entry) = self.cache.get(&cache_key) {
+            if self.policy.is_valid(&cache_key, entry) {
+                cached.push(node_id);
+                return Ok(entry.outputs.clone());
+            }
+        }
+
+        // Estimate workload for backend selection
+        let workload = estimate_workload(&inputs);
+
+        // Execute through scheduler (selects best backend)
+        let outputs = self
+            .scheduler
+            .execute(node.as_ref(), &inputs, ctx, &workload)
+            .map_err(|e| GraphError::ExecutionError(e.to_string()))?;
+
+        // Record which backend was used
+        if let Some(backend) = self.scheduler.select_backend(node.as_ref(), &workload) {
+            backend_assignments.push((node_id, backend.name().to_string()));
+        }
+
+        // Cache result if policy allows
+        if self.policy.should_cache(node_id, &outputs) {
+            self.cache.insert(cache_key, outputs.clone());
+        }
+
+        computed.push(node_id);
+        Ok(outputs)
+    }
+}
+
+impl Evaluator for BackendAwareEvaluator {
+    fn evaluate(
+        &mut self,
+        graph: &Graph,
+        outputs: &[NodeId],
+        ctx: &EvalContext,
+    ) -> Result<EvalResult, GraphError> {
+        let start = Instant::now();
+        let mut computed = Vec::new();
+        let mut cached = Vec::new();
+        let mut backend_assignments = Vec::new();
+        let mut results = Vec::with_capacity(outputs.len());
+
+        for &node_id in outputs {
+            let node_outputs = self.evaluate_node(
+                graph,
+                node_id,
+                ctx,
+                &mut computed,
+                &mut cached,
+                &mut backend_assignments,
+            )?;
+            results.push(node_outputs);
+        }
+
+        Ok(EvalResult {
+            outputs: results,
+            computed_nodes: computed,
+            cached_nodes: cached,
+            elapsed: start.elapsed(),
+        })
+    }
+
+    fn invalidate(&mut self, node: NodeId) {
+        let keys_to_remove: Vec<_> = self
+            .cache
+            .keys()
+            .filter(|k| k.node_id == node)
+            .cloned()
+            .collect();
+        for key in keys_to_remove {
+            self.cache.remove(&key);
+        }
+    }
+
+    fn clear_cache(&mut self) {
+        self.cache.clear();
+    }
+}
+
+/// Estimate workload from input values.
+fn estimate_workload(inputs: &[Value]) -> WorkloadHint {
+    // Heuristic: sum up sizes of inputs
+    let mut total_elements = 1usize;
+    let mut total_bytes = 0usize;
+
+    for input in inputs {
+        match input {
+            Value::F32(_) | Value::I32(_) | Value::Bool(_) => {
+                total_bytes += 4;
+            }
+            Value::F64(_) => {
+                total_bytes += 8;
+            }
+            Value::Vec2(_) => {
+                total_bytes += 8;
+            }
+            Value::Vec3(_) => {
+                total_bytes += 12;
+            }
+            Value::Vec4(_) => {
+                total_bytes += 16;
+            }
+            Value::Opaque(v) => {
+                // Try to estimate from type name
+                let name = v.type_name();
+                if name.contains("Texture") || name.contains("Image") {
+                    // Assume medium-sized texture
+                    total_elements = total_elements.max(256 * 256);
+                    total_bytes += 256 * 256 * 4;
+                } else if name.contains("Mesh") {
+                    total_elements = total_elements.max(10_000);
+                    total_bytes += 10_000 * 32; // vertices with positions + normals
+                } else {
+                    total_bytes += 1024; // default estimate
+                }
+            }
+        }
+    }
+
+    WorkloadHint {
+        element_count: total_elements,
+        input_bytes: total_bytes,
+        output_bytes: total_bytes, // assume similar output size
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -312,5 +567,174 @@ mod tests {
 
         scheduler.set_policy(ExecutionPolicy::MinimizeCost);
         assert!(matches!(scheduler.policy(), ExecutionPolicy::MinimizeCost));
+    }
+
+    // ========================================================================
+    // BackendAwareEvaluator tests
+    // ========================================================================
+
+    struct ConstNode(f32);
+
+    impl DynNode for ConstNode {
+        fn type_name(&self) -> &'static str {
+            "ConstNode"
+        }
+
+        fn inputs(&self) -> Vec<PortDescriptor> {
+            vec![]
+        }
+
+        fn outputs(&self) -> Vec<PortDescriptor> {
+            vec![PortDescriptor::new("value", ValueType::F32)]
+        }
+
+        fn execute(&self, _inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+            Ok(vec![Value::F32(self.0)])
+        }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+    }
+
+    struct AddNode;
+
+    impl DynNode for AddNode {
+        fn type_name(&self) -> &'static str {
+            "AddNode"
+        }
+
+        fn inputs(&self) -> Vec<PortDescriptor> {
+            vec![
+                PortDescriptor::new("a", ValueType::F32),
+                PortDescriptor::new("b", ValueType::F32),
+            ]
+        }
+
+        fn outputs(&self) -> Vec<PortDescriptor> {
+            vec![PortDescriptor::new("result", ValueType::F32)]
+        }
+
+        fn execute(&self, inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+            let a = inputs[0]
+                .as_f32()
+                .map_err(|e| GraphError::ExecutionError(e.to_string()))?;
+            let b = inputs[1]
+                .as_f32()
+                .map_err(|e| GraphError::ExecutionError(e.to_string()))?;
+            Ok(vec![Value::F32(a + b)])
+        }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+    }
+
+    #[test]
+    fn test_backend_aware_evaluator_simple() {
+        let registry = BackendRegistry::with_cpu();
+        let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
+        let mut evaluator = BackendAwareEvaluator::new(scheduler);
+
+        let mut graph = Graph::new();
+        let const_a = graph.add_node(ConstNode(2.0));
+        let const_b = graph.add_node(ConstNode(3.0));
+        let add = graph.add_node(AddNode);
+
+        graph.connect(const_a, 0, add, 0).unwrap();
+        graph.connect(const_b, 0, add, 1).unwrap();
+
+        let ctx = EvalContext::new();
+        let result = evaluator.evaluate(&graph, &[add], &ctx).unwrap();
+
+        assert_eq!(result.outputs.len(), 1);
+        assert_eq!(result.outputs[0].len(), 1);
+        assert_eq!(result.outputs[0][0].as_f32().unwrap(), 5.0);
+    }
+
+    #[test]
+    fn test_backend_aware_evaluator_caching() {
+        let registry = BackendRegistry::with_cpu();
+        let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
+        let mut evaluator = BackendAwareEvaluator::new(scheduler);
+
+        let mut graph = Graph::new();
+        let const_node = graph.add_node(ConstNode(42.0));
+
+        let ctx = EvalContext::new();
+
+        // First evaluation
+        let result1 = evaluator.evaluate(&graph, &[const_node], &ctx).unwrap();
+        assert_eq!(result1.computed_nodes.len(), 1);
+        assert_eq!(result1.cached_nodes.len(), 0);
+
+        // Second evaluation should use cache
+        let result2 = evaluator.evaluate(&graph, &[const_node], &ctx).unwrap();
+        assert_eq!(result2.computed_nodes.len(), 0);
+        assert_eq!(result2.cached_nodes.len(), 1);
+
+        // Same output value
+        assert_eq!(result1.outputs[0][0], result2.outputs[0][0]);
+    }
+
+    #[test]
+    fn test_backend_aware_evaluator_invalidate() {
+        let registry = BackendRegistry::with_cpu();
+        let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
+        let mut evaluator = BackendAwareEvaluator::new(scheduler);
+
+        let mut graph = Graph::new();
+        let const_node = graph.add_node(ConstNode(42.0));
+
+        let ctx = EvalContext::new();
+
+        // First evaluation
+        evaluator.evaluate(&graph, &[const_node], &ctx).unwrap();
+
+        // Invalidate
+        evaluator.invalidate(const_node);
+
+        // Should recompute
+        let result = evaluator.evaluate(&graph, &[const_node], &ctx).unwrap();
+        assert_eq!(result.computed_nodes.len(), 1);
+        assert_eq!(result.cached_nodes.len(), 0);
+    }
+
+    #[test]
+    fn test_backend_aware_evaluator_clear_cache() {
+        let registry = BackendRegistry::with_cpu();
+        let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
+        let mut evaluator = BackendAwareEvaluator::new(scheduler);
+
+        let mut graph = Graph::new();
+        let const_node = graph.add_node(ConstNode(42.0));
+
+        let ctx = EvalContext::new();
+
+        // First evaluation
+        evaluator.evaluate(&graph, &[const_node], &ctx).unwrap();
+
+        // Clear all cache
+        evaluator.clear_cache();
+
+        // Should recompute
+        let result = evaluator.evaluate(&graph, &[const_node], &ctx).unwrap();
+        assert_eq!(result.computed_nodes.len(), 1);
+        assert_eq!(result.cached_nodes.len(), 0);
+    }
+
+    #[test]
+    fn test_estimate_workload() {
+        // Empty inputs
+        let workload = estimate_workload(&[]);
+        assert_eq!(workload.element_count, 1);
+        assert_eq!(workload.input_bytes, 0);
+
+        // Primitive inputs
+        let workload = estimate_workload(&[
+            Value::F32(1.0),
+            Value::Vec3(rhizome_resin_core::glam::Vec3::ZERO),
+        ]);
+        assert_eq!(workload.input_bytes, 4 + 12);
     }
 }
