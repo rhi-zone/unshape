@@ -4,6 +4,36 @@ Where computation executes: CPU, GPU, SIMD, future accelerators.
 
 Orthogonal to [evaluation-strategy.md](./evaluation-strategy.md) (when/how graph is traversed).
 
+## Status: Implemented ✅
+
+The compute backends system is fully implemented:
+
+| Crate | What's There |
+|-------|--------------|
+| `resin-core` | `Value::Opaque`, `GraphValue` trait, `DataLocation`, `DynNode::as_any()` |
+| `resin-backend` | `ComputeBackend` trait, `CpuBackend`, `BackendRegistry`, `ExecutionPolicy`, `Scheduler`, `BackendAwareEvaluator` |
+| `resin-gpu` | `GpuComputeBackend`, `GpuKernel` trait, kernels for noise and image-expr |
+
+**Quick start:**
+```rust
+use rhizome_resin_backend::{BackendRegistry, BackendAwareEvaluator, Scheduler, ExecutionPolicy};
+use rhizome_resin_gpu::{GpuComputeBackend, register_kernels};
+
+// Setup registry with CPU (always) and GPU (if available)
+let mut registry = BackendRegistry::with_cpu();
+if let Ok(gpu) = GpuComputeBackend::new() {
+    register_kernels(&gpu);  // Register noise, image-expr kernels
+    registry.register(Arc::new(gpu));
+}
+
+// Create scheduler and evaluator
+let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
+let mut evaluator = BackendAwareEvaluator::new(scheduler);
+
+// Evaluate - backends selected automatically per node
+let result = evaluator.evaluate(&graph, &[output_node], &ctx)?;
+```
+
 ## The Problem
 
 Not all nodes can run everywhere. Not all backends are available. Users want control without hardcoding specific backends.
@@ -1140,11 +1170,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Migration path
 
-1. **Phase 1:** Add `Value::Opaque` and `GraphValue` trait to resin-core
-2. **Phase 2:** Create `resin-backend` with traits and `CpuBackend`
-3. **Phase 3:** Move/refactor `resin-gpu` to implement `GpuComputeBackend`
-4. **Phase 4:** Add `BackendAwareEvaluator` that wraps existing evaluators
-5. **Phase 5:** Register GPU kernels for existing GPU ops (noise, image)
+1. **Phase 1:** Add `Value::Opaque` and `GraphValue` trait to resin-core ✅
+2. **Phase 2:** Create `resin-backend` with traits and `CpuBackend` ✅
+3. **Phase 3:** Move/refactor `resin-gpu` to implement `GpuComputeBackend` ✅
+4. **Phase 4:** Add `Scheduler` for backend selection ✅
+5. **Phase 5:** Add `BackendAwareEvaluator` that implements `Evaluator` ✅
+6. **Phase 6:** Register GPU kernels for existing GPU ops (noise, image-expr) ✅
+
+### Implementation Notes
+
+**Actual `GpuKernel` signature:**
+```rust
+pub trait GpuKernel: Send + Sync {
+    fn execute(
+        &self,
+        ctx: &GpuContext,
+        inputs: &[Value],
+        eval_ctx: &EvalContext,
+    ) -> Result<Vec<Value>, GpuError>;
+}
+```
+Note: Kernels receive `inputs` not `node`. This is a known limitation - kernels
+can't access node parameters (like expressions stored in `RemapUvNode`).
+See TODO.md for planned fix: pass `node: &dyn DynNode` to kernels.
+
+**DynNode requirement:**
+Nodes must implement `fn as_any(&self) -> &dyn Any` for kernel lookup via `TypeId`.
+The `#[derive(Node)]` macro generates this automatically.
+
+**CPU fallback pattern:**
+Nodes like `NoiseTextureNode` have CPU fallback in `execute()` and GPU path via kernel.
+Nodes like `RemapUvNode` require GPU (return error from `execute()`).
 
 ## Summary
 
@@ -1153,8 +1209,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | Backend abstraction | `ComputeBackend` trait |
 | Extensibility | Registry, any impl can register |
 | Policy | Intent-based enum, not backend names |
-| Scheduling | Matches policy to capabilities |
-| Data location | Tracked in `Value`, used for transfer decisions |
+| Scheduling | `Scheduler` matches policy to capabilities |
+| Evaluation | `BackendAwareEvaluator` implements `Evaluator` trait |
+| Data location | Tracked via `GraphValue::location()` |
 | Cost model | Estimate compute + transfer |
 
 This keeps the core evaluation strategy unchanged while allowing heterogeneous execution across CPU/GPU/future backends.
+
+## Known Limitations / Future Work
+
+See TODO.md "Compute Backend Architecture" section:
+
+1. **NodeExecutor trait** - Currently `BackendAwareEvaluator` duplicates evaluation logic from `LazyEvaluator`. Future refactor: extract `NodeExecutor` trait for pluggable execution.
+
+2. **Kernel node access** - `GpuKernel::execute()` doesn't receive the node, so kernels can't access node parameters (expressions, configs). Workaround: use parameterized nodes with primitive inputs. Fix: pass `&dyn DynNode` to kernels.
