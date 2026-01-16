@@ -24,6 +24,10 @@ pub enum GpuError {
     /// Invalid dimensions.
     #[error("invalid dimensions: {0}")]
     InvalidDimensions(String),
+
+    /// Invalid input to a kernel.
+    #[error("invalid input: {0}")]
+    InvalidInput(String),
 }
 
 /// Result type for GPU operations.
