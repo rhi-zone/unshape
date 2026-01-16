@@ -26,11 +26,75 @@
 //! ```
 
 use glam::{Vec2, Vec3, Vec4};
-use std::any::TypeId;
+use std::any::{Any, TypeId};
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 use crate::error::TypeError;
+
+/// Where data currently resides.
+///
+/// Used for scheduling decisions — prefer backends that match data location
+/// to minimize transfers.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
+pub enum DataLocation {
+    /// Data is in CPU memory (heap).
+    #[default]
+    Cpu,
+    /// Data is in GPU memory.
+    Gpu {
+        /// Device identifier (for multi-GPU systems).
+        device_id: u32,
+    },
+}
+
+/// Trait for complex values that can flow through graphs.
+///
+/// Implement this for types like `Image`, `Mesh`, `GpuTexture`, `AudioBuffer`, etc.
+/// that need to be passed through graph wires but are too large or complex
+/// for the fixed `Value` variants.
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_resin_core::{GraphValue, DataLocation};
+/// use std::any::Any;
+///
+/// pub struct Image {
+///     pixels: Vec<[f32; 4]>,
+///     width: u32,
+///     height: u32,
+/// }
+///
+/// impl GraphValue for Image {
+///     fn as_any(&self) -> &dyn Any { self }
+///     fn type_name(&self) -> &'static str { "Image" }
+/// }
+/// ```
+pub trait GraphValue: Any + Send + Sync + std::fmt::Debug {
+    /// Returns self as `&dyn Any` for downcasting.
+    fn as_any(&self) -> &dyn Any;
+
+    /// Returns a human-readable type name for debugging/display.
+    fn type_name(&self) -> &'static str;
+
+    /// Where this value currently resides.
+    ///
+    /// Override for GPU-resident types to return `DataLocation::Gpu`.
+    fn location(&self) -> DataLocation {
+        DataLocation::Cpu
+    }
+
+    /// Returns a stable identifier for this value's type.
+    ///
+    /// Used for hashing and equality. Override if your type has
+    /// meaningful content-based identity.
+    fn stable_id(&self) -> u64 {
+        // Default: use pointer address (identity-based)
+        self.as_any() as *const dyn Any as *const () as u64
+    }
+}
 
 /// Runtime value type for dynamic graph execution.
 ///
@@ -55,12 +119,21 @@ pub enum Value {
     Vec3(Vec3),
     /// 4D vector
     Vec4(Vec4),
-    // TODO: Add Image, Mesh, Field, etc. as we implement them
+
+    /// Opaque value for complex/large types.
+    ///
+    /// Use for `Image`, `Mesh`, `GpuTexture`, `AudioBuffer`, etc.
+    /// Stored as `Arc` for cheap cloning. Use [`Value::opaque`] to create
+    /// and [`Value::downcast_ref`] to extract.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    Opaque(Arc<dyn GraphValue>),
 }
 
 /// Type identifier for values in the graph system.
+///
+/// Note: The `Custom` variant cannot be serialized (TypeId is not serializable).
+/// Use concrete type registration for serialization of custom types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ValueType {
     /// 32-bit floating point.
     F32,
@@ -76,6 +149,16 @@ pub enum ValueType {
     Vec3,
     /// 4D vector.
     Vec4,
+    /// Custom/opaque type (for Image, Mesh, GpuTexture, etc.)
+    ///
+    /// This variant cannot be serialized directly. For serialization,
+    /// register custom types with a type registry that maps names to types.
+    Custom {
+        /// Rust TypeId for the concrete type.
+        type_id: TypeId,
+        /// Human-readable name for display/debugging.
+        name: &'static str,
+    },
 }
 
 impl Value {
@@ -89,7 +172,63 @@ impl Value {
             Value::Vec2(_) => ValueType::Vec2,
             Value::Vec3(_) => ValueType::Vec3,
             Value::Vec4(_) => ValueType::Vec4,
+            Value::Opaque(v) => ValueType::Custom {
+                type_id: v.as_any().type_id(),
+                name: v.type_name(),
+            },
         }
+    }
+
+    /// Creates an opaque value from any type implementing [`GraphValue`].
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let image = Image::new(512, 512);
+    /// let value = Value::opaque(image);
+    /// ```
+    pub fn opaque<T: GraphValue>(value: T) -> Self {
+        Value::Opaque(Arc::new(value))
+    }
+
+    /// Creates an opaque value from an existing `Arc<dyn GraphValue>`.
+    pub fn from_arc(value: Arc<dyn GraphValue>) -> Self {
+        Value::Opaque(value)
+    }
+
+    /// Attempts to downcast an opaque value to a concrete type.
+    ///
+    /// Returns `None` if this is not an `Opaque` variant or if the
+    /// concrete type doesn't match.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// if let Some(image) = value.downcast_ref::<Image>() {
+    ///     println!("Image size: {}x{}", image.width, image.height);
+    /// }
+    /// ```
+    pub fn downcast_ref<T: GraphValue + 'static>(&self) -> Option<&T> {
+        match self {
+            Value::Opaque(v) => v.as_any().downcast_ref(),
+            _ => None,
+        }
+    }
+
+    /// Returns the data location of this value.
+    ///
+    /// Primitives are always on CPU. Opaque values report their location
+    /// via [`GraphValue::location`].
+    pub fn location(&self) -> DataLocation {
+        match self {
+            Value::Opaque(v) => v.location(),
+            _ => DataLocation::Cpu,
+        }
+    }
+
+    /// Returns `true` if this is an opaque value.
+    pub fn is_opaque(&self) -> bool {
+        matches!(self, Value::Opaque(_))
     }
 
     /// Attempts to extract an f32 value.
@@ -159,11 +298,26 @@ impl fmt::Display for ValueType {
             ValueType::Vec2 => write!(f, "Vec2"),
             ValueType::Vec3 => write!(f, "Vec3"),
             ValueType::Vec4 => write!(f, "Vec4"),
+            ValueType::Custom { name, .. } => write!(f, "{}", name),
         }
     }
 }
 
 impl ValueType {
+    /// Creates a `Custom` value type for a concrete type.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let image_type = ValueType::of::<Image>("Image");
+    /// ```
+    pub fn of<T: 'static>(name: &'static str) -> Self {
+        ValueType::Custom {
+            type_id: TypeId::of::<T>(),
+            name,
+        }
+    }
+
     /// Returns the TypeId for this value type.
     pub fn type_id(&self) -> TypeId {
         match self {
@@ -174,6 +328,7 @@ impl ValueType {
             ValueType::Vec2 => TypeId::of::<Vec2>(),
             ValueType::Vec3 => TypeId::of::<Vec3>(),
             ValueType::Vec4 => TypeId::of::<Vec4>(),
+            ValueType::Custom { type_id, .. } => *type_id,
         }
     }
 }
@@ -245,6 +400,11 @@ impl Hash for Value {
                 v.z.to_bits().hash(state);
                 v.w.to_bits().hash(state);
             }
+            Value::Opaque(v) => {
+                // Hash by type + stable_id (default: pointer identity)
+                v.as_any().type_id().hash(state);
+                v.stable_id().hash(state);
+            }
         }
     }
 }
@@ -269,6 +429,10 @@ impl PartialEq for Value {
                     && a.y.to_bits() == b.y.to_bits()
                     && a.z.to_bits() == b.z.to_bits()
                     && a.w.to_bits() == b.w.to_bits()
+            }
+            (Value::Opaque(a), Value::Opaque(b)) => {
+                // Equal if same type and same stable_id
+                a.as_any().type_id() == b.as_any().type_id() && a.stable_id() == b.stable_id()
             }
             _ => false,
         }
@@ -430,5 +594,191 @@ mod tests {
         assert_eq!(map.get(&Value::I32(2)), Some(&"two"));
         assert_eq!(map.get(&Value::Vec3(Vec3::X)), Some(&"x-axis"));
         assert_eq!(map.get(&Value::F32(2.0)), None);
+    }
+
+    // === Opaque value tests ===
+
+    /// Test type for opaque values
+    #[derive(Debug, Clone)]
+    struct TestImage {
+        width: u32,
+        height: u32,
+        data: Vec<f32>,
+    }
+
+    impl GraphValue for TestImage {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        fn type_name(&self) -> &'static str {
+            "TestImage"
+        }
+    }
+
+    /// Test type with custom location
+    #[derive(Debug)]
+    struct GpuBuffer {
+        size: usize,
+        device_id: u32,
+    }
+
+    impl GraphValue for GpuBuffer {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        fn type_name(&self) -> &'static str {
+            "GpuBuffer"
+        }
+        fn location(&self) -> DataLocation {
+            DataLocation::Gpu {
+                device_id: self.device_id,
+            }
+        }
+    }
+
+    #[test]
+    fn test_opaque_value_creation() {
+        let image = TestImage {
+            width: 512,
+            height: 512,
+            data: vec![0.0; 512 * 512],
+        };
+        let value = Value::opaque(image);
+        assert!(value.is_opaque());
+    }
+
+    #[test]
+    fn test_opaque_downcast() {
+        let image = TestImage {
+            width: 256,
+            height: 128,
+            data: vec![1.0; 256 * 128],
+        };
+        let value = Value::opaque(image);
+
+        // Successful downcast
+        let extracted = value.downcast_ref::<TestImage>().unwrap();
+        assert_eq!(extracted.width, 256);
+        assert_eq!(extracted.height, 128);
+
+        // Failed downcast (wrong type)
+        assert!(value.downcast_ref::<GpuBuffer>().is_none());
+
+        // Downcast on non-opaque value
+        let f = Value::F32(1.0);
+        assert!(f.downcast_ref::<TestImage>().is_none());
+    }
+
+    #[test]
+    fn test_opaque_value_type() {
+        let image = TestImage {
+            width: 64,
+            height: 64,
+            data: vec![],
+        };
+        let value = Value::opaque(image);
+        let vt = value.value_type();
+
+        match vt {
+            ValueType::Custom { name, type_id } => {
+                assert_eq!(name, "TestImage");
+                assert_eq!(type_id, TypeId::of::<TestImage>());
+            }
+            _ => panic!("Expected Custom variant"),
+        }
+
+        // Display works
+        assert_eq!(format!("{}", vt), "TestImage");
+    }
+
+    #[test]
+    fn test_opaque_location_cpu() {
+        let image = TestImage {
+            width: 32,
+            height: 32,
+            data: vec![],
+        };
+        let value = Value::opaque(image);
+        assert_eq!(value.location(), DataLocation::Cpu);
+    }
+
+    #[test]
+    fn test_opaque_location_gpu() {
+        let buffer = GpuBuffer {
+            size: 1024,
+            device_id: 0,
+        };
+        let value = Value::opaque(buffer);
+        assert_eq!(value.location(), DataLocation::Gpu { device_id: 0 });
+    }
+
+    #[test]
+    fn test_primitive_location() {
+        // All primitives should be on CPU
+        assert_eq!(Value::F32(1.0).location(), DataLocation::Cpu);
+        assert_eq!(Value::I32(42).location(), DataLocation::Cpu);
+        assert_eq!(Value::Vec3(Vec3::ONE).location(), DataLocation::Cpu);
+    }
+
+    #[test]
+    fn test_opaque_clone() {
+        let image = TestImage {
+            width: 100,
+            height: 100,
+            data: vec![0.5; 100 * 100],
+        };
+        let value1 = Value::opaque(image);
+        let value2 = value1.clone();
+
+        // Both should reference the same Arc
+        let img1 = value1.downcast_ref::<TestImage>().unwrap();
+        let img2 = value2.downcast_ref::<TestImage>().unwrap();
+        assert_eq!(img1.width, img2.width);
+        assert!(std::ptr::eq(img1, img2)); // Same pointer (Arc clone)
+    }
+
+    #[test]
+    fn test_opaque_hash_eq() {
+        use std::collections::hash_map::DefaultHasher;
+
+        fn hash(v: &Value) -> u64 {
+            let mut h = DefaultHasher::new();
+            v.hash(&mut h);
+            h.finish()
+        }
+
+        let image = TestImage {
+            width: 10,
+            height: 10,
+            data: vec![],
+        };
+        let value1 = Value::opaque(image);
+        let value2 = value1.clone();
+
+        // Cloned opaque values (same Arc) should be equal and hash same
+        assert_eq!(value1, value2);
+        assert_eq!(hash(&value1), hash(&value2));
+
+        // Different opaque values should not be equal (identity-based)
+        let image2 = TestImage {
+            width: 10,
+            height: 10,
+            data: vec![],
+        };
+        let value3 = Value::opaque(image2);
+        assert_ne!(value1, value3);
+    }
+
+    #[test]
+    fn test_value_type_of() {
+        let vt = ValueType::of::<TestImage>("TestImage");
+        assert_eq!(vt.type_id(), TypeId::of::<TestImage>());
+        assert_eq!(format!("{}", vt), "TestImage");
+    }
+
+    #[test]
+    fn test_data_location_default() {
+        let loc: DataLocation = Default::default();
+        assert_eq!(loc, DataLocation::Cpu);
     }
 }

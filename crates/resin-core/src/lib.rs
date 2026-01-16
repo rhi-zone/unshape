@@ -54,4 +54,4 @@ pub use glam;
 pub use graph::{Graph, NodeId, Wire};
 pub use node::{BoxedNode, DynNode, PortDescriptor};
 pub use rhizome_resin_macros::DynNode as DynNodeDerive;
-pub use value::{Value, ValueType};
+pub use value::{DataLocation, GraphValue, Value, ValueType};
