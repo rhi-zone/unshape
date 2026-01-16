@@ -9,15 +9,70 @@
 //! - [`LazyEvaluator`]: Only computes nodes needed for requested outputs, with caching
 //! - The eager evaluator in [`Graph::execute`](crate::Graph::execute) computes all nodes
 //!
-//! # Example
+//! # Lazy Evaluation with Caching
+//!
+//! [`LazyEvaluator`] only computes nodes required for requested outputs,
+//! and caches results for subsequent evaluations:
 //!
 //! ```ignore
-//! use resin_core::{Graph, LazyEvaluator, Evaluator, EvalContext};
+//! use rhizome_resin_core::{Graph, LazyEvaluator, Evaluator, EvalContext};
 //!
-//! let graph = /* build graph */;
+//! // Assume graph is built with nodes connected
+//! let graph: Graph = /* ... */;
+//! let output_node = /* node ID */;
+//!
 //! let mut evaluator = LazyEvaluator::new();
 //! let ctx = EvalContext::new();
-//! let outputs = evaluator.evaluate(&graph, &[output_node], &ctx)?;
+//!
+//! // First call computes all upstream nodes
+//! let result = evaluator.evaluate(&graph, &[output_node], &ctx)?;
+//! println!("Computed {} nodes", result.computed_nodes.len());
+//!
+//! // Second call uses cache
+//! let result = evaluator.evaluate(&graph, &[output_node], &ctx)?;
+//! println!("Cache hits: {}", result.cached_nodes.len());
+//! ```
+//!
+//! # EvalContext
+//!
+//! The evaluation context provides environment information for node execution:
+//!
+//! ```
+//! use rhizome_resin_core::{EvalContext, CancellationToken};
+//!
+//! // Basic context
+//! let ctx = EvalContext::new();
+//!
+//! // Context with time (for animation)
+//! let ctx = EvalContext::new()
+//!     .with_time(1.5, 90, 1.0 / 60.0)  // time=1.5s, frame=90, dt=16.6ms
+//!     .with_seed(42);                   // deterministic randomness
+//!
+//! // Context with cancellation
+//! let token = CancellationToken::new();
+//! let ctx = EvalContext::new().with_cancel(token.clone());
+//!
+//! // Check cancellation in long-running code
+//! assert!(!ctx.is_cancelled());
+//! token.cancel();
+//! assert!(ctx.is_cancelled());
+//! ```
+//!
+//! # Cancellation
+//!
+//! Long-running evaluations can be cancelled cooperatively using [`CancellationToken`]:
+//!
+//! ```
+//! use rhizome_resin_core::CancellationToken;
+//!
+//! let token = CancellationToken::new();
+//! let token_clone = token.clone();
+//!
+//! // In one thread: signal cancellation
+//! token.cancel();
+//!
+//! // In another thread: check for cancellation
+//! assert!(token_clone.is_cancelled());
 //! ```
 
 use std::collections::HashMap;

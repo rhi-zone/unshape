@@ -104,7 +104,7 @@ Index of resin's crates organized by domain. See individual crate docs in `docs/
 
 | Crate | Description | Docs |
 |-------|-------------|------|
-| **resin-core** | Graph container, DynNode trait, Value enum, node derive macro | |
+| **[resin-core](crates/resin-core.md)** | Graph container, DynNode trait, Value enum, EvalContext, pluggable evaluation strategies (lazy/eager), caching | [docs](crates/resin-core.md) |
 | **resin-transform** | `SpatialTransform` trait for unified 2D/3D transform interface | |
 | **[resin-jit](crates/resin-jit.md)** | Cranelift JIT compilation with SIMD (41x faster than scalar, 6.6x faster than native) | [docs](crates/resin-jit.md) |
 | **resin-op** | DynOp trait, `#[derive(Op)]` macro, OpRegistry, Pipeline execution | |
@@ -129,4 +129,4 @@ Index of resin's crates organized by domain. See individual crate docs in `docs/
 | Cross-Domain | 2 | Raw byte casting, image↔audio, noise-as-anything |
 | Fields | 2 | Lazy evaluation, expression language |
 | GPU | 1 | wgpu compute for noise/textures |
-| Core | 5 | Graph system, transforms, DynOp pipelines, serialization, history tracking |
+| Core | 5 | Graph system with lazy/eager evaluation, caching, transforms, serialization, history |

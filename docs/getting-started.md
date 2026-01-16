@@ -33,7 +33,7 @@ cargo test
 
 | Crate | Description |
 |-------|-------------|
-| `rhizome-resin-core` | Graph evaluation, noise, Field trait, EvalContext |
+| `rhizome-resin-core` | Graph container, DynNode trait, Value, EvalContext, evaluators |
 | `rhizome-resin-mesh` | 3D mesh generation, primitives (box, sphere) |
 | `rhizome-resin-audio` | Audio oscillators and synthesis |
 | `rhizome-resin-vector` | 2D paths, shapes, bezier curves |
@@ -80,23 +80,27 @@ fn main() {
     let mut graph = Graph::new();
     let add = graph.add_node(AddNode::default());
 
-    let ctx = EvalContext::new();
-    // Execute with explicit inputs
-    let outputs = graph.execute(add, &ctx).unwrap();
+    // Execute with default context
+    let outputs = graph.execute(add).unwrap();
     println!("Result: {:?}", outputs[0]);
+
+    // Or with custom context (for time, cancellation, etc.)
+    let ctx = EvalContext::new().with_time(1.0, 60, 1.0/60.0);
+    let outputs = graph.execute_with_context(add, &ctx).unwrap();
 }
 ```
 
 ## Example: Procedural Texture with Fields
 
 ```rust
-use rhizome_resin_core::{Field, Perlin2D, Fbm2D, EvalContext};
+use rhizome_resin_field::{Field, EvalContext, Perlin2D};
 use glam::Vec2;
 
 fn main() {
-    // Build a lazy noise field
-    let base = Perlin2D::new();
-    let fbm = Fbm2D::new(base).octaves(4).lacunarity(2.0);
+    // Build a lazy noise field with combinators
+    let noise = Perlin2D::new()
+        .scale(4.0)    // Scale input coordinates
+        .map(|v| v * 0.5 + 0.5);  // Remap from [-1,1] to [0,1]
 
     let ctx = EvalContext::new();
 
@@ -104,7 +108,7 @@ fn main() {
     for y in 0..64 {
         for x in 0..64 {
             let uv = Vec2::new(x as f32 / 64.0, y as f32 / 64.0);
-            let value = fbm.sample(uv * 4.0, &ctx);
+            let value = noise.sample(uv, &ctx);
             // value is 0.0-1.0, use as brightness/height/etc
         }
     }

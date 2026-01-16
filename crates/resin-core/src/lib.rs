@@ -9,6 +9,33 @@
 //! - [`Evaluator`] - Trait for evaluation strategies
 //! - [`LazyEvaluator`] - Lazy evaluator with caching
 //!
+//! # Quick Example
+//!
+//! ```
+//! use rhizome_resin_core::{Graph, EvalContext};
+//!
+//! // Create a graph and add nodes
+//! let mut graph = Graph::new();
+//!
+//! // Execute with default context
+//! // let result = graph.execute(output_node).unwrap();
+//!
+//! // Or with custom context for animation, cancellation, etc.
+//! let ctx = EvalContext::new()
+//!     .with_time(1.0, 60, 1.0/60.0)
+//!     .with_seed(42);
+//! ```
+//!
+//! # Evaluation Strategies
+//!
+//! Two evaluation strategies are available:
+//!
+//! - **Eager** ([`Graph::execute`]): Computes all nodes in topological order
+//! - **Lazy** ([`LazyEvaluator`]): Only computes nodes needed for requested outputs,
+//!   with memoization/caching
+//!
+//! See the [`eval`] module for details on caching, cancellation, and progress reporting.
+//!
 //! For geometry attribute traits, see `resin-geometry`.
 
 mod error;
