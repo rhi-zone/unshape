@@ -1,4 +1,29 @@
 //! Dynamic value type for graph execution.
+//!
+//! The [`Value`] enum represents data flowing through graph wires.
+//! Type checking happens at graph construction time via [`ValueType`].
+//!
+//! # Example
+//!
+//! ```
+//! use rhizome_resin_core::{Value, ValueType};
+//! use glam::Vec3;
+//!
+//! // Create values
+//! let f = Value::F32(1.5);
+//! let v = Value::Vec3(Vec3::new(1.0, 2.0, 3.0));
+//!
+//! // Check types
+//! assert_eq!(f.value_type(), ValueType::F32);
+//!
+//! // Extract with type safety
+//! let x: f32 = f.as_f32().unwrap();
+//! let vec: Vec3 = v.as_vec3().unwrap();
+//!
+//! // From conversions for convenience
+//! let f: Value = 3.14f32.into();
+//! let v: Value = Vec3::X.into();
+//! ```
 
 use glam::{Vec2, Vec3, Vec4};
 use std::any::TypeId;

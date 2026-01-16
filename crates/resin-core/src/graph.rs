@@ -3,6 +3,33 @@
 //! This module provides a data flow graph where nodes process values
 //! and wires connect output ports to input ports.
 //!
+//! # Example
+//!
+//! ```ignore
+//! use rhizome_resin_core::{Graph, EvalContext};
+//!
+//! let mut graph = Graph::new();
+//!
+//! // Add nodes (must implement DynNode)
+//! let a = graph.add_node(ConstNode { value: 2.0 });
+//! let b = graph.add_node(ConstNode { value: 3.0 });
+//! let add = graph.add_node(AddNode);
+//!
+//! // Connect: a.output[0] -> add.input[0], b.output[0] -> add.input[1]
+//! graph.connect(a, 0, add, 0)?;
+//! graph.connect(b, 0, add, 1)?;
+//!
+//! // Execute (eager: runs all nodes in topological order)
+//! let result = graph.execute(add)?;
+//! assert_eq!(result[0].as_f32()?, 5.0);
+//!
+//! // Or with custom context for time/cancellation
+//! let ctx = EvalContext::new().with_time(1.0, 60, 1.0/60.0);
+//! let result = graph.execute_with_context(add, &ctx)?;
+//! ```
+//!
+//! For lazy evaluation with caching, see [`crate::LazyEvaluator`].
+//!
 //! # Terminology
 //!
 //! This module uses "Wire" for connections between node ports to distinguish
