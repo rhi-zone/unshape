@@ -4158,6 +4158,7 @@ dependencies = [
  "bevy",
  "glam",
  "rhizome-resin-audio",
+ "rhizome-resin-backend",
  "rhizome-resin-core",
  "rhizome-resin-field",
  "rhizome-resin-image",
