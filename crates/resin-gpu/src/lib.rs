@@ -22,10 +22,16 @@ mod error;
 mod noise;
 mod texture;
 
+#[cfg(feature = "image-expr")]
+mod image_expr;
+
 pub use context::GpuContext;
 pub use error::GpuError;
 pub use noise::{NoiseConfig, NoiseType, generate_noise_texture, noise_texture};
 pub use texture::{GpuTexture, TextureFormat};
+
+#[cfg(feature = "image-expr")]
+pub use image_expr::{map_pixels_gpu, remap_uv_gpu};
 
 /// Registers all GPU operations with an [`OpRegistry`].
 ///

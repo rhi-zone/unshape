@@ -249,6 +249,28 @@ Dew expressions give us the best of all worlds - they're data (serializable), bu
 5. **Add expression builders** to config structs (`LensDistortion::to_expr()`)
 6. **Wire up backends** - interpreter first, then JIT, then WGSL
 
+## Implementation Status
+
+**Completed (Phase 1 - Interpreter Backend):**
+
+- [x] `UvExpr` - Typed expression AST for Vec2 → Vec2 UV transforms
+- [x] `ColorExpr` - Typed expression AST for Vec4 → Vec4 color transforms
+- [x] `remap_uv(image, expr)` - UV remapping primitive
+- [x] `map_pixels(image, expr)` - Per-pixel color transform primitive
+- [x] `LensDistortion::to_uv_expr()` - Expression builder for lens distortion
+- [x] `WaveDistortion::to_uv_expr()` - Expression builder for wave distortion
+- [x] Refactored `lens_distortion()` to use `remap_uv` internally
+- [x] Refactored `wave_distortion()` to use `remap_uv` internally
+- [x] Static builders for common color operations: `ColorExpr::grayscale()`, `invert()`, `threshold()`, `brightness()`, `contrast()`, `posterize()`, `gamma()`, `tint()`
+- [x] Static builders for common UV transforms: `UvExpr::identity()`, `translate()`, `scale_centered()`, `rotate_centered()`
+
+**Pending:**
+
+- [ ] Wire up Cranelift JIT backend for UvExpr/ColorExpr
+- [ ] Wire up WGSL codegen backend
+- [ ] Refactor remaining distortions (chromatic_aberration, swirl, spherize, transform_image)
+- [ ] Migrate `dew-linalg` and switch to Dew expressions (currently using custom AST)
+
 ## Dew Capabilities
 
 Dew provides the necessary building blocks via its module system:

@@ -50,6 +50,44 @@ impl GpuTexture {
         height: u32,
         format: TextureFormat,
     ) -> GpuResult<Self> {
+        Self::with_usage(
+            ctx,
+            width,
+            height,
+            format,
+            wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+        )
+    }
+
+    /// Creates a new GPU texture that can be used as both input and output.
+    ///
+    /// This texture can be sampled from in shaders and also written to as storage.
+    pub fn new_input_output(
+        ctx: &GpuContext,
+        width: u32,
+        height: u32,
+        format: TextureFormat,
+    ) -> GpuResult<Self> {
+        Self::with_usage(
+            ctx,
+            width,
+            height,
+            format,
+            wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST,
+        )
+    }
+
+    /// Creates a GPU texture with custom usage flags.
+    pub fn with_usage(
+        ctx: &GpuContext,
+        width: u32,
+        height: u32,
+        format: TextureFormat,
+        usage: wgpu::TextureUsages,
+    ) -> GpuResult<Self> {
         if width == 0 || height == 0 {
             return Err(GpuError::InvalidDimensions(format!(
                 "texture dimensions must be > 0, got {}x{}",
@@ -68,7 +106,7 @@ impl GpuTexture {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: format.to_wgpu(),
-            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+            usage,
             view_formats: &[],
         });
 

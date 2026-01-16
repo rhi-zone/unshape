@@ -2556,6 +2556,46 @@ impl LensDistortion {
     pub fn apply(&self, image: &ImageField) -> ImageField {
         lens_distortion(image, self)
     }
+
+    /// Converts this distortion to a `UvExpr` for use with `remap_uv`.
+    ///
+    /// This allows the distortion to be serialized, composed with other effects,
+    /// and potentially compiled to GPU shaders.
+    ///
+    /// # Formula
+    ///
+    /// The radial distortion formula is:
+    /// ```text
+    /// delta = uv - center
+    /// r = length(delta)
+    /// distortion = 1 + strength * r²
+    /// result = center + delta * distortion
+    /// ```
+    pub fn to_uv_expr(&self) -> UvExpr {
+        let center = UvExpr::Constant2(self.center.0, self.center.1);
+
+        // delta = uv - center
+        let delta = UvExpr::Sub(Box::new(UvExpr::Uv), Box::new(center.clone()));
+
+        // r² = delta.x² + delta.y² = dot(delta, delta)
+        // Since Length returns (len, len) and we need r², we use Dot
+        let r_squared = UvExpr::Dot(Box::new(delta.clone()), Box::new(delta.clone()));
+
+        // distortion = 1 + strength * r²
+        let distortion = UvExpr::Add(
+            Box::new(UvExpr::Constant(1.0)),
+            Box::new(UvExpr::Mul(
+                Box::new(UvExpr::Constant(self.strength)),
+                Box::new(r_squared),
+            )),
+        );
+
+        // result = center + delta * distortion
+        UvExpr::Add(
+            Box::new(center),
+            Box::new(UvExpr::Mul(Box::new(delta), Box::new(distortion))),
+        )
+    }
 }
 
 /// Backwards-compatible type alias.
@@ -2565,6 +2605,9 @@ pub type LensDistortionConfig = LensDistortion;
 ///
 /// Barrel distortion (positive strength) makes the image bulge outward.
 /// Pincushion distortion (negative strength) makes it pinch inward.
+///
+/// This function is sugar over [`remap_uv`] with the expression from
+/// [`LensDistortion::to_uv_expr`].
 ///
 /// # Example
 ///
@@ -2578,36 +2621,7 @@ pub type LensDistortionConfig = LensDistortion;
 /// let pincushion = lens_distortion(&img, &LensDistortionConfig::pincushion(0.3));
 /// ```
 pub fn lens_distortion(image: &ImageField, config: &LensDistortion) -> ImageField {
-    let (width, height) = image.dimensions();
-    let mut data = Vec::with_capacity((width * height) as usize);
-
-    for y in 0..height {
-        for x in 0..width {
-            // Normalize coordinates to [-1, 1] from center
-            let u = (x as f32 + 0.5) / width as f32;
-            let v = (y as f32 + 0.5) / height as f32;
-
-            let dx = u - config.center.0;
-            let dy = v - config.center.1;
-
-            // Distance from center
-            let r = (dx * dx + dy * dy).sqrt();
-
-            // Apply radial distortion
-            let distortion = 1.0 + config.strength * r * r;
-
-            // Map back to source coordinates
-            let src_u = config.center.0 + dx * distortion;
-            let src_v = config.center.1 + dy * distortion;
-
-            let color = image.sample_uv(src_u, src_v);
-            data.push([color.r, color.g, color.b, color.a]);
-        }
-    }
-
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
+    remap_uv(image, &config.to_uv_expr())
 }
 
 /// Applies wave distortion to an image.
@@ -2667,12 +2681,65 @@ impl WaveDistortion {
     pub fn apply(&self, image: &ImageField) -> ImageField {
         wave_distortion(image, self)
     }
+
+    /// Converts this distortion to a `UvExpr` for use with `remap_uv`.
+    ///
+    /// This allows the distortion to be serialized, composed with other effects,
+    /// and potentially compiled to GPU shaders.
+    ///
+    /// # Formula
+    ///
+    /// The wave distortion formula is:
+    /// ```text
+    /// offset_x = amplitude_x * sin(v * frequency_y * 2π + phase)
+    /// offset_y = amplitude_y * sin(u * frequency_x * 2π + phase)
+    /// result = uv + offset
+    /// ```
+    pub fn to_uv_expr(&self) -> UvExpr {
+        let two_pi = std::f32::consts::PI * 2.0;
+
+        // offset_x = amplitude_x * sin(v * frequency_y * 2π + phase)
+        let offset_x = UvExpr::Mul(
+            Box::new(UvExpr::Constant(self.amplitude_x)),
+            Box::new(UvExpr::Sin(Box::new(UvExpr::Add(
+                Box::new(UvExpr::Mul(
+                    Box::new(UvExpr::V),
+                    Box::new(UvExpr::Constant(self.frequency_y * two_pi)),
+                )),
+                Box::new(UvExpr::Constant(self.phase)),
+            )))),
+        );
+
+        // offset_y = amplitude_y * sin(u * frequency_x * 2π + phase)
+        let offset_y = UvExpr::Mul(
+            Box::new(UvExpr::Constant(self.amplitude_y)),
+            Box::new(UvExpr::Sin(Box::new(UvExpr::Add(
+                Box::new(UvExpr::Mul(
+                    Box::new(UvExpr::U),
+                    Box::new(UvExpr::Constant(self.frequency_x * two_pi)),
+                )),
+                Box::new(UvExpr::Constant(self.phase)),
+            )))),
+        );
+
+        // result = uv + vec2(offset_x, offset_y)
+        UvExpr::Add(
+            Box::new(UvExpr::Uv),
+            Box::new(UvExpr::Vec2 {
+                x: Box::new(offset_x),
+                y: Box::new(offset_y),
+            }),
+        )
+    }
 }
 
 /// Backwards-compatible type alias.
 pub type WaveDistortionConfig = WaveDistortion;
 
 /// Applies wave distortion to an image.
+///
+/// This function is sugar over [`remap_uv`] with the expression from
+/// [`WaveDistortion::to_uv_expr`].
 ///
 /// # Example
 ///
@@ -2685,33 +2752,7 @@ pub type WaveDistortionConfig = WaveDistortion;
 /// let wavy = wave_distortion(&img, &WaveDistortionConfig::horizontal(0.05, 3.0));
 /// ```
 pub fn wave_distortion(image: &ImageField, config: &WaveDistortion) -> ImageField {
-    let (width, height) = image.dimensions();
-    let mut data = Vec::with_capacity((width * height) as usize);
-
-    let two_pi = std::f32::consts::PI * 2.0;
-
-    for y in 0..height {
-        for x in 0..width {
-            let u = (x as f32 + 0.5) / width as f32;
-            let v = (y as f32 + 0.5) / height as f32;
-
-            // Apply sine wave offsets
-            let offset_x =
-                config.amplitude_x * (v * config.frequency_y * two_pi + config.phase).sin();
-            let offset_y =
-                config.amplitude_y * (u * config.frequency_x * two_pi + config.phase).sin();
-
-            let src_u = u + offset_x;
-            let src_v = v + offset_y;
-
-            let color = image.sample_uv(src_u, src_v);
-            data.push([color.r, color.g, color.b, color.a]);
-        }
-    }
-
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
+    remap_uv(image, &config.to_uv_expr())
 }
 
 /// Applies displacement using another image as a map.
@@ -5129,6 +5170,1154 @@ pub fn register_ops(registry: &mut rhizome_resin_op::OpRegistry) {
     registry.register_type::<WaveDistortion>("resin::WaveDistortion");
 }
 
+// ============================================================================
+// Expression-Based Primitives
+// ============================================================================
+
+/// A typed expression AST for UV coordinate remapping (Vec2 → Vec2).
+///
+/// This is the expression language for the `remap_uv` primitive. Each variant
+/// represents an operation that transforms UV coordinates.
+///
+/// # Design
+///
+/// Unlike raw closures, `UvExpr` is:
+/// - **Serializable** - Save/load effect pipelines
+/// - **Interpretable** - Direct CPU evaluation
+/// - **Inspectable** - Debug and optimize transforms
+/// - **Future JIT/GPU** - Will compile to Cranelift/WGSL when dew-linalg is ready
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, UvExpr, remap_uv};
+///
+/// let image = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
+///
+/// // Wave distortion: offset U by sin(V * frequency) * amplitude
+/// let wave = UvExpr::Add(
+///     Box::new(UvExpr::Uv),
+///     Box::new(UvExpr::Vec2 {
+///         x: Box::new(UvExpr::Mul(
+///             Box::new(UvExpr::Constant(0.05)),
+///             Box::new(UvExpr::Sin(Box::new(UvExpr::Mul(
+///                 Box::new(UvExpr::V),
+///                 Box::new(UvExpr::Constant(6.28 * 4.0)),
+///             )))),
+///         )),
+///         y: Box::new(UvExpr::Constant(0.0)),
+///     }),
+/// );
+///
+/// let result = remap_uv(&image, &wave);
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum UvExpr {
+    // === Coordinates ===
+    /// The input UV coordinate as Vec2.
+    Uv,
+    /// Just the U coordinate (x).
+    U,
+    /// Just the V coordinate (y).
+    V,
+
+    // === Constructors ===
+    /// Construct a Vec2 from two scalar expressions.
+    Vec2 { x: Box<UvExpr>, y: Box<UvExpr> },
+
+    // === Literals ===
+    /// A constant scalar value.
+    Constant(f32),
+    /// A constant Vec2 value.
+    Constant2(f32, f32),
+
+    // === Vec2 operations ===
+    /// Component-wise addition of two Vec2 expressions.
+    Add(Box<UvExpr>, Box<UvExpr>),
+    /// Component-wise subtraction.
+    Sub(Box<UvExpr>, Box<UvExpr>),
+    /// Component-wise multiplication.
+    Mul(Box<UvExpr>, Box<UvExpr>),
+    /// Component-wise division.
+    Div(Box<UvExpr>, Box<UvExpr>),
+    /// Negate (flip sign).
+    Neg(Box<UvExpr>),
+
+    // === Scalar math functions (applied component-wise or to scalars) ===
+    /// Sine.
+    Sin(Box<UvExpr>),
+    /// Cosine.
+    Cos(Box<UvExpr>),
+    /// Absolute value.
+    Abs(Box<UvExpr>),
+    /// Floor.
+    Floor(Box<UvExpr>),
+    /// Fractional part.
+    Fract(Box<UvExpr>),
+    /// Square root.
+    Sqrt(Box<UvExpr>),
+    /// Power.
+    Pow(Box<UvExpr>, Box<UvExpr>),
+    /// Minimum.
+    Min(Box<UvExpr>, Box<UvExpr>),
+    /// Maximum.
+    Max(Box<UvExpr>, Box<UvExpr>),
+    /// Clamp to range.
+    Clamp {
+        value: Box<UvExpr>,
+        min: Box<UvExpr>,
+        max: Box<UvExpr>,
+    },
+    /// Linear interpolation.
+    Lerp {
+        a: Box<UvExpr>,
+        b: Box<UvExpr>,
+        t: Box<UvExpr>,
+    },
+
+    // === Vec2-specific operations ===
+    /// Length of the vector.
+    Length(Box<UvExpr>),
+    /// Normalize to unit vector.
+    Normalize(Box<UvExpr>),
+    /// Dot product.
+    Dot(Box<UvExpr>, Box<UvExpr>),
+    /// Distance between two points.
+    Distance(Box<UvExpr>, Box<UvExpr>),
+
+    // === Common UV transforms (sugar for complex expressions) ===
+    /// Rotate around a center point by angle (radians).
+    Rotate {
+        center: Box<UvExpr>,
+        angle: Box<UvExpr>,
+    },
+    /// Scale around a center point.
+    Scale {
+        center: Box<UvExpr>,
+        scale: Box<UvExpr>,
+    },
+}
+
+impl UvExpr {
+    /// Evaluate the expression at the given UV coordinate.
+    ///
+    /// Returns the transformed UV as (u', v').
+    pub fn eval(&self, u: f32, v: f32) -> (f32, f32) {
+        match self {
+            // Coordinates
+            Self::Uv => (u, v),
+            Self::U => (u, u), // scalar → vec2 broadcast
+            Self::V => (v, v),
+
+            // Constructors
+            Self::Vec2 { x, y } => {
+                let (xu, _) = x.eval(u, v);
+                let (yu, _) = y.eval(u, v);
+                (xu, yu)
+            }
+
+            // Literals
+            Self::Constant(c) => (*c, *c),
+            Self::Constant2(x, y) => (*x, *y),
+
+            // Vec2 operations
+            Self::Add(a, b) => {
+                let (au, av) = a.eval(u, v);
+                let (bu, bv) = b.eval(u, v);
+                (au + bu, av + bv)
+            }
+            Self::Sub(a, b) => {
+                let (au, av) = a.eval(u, v);
+                let (bu, bv) = b.eval(u, v);
+                (au - bu, av - bv)
+            }
+            Self::Mul(a, b) => {
+                let (au, av) = a.eval(u, v);
+                let (bu, bv) = b.eval(u, v);
+                (au * bu, av * bv)
+            }
+            Self::Div(a, b) => {
+                let (au, av) = a.eval(u, v);
+                let (bu, bv) = b.eval(u, v);
+                (au / bu, av / bv)
+            }
+            Self::Neg(a) => {
+                let (au, av) = a.eval(u, v);
+                (-au, -av)
+            }
+
+            // Scalar math
+            Self::Sin(a) => {
+                let (au, av) = a.eval(u, v);
+                (au.sin(), av.sin())
+            }
+            Self::Cos(a) => {
+                let (au, av) = a.eval(u, v);
+                (au.cos(), av.cos())
+            }
+            Self::Abs(a) => {
+                let (au, av) = a.eval(u, v);
+                (au.abs(), av.abs())
+            }
+            Self::Floor(a) => {
+                let (au, av) = a.eval(u, v);
+                (au.floor(), av.floor())
+            }
+            Self::Fract(a) => {
+                let (au, av) = a.eval(u, v);
+                (au.fract(), av.fract())
+            }
+            Self::Sqrt(a) => {
+                let (au, av) = a.eval(u, v);
+                (au.sqrt(), av.sqrt())
+            }
+            Self::Pow(a, b) => {
+                let (au, av) = a.eval(u, v);
+                let (bu, bv) = b.eval(u, v);
+                (au.powf(bu), av.powf(bv))
+            }
+            Self::Min(a, b) => {
+                let (au, av) = a.eval(u, v);
+                let (bu, bv) = b.eval(u, v);
+                (au.min(bu), av.min(bv))
+            }
+            Self::Max(a, b) => {
+                let (au, av) = a.eval(u, v);
+                let (bu, bv) = b.eval(u, v);
+                (au.max(bu), av.max(bv))
+            }
+            Self::Clamp { value, min, max } => {
+                let (vu, vv) = value.eval(u, v);
+                let (minu, minv) = min.eval(u, v);
+                let (maxu, maxv) = max.eval(u, v);
+                (vu.clamp(minu, maxu), vv.clamp(minv, maxv))
+            }
+            Self::Lerp { a, b, t } => {
+                let (au, av) = a.eval(u, v);
+                let (bu, bv) = b.eval(u, v);
+                let (tu, tv) = t.eval(u, v);
+                (au + (bu - au) * tu, av + (bv - av) * tv)
+            }
+
+            // Vec2-specific
+            Self::Length(a) => {
+                let (au, av) = a.eval(u, v);
+                let len = (au * au + av * av).sqrt();
+                (len, len)
+            }
+            Self::Normalize(a) => {
+                let (au, av) = a.eval(u, v);
+                let len = (au * au + av * av).sqrt();
+                if len > 0.0 {
+                    (au / len, av / len)
+                } else {
+                    (0.0, 0.0)
+                }
+            }
+            Self::Dot(a, b) => {
+                let (au, av) = a.eval(u, v);
+                let (bu, bv) = b.eval(u, v);
+                let d = au * bu + av * bv;
+                (d, d)
+            }
+            Self::Distance(a, b) => {
+                let (au, av) = a.eval(u, v);
+                let (bu, bv) = b.eval(u, v);
+                let dx = au - bu;
+                let dy = av - bv;
+                let d = (dx * dx + dy * dy).sqrt();
+                (d, d)
+            }
+
+            // Common transforms
+            Self::Rotate { center, angle } => {
+                let (cx, cy) = center.eval(u, v);
+                let (angle_val, _) = angle.eval(u, v);
+                let dx = u - cx;
+                let dy = v - cy;
+                let cos_a = angle_val.cos();
+                let sin_a = angle_val.sin();
+                (cx + dx * cos_a - dy * sin_a, cy + dx * sin_a + dy * cos_a)
+            }
+            Self::Scale { center, scale } => {
+                let (cx, cy) = center.eval(u, v);
+                let (sx, sy) = scale.eval(u, v);
+                (cx + (u - cx) * sx, cy + (v - cy) * sy)
+            }
+        }
+    }
+
+    /// Creates an identity transform (returns UV unchanged).
+    pub fn identity() -> Self {
+        Self::Uv
+    }
+
+    /// Creates a translation transform.
+    pub fn translate(offset_x: f32, offset_y: f32) -> Self {
+        Self::Add(
+            Box::new(Self::Uv),
+            Box::new(Self::Constant2(offset_x, offset_y)),
+        )
+    }
+
+    /// Creates a scale transform around the center (0.5, 0.5).
+    pub fn scale_centered(scale_x: f32, scale_y: f32) -> Self {
+        Self::Scale {
+            center: Box::new(Self::Constant2(0.5, 0.5)),
+            scale: Box::new(Self::Constant2(scale_x, scale_y)),
+        }
+    }
+
+    /// Creates a rotation transform around the center (0.5, 0.5).
+    pub fn rotate_centered(angle: f32) -> Self {
+        Self::Rotate {
+            center: Box::new(Self::Constant2(0.5, 0.5)),
+            angle: Box::new(Self::Constant(angle)),
+        }
+    }
+
+    /// Converts this expression to a Dew AST for JIT/WGSL compilation.
+    ///
+    /// The resulting AST expects a `uv` Vec2 variable and returns Vec2.
+    /// Use with `dew-linalg` for evaluation or compilation.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use rhizome_dew_linalg::{Value, eval, linalg_registry};
+    /// use std::collections::HashMap;
+    ///
+    /// let expr = UvExpr::translate(0.1, 0.0);
+    /// let ast = expr.to_dew_ast();
+    ///
+    /// let mut vars = HashMap::new();
+    /// vars.insert("uv".into(), Value::Vec2([0.5, 0.5]));
+    ///
+    /// let result = eval(&ast, &vars, &linalg_registry()).unwrap();
+    /// // result = Value::Vec2([0.6, 0.5])
+    /// ```
+    #[cfg(feature = "dew")]
+    pub fn to_dew_ast(&self) -> rhizome_dew_core::Ast {
+        use rhizome_dew_core::{Ast, BinOp, UnaryOp};
+
+        match self {
+            // Coordinates - uv is a Vec2 variable
+            Self::Uv => Ast::Var("uv".into()),
+            // U and V need component extraction - use helper functions
+            Self::U => Ast::Call("x".into(), vec![Ast::Var("uv".into())]),
+            Self::V => Ast::Call("y".into(), vec![Ast::Var("uv".into())]),
+
+            // Constructors
+            Self::Vec2 { x, y } => Ast::Call("vec2".into(), vec![x.to_dew_ast(), y.to_dew_ast()]),
+
+            // Literals
+            Self::Constant(c) => Ast::Num(*c),
+            Self::Constant2(x, y) => Ast::Call("vec2".into(), vec![Ast::Num(*x), Ast::Num(*y)]),
+
+            // Binary operations
+            Self::Add(a, b) => Ast::BinOp(
+                BinOp::Add,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Sub(a, b) => Ast::BinOp(
+                BinOp::Sub,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Mul(a, b) => Ast::BinOp(
+                BinOp::Mul,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Div(a, b) => Ast::BinOp(
+                BinOp::Div,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Neg(a) => Ast::UnaryOp(UnaryOp::Neg, Box::new(a.to_dew_ast())),
+
+            // Math functions
+            Self::Sin(a) => Ast::Call("sin".into(), vec![a.to_dew_ast()]),
+            Self::Cos(a) => Ast::Call("cos".into(), vec![a.to_dew_ast()]),
+            Self::Abs(a) => Ast::Call("abs".into(), vec![a.to_dew_ast()]),
+            Self::Floor(a) => Ast::Call("floor".into(), vec![a.to_dew_ast()]),
+            Self::Fract(a) => Ast::Call("fract".into(), vec![a.to_dew_ast()]),
+            Self::Sqrt(a) => Ast::Call("sqrt".into(), vec![a.to_dew_ast()]),
+            Self::Pow(a, b) => Ast::BinOp(
+                BinOp::Pow,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Min(a, b) => Ast::Call("min".into(), vec![a.to_dew_ast(), b.to_dew_ast()]),
+            Self::Max(a, b) => Ast::Call("max".into(), vec![a.to_dew_ast(), b.to_dew_ast()]),
+            Self::Clamp { value, min, max } => Ast::Call(
+                "clamp".into(),
+                vec![value.to_dew_ast(), min.to_dew_ast(), max.to_dew_ast()],
+            ),
+            Self::Lerp { a, b, t } => Ast::Call(
+                "lerp".into(),
+                vec![a.to_dew_ast(), b.to_dew_ast(), t.to_dew_ast()],
+            ),
+
+            // Vec2-specific operations
+            Self::Length(a) => Ast::Call("length".into(), vec![a.to_dew_ast()]),
+            Self::Normalize(a) => Ast::Call("normalize".into(), vec![a.to_dew_ast()]),
+            Self::Dot(a, b) => Ast::Call("dot".into(), vec![a.to_dew_ast(), b.to_dew_ast()]),
+            Self::Distance(a, b) => {
+                Ast::Call("distance".into(), vec![a.to_dew_ast(), b.to_dew_ast()])
+            }
+
+            // Transforms - these expand to their mathematical equivalents
+            Self::Rotate { center, angle } => {
+                // center + rotate_vec(uv - center, angle)
+                // where rotate_vec(v, a) = vec2(v.x * cos(a) - v.y * sin(a), v.x * sin(a) + v.y * cos(a))
+                let c = center.to_dew_ast();
+                let a = angle.to_dew_ast();
+                let delta = Ast::BinOp(
+                    BinOp::Sub,
+                    Box::new(Ast::Var("uv".into())),
+                    Box::new(c.clone()),
+                );
+                // For now, use a rotate2d function that backends should implement
+                let rotated = Ast::Call("rotate2d".into(), vec![delta, a]);
+                Ast::BinOp(BinOp::Add, Box::new(c), Box::new(rotated))
+            }
+            Self::Scale { center, scale } => {
+                // center + (uv - center) * scale
+                let c = center.to_dew_ast();
+                let s = scale.to_dew_ast();
+                let delta = Ast::BinOp(
+                    BinOp::Sub,
+                    Box::new(Ast::Var("uv".into())),
+                    Box::new(c.clone()),
+                );
+                let scaled = Ast::BinOp(BinOp::Mul, Box::new(delta), Box::new(s));
+                Ast::BinOp(BinOp::Add, Box::new(c), Box::new(scaled))
+            }
+        }
+    }
+}
+
+/// A typed expression AST for per-pixel color transforms (Vec4 → Vec4).
+///
+/// This is the expression language for the `map_pixels` primitive. Each variant
+/// represents an operation that transforms RGBA color values.
+///
+/// # Design
+///
+/// Unlike raw closures, `ColorExpr` is:
+/// - **Serializable** - Save/load effect pipelines
+/// - **Interpretable** - Direct CPU evaluation
+/// - **Inspectable** - Debug and optimize transforms
+/// - **Future JIT/GPU** - Will compile to Cranelift/WGSL when dew-linalg is ready
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, ColorExpr, map_pixels};
+///
+/// let image = ImageField::from_raw(vec![[0.5, 0.3, 0.7, 1.0]; 16], 4, 4);
+///
+/// // Grayscale: luminance weighted average
+/// let grayscale = ColorExpr::grayscale();
+/// let result = map_pixels(&image, &grayscale);
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum ColorExpr {
+    // === Input ===
+    /// The input RGBA color as Vec4.
+    Rgba,
+    /// Just the red channel.
+    R,
+    /// Just the green channel.
+    G,
+    /// Just the blue channel.
+    B,
+    /// Just the alpha channel.
+    A,
+    /// Computed luminance (0.2126*R + 0.7152*G + 0.0722*B).
+    Luminance,
+
+    // === Constructors ===
+    /// Construct RGBA from four scalar expressions.
+    Vec4 {
+        r: Box<ColorExpr>,
+        g: Box<ColorExpr>,
+        b: Box<ColorExpr>,
+        a: Box<ColorExpr>,
+    },
+    /// Construct RGB with explicit alpha.
+    Vec3A {
+        r: Box<ColorExpr>,
+        g: Box<ColorExpr>,
+        b: Box<ColorExpr>,
+        a: Box<ColorExpr>,
+    },
+
+    // === Literals ===
+    /// A constant scalar value (broadcasts to all channels).
+    Constant(f32),
+    /// A constant RGBA value.
+    Constant4(f32, f32, f32, f32),
+
+    // === Arithmetic ===
+    /// Component-wise addition.
+    Add(Box<ColorExpr>, Box<ColorExpr>),
+    /// Component-wise subtraction.
+    Sub(Box<ColorExpr>, Box<ColorExpr>),
+    /// Component-wise multiplication.
+    Mul(Box<ColorExpr>, Box<ColorExpr>),
+    /// Component-wise division.
+    Div(Box<ColorExpr>, Box<ColorExpr>),
+    /// Negate.
+    Neg(Box<ColorExpr>),
+
+    // === Math functions ===
+    /// Absolute value.
+    Abs(Box<ColorExpr>),
+    /// Floor.
+    Floor(Box<ColorExpr>),
+    /// Fractional part.
+    Fract(Box<ColorExpr>),
+    /// Square root.
+    Sqrt(Box<ColorExpr>),
+    /// Power.
+    Pow(Box<ColorExpr>, Box<ColorExpr>),
+    /// Minimum.
+    Min(Box<ColorExpr>, Box<ColorExpr>),
+    /// Maximum.
+    Max(Box<ColorExpr>, Box<ColorExpr>),
+    /// Clamp to range.
+    Clamp {
+        value: Box<ColorExpr>,
+        min: Box<ColorExpr>,
+        max: Box<ColorExpr>,
+    },
+    /// Linear interpolation (mix).
+    Lerp {
+        a: Box<ColorExpr>,
+        b: Box<ColorExpr>,
+        t: Box<ColorExpr>,
+    },
+    /// Smooth step.
+    SmoothStep {
+        edge0: Box<ColorExpr>,
+        edge1: Box<ColorExpr>,
+        x: Box<ColorExpr>,
+    },
+    /// Step function.
+    Step {
+        edge: Box<ColorExpr>,
+        x: Box<ColorExpr>,
+    },
+
+    // === Conditionals ===
+    /// If-then-else based on comparison > 0.5.
+    IfThenElse {
+        condition: Box<ColorExpr>,
+        then_expr: Box<ColorExpr>,
+        else_expr: Box<ColorExpr>,
+    },
+    /// Greater than (returns 1.0 or 0.0).
+    Gt(Box<ColorExpr>, Box<ColorExpr>),
+    /// Less than (returns 1.0 or 0.0).
+    Lt(Box<ColorExpr>, Box<ColorExpr>),
+}
+
+impl ColorExpr {
+    /// Evaluate the expression for the given RGBA color.
+    ///
+    /// Returns the transformed color as [r', g', b', a'].
+    pub fn eval(&self, r: f32, g: f32, b: f32, a: f32) -> [f32; 4] {
+        match self {
+            // Input
+            Self::Rgba => [r, g, b, a],
+            Self::R => [r, r, r, r],
+            Self::G => [g, g, g, g],
+            Self::B => [b, b, b, b],
+            Self::A => [a, a, a, a],
+            Self::Luminance => {
+                let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                [lum, lum, lum, lum]
+            }
+
+            // Constructors
+            Self::Vec4 {
+                r: er,
+                g: eg,
+                b: eb,
+                a: ea,
+            } => {
+                let [rv, _, _, _] = er.eval(r, g, b, a);
+                let [gv, _, _, _] = eg.eval(r, g, b, a);
+                let [bv, _, _, _] = eb.eval(r, g, b, a);
+                let [av, _, _, _] = ea.eval(r, g, b, a);
+                [rv, gv, bv, av]
+            }
+            Self::Vec3A {
+                r: er,
+                g: eg,
+                b: eb,
+                a: ea,
+            } => {
+                let [rv, _, _, _] = er.eval(r, g, b, a);
+                let [gv, _, _, _] = eg.eval(r, g, b, a);
+                let [bv, _, _, _] = eb.eval(r, g, b, a);
+                let [av, _, _, _] = ea.eval(r, g, b, a);
+                [rv, gv, bv, av]
+            }
+
+            // Literals
+            Self::Constant(c) => [*c, *c, *c, *c],
+            Self::Constant4(cr, cg, cb, ca) => [*cr, *cg, *cb, *ca],
+
+            // Arithmetic
+            Self::Add(ea, eb) => {
+                let [ar, ag, ab, aa] = ea.eval(r, g, b, a);
+                let [br, bg, bb, ba] = eb.eval(r, g, b, a);
+                [ar + br, ag + bg, ab + bb, aa + ba]
+            }
+            Self::Sub(ea, eb) => {
+                let [ar, ag, ab, aa] = ea.eval(r, g, b, a);
+                let [br, bg, bb, ba] = eb.eval(r, g, b, a);
+                [ar - br, ag - bg, ab - bb, aa - ba]
+            }
+            Self::Mul(ea, eb) => {
+                let [ar, ag, ab, aa] = ea.eval(r, g, b, a);
+                let [br, bg, bb, ba] = eb.eval(r, g, b, a);
+                [ar * br, ag * bg, ab * bb, aa * ba]
+            }
+            Self::Div(ea, eb) => {
+                let [ar, ag, ab, aa] = ea.eval(r, g, b, a);
+                let [br, bg, bb, ba] = eb.eval(r, g, b, a);
+                [ar / br, ag / bg, ab / bb, aa / ba]
+            }
+            Self::Neg(e) => {
+                let [er, eg, eb, ea] = e.eval(r, g, b, a);
+                [-er, -eg, -eb, -ea]
+            }
+
+            // Math functions
+            Self::Abs(e) => {
+                let [er, eg, eb, ea] = e.eval(r, g, b, a);
+                [er.abs(), eg.abs(), eb.abs(), ea.abs()]
+            }
+            Self::Floor(e) => {
+                let [er, eg, eb, ea] = e.eval(r, g, b, a);
+                [er.floor(), eg.floor(), eb.floor(), ea.floor()]
+            }
+            Self::Fract(e) => {
+                let [er, eg, eb, ea] = e.eval(r, g, b, a);
+                [er.fract(), eg.fract(), eb.fract(), ea.fract()]
+            }
+            Self::Sqrt(e) => {
+                let [er, eg, eb, ea] = e.eval(r, g, b, a);
+                [er.sqrt(), eg.sqrt(), eb.sqrt(), ea.sqrt()]
+            }
+            Self::Pow(ea, eb) => {
+                let [ar, ag, ab, aa] = ea.eval(r, g, b, a);
+                let [br, bg, bb, ba] = eb.eval(r, g, b, a);
+                [ar.powf(br), ag.powf(bg), ab.powf(bb), aa.powf(ba)]
+            }
+            Self::Min(ea, eb) => {
+                let [ar, ag, ab, aa] = ea.eval(r, g, b, a);
+                let [br, bg, bb, ba] = eb.eval(r, g, b, a);
+                [ar.min(br), ag.min(bg), ab.min(bb), aa.min(ba)]
+            }
+            Self::Max(ea, eb) => {
+                let [ar, ag, ab, aa] = ea.eval(r, g, b, a);
+                let [br, bg, bb, ba] = eb.eval(r, g, b, a);
+                [ar.max(br), ag.max(bg), ab.max(bb), aa.max(ba)]
+            }
+            Self::Clamp { value, min, max } => {
+                let [vr, vg, vb, va] = value.eval(r, g, b, a);
+                let [minr, ming, minb, mina] = min.eval(r, g, b, a);
+                let [maxr, maxg, maxb, maxa] = max.eval(r, g, b, a);
+                [
+                    vr.clamp(minr, maxr),
+                    vg.clamp(ming, maxg),
+                    vb.clamp(minb, maxb),
+                    va.clamp(mina, maxa),
+                ]
+            }
+            Self::Lerp {
+                a: ea,
+                b: eb,
+                t: et,
+            } => {
+                let [ar, ag, ab, aa] = ea.eval(r, g, b, a);
+                let [br, bg, bb, ba] = eb.eval(r, g, b, a);
+                let [tr, tg, tb, ta] = et.eval(r, g, b, a);
+                [
+                    ar + (br - ar) * tr,
+                    ag + (bg - ag) * tg,
+                    ab + (bb - ab) * tb,
+                    aa + (ba - aa) * ta,
+                ]
+            }
+            Self::SmoothStep { edge0, edge1, x } => {
+                let [e0r, e0g, e0b, e0a] = edge0.eval(r, g, b, a);
+                let [e1r, e1g, e1b, e1a] = edge1.eval(r, g, b, a);
+                let [xr, xg, xb, xa] = x.eval(r, g, b, a);
+
+                let smooth = |x: f32, e0: f32, e1: f32| {
+                    let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
+                    t * t * (3.0 - 2.0 * t)
+                };
+
+                [
+                    smooth(xr, e0r, e1r),
+                    smooth(xg, e0g, e1g),
+                    smooth(xb, e0b, e1b),
+                    smooth(xa, e0a, e1a),
+                ]
+            }
+            Self::Step { edge, x } => {
+                let [er, eg, eb, ea] = edge.eval(r, g, b, a);
+                let [xr, xg, xb, xa] = x.eval(r, g, b, a);
+                [
+                    if xr < er { 0.0 } else { 1.0 },
+                    if xg < eg { 0.0 } else { 1.0 },
+                    if xb < eb { 0.0 } else { 1.0 },
+                    if xa < ea { 0.0 } else { 1.0 },
+                ]
+            }
+
+            // Conditionals
+            Self::IfThenElse {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                let [cr, cg, cb, ca] = condition.eval(r, g, b, a);
+                let [tr, tg, tb, ta] = then_expr.eval(r, g, b, a);
+                let [er, eg, eb, ea] = else_expr.eval(r, g, b, a);
+                [
+                    if cr > 0.5 { tr } else { er },
+                    if cg > 0.5 { tg } else { eg },
+                    if cb > 0.5 { tb } else { eb },
+                    if ca > 0.5 { ta } else { ea },
+                ]
+            }
+            Self::Gt(ea, eb) => {
+                let [ar, ag, ab, aa] = ea.eval(r, g, b, a);
+                let [br, bg, bb, ba] = eb.eval(r, g, b, a);
+                [
+                    if ar > br { 1.0 } else { 0.0 },
+                    if ag > bg { 1.0 } else { 0.0 },
+                    if ab > bb { 1.0 } else { 0.0 },
+                    if aa > ba { 1.0 } else { 0.0 },
+                ]
+            }
+            Self::Lt(ea, eb) => {
+                let [ar, ag, ab, aa] = ea.eval(r, g, b, a);
+                let [br, bg, bb, ba] = eb.eval(r, g, b, a);
+                [
+                    if ar < br { 1.0 } else { 0.0 },
+                    if ag < bg { 1.0 } else { 0.0 },
+                    if ab < bb { 1.0 } else { 0.0 },
+                    if aa < ba { 1.0 } else { 0.0 },
+                ]
+            }
+        }
+    }
+
+    /// Creates an identity transform (returns RGBA unchanged).
+    pub fn identity() -> Self {
+        Self::Rgba
+    }
+
+    /// Creates a grayscale transform using ITU-R BT.709 luminance.
+    pub fn grayscale() -> Self {
+        // luminance, luminance, luminance, alpha
+        Self::Vec4 {
+            r: Box::new(Self::Luminance),
+            g: Box::new(Self::Luminance),
+            b: Box::new(Self::Luminance),
+            a: Box::new(Self::A),
+        }
+    }
+
+    /// Creates an invert transform (1 - RGB, preserves alpha).
+    pub fn invert() -> Self {
+        Self::Vec4 {
+            r: Box::new(Self::Sub(Box::new(Self::Constant(1.0)), Box::new(Self::R))),
+            g: Box::new(Self::Sub(Box::new(Self::Constant(1.0)), Box::new(Self::G))),
+            b: Box::new(Self::Sub(Box::new(Self::Constant(1.0)), Box::new(Self::B))),
+            a: Box::new(Self::A),
+        }
+    }
+
+    /// Creates a threshold transform (luminance > threshold ? white : black).
+    pub fn threshold(threshold: f32) -> Self {
+        let lum_gt_threshold = Self::Gt(
+            Box::new(Self::Luminance),
+            Box::new(Self::Constant(threshold)),
+        );
+        Self::Vec4 {
+            r: Box::new(lum_gt_threshold.clone()),
+            g: Box::new(lum_gt_threshold.clone()),
+            b: Box::new(lum_gt_threshold),
+            a: Box::new(Self::A),
+        }
+    }
+
+    /// Creates a brightness adjustment (multiply RGB by factor).
+    pub fn brightness(factor: f32) -> Self {
+        Self::Vec4 {
+            r: Box::new(Self::Mul(
+                Box::new(Self::R),
+                Box::new(Self::Constant(factor)),
+            )),
+            g: Box::new(Self::Mul(
+                Box::new(Self::G),
+                Box::new(Self::Constant(factor)),
+            )),
+            b: Box::new(Self::Mul(
+                Box::new(Self::B),
+                Box::new(Self::Constant(factor)),
+            )),
+            a: Box::new(Self::A),
+        }
+    }
+
+    /// Creates a contrast adjustment (scale RGB around 0.5).
+    pub fn contrast(factor: f32) -> Self {
+        // (color - 0.5) * factor + 0.5
+        let adjust = |channel: Self| {
+            Self::Add(
+                Box::new(Self::Mul(
+                    Box::new(Self::Sub(Box::new(channel), Box::new(Self::Constant(0.5)))),
+                    Box::new(Self::Constant(factor)),
+                )),
+                Box::new(Self::Constant(0.5)),
+            )
+        };
+        Self::Vec4 {
+            r: Box::new(adjust(Self::R)),
+            g: Box::new(adjust(Self::G)),
+            b: Box::new(adjust(Self::B)),
+            a: Box::new(Self::A),
+        }
+    }
+
+    /// Creates a posterize effect (quantize to N levels).
+    pub fn posterize(levels: u32) -> Self {
+        let factor = (levels.max(2) - 1) as f32;
+        // floor(color * factor) / factor
+        let quantize = |channel: Self| {
+            Self::Div(
+                Box::new(Self::Floor(Box::new(Self::Mul(
+                    Box::new(channel),
+                    Box::new(Self::Constant(factor)),
+                )))),
+                Box::new(Self::Constant(factor)),
+            )
+        };
+        Self::Vec4 {
+            r: Box::new(quantize(Self::R)),
+            g: Box::new(quantize(Self::G)),
+            b: Box::new(quantize(Self::B)),
+            a: Box::new(Self::A),
+        }
+    }
+
+    /// Creates a gamma correction transform.
+    pub fn gamma(gamma: f32) -> Self {
+        let inv_gamma = 1.0 / gamma;
+        Self::Vec4 {
+            r: Box::new(Self::Pow(
+                Box::new(Self::R),
+                Box::new(Self::Constant(inv_gamma)),
+            )),
+            g: Box::new(Self::Pow(
+                Box::new(Self::G),
+                Box::new(Self::Constant(inv_gamma)),
+            )),
+            b: Box::new(Self::Pow(
+                Box::new(Self::B),
+                Box::new(Self::Constant(inv_gamma)),
+            )),
+            a: Box::new(Self::A),
+        }
+    }
+
+    /// Creates a color tint (multiply by a color).
+    pub fn tint(tint_r: f32, tint_g: f32, tint_b: f32) -> Self {
+        Self::Vec4 {
+            r: Box::new(Self::Mul(
+                Box::new(Self::R),
+                Box::new(Self::Constant(tint_r)),
+            )),
+            g: Box::new(Self::Mul(
+                Box::new(Self::G),
+                Box::new(Self::Constant(tint_g)),
+            )),
+            b: Box::new(Self::Mul(
+                Box::new(Self::B),
+                Box::new(Self::Constant(tint_b)),
+            )),
+            a: Box::new(Self::A),
+        }
+    }
+
+    /// Converts this expression to a Dew AST for JIT/WGSL compilation.
+    ///
+    /// The resulting AST expects an `rgba` Vec4 variable and returns Vec4.
+    /// Use with `dew-linalg` for evaluation or compilation.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use rhizome_dew_linalg::{Value, eval, linalg_registry};
+    /// use std::collections::HashMap;
+    ///
+    /// let expr = ColorExpr::grayscale();
+    /// let ast = expr.to_dew_ast();
+    ///
+    /// let mut vars = HashMap::new();
+    /// vars.insert("rgba".into(), Value::Vec4([1.0, 0.0, 0.0, 1.0]));
+    ///
+    /// let result = eval(&ast, &vars, &linalg_registry()).unwrap();
+    /// // result = Value::Vec4([0.2126, 0.2126, 0.2126, 1.0])
+    /// ```
+    #[cfg(feature = "dew")]
+    pub fn to_dew_ast(&self) -> rhizome_dew_core::Ast {
+        use rhizome_dew_core::{Ast, BinOp, UnaryOp};
+
+        match self {
+            // Input - rgba is a Vec4 variable
+            Self::Rgba => Ast::Var("rgba".into()),
+            // Component extraction using x/y/z/w (or could use r/g/b/a if supported)
+            Self::R => Ast::Call("x".into(), vec![Ast::Var("rgba".into())]),
+            Self::G => Ast::Call("y".into(), vec![Ast::Var("rgba".into())]),
+            Self::B => Ast::Call("z".into(), vec![Ast::Var("rgba".into())]),
+            Self::A => Ast::Call("w".into(), vec![Ast::Var("rgba".into())]),
+            // Luminance: 0.2126*R + 0.7152*G + 0.0722*B
+            Self::Luminance => {
+                let r = Ast::Call("x".into(), vec![Ast::Var("rgba".into())]);
+                let g = Ast::Call("y".into(), vec![Ast::Var("rgba".into())]);
+                let b = Ast::Call("z".into(), vec![Ast::Var("rgba".into())]);
+                let term_r = Ast::BinOp(BinOp::Mul, Box::new(Ast::Num(0.2126)), Box::new(r));
+                let term_g = Ast::BinOp(BinOp::Mul, Box::new(Ast::Num(0.7152)), Box::new(g));
+                let term_b = Ast::BinOp(BinOp::Mul, Box::new(Ast::Num(0.0722)), Box::new(b));
+                let sum_rg = Ast::BinOp(BinOp::Add, Box::new(term_r), Box::new(term_g));
+                Ast::BinOp(BinOp::Add, Box::new(sum_rg), Box::new(term_b))
+            }
+
+            // Constructors
+            Self::Vec4 { r, g, b, a } => Ast::Call(
+                "vec4".into(),
+                vec![
+                    r.to_dew_ast(),
+                    g.to_dew_ast(),
+                    b.to_dew_ast(),
+                    a.to_dew_ast(),
+                ],
+            ),
+            Self::Vec3A { r, g, b, a } => {
+                // Same as Vec4 - construct vec4 from components
+                Ast::Call(
+                    "vec4".into(),
+                    vec![
+                        r.to_dew_ast(),
+                        g.to_dew_ast(),
+                        b.to_dew_ast(),
+                        a.to_dew_ast(),
+                    ],
+                )
+            }
+
+            // Literals
+            Self::Constant(c) => Ast::Num(*c),
+            Self::Constant4(r, g, b, a) => Ast::Call(
+                "vec4".into(),
+                vec![Ast::Num(*r), Ast::Num(*g), Ast::Num(*b), Ast::Num(*a)],
+            ),
+
+            // Binary operations
+            Self::Add(a, b) => Ast::BinOp(
+                BinOp::Add,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Sub(a, b) => Ast::BinOp(
+                BinOp::Sub,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Mul(a, b) => Ast::BinOp(
+                BinOp::Mul,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Div(a, b) => Ast::BinOp(
+                BinOp::Div,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Neg(a) => Ast::UnaryOp(UnaryOp::Neg, Box::new(a.to_dew_ast())),
+
+            // Math functions
+            Self::Abs(a) => Ast::Call("abs".into(), vec![a.to_dew_ast()]),
+            Self::Floor(a) => Ast::Call("floor".into(), vec![a.to_dew_ast()]),
+            Self::Fract(a) => Ast::Call("fract".into(), vec![a.to_dew_ast()]),
+            Self::Sqrt(a) => Ast::Call("sqrt".into(), vec![a.to_dew_ast()]),
+            Self::Pow(a, b) => Ast::BinOp(
+                BinOp::Pow,
+                Box::new(a.to_dew_ast()),
+                Box::new(b.to_dew_ast()),
+            ),
+            Self::Min(a, b) => Ast::Call("min".into(), vec![a.to_dew_ast(), b.to_dew_ast()]),
+            Self::Max(a, b) => Ast::Call("max".into(), vec![a.to_dew_ast(), b.to_dew_ast()]),
+            Self::Clamp { value, min, max } => Ast::Call(
+                "clamp".into(),
+                vec![value.to_dew_ast(), min.to_dew_ast(), max.to_dew_ast()],
+            ),
+            Self::Lerp { a, b, t } => Ast::Call(
+                "lerp".into(),
+                vec![a.to_dew_ast(), b.to_dew_ast(), t.to_dew_ast()],
+            ),
+            Self::SmoothStep { edge0, edge1, x } => Ast::Call(
+                "smoothstep".into(),
+                vec![edge0.to_dew_ast(), edge1.to_dew_ast(), x.to_dew_ast()],
+            ),
+            Self::Step { edge, x } => {
+                Ast::Call("step".into(), vec![edge.to_dew_ast(), x.to_dew_ast()])
+            }
+
+            // Conditionals - these map to select/mix based on comparison
+            Self::IfThenElse {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                // select(else, then, condition > 0.5)
+                // or we can use: lerp(else, then, step(0.5, condition))
+                let cond_gt_half =
+                    Ast::Call("step".into(), vec![Ast::Num(0.5), condition.to_dew_ast()]);
+                Ast::Call(
+                    "lerp".into(),
+                    vec![else_expr.to_dew_ast(), then_expr.to_dew_ast(), cond_gt_half],
+                )
+            }
+            Self::Gt(a, b) => {
+                // step(b, a) returns 1.0 if a >= b, 0.0 otherwise
+                // We want a > b strictly, but step is >=, close enough for floats
+                Ast::Call("step".into(), vec![b.to_dew_ast(), a.to_dew_ast()])
+            }
+            Self::Lt(a, b) => {
+                // step(a, b) returns 1.0 if b >= a, i.e., a <= b
+                Ast::Call("step".into(), vec![a.to_dew_ast(), b.to_dew_ast()])
+            }
+        }
+    }
+}
+
+/// Remaps UV coordinates using an expression.
+///
+/// This is a fundamental primitive for geometric image transforms. All UV-based
+/// effects (distortions, transforms, warps) can be expressed through this function.
+///
+/// # Arguments
+///
+/// * `image` - The source image to sample from
+/// * `expr` - A `UvExpr` that maps (u, v) → (u', v')
+///
+/// # How It Works
+///
+/// For each output pixel at position (u, v):
+/// 1. Evaluate `expr` to get the source coordinates (u', v')
+/// 2. Sample the source image at (u', v')
+/// 3. Write that color to the output pixel
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, UvExpr, remap_uv};
+///
+/// let image = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
+///
+/// // Simple translation
+/// let translated = remap_uv(&image, &UvExpr::translate(0.1, 0.0));
+///
+/// // Rotation around center
+/// let rotated = remap_uv(&image, &UvExpr::rotate_centered(0.5));
+/// ```
+pub fn remap_uv(image: &ImageField, expr: &UvExpr) -> ImageField {
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let u = (x as f32 + 0.5) / width as f32;
+            let v = (y as f32 + 0.5) / height as f32;
+
+            let (src_u, src_v) = expr.eval(u, v);
+            let color = image.sample_uv(src_u, src_v);
+            data.push([color.r, color.g, color.b, color.a]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Applies a per-pixel color transform using an expression.
+///
+/// This is a fundamental primitive for color image transforms. All per-pixel
+/// color effects (grayscale, invert, threshold, color grading) can be expressed
+/// through this function.
+///
+/// # Arguments
+///
+/// * `image` - The source image to transform
+/// * `expr` - A `ColorExpr` that maps (r, g, b, a) → (r', g', b', a')
+///
+/// # How It Works
+///
+/// For each pixel in the image:
+/// 1. Read the RGBA color
+/// 2. Evaluate `expr` to transform the color
+/// 3. Write the transformed color back
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, ColorExpr, map_pixels};
+///
+/// let image = ImageField::from_raw(vec![[0.5, 0.3, 0.7, 1.0]; 16], 4, 4);
+///
+/// // Convert to grayscale
+/// let gray = map_pixels(&image, &ColorExpr::grayscale());
+///
+/// // Invert colors
+/// let inverted = map_pixels(&image, &ColorExpr::invert());
+///
+/// // Apply threshold
+/// let binary = map_pixels(&image, &ColorExpr::threshold(0.5));
+/// ```
+pub fn map_pixels(image: &ImageField, expr: &ColorExpr) -> ImageField {
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = image.get_pixel(x, y);
+            let [r, g, b, a] = expr.eval(pixel[0], pixel[1], pixel[2], pixel[3]);
+            data.push([r, g, b, a]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -6126,7 +7315,7 @@ mod tests {
     fn test_laplacian_reconstruct() {
         let data: Vec<_> = (0..64)
             .map(|i| {
-                let v = (i as f32 / 63.0);
+                let v = i as f32 / 63.0;
                 [v, v, v, 1.0]
             })
             .collect();
@@ -6349,5 +7538,272 @@ mod tests {
 
         // Corners should still be black
         assert!(dilated.get_pixel(0, 0)[0] < 0.5);
+    }
+
+    // ========== Expression-based primitive tests ==========
+
+    #[test]
+    fn test_uv_expr_identity() {
+        let expr = UvExpr::identity();
+        assert_eq!(expr.eval(0.3, 0.7), (0.3, 0.7));
+        assert_eq!(expr.eval(0.0, 1.0), (0.0, 1.0));
+    }
+
+    #[test]
+    fn test_uv_expr_translate() {
+        let expr = UvExpr::translate(0.1, -0.2);
+        let (u, v) = expr.eval(0.5, 0.5);
+        assert!((u - 0.6).abs() < 1e-6);
+        assert!((v - 0.3).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_uv_expr_scale_centered() {
+        let expr = UvExpr::scale_centered(2.0, 2.0);
+        // At center, should stay the same
+        let (u, v) = expr.eval(0.5, 0.5);
+        assert!((u - 0.5).abs() < 1e-6);
+        assert!((v - 0.5).abs() < 1e-6);
+
+        // At (0, 0), scales outward from center
+        let (u, v) = expr.eval(0.0, 0.0);
+        assert!((u - (-0.5)).abs() < 1e-6);
+        assert!((v - (-0.5)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_uv_expr_rotate_centered() {
+        use std::f32::consts::PI;
+        let expr = UvExpr::rotate_centered(PI); // 180 degrees
+        // At center, should stay the same
+        let (u, v) = expr.eval(0.5, 0.5);
+        assert!((u - 0.5).abs() < 1e-5);
+        assert!((v - 0.5).abs() < 1e-5);
+
+        // At (1, 0.5), should map to (0, 0.5)
+        let (u, v) = expr.eval(1.0, 0.5);
+        assert!((u - 0.0).abs() < 1e-5);
+        assert!((v - 0.5).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_uv_expr_vec2_constructor() {
+        // Swap U and V
+        let expr = UvExpr::Vec2 {
+            x: Box::new(UvExpr::V),
+            y: Box::new(UvExpr::U),
+        };
+        let (u, v) = expr.eval(0.3, 0.7);
+        assert!((u - 0.7).abs() < 1e-6);
+        assert!((v - 0.3).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_uv_expr_math_ops() {
+        // Test sin
+        let sin_expr = UvExpr::Sin(Box::new(UvExpr::Constant(0.0)));
+        let (u, _) = sin_expr.eval(0.0, 0.0);
+        assert!(u.abs() < 1e-6);
+
+        // Test length
+        let len_expr = UvExpr::Length(Box::new(UvExpr::Constant2(3.0, 4.0)));
+        let (len, _) = len_expr.eval(0.0, 0.0);
+        assert!((len - 5.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_color_expr_identity() {
+        let expr = ColorExpr::identity();
+        let result = expr.eval(0.2, 0.4, 0.6, 0.8);
+        assert_eq!(result, [0.2, 0.4, 0.6, 0.8]);
+    }
+
+    #[test]
+    fn test_color_expr_grayscale() {
+        let expr = ColorExpr::grayscale();
+        let result = expr.eval(1.0, 0.0, 0.0, 1.0); // Pure red
+        // Luminance of pure red = 0.2126
+        assert!((result[0] - 0.2126).abs() < 1e-4);
+        assert!((result[1] - 0.2126).abs() < 1e-4);
+        assert!((result[2] - 0.2126).abs() < 1e-4);
+        assert!((result[3] - 1.0).abs() < 1e-6); // Alpha preserved
+    }
+
+    #[test]
+    fn test_color_expr_invert() {
+        let expr = ColorExpr::invert();
+        let result = expr.eval(0.2, 0.3, 0.4, 0.9);
+        assert!((result[0] - 0.8).abs() < 1e-6);
+        assert!((result[1] - 0.7).abs() < 1e-6);
+        assert!((result[2] - 0.6).abs() < 1e-6);
+        assert!((result[3] - 0.9).abs() < 1e-6); // Alpha preserved
+    }
+
+    #[test]
+    fn test_color_expr_threshold() {
+        let expr = ColorExpr::threshold(0.5);
+
+        // Dark pixel (luminance < 0.5)
+        let dark = expr.eval(0.2, 0.2, 0.2, 1.0);
+        assert!(dark[0] < 0.01);
+
+        // Bright pixel (luminance > 0.5)
+        let bright = expr.eval(0.8, 0.8, 0.8, 1.0);
+        assert!(bright[0] > 0.99);
+    }
+
+    #[test]
+    fn test_color_expr_brightness() {
+        let expr = ColorExpr::brightness(2.0);
+        let result = expr.eval(0.25, 0.5, 0.125, 1.0);
+        assert!((result[0] - 0.5).abs() < 1e-6);
+        assert!((result[1] - 1.0).abs() < 1e-6);
+        assert!((result[2] - 0.25).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_color_expr_posterize() {
+        let expr = ColorExpr::posterize(4); // 4 levels: 0, 0.33, 0.67, 1.0
+        // formula: floor(color * factor) / factor, where factor = 3
+        // 0.4 * 3 = 1.2 -> floor = 1 -> 1/3 = 0.333
+        // 0.6 * 3 = 1.8 -> floor = 1 -> 1/3 = 0.333
+        // 0.9 * 3 = 2.7 -> floor = 2 -> 2/3 = 0.667
+        let result = expr.eval(0.4, 0.6, 0.9, 1.0);
+        assert!((result[0] - 0.333).abs() < 0.1);
+        assert!((result[1] - 0.333).abs() < 0.1);
+        assert!((result[2] - 0.667).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_remap_uv_identity() {
+        let data: Vec<_> = (0..16).map(|i| [i as f32 / 15.0, 0.0, 0.0, 1.0]).collect();
+        let img = ImageField::from_raw(data.clone(), 4, 4);
+
+        let result = remap_uv(&img, &UvExpr::identity());
+
+        // Should be essentially unchanged
+        for i in 0..16 {
+            let x = (i % 4) as u32;
+            let y = (i / 4) as u32;
+            let orig = img.get_pixel(x, y)[0];
+            let new = result.get_pixel(x, y)[0];
+            assert!(
+                (orig - new).abs() < 0.01,
+                "Pixel ({}, {}) changed: {} -> {}",
+                x,
+                y,
+                orig,
+                new
+            );
+        }
+    }
+
+    #[test]
+    fn test_map_pixels_identity() {
+        let data = vec![[0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8]];
+        let img = ImageField::from_raw(data.clone(), 2, 1);
+
+        let result = map_pixels(&img, &ColorExpr::identity());
+
+        let p0 = result.get_pixel(0, 0);
+        let p1 = result.get_pixel(1, 0);
+        assert!((p0[0] - 0.1).abs() < 1e-6);
+        assert!((p1[2] - 0.7).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_map_pixels_grayscale() {
+        let data = vec![[1.0, 0.0, 0.0, 1.0], [0.0, 1.0, 0.0, 1.0]];
+        let img = ImageField::from_raw(data, 2, 1);
+
+        let result = map_pixels(&img, &ColorExpr::grayscale());
+
+        // Red pixel -> luminance 0.2126
+        let p0 = result.get_pixel(0, 0);
+        assert!((p0[0] - 0.2126).abs() < 1e-4);
+        assert!((p0[1] - 0.2126).abs() < 1e-4);
+
+        // Green pixel -> luminance 0.7152
+        let p1 = result.get_pixel(1, 0);
+        assert!((p1[0] - 0.7152).abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_lens_distortion_to_uv_expr() {
+        let config = LensDistortion::barrel(0.3);
+        let expr = config.to_uv_expr();
+
+        // At center, should return center
+        let (u, v) = expr.eval(0.5, 0.5);
+        assert!((u - 0.5).abs() < 1e-6);
+        assert!((v - 0.5).abs() < 1e-6);
+
+        // Away from center, should be distorted
+        let (u, _) = expr.eval(0.8, 0.5);
+        assert!(u != 0.8, "Distortion should modify coordinates");
+    }
+
+    #[test]
+    fn test_wave_distortion_to_uv_expr() {
+        // Use default config which has both amplitude_x/y and frequency_x/y set
+        let config = WaveDistortion {
+            amplitude_x: 0.1,
+            amplitude_y: 0.0,
+            frequency_x: 0.0,
+            frequency_y: 2.0, // This controls the X offset wave
+            phase: 0.0,
+        };
+        let expr = config.to_uv_expr();
+
+        // At V=0, the sine wave should be at phase=0, so offset_x = 0
+        let (u, v) = expr.eval(0.5, 0.0);
+        assert!((u - 0.5).abs() < 1e-5, "At v=0, u should be ~unchanged");
+        assert!((v - 0.0).abs() < 1e-5);
+
+        // At V=0.125 (1/4 cycle for freq=2), sine should be at peak
+        // offset_x = 0.1 * sin(0.125 * 2 * 2π) = 0.1 * sin(π/2) = 0.1 * 1 = 0.1
+        let (u, _) = expr.eval(0.5, 0.125);
+        assert!(
+            (u - 0.6).abs() < 0.02,
+            "At v=0.125, should have positive offset, got u={}",
+            u
+        );
+    }
+
+    #[test]
+    fn test_lens_distortion_uses_remap_uv() {
+        // Verify that lens_distortion produces the same result as remap_uv
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 25];
+        let img = ImageField::from_raw(data, 5, 5);
+        let config = LensDistortion::barrel(0.5);
+
+        let result1 = lens_distortion(&img, &config);
+        let result2 = remap_uv(&img, &config.to_uv_expr());
+
+        for y in 0..5 {
+            for x in 0..5 {
+                let p1 = result1.get_pixel(x, y);
+                let p2 = result2.get_pixel(x, y);
+                assert!((p1[0] - p2[0]).abs() < 1e-6, "Mismatch at ({}, {})", x, y);
+            }
+        }
+    }
+
+    #[test]
+    fn test_wave_distortion_uses_remap_uv() {
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 25];
+        let img = ImageField::from_raw(data, 5, 5);
+        let config = WaveDistortion::horizontal(0.05, 3.0);
+
+        let result1 = wave_distortion(&img, &config);
+        let result2 = remap_uv(&img, &config.to_uv_expr());
+
+        for y in 0..5 {
+            for x in 0..5 {
+                let p1 = result1.get_pixel(x, y);
+                let p2 = result2.get_pixel(x, y);
+                assert!((p1[0] - p2[0]).abs() < 1e-6, "Mismatch at ({}, {})", x, y);
+            }
+        }
     }
 }

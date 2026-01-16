@@ -10,6 +10,9 @@ repository = "https://github.com/rhizome-lab/resin"
 default = []
 serde = ["dep:serde"]
 dynop = ["dep:rhizome-resin-op", "dep:serde_json", "serde"]
+dew = ["dep:rhizome-dew-core", "dep:rhizome-dew-linalg"]
+cranelift = ["dew", "rhizome-dew-linalg/cranelift"]
+wgsl = ["dew", "rhizome-dew-linalg/wgsl"]
 
 [dependencies]
 glam.workspace = true
@@ -17,6 +20,8 @@ image.workspace = true
 rhizome-resin-color = { path = "../resin-color" }
 rhizome-resin-field = { path = "../resin-field" }
 rhizome-resin-op = { path = "../resin-op", optional = true }
+rhizome-dew-core = { git = "https://github.com/rhizome-lab/dew", features = ["cond"], optional = true }
+rhizome-dew-linalg = { git = "https://github.com/rhizome-lab/dew", features = ["4d"], optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
 thiserror.workspace = true

@@ -8,6 +8,7 @@ description = "GPU compute backend for resin fields"
 [features]
 serde = ["dep:serde"]
 dynop = ["dep:rhizome-resin-op", "dep:serde_json", "serde"]
+image-expr = ["dep:rhizome-resin-image", "dep:rhizome-dew-linalg"]
 
 [dependencies]
 glam = { workspace = true }
@@ -16,6 +17,8 @@ bytemuck = { version = "1.14", features = ["derive"] }
 pollster = "0.4"
 thiserror = { workspace = true }
 rhizome-resin-op = { path = "../resin-op", optional = true }
+rhizome-resin-image = { path = "../resin-image", features = ["wgsl"], optional = true }
+rhizome-dew-linalg = { git = "https://github.com/rhizome-lab/dew", features = ["4d", "wgsl"], optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
 
