@@ -586,4 +586,98 @@ mod tests {
         let outputs = graph.execute(mul).unwrap();
         assert_eq!(outputs[0].as_f32().unwrap(), 12.0);
     }
+
+    #[test]
+    fn test_lazy_evaluator() {
+        use crate::eval::{EvalResult, Evaluator, LazyEvaluator};
+
+        let mut graph = Graph::new();
+        let const_a = graph.add_node(ConstNode(2.0));
+        let const_b = graph.add_node(ConstNode(3.0));
+        let add = graph.add_node(AddNode);
+
+        graph.connect(const_a, 0, add, 0).unwrap();
+        graph.connect(const_b, 0, add, 1).unwrap();
+
+        let mut evaluator = LazyEvaluator::new();
+        let ctx = EvalContext::new();
+
+        // First evaluation - should compute all nodes
+        let result = evaluator.evaluate(&graph, &[add], &ctx).unwrap();
+        assert_eq!(result.outputs.len(), 1);
+        assert_eq!(result.outputs[0][0].as_f32().unwrap(), 5.0);
+        assert_eq!(result.computed_nodes.len(), 3); // const_a, const_b, add
+
+        // Second evaluation - should use cache
+        let result2 = evaluator.evaluate(&graph, &[add], &ctx).unwrap();
+        assert_eq!(result2.outputs[0][0].as_f32().unwrap(), 5.0);
+        // All nodes should be served from cache now
+        assert_eq!(result2.computed_nodes.len(), 0);
+        assert_eq!(result2.cached_nodes.len(), 3); // const_a, const_b, add
+    }
+
+    #[test]
+    fn test_lazy_evaluator_partial() {
+        use crate::eval::{Evaluator, LazyEvaluator};
+
+        // Build a diamond graph:
+        //   A
+        //  / \
+        // B   C
+        //  \ /
+        //   D
+        let mut graph = Graph::new();
+        let a = graph.add_node(ConstNode(10.0));
+        let b = graph.add_node(AddNode);
+        let c = graph.add_node(AddNode);
+        let d = graph.add_node(AddNode);
+
+        // B = A + 0 (we'll use a const for the second input)
+        let zero1 = graph.add_node(ConstNode(0.0));
+        graph.connect(a, 0, b, 0).unwrap();
+        graph.connect(zero1, 0, b, 1).unwrap();
+
+        // C = A + 1
+        let one = graph.add_node(ConstNode(1.0));
+        graph.connect(a, 0, c, 0).unwrap();
+        graph.connect(one, 0, c, 1).unwrap();
+
+        // D = B + C
+        graph.connect(b, 0, d, 0).unwrap();
+        graph.connect(c, 0, d, 1).unwrap();
+
+        let mut evaluator = LazyEvaluator::new();
+        let ctx = EvalContext::new();
+
+        // Request only B - should only evaluate A, zero1, and B
+        let result = evaluator.evaluate(&graph, &[b], &ctx).unwrap();
+        assert_eq!(result.outputs[0][0].as_f32().unwrap(), 10.0);
+
+        // Request D - should use cached A (via B's cache), compute C and D
+        let result2 = evaluator.evaluate(&graph, &[d], &ctx).unwrap();
+        // D = B + C = 10 + 11 = 21
+        assert_eq!(result2.outputs[0][0].as_f32().unwrap(), 21.0);
+    }
+
+    #[test]
+    fn test_lazy_evaluator_cancellation() {
+        use crate::eval::{Evaluator, LazyEvaluator};
+
+        let mut graph = Graph::new();
+        let const_a = graph.add_node(ConstNode(2.0));
+        let const_b = graph.add_node(ConstNode(3.0));
+        let add = graph.add_node(AddNode);
+
+        graph.connect(const_a, 0, add, 0).unwrap();
+        graph.connect(const_b, 0, add, 1).unwrap();
+
+        let mut evaluator = LazyEvaluator::new();
+        let token = crate::CancellationToken::new();
+        token.cancel(); // Cancel before evaluation
+
+        let ctx = EvalContext::new().with_cancel(token);
+        let result = evaluator.evaluate(&graph, &[add], &ctx);
+
+        assert!(matches!(result, Err(GraphError::Cancelled)));
+    }
 }
