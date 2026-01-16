@@ -22,7 +22,8 @@ use std::path::Path;
 use glam::{Mat3, Mat4, Vec2, Vec3, Vec4};
 use image::{DynamicImage, GenericImageView, ImageError};
 
-use rhizome_resin_color::Rgba;
+pub use rhizome_resin_color::BlendMode;
+use rhizome_resin_color::{Rgba, blend_with_alpha};
 use rhizome_resin_field::{EvalContext, Field};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -138,7 +139,7 @@ impl ImageField {
         }
     }
 
-    /// Creates a solid color image field.
+    /// Creates a solid color image field (1x1, tiles via wrap mode).
     pub fn solid(color: Rgba) -> Self {
         Self {
             data: vec![[color.r, color.g, color.b, color.a]],
@@ -146,6 +147,17 @@ impl ImageField {
             height: 1,
             wrap_mode: WrapMode::Repeat,
             filter_mode: FilterMode::Nearest,
+        }
+    }
+
+    /// Creates a solid color image field with specific dimensions.
+    pub fn solid_sized(width: u32, height: u32, color: [f32; 4]) -> Self {
+        Self {
+            data: vec![color; (width * height) as usize],
+            width,
+            height,
+            wrap_mode: WrapMode::default(),
+            filter_mode: FilterMode::default(),
         }
     }
 
@@ -1237,6 +1249,337 @@ pub fn swap_channels(image: &ImageField, a: Channel, b: Channel) -> ImageField {
 }
 
 // ============================================================================
+// Colorspace Decomposition
+// ============================================================================
+
+/// Colorspace for decomposition/reconstruction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Colorspace {
+    /// HSL (Hue, Saturation, Lightness).
+    Hsl,
+    /// HSV (Hue, Saturation, Value).
+    Hsv,
+    /// YCbCr (Luma, Blue-difference, Red-difference chroma).
+    YCbCr,
+    /// LAB (CIE L*a*b* perceptual colorspace).
+    Lab,
+}
+
+/// Decomposed colorspace channels.
+///
+/// Contains three channels representing the colorspace components.
+/// Channel values are normalized to [0, 1] for storage.
+pub struct ColorspaceChannels {
+    /// First channel (H/Y/L depending on colorspace).
+    pub c0: ImageField,
+    /// Second channel (S/Cb/a depending on colorspace).
+    pub c1: ImageField,
+    /// Third channel (L/V/Cr/b depending on colorspace).
+    pub c2: ImageField,
+    /// Alpha channel (preserved from original).
+    pub alpha: ImageField,
+    /// Which colorspace these channels represent.
+    pub colorspace: Colorspace,
+}
+
+/// Decomposes an RGB image into the specified colorspace.
+///
+/// Returns separate grayscale images for each channel, normalized to [0, 1].
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, Colorspace, decompose_colorspace, reconstruct_colorspace};
+///
+/// let image = ImageField::solid_sized(64, 64, [0.8, 0.4, 0.2, 1.0]);
+///
+/// // Decompose to HSL
+/// let channels = decompose_colorspace(&image, Colorspace::Hsl);
+///
+/// // Modify saturation channel...
+///
+/// // Reconstruct back to RGB
+/// let result = reconstruct_colorspace(&channels);
+/// ```
+pub fn decompose_colorspace(image: &ImageField, colorspace: Colorspace) -> ColorspaceChannels {
+    let (width, height) = image.dimensions();
+    let size = (width * height) as usize;
+
+    let mut c0_data = Vec::with_capacity(size);
+    let mut c1_data = Vec::with_capacity(size);
+    let mut c2_data = Vec::with_capacity(size);
+    let mut alpha_data = Vec::with_capacity(size);
+
+    for i in 0..size {
+        let pixel = image.data[i];
+        let r = pixel[0];
+        let g = pixel[1];
+        let b = pixel[2];
+        let a = pixel[3];
+
+        let (v0, v1, v2) = match colorspace {
+            Colorspace::Hsl => rgb_to_hsl(r, g, b),
+            Colorspace::Hsv => rgb_to_hsv(r, g, b),
+            Colorspace::YCbCr => rgb_to_ycbcr(r, g, b),
+            Colorspace::Lab => rgb_to_lab(r, g, b),
+        };
+
+        c0_data.push([v0, v0, v0, 1.0]);
+        c1_data.push([v1, v1, v1, 1.0]);
+        c2_data.push([v2, v2, v2, 1.0]);
+        alpha_data.push([a, a, a, 1.0]);
+    }
+
+    ColorspaceChannels {
+        c0: ImageField::from_raw(c0_data, width, height),
+        c1: ImageField::from_raw(c1_data, width, height),
+        c2: ImageField::from_raw(c2_data, width, height),
+        alpha: ImageField::from_raw(alpha_data, width, height),
+        colorspace,
+    }
+}
+
+/// Reconstructs an RGB image from colorspace channels.
+pub fn reconstruct_colorspace(channels: &ColorspaceChannels) -> ImageField {
+    let (width, height) = channels.c0.dimensions();
+    let size = (width * height) as usize;
+
+    let mut data = Vec::with_capacity(size);
+
+    for i in 0..size {
+        let v0 = channels.c0.data[i][0];
+        let v1 = channels.c1.data[i][0];
+        let v2 = channels.c2.data[i][0];
+        let a = channels.alpha.data[i][0];
+
+        let (r, g, b) = match channels.colorspace {
+            Colorspace::Hsl => hsl_to_rgb(v0, v1, v2),
+            Colorspace::Hsv => hsv_to_rgb(v0, v1, v2),
+            Colorspace::YCbCr => ycbcr_to_rgb(v0, v1, v2),
+            Colorspace::Lab => lab_to_rgb(v0, v1, v2),
+        };
+
+        data.push([r, g, b, a]);
+    }
+
+    ImageField::from_raw(data, width, height)
+}
+
+// --- Colorspace conversion helpers ---
+
+fn rgb_to_hsl(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let l = (max + min) / 2.0;
+
+    if (max - min).abs() < 1e-6 {
+        return (0.0, 0.0, l);
+    }
+
+    let d = max - min;
+    let s = if l > 0.5 {
+        d / (2.0 - max - min)
+    } else {
+        d / (max + min)
+    };
+
+    let h = if (max - r).abs() < 1e-6 {
+        ((g - b) / d + if g < b { 6.0 } else { 0.0 }) / 6.0
+    } else if (max - g).abs() < 1e-6 {
+        ((b - r) / d + 2.0) / 6.0
+    } else {
+        ((r - g) / d + 4.0) / 6.0
+    };
+
+    (h, s, l)
+}
+
+fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (f32, f32, f32) {
+    if s.abs() < 1e-6 {
+        return (l, l, l);
+    }
+
+    let q = if l < 0.5 {
+        l * (1.0 + s)
+    } else {
+        l + s - l * s
+    };
+    let p = 2.0 * l - q;
+
+    let hue_to_rgb = |t: f32| -> f32 {
+        let t = t.rem_euclid(1.0);
+        if t < 1.0 / 6.0 {
+            p + (q - p) * 6.0 * t
+        } else if t < 0.5 {
+            q
+        } else if t < 2.0 / 3.0 {
+            p + (q - p) * (2.0 / 3.0 - t) * 6.0
+        } else {
+            p
+        }
+    };
+
+    (
+        hue_to_rgb(h + 1.0 / 3.0),
+        hue_to_rgb(h),
+        hue_to_rgb(h - 1.0 / 3.0),
+    )
+}
+
+fn rgb_to_hsv(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let v = max;
+
+    if (max - min).abs() < 1e-6 {
+        return (0.0, 0.0, v);
+    }
+
+    let d = max - min;
+    let s = d / max;
+
+    let h = if (max - r).abs() < 1e-6 {
+        ((g - b) / d + if g < b { 6.0 } else { 0.0 }) / 6.0
+    } else if (max - g).abs() < 1e-6 {
+        ((b - r) / d + 2.0) / 6.0
+    } else {
+        ((r - g) / d + 4.0) / 6.0
+    };
+
+    (h, s, v)
+}
+
+fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (f32, f32, f32) {
+    if s.abs() < 1e-6 {
+        return (v, v, v);
+    }
+
+    let h = h * 6.0;
+    let i = h.floor() as i32;
+    let f = h - h.floor();
+    let p = v * (1.0 - s);
+    let q = v * (1.0 - s * f);
+    let t = v * (1.0 - s * (1.0 - f));
+
+    match i % 6 {
+        0 => (v, t, p),
+        1 => (q, v, p),
+        2 => (p, v, t),
+        3 => (p, q, v),
+        4 => (t, p, v),
+        _ => (v, p, q),
+    }
+}
+
+fn rgb_to_ycbcr(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+    let y = 0.299 * r + 0.587 * g + 0.114 * b;
+    let cb = (-0.169 * r - 0.331 * g + 0.500 * b) + 0.5;
+    let cr = (0.500 * r - 0.419 * g - 0.081 * b) + 0.5;
+    (y, cb, cr)
+}
+
+fn ycbcr_to_rgb(y: f32, cb: f32, cr: f32) -> (f32, f32, f32) {
+    let cb = cb - 0.5;
+    let cr = cr - 0.5;
+    let r = (y + 1.402 * cr).clamp(0.0, 1.0);
+    let g = (y - 0.344 * cb - 0.714 * cr).clamp(0.0, 1.0);
+    let b = (y + 1.772 * cb).clamp(0.0, 1.0);
+    (r, g, b)
+}
+
+fn rgb_to_lab(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+    // sRGB to linear RGB
+    let to_linear = |v: f32| -> f32 {
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+
+    let r = to_linear(r);
+    let g = to_linear(g);
+    let b = to_linear(b);
+
+    // Linear RGB to XYZ (D65 illuminant)
+    let x = r * 0.4124564 + g * 0.3575761 + b * 0.1804375;
+    let y = r * 0.2126729 + g * 0.7151522 + b * 0.0721750;
+    let z = r * 0.0193339 + g * 0.1191920 + b * 0.9503041;
+
+    // XYZ to Lab (D65 reference white)
+    let xn = 0.95047;
+    let yn = 1.0;
+    let zn = 1.08883;
+
+    let f = |t: f32| -> f32 {
+        if t > 0.008856 {
+            t.powf(1.0 / 3.0)
+        } else {
+            7.787 * t + 16.0 / 116.0
+        }
+    };
+
+    let fx = f(x / xn);
+    let fy = f(y / yn);
+    let fz = f(z / zn);
+
+    let l = (116.0 * fy - 16.0) / 100.0; // Normalize L* to [0, 1]
+    let a = ((500.0 * (fx - fy)) + 128.0) / 255.0; // Normalize a* to [0, 1]
+    let lab_b = ((200.0 * (fy - fz)) + 128.0) / 255.0; // Normalize b* to [0, 1]
+
+    (l.clamp(0.0, 1.0), a.clamp(0.0, 1.0), lab_b.clamp(0.0, 1.0))
+}
+
+fn lab_to_rgb(l: f32, a: f32, lab_b: f32) -> (f32, f32, f32) {
+    // Denormalize
+    let l = l * 100.0;
+    let a = a * 255.0 - 128.0;
+    let b = lab_b * 255.0 - 128.0;
+
+    // Lab to XYZ
+    let xn = 0.95047;
+    let yn = 1.0;
+    let zn = 1.08883;
+
+    let fy = (l + 16.0) / 116.0;
+    let fx = a / 500.0 + fy;
+    let fz = fy - b / 200.0;
+
+    let f_inv = |t: f32| -> f32 {
+        if t > 0.206893 {
+            t * t * t
+        } else {
+            (t - 16.0 / 116.0) / 7.787
+        }
+    };
+
+    let x = xn * f_inv(fx);
+    let y = yn * f_inv(fy);
+    let z = zn * f_inv(fz);
+
+    // XYZ to linear RGB
+    let r = x * 3.2404542 - y * 1.5371385 - z * 0.4985314;
+    let g = -x * 0.9692660 + y * 1.8760108 + z * 0.0415560;
+    let b = x * 0.0556434 - y * 0.2040259 + z * 1.0572252;
+
+    // Linear RGB to sRGB
+    let from_linear = |v: f32| -> f32 {
+        if v <= 0.0031308 {
+            v * 12.92
+        } else {
+            1.055 * v.powf(1.0 / 2.4) - 0.055
+        }
+    };
+
+    (
+        from_linear(r).clamp(0.0, 1.0),
+        from_linear(g).clamp(0.0, 1.0),
+        from_linear(b).clamp(0.0, 1.0),
+    )
+}
+
+// ============================================================================
 // Chromatic aberration
 // ============================================================================
 
@@ -1703,6 +2046,465 @@ pub fn threshold(image: &ImageField, threshold: f32) -> ImageField {
     ImageField::from_raw(data, width, height)
         .with_wrap_mode(image.wrap_mode)
         .with_filter_mode(image.filter_mode)
+}
+
+// ============================================================================
+// Compositing
+// ============================================================================
+
+/// Composites an overlay image onto a base image using the specified blend mode.
+///
+/// This is the fundamental primitive for combining two images. Higher-level
+/// effects like drop shadow, glow, and bloom are built on top of this.
+///
+/// # Arguments
+///
+/// * `base` - The background image
+/// * `overlay` - The foreground image to composite on top
+/// * `mode` - The blend mode to use (Normal, Multiply, Screen, Add, etc.)
+/// * `opacity` - Overall opacity of the overlay (0.0 = invisible, 1.0 = full)
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, composite, BlendMode};
+///
+/// let base = ImageField::solid_sized(100, 100, [0.2, 0.2, 0.2, 1.0]);
+/// let overlay = ImageField::solid_sized(100, 100, [1.0, 0.0, 0.0, 0.5]);
+///
+/// // Normal blend at 80% opacity
+/// let result = composite(&base, &overlay, BlendMode::Normal, 0.8);
+///
+/// // Additive blend for glow effects
+/// let glow = composite(&base, &overlay, BlendMode::Add, 1.0);
+/// ```
+pub fn composite(
+    base: &ImageField,
+    overlay: &ImageField,
+    mode: BlendMode,
+    opacity: f32,
+) -> ImageField {
+    let (width, height) = base.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let base_pixel = base.get_pixel(x, y);
+            // Sample overlay at same position, handling size mismatch via UV sampling
+            let u = (x as f32 + 0.5) / width as f32;
+            let v = (y as f32 + 0.5) / height as f32;
+            let overlay_pixel = overlay.sample_uv(u, v);
+
+            let base_rgba = Rgba::new(base_pixel[0], base_pixel[1], base_pixel[2], base_pixel[3]);
+            let result = blend_with_alpha(base_rgba, overlay_pixel, mode, opacity);
+
+            data.push([result.r, result.g, result.b, result.a]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(base.wrap_mode)
+        .with_filter_mode(base.filter_mode)
+}
+
+// ============================================================================
+// High-Level Effects (composed from primitives)
+// ============================================================================
+
+/// Configuration for drop shadow effect.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct DropShadow {
+    /// Horizontal offset in pixels (positive = right).
+    pub offset_x: f32,
+    /// Vertical offset in pixels (positive = down).
+    pub offset_y: f32,
+    /// Blur radius (number of blur passes).
+    pub blur: u32,
+    /// Shadow color (RGB, alpha controls shadow density).
+    pub color: [f32; 4],
+}
+
+impl Default for DropShadow {
+    fn default() -> Self {
+        Self {
+            offset_x: 4.0,
+            offset_y: 4.0,
+            blur: 3,
+            color: [0.0, 0.0, 0.0, 0.5],
+        }
+    }
+}
+
+impl DropShadow {
+    /// Creates a drop shadow with the given offset.
+    pub fn new(offset_x: f32, offset_y: f32) -> Self {
+        Self {
+            offset_x,
+            offset_y,
+            ..Default::default()
+        }
+    }
+
+    /// Sets the blur amount.
+    pub fn with_blur(mut self, blur: u32) -> Self {
+        self.blur = blur;
+        self
+    }
+
+    /// Sets the shadow color.
+    pub fn with_color(mut self, r: f32, g: f32, b: f32, a: f32) -> Self {
+        self.color = [r, g, b, a];
+        self
+    }
+}
+
+/// Applies a drop shadow effect to an image.
+///
+/// The shadow is created by:
+/// 1. Extracting the alpha channel as a mask
+/// 2. Offsetting (translating) the mask
+/// 3. Blurring the mask
+/// 4. Tinting the mask with the shadow color
+/// 5. Compositing the shadow under the original image
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, DropShadow, drop_shadow};
+///
+/// let image = ImageField::solid_sized(100, 100, [1.0, 0.0, 0.0, 1.0]);
+/// let config = DropShadow::new(5.0, 5.0).with_blur(4).with_color(0.0, 0.0, 0.0, 0.6);
+/// let result = drop_shadow(&image, &config);
+/// ```
+pub fn drop_shadow(image: &ImageField, config: &DropShadow) -> ImageField {
+    let (width, height) = image.dimensions();
+
+    // 1. Extract alpha as shadow mask
+    let alpha = extract_channel(image, Channel::Alpha);
+
+    // 2. Offset the shadow
+    let offset_config = TransformConfig::translate(
+        config.offset_x / width as f32,
+        config.offset_y / height as f32,
+    );
+    let offset_alpha = transform_image(&alpha, &offset_config);
+
+    // 3. Blur the shadow
+    let blurred = blur(&offset_alpha, config.blur);
+
+    // 4. Tint with shadow color (multiply grayscale alpha by color)
+    let mut shadow_data = Vec::with_capacity((width * height) as usize);
+    for y in 0..height {
+        for x in 0..width {
+            let a = blurred.get_pixel(x, y)[0]; // grayscale value = alpha
+            shadow_data.push([
+                config.color[0],
+                config.color[1],
+                config.color[2],
+                a * config.color[3],
+            ]);
+        }
+    }
+    let shadow = ImageField::from_raw(shadow_data, width, height);
+
+    // 5. Composite: shadow under original
+    let with_shadow = composite(&shadow, image, BlendMode::Normal, 1.0);
+
+    with_shadow
+}
+
+/// Configuration for glow effect.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Glow {
+    /// Blur radius (number of blur passes).
+    pub blur: u32,
+    /// Glow intensity (multiplier for the glow).
+    pub intensity: f32,
+    /// Optional glow color. If None, uses the image's own colors.
+    pub color: Option<[f32; 3]>,
+    /// Threshold for what counts as "bright" (0.0-1.0). Only pixels above this glow.
+    pub threshold: f32,
+}
+
+impl Default for Glow {
+    fn default() -> Self {
+        Self {
+            blur: 5,
+            intensity: 1.0,
+            color: None,
+            threshold: 0.0,
+        }
+    }
+}
+
+impl Glow {
+    /// Creates a glow effect with the given blur radius.
+    pub fn new(blur: u32) -> Self {
+        Self {
+            blur,
+            ..Default::default()
+        }
+    }
+
+    /// Sets the glow intensity.
+    pub fn with_intensity(mut self, intensity: f32) -> Self {
+        self.intensity = intensity;
+        self
+    }
+
+    /// Sets a fixed glow color.
+    pub fn with_color(mut self, r: f32, g: f32, b: f32) -> Self {
+        self.color = Some([r, g, b]);
+        self
+    }
+
+    /// Sets the brightness threshold.
+    pub fn with_threshold(mut self, threshold: f32) -> Self {
+        self.threshold = threshold;
+        self
+    }
+}
+
+/// Applies a glow effect to an image.
+///
+/// The glow is created by:
+/// 1. Optionally thresholding to extract bright areas
+/// 2. Blurring the image/threshold
+/// 3. Optionally tinting with a glow color
+/// 4. Additively compositing back onto the original
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, Glow, glow};
+///
+/// let image = ImageField::solid_sized(100, 100, [1.0, 1.0, 1.0, 1.0]);
+/// let config = Glow::new(6).with_intensity(1.5).with_color(1.0, 0.8, 0.2);
+/// let result = glow(&image, &config);
+/// ```
+pub fn glow(image: &ImageField, config: &Glow) -> ImageField {
+    let (width, height) = image.dimensions();
+
+    // 1. Extract glow source (threshold if specified)
+    let glow_source = if config.threshold > 0.0 {
+        // Extract pixels above threshold
+        let mut data = Vec::with_capacity((width * height) as usize);
+        for y in 0..height {
+            for x in 0..width {
+                let pixel = image.get_pixel(x, y);
+                let lum = 0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2];
+                if lum > config.threshold {
+                    data.push(pixel);
+                } else {
+                    data.push([0.0, 0.0, 0.0, 0.0]);
+                }
+            }
+        }
+        ImageField::from_raw(data, width, height)
+    } else {
+        image.clone()
+    };
+
+    // 2. Blur the glow source
+    let blurred = blur(&glow_source, config.blur);
+
+    // 3. Tint if color specified, and apply intensity
+    let tinted = if let Some(color) = config.color {
+        let mut data = Vec::with_capacity((width * height) as usize);
+        for y in 0..height {
+            for x in 0..width {
+                let pixel = blurred.get_pixel(x, y);
+                let lum = 0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2];
+                data.push([
+                    color[0] * lum * config.intensity,
+                    color[1] * lum * config.intensity,
+                    color[2] * lum * config.intensity,
+                    pixel[3],
+                ]);
+            }
+        }
+        ImageField::from_raw(data, width, height)
+    } else {
+        // Just apply intensity
+        let mut data = Vec::with_capacity((width * height) as usize);
+        for y in 0..height {
+            for x in 0..width {
+                let pixel = blurred.get_pixel(x, y);
+                data.push([
+                    pixel[0] * config.intensity,
+                    pixel[1] * config.intensity,
+                    pixel[2] * config.intensity,
+                    pixel[3],
+                ]);
+            }
+        }
+        ImageField::from_raw(data, width, height)
+    };
+
+    // 4. Additive composite
+    composite(image, &tinted, BlendMode::Add, 1.0)
+}
+
+/// Configuration for bloom effect.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Bloom {
+    /// Brightness threshold (0.0-1.0). Only pixels above this bloom.
+    pub threshold: f32,
+    /// Number of blur passes at each scale.
+    pub blur_passes: u32,
+    /// Number of scales (pyramid levels) for the bloom.
+    pub scales: u32,
+    /// Overall bloom intensity.
+    pub intensity: f32,
+}
+
+impl Default for Bloom {
+    fn default() -> Self {
+        Self {
+            threshold: 0.8,
+            blur_passes: 3,
+            scales: 4,
+            intensity: 1.0,
+        }
+    }
+}
+
+impl Bloom {
+    /// Creates a bloom effect with the given threshold.
+    pub fn new(threshold: f32) -> Self {
+        Self {
+            threshold,
+            ..Default::default()
+        }
+    }
+
+    /// Sets the number of blur passes per scale.
+    pub fn with_blur_passes(mut self, passes: u32) -> Self {
+        self.blur_passes = passes;
+        self
+    }
+
+    /// Sets the number of pyramid scales.
+    pub fn with_scales(mut self, scales: u32) -> Self {
+        self.scales = scales;
+        self
+    }
+
+    /// Sets the bloom intensity.
+    pub fn with_intensity(mut self, intensity: f32) -> Self {
+        self.intensity = intensity;
+        self
+    }
+}
+
+/// Applies a bloom effect to an image.
+///
+/// Bloom creates a "glow" around bright areas using multi-scale blurring:
+/// 1. Threshold to extract bright pixels
+/// 2. Build a blur pyramid at multiple scales
+/// 3. Combine all scales
+/// 4. Additively composite back onto the original
+///
+/// This is more physically accurate than simple glow as it simulates
+/// light scattering at multiple distances.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, Bloom, bloom};
+///
+/// let image = ImageField::solid_sized(100, 100, [1.0, 1.0, 1.0, 1.0]);
+/// let config = Bloom::new(0.7).with_scales(5).with_intensity(0.8);
+/// let result = bloom(&image, &config);
+/// ```
+pub fn bloom(image: &ImageField, config: &Bloom) -> ImageField {
+    let (width, height) = image.dimensions();
+
+    // 1. Threshold to extract bright areas
+    let mut bright_data = Vec::with_capacity((width * height) as usize);
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = image.get_pixel(x, y);
+            let lum = 0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2];
+            if lum > config.threshold {
+                // Soft threshold: keep amount above threshold
+                let excess = lum - config.threshold;
+                let scale = excess / (1.0 - config.threshold + 0.001);
+                bright_data.push([
+                    pixel[0] * scale,
+                    pixel[1] * scale,
+                    pixel[2] * scale,
+                    pixel[3],
+                ]);
+            } else {
+                bright_data.push([0.0, 0.0, 0.0, 0.0]);
+            }
+        }
+    }
+    let bright = ImageField::from_raw(bright_data, width, height);
+
+    // 2. Build blur pyramid and accumulate
+    let mut accumulated = ImageField::from_raw(
+        vec![[0.0, 0.0, 0.0, 0.0]; (width * height) as usize],
+        width,
+        height,
+    );
+    let mut current = bright;
+
+    for scale in 0..config.scales {
+        // Blur at this scale
+        let blurred = blur(&current, config.blur_passes);
+
+        // Upsample back to original size if needed
+        let to_add = if scale > 0 {
+            resize(&blurred, width, height)
+        } else {
+            blurred
+        };
+
+        // Accumulate (weighted by scale - larger scales contribute less)
+        let weight = 1.0 / (scale as f32 + 1.0);
+        let mut acc_data = Vec::with_capacity((width * height) as usize);
+        for y in 0..height {
+            for x in 0..width {
+                let acc_pixel = accumulated.get_pixel(x, y);
+                let add_pixel = to_add.get_pixel(x, y);
+                acc_data.push([
+                    acc_pixel[0] + add_pixel[0] * weight,
+                    acc_pixel[1] + add_pixel[1] * weight,
+                    acc_pixel[2] + add_pixel[2] * weight,
+                    acc_pixel[3].max(add_pixel[3] * weight),
+                ]);
+            }
+        }
+        accumulated = ImageField::from_raw(acc_data, width, height);
+
+        // Downsample for next scale
+        current = downsample(&current);
+        if current.dimensions().0 < 4 || current.dimensions().1 < 4 {
+            break;
+        }
+    }
+
+    // 3. Apply intensity and composite
+    let mut final_bloom_data = Vec::with_capacity((width * height) as usize);
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = accumulated.get_pixel(x, y);
+            final_bloom_data.push([
+                pixel[0] * config.intensity,
+                pixel[1] * config.intensity,
+                pixel[2] * config.intensity,
+                pixel[3],
+            ]);
+        }
+    }
+    let final_bloom = ImageField::from_raw(final_bloom_data, width, height);
+
+    composite(image, &final_bloom, BlendMode::Add, 1.0)
 }
 
 // ============================================================================
@@ -3430,6 +4232,480 @@ fn simple_hash(x: u32) -> u32 {
     h = h.wrapping_mul(0xc2b2ae35);
     h ^= h >> 16;
     h
+}
+
+// =============================================================================
+// JPEG Artifacts (DCT-based compression artifacts)
+// =============================================================================
+
+/// Configuration for JPEG artifact effect.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct JpegArtifacts {
+    /// Quality level (1-100). Lower = more artifacts.
+    pub quality: u8,
+    /// Whether to add color subsampling artifacts (4:2:0 chroma).
+    pub chroma_subsampling: bool,
+}
+
+impl Default for JpegArtifacts {
+    fn default() -> Self {
+        Self {
+            quality: 10,
+            chroma_subsampling: true,
+        }
+    }
+}
+
+impl JpegArtifacts {
+    /// Creates JPEG artifacts with the given quality.
+    pub fn new(quality: u8) -> Self {
+        Self {
+            quality: quality.clamp(1, 100),
+            ..Default::default()
+        }
+    }
+
+    /// Enables or disables chroma subsampling.
+    pub fn with_chroma_subsampling(mut self, enabled: bool) -> Self {
+        self.chroma_subsampling = enabled;
+        self
+    }
+}
+
+/// Standard JPEG luminance quantization table.
+const JPEG_LUMA_QUANT: [f32; 64] = [
+    16.0, 11.0, 10.0, 16.0, 24.0, 40.0, 51.0, 61.0, 12.0, 12.0, 14.0, 19.0, 26.0, 58.0, 60.0, 55.0,
+    14.0, 13.0, 16.0, 24.0, 40.0, 57.0, 69.0, 56.0, 14.0, 17.0, 22.0, 29.0, 51.0, 87.0, 80.0, 62.0,
+    18.0, 22.0, 37.0, 56.0, 68.0, 109.0, 103.0, 77.0, 24.0, 35.0, 55.0, 64.0, 81.0, 104.0, 113.0,
+    92.0, 49.0, 64.0, 78.0, 87.0, 103.0, 121.0, 120.0, 101.0, 72.0, 92.0, 95.0, 98.0, 112.0, 100.0,
+    103.0, 99.0,
+];
+
+/// Standard JPEG chrominance quantization table.
+const JPEG_CHROMA_QUANT: [f32; 64] = [
+    17.0, 18.0, 24.0, 47.0, 99.0, 99.0, 99.0, 99.0, 18.0, 21.0, 26.0, 66.0, 99.0, 99.0, 99.0, 99.0,
+    24.0, 26.0, 56.0, 99.0, 99.0, 99.0, 99.0, 99.0, 47.0, 66.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0,
+    99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0,
+    99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0,
+];
+
+/// Applies 2D DCT to an 8x8 block.
+fn dct_8x8(block: &[f32; 64]) -> [f32; 64] {
+    let mut result = [0.0f32; 64];
+    let pi = std::f32::consts::PI;
+
+    for v in 0..8 {
+        for u in 0..8 {
+            let cu = if u == 0 { 1.0 / 2.0_f32.sqrt() } else { 1.0 };
+            let cv = if v == 0 { 1.0 / 2.0_f32.sqrt() } else { 1.0 };
+
+            let mut sum = 0.0;
+            for y in 0..8 {
+                for x in 0..8 {
+                    let cos_u = ((2 * x + 1) as f32 * u as f32 * pi / 16.0).cos();
+                    let cos_v = ((2 * y + 1) as f32 * v as f32 * pi / 16.0).cos();
+                    sum += block[y * 8 + x] * cos_u * cos_v;
+                }
+            }
+            result[v * 8 + u] = 0.25 * cu * cv * sum;
+        }
+    }
+    result
+}
+
+/// Applies inverse 2D DCT to an 8x8 block.
+fn idct_8x8(block: &[f32; 64]) -> [f32; 64] {
+    let mut result = [0.0f32; 64];
+    let pi = std::f32::consts::PI;
+
+    for y in 0..8 {
+        for x in 0..8 {
+            let mut sum = 0.0;
+            for v in 0..8 {
+                for u in 0..8 {
+                    let cu = if u == 0 { 1.0 / 2.0_f32.sqrt() } else { 1.0 };
+                    let cv = if v == 0 { 1.0 / 2.0_f32.sqrt() } else { 1.0 };
+                    let cos_u = ((2 * x + 1) as f32 * u as f32 * pi / 16.0).cos();
+                    let cos_v = ((2 * y + 1) as f32 * v as f32 * pi / 16.0).cos();
+                    sum += cu * cv * block[v * 8 + u] * cos_u * cos_v;
+                }
+            }
+            result[y * 8 + x] = 0.25 * sum;
+        }
+    }
+    result
+}
+
+/// Quantizes DCT coefficients using the given quantization table and quality.
+fn quantize_block(block: &[f32; 64], quant_table: &[f32; 64], quality: u8) -> [f32; 64] {
+    let scale = if quality < 50 {
+        5000.0 / quality as f32
+    } else {
+        200.0 - 2.0 * quality as f32
+    } / 100.0;
+
+    let mut result = [0.0f32; 64];
+    for i in 0..64 {
+        let q = (quant_table[i] * scale).max(1.0);
+        result[i] = (block[i] / q).round() * q;
+    }
+    result
+}
+
+/// Applies JPEG-like compression artifacts to an image.
+///
+/// Simulates JPEG compression by:
+/// 1. Converting to YCbCr colorspace
+/// 2. Splitting into 8x8 blocks
+/// 3. Applying DCT to each block
+/// 4. Quantizing coefficients (this creates the artifacts)
+/// 5. Applying inverse DCT
+/// 6. Converting back to RGB
+///
+/// Lower quality values create more visible block artifacts and color banding.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, JpegArtifacts, jpeg_artifacts};
+///
+/// let image = ImageField::solid_sized(64, 64, [0.5, 0.3, 0.7, 1.0]);
+/// let config = JpegArtifacts::new(5); // Very low quality = heavy artifacts
+/// let result = jpeg_artifacts(&image, &config);
+/// ```
+pub fn jpeg_artifacts(image: &ImageField, config: &JpegArtifacts) -> ImageField {
+    let (width, height) = image.dimensions();
+
+    // Convert to YCbCr
+    let mut y_channel = vec![0.0f32; (width * height) as usize];
+    let mut cb_channel = vec![0.0f32; (width * height) as usize];
+    let mut cr_channel = vec![0.0f32; (width * height) as usize];
+
+    for i in 0..(width * height) as usize {
+        let pixel = image.data[i];
+        let r = pixel[0];
+        let g = pixel[1];
+        let b = pixel[2];
+
+        // RGB to YCbCr
+        y_channel[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+        cb_channel[i] = -0.169 * r - 0.331 * g + 0.500 * b + 0.5;
+        cr_channel[i] = 0.500 * r - 0.419 * g - 0.081 * b + 0.5;
+    }
+
+    // Process in 8x8 blocks
+    let process_channel = |channel: &mut [f32], quant_table: &[f32; 64]| {
+        for by in (0..height).step_by(8) {
+            for bx in (0..width).step_by(8) {
+                // Extract block
+                let mut block = [0.0f32; 64];
+                for y in 0..8 {
+                    for x in 0..8 {
+                        let px = (bx + x).min(width - 1) as usize;
+                        let py = (by + y).min(height - 1) as usize;
+                        block[y as usize * 8 + x as usize] = channel[py * width as usize + px];
+                    }
+                }
+
+                // Level shift (center around 0)
+                for v in &mut block {
+                    *v -= 0.5;
+                }
+
+                // DCT -> Quantize -> IDCT
+                let dct = dct_8x8(&block);
+                let quantized = quantize_block(&dct, quant_table, config.quality);
+                let reconstructed = idct_8x8(&quantized);
+
+                // Level shift back and write block
+                for y in 0..8 {
+                    for x in 0..8 {
+                        let px = (bx + x) as usize;
+                        let py = (by + y) as usize;
+                        if px < width as usize && py < height as usize {
+                            channel[py * width as usize + px] =
+                                (reconstructed[y as usize * 8 + x as usize] + 0.5).clamp(0.0, 1.0);
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    // Process Y with luminance table
+    process_channel(&mut y_channel, &JPEG_LUMA_QUANT);
+
+    // Process Cb/Cr with chrominance table
+    process_channel(&mut cb_channel, &JPEG_CHROMA_QUANT);
+    process_channel(&mut cr_channel, &JPEG_CHROMA_QUANT);
+
+    // Optional: Simulate 4:2:0 chroma subsampling
+    if config.chroma_subsampling {
+        // Downsample and upsample chroma (nearest neighbor for blocky look)
+        for y in (0..height).step_by(2) {
+            for x in (0..width).step_by(2) {
+                let idx00 = (y * width + x) as usize;
+                let idx01 = (y * width + (x + 1).min(width - 1)) as usize;
+                let idx10 = ((y + 1).min(height - 1) * width + x) as usize;
+                let idx11 = ((y + 1).min(height - 1) * width + (x + 1).min(width - 1)) as usize;
+
+                // Average the 2x2 block
+                let cb_avg =
+                    (cb_channel[idx00] + cb_channel[idx01] + cb_channel[idx10] + cb_channel[idx11])
+                        / 4.0;
+                let cr_avg =
+                    (cr_channel[idx00] + cr_channel[idx01] + cr_channel[idx10] + cr_channel[idx11])
+                        / 4.0;
+
+                // Write back to all 4 pixels (blocky upsampling)
+                cb_channel[idx00] = cb_avg;
+                cb_channel[idx01] = cb_avg;
+                cb_channel[idx10] = cb_avg;
+                cb_channel[idx11] = cb_avg;
+                cr_channel[idx00] = cr_avg;
+                cr_channel[idx01] = cr_avg;
+                cr_channel[idx10] = cr_avg;
+                cr_channel[idx11] = cr_avg;
+            }
+        }
+    }
+
+    // Convert back to RGB
+    let mut data = Vec::with_capacity((width * height) as usize);
+    for i in 0..(width * height) as usize {
+        let y = y_channel[i];
+        let cb = cb_channel[i] - 0.5;
+        let cr = cr_channel[i] - 0.5;
+
+        // YCbCr to RGB
+        let r = y + 1.402 * cr;
+        let g = y - 0.344 * cb - 0.714 * cr;
+        let b = y + 1.772 * cb;
+
+        data.push([
+            r.clamp(0.0, 1.0),
+            g.clamp(0.0, 1.0),
+            b.clamp(0.0, 1.0),
+            image.data[i][3],
+        ]);
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+// =============================================================================
+// Bit Manipulation Effects
+// =============================================================================
+
+/// Configuration for bit manipulation effect.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct BitManip {
+    /// Operation to perform.
+    pub operation: BitOperation,
+    /// Value to use for the operation (interpreted as u8 for each channel).
+    pub value: u8,
+    /// Which channels to affect (R, G, B, A).
+    pub channels: [bool; 4],
+}
+
+/// Bit manipulation operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum BitOperation {
+    /// XOR each byte with the value.
+    Xor,
+    /// AND each byte with the value.
+    And,
+    /// OR each byte with the value.
+    Or,
+    /// NOT (invert bits, value is ignored).
+    Not,
+    /// Shift bits left by value amount.
+    ShiftLeft,
+    /// Shift bits right by value amount.
+    ShiftRight,
+}
+
+impl Default for BitManip {
+    fn default() -> Self {
+        Self {
+            operation: BitOperation::Xor,
+            value: 0x55,                         // Checkerboard pattern
+            channels: [true, true, true, false], // RGB only
+        }
+    }
+}
+
+impl BitManip {
+    /// Creates a bit manipulation config with the given operation and value.
+    pub fn new(operation: BitOperation, value: u8) -> Self {
+        Self {
+            operation,
+            value,
+            ..Default::default()
+        }
+    }
+
+    /// Sets which channels to affect.
+    pub fn with_channels(mut self, r: bool, g: bool, b: bool, a: bool) -> Self {
+        self.channels = [r, g, b, a];
+        self
+    }
+}
+
+/// Applies bit manipulation to image pixel data.
+///
+/// Treats pixel values as 8-bit integers and applies bitwise operations,
+/// creating digital glitch effects.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, BitManip, BitOperation, bit_manip};
+///
+/// let image = ImageField::solid_sized(64, 64, [0.5, 0.3, 0.7, 1.0]);
+///
+/// // XOR with checkerboard pattern
+/// let glitched = bit_manip(&image, &BitManip::new(BitOperation::Xor, 0xAA));
+///
+/// // AND to create color bands
+/// let banded = bit_manip(&image, &BitManip::new(BitOperation::And, 0xF0));
+/// ```
+pub fn bit_manip(image: &ImageField, config: &BitManip) -> ImageField {
+    let apply_op = |v: f32, op: BitOperation, value: u8| -> f32 {
+        let byte = (v.clamp(0.0, 1.0) * 255.0) as u8;
+        let result = match op {
+            BitOperation::Xor => byte ^ value,
+            BitOperation::And => byte & value,
+            BitOperation::Or => byte | value,
+            BitOperation::Not => !byte,
+            BitOperation::ShiftLeft => byte.wrapping_shl(value as u32),
+            BitOperation::ShiftRight => byte.wrapping_shr(value as u32),
+        };
+        result as f32 / 255.0
+    };
+
+    let data: Vec<[f32; 4]> = image
+        .data
+        .iter()
+        .map(|pixel| {
+            let mut result = *pixel;
+            for (i, &should_apply) in config.channels.iter().enumerate() {
+                if should_apply {
+                    result[i] = apply_op(pixel[i], config.operation, config.value);
+                }
+            }
+            result
+        })
+        .collect();
+
+    ImageField::from_raw(data, image.width, image.height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Corrupts random bytes in the image data.
+///
+/// Simulates file corruption by randomly modifying pixel values.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ByteCorrupt {
+    /// Probability of corrupting each byte (0.0-1.0).
+    pub probability: f32,
+    /// Random seed for reproducible corruption.
+    pub seed: u32,
+    /// Corruption mode.
+    pub mode: CorruptMode,
+}
+
+/// Byte corruption modes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum CorruptMode {
+    /// Replace with random value.
+    Random,
+    /// Swap with adjacent byte.
+    Swap,
+    /// Zero out the byte.
+    Zero,
+    /// Set to maximum value.
+    Max,
+}
+
+impl Default for ByteCorrupt {
+    fn default() -> Self {
+        Self {
+            probability: 0.01,
+            seed: 42,
+            mode: CorruptMode::Random,
+        }
+    }
+}
+
+impl ByteCorrupt {
+    /// Creates a byte corruption config with the given probability.
+    pub fn new(probability: f32) -> Self {
+        Self {
+            probability: probability.clamp(0.0, 1.0),
+            ..Default::default()
+        }
+    }
+
+    /// Sets the corruption mode.
+    pub fn with_mode(mut self, mode: CorruptMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    /// Sets the random seed.
+    pub fn with_seed(mut self, seed: u32) -> Self {
+        self.seed = seed;
+        self
+    }
+}
+
+/// Corrupts random bytes in an image for glitch effects.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, ByteCorrupt, CorruptMode, byte_corrupt};
+///
+/// let image = ImageField::solid_sized(64, 64, [0.5, 0.3, 0.7, 1.0]);
+/// let config = ByteCorrupt::new(0.05).with_mode(CorruptMode::Random);
+/// let corrupted = byte_corrupt(&image, &config);
+/// ```
+pub fn byte_corrupt(image: &ImageField, config: &ByteCorrupt) -> ImageField {
+    let mut rng_state = config.seed;
+    let next_random = |state: &mut u32| -> f32 {
+        *state = state.wrapping_mul(1103515245).wrapping_add(12345);
+        (*state as f32) / (u32::MAX as f32)
+    };
+
+    let mut data = image.data.clone();
+
+    for pixel in &mut data {
+        for channel in pixel.iter_mut() {
+            if next_random(&mut rng_state) < config.probability {
+                let byte = (*channel * 255.0) as u8;
+                let corrupted = match config.mode {
+                    CorruptMode::Random => (next_random(&mut rng_state) * 255.0) as u8,
+                    CorruptMode::Swap => byte.rotate_left(4), // Swap nibbles
+                    CorruptMode::Zero => 0,
+                    CorruptMode::Max => 255,
+                };
+                *channel = corrupted as f32 / 255.0;
+            }
+        }
+    }
+
+    ImageField::from_raw(data, image.width, image.height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
 }
 
 // =============================================================================

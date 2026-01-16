@@ -222,15 +222,41 @@
 - [x] Scan lines - CRT-style horizontal lines with configurable gap/intensity (scan_lines, ScanLines)
 - [x] Static/noise overlay - TV static, film grain, digital noise (static_noise)
 - [x] VHS tracking - horizontal displacement bands, color bleeding (vhs_tracking, VhsTracking)
-- [ ] JPEG artifacts - DCT block corruption, quantization artifacts
-- [ ] Bit manipulation - XOR/AND/OR on raw pixel bytes
+- [x] JPEG artifacts - DCT block corruption, quantization artifacts (jpeg_artifacts, JpegArtifacts)
+- [x] Bit manipulation - XOR/AND/OR on raw pixel bytes (bit_manip, BitManip, BitOperation)
 - [ ] Datamosh (video) - P-frame/I-frame manipulation, motion vector corruption
-- [ ] Corrupt bytes - random byte insertion/deletion/swap in image data
+- [x] Corrupt bytes - random byte insertion/deletion/swap in image data (byte_corrupt, ByteCorrupt, CorruptMode)
+
+### Image Primitive Refactoring
+
+> **Goal:** Expose minimal surface area with low-level, highly composable primitives.
+> Sugar functions remain for ergonomics but delegate to primitives.
+
+**True Primitives:**
+- [ ] `remap_uv(image, Fn(Vec2) -> Vec2)` - UV coordinate remapping (runtime, not serializable)
+- [ ] `map_pixels(image, Fn([f32;4]) -> [f32;4])` - per-pixel color transform
+- [x] `convolve(image, Kernel)` - neighborhood operation (already exists)
+- [x] `composite(image, image, BlendMode, opacity)` - blending (already exists)
+- [x] `sample_uv` - texture sampling (already exists on ImageField)
+
+**Refactor to use primitives:**
+- [ ] `lens_distortion`, `wave_distortion`, `swirl`, `spherize`, `transform_image` → use `remap_uv`
+- [ ] `grayscale`, `invert`, `threshold`, `posterize`, `bit_manip` → use `map_pixels`
+- [ ] `blur`, `sharpen`, `emboss`, `edge_detect` → already use `convolve`
+
+**Serialization & compilation:**
+- Use Dew expressions for UV remapping and pixel transforms
+- Dew AST is serializable AND compilable to:
+  - Interpreter (CPU, fallback)
+  - Cranelift JIT (fast CPU)
+  - WGSL/GLSL (GPU shaders)
+- Config structs (`LensDistortion`, etc.) remain as ergonomic sugar that generates Dew AST
+- Example: `remap_uv(image, "vec2(u + sin(v * 6.28) * 0.1, v)")`
 
 ### Buffer / Channel Operations
 
 - [ ] Per-channel transform - `map_channel(image, channel, Fn(ImageField) -> ImageField)`
-- [ ] Colorspace decomposition - decompose/reconstruct in HSL/HSV/LAB/YUV/etc
+- [x] Colorspace decomposition - decompose/reconstruct in HSL/HSV/LAB/YCbCr (decompose_colorspace, reconstruct_colorspace, Colorspace)
 - [ ] Arbitrary channel reorder - swap/permute channels across colorspaces
 - [ ] Buffer map - `map_buffer(&[f32], Fn(f32) -> f32)` for audio/image/mesh
 - [ ] Buffer zip - `zip_buffers(&[f32], &[f32], Fn(f32, f32) -> f32)`
@@ -371,12 +397,45 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 - [x] Layer hierarchy with parent-child transforms
 - [x] Path trim (animate stroke reveal 0-100%) - Trim, trim_path, trim_segments in resin-vector
 - [x] Stagger/offset timing for instances - Stagger, StaggerPattern, stagger_timing in resin-scatter
-- [ ] Drop shadow, glow effects
+- [x] Drop shadow, glow effects - drop_shadow, glow, bloom, composite in resin-image
 
 **Typed Expression AST:** ✅ Implemented
 - [x] MotionExpr enum - typed variants for motion functions (resin-motion-fn)
 - [x] FieldExpr enum - typed variants for field functions (resin-expr-field)
 - [x] Dew AST ↔ our AST conversion (to_dew_ast() implemented, from_dew_ast() future work)
+
+### Live Coding / Performance Parity
+
+> **Goal:** Performance and generality sufficient to build a live coding environment (like Strudel/TidalCycles) on top of resin.
+
+**Why this matters:**
+- Live coding requires sub-frame latency for audio, real-time for visuals
+- Strudel/TidalCycles achieve this with careful architecture, not just "fast code"
+- We want to be a foundation for live coding tools, not just offline generation
+
+**Research needed:**
+- [ ] Analyze Strudel architecture - how do they achieve low-latency pattern evaluation?
+- [ ] Analyze TidalCycles/Haskell approach - lazy evaluation, demand-driven computation
+- [ ] Profile our pattern system (`resin-audio` patterns) vs Strudel for equivalent patterns
+
+**Potential optimizations:**
+- [ ] Incremental pattern evaluation - only recompute changed parts of pattern graph
+- [ ] Pre-allocated sample buffers - avoid allocation in audio callback
+- [ ] Lock-free parameter updates - atomic floats for real-time safe modulation
+- [ ] SIMD pattern evaluation - vectorize pattern sampling (already have SIMD JIT for audio)
+- [ ] WebAssembly target - for browser-based live coding (Strudel runs in browser)
+
+**Architecture considerations:**
+- [ ] Separation of "scheduling" from "synthesis" - patterns schedule events, audio graph renders
+- [ ] Hot-swappable graphs - replace effect chain without glitches
+- [ ] Time model - absolute vs relative time, tempo changes, pattern alignment
+
+**Feature parity targets (from Strudel/Tidal):**
+- [x] Pattern combinators - `fast()`, `slow()`, `rev()`, `jux()` (already implemented)
+- [ ] Polymetric patterns - patterns of different lengths running in parallel
+- [ ] Pattern randomness - `rand`, `choose`, `shuffle` with reproducible seeds
+- [ ] Euclidean rhythms - `euclid(k, n)` pattern generator
+- [ ] Continuous patterns - patterns that evaluate at any point in time (not just events)
 
 ## Done
 - [x] Rigid body physics (RigidBody, Collider shapes, PhysicsWorld, impulse-based collision resolution)
