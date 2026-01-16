@@ -91,7 +91,7 @@ struct NoiseUniforms {
 }
 
 /// Generates a noise texture on the GPU.
-pub fn generate_noise_texture(
+pub fn generate_noise_texture_gpu(
     ctx: &GpuContext,
     width: u32,
     height: u32,
@@ -221,14 +221,14 @@ pub fn generate_noise_texture(
 }
 
 /// Convenience function to generate noise texture with simple parameters.
-pub fn noise_texture(
+pub fn noise_texture_gpu(
     ctx: &GpuContext,
     width: u32,
     height: u32,
     noise_type: NoiseType,
     scale: f32,
 ) -> GpuResult<GpuTexture> {
-    generate_noise_texture(ctx, width, height, &NoiseConfig::new(noise_type, scale))
+    generate_noise_texture_gpu(ctx, width, height, &NoiseConfig::new(noise_type, scale))
 }
 
 // WGSL compute shader for noise generation
@@ -423,10 +423,10 @@ mod tests {
 
     #[test]
     #[ignore] // Requires GPU
-    fn test_generate_noise_texture() {
+    fn test_generate_noise_texture_gpu() {
         let ctx = GpuContext::new().unwrap();
         let config = NoiseConfig::new(NoiseType::Perlin, 4.0);
-        let texture = generate_noise_texture(&ctx, 256, 256, &config).unwrap();
+        let texture = generate_noise_texture_gpu(&ctx, 256, 256, &config).unwrap();
 
         assert_eq!(texture.width(), 256);
         assert_eq!(texture.height(), 256);
@@ -452,7 +452,7 @@ mod tests {
             NoiseType::Worley,
         ] {
             let config = NoiseConfig::new(noise_type, 4.0);
-            let texture = generate_noise_texture(&ctx, 64, 64, &config).unwrap();
+            let texture = generate_noise_texture_gpu(&ctx, 64, 64, &config).unwrap();
             let data = texture.read_to_f32(&ctx);
 
             // All noise types should produce valid output
@@ -472,7 +472,7 @@ mod tests {
             ..Default::default()
         };
 
-        let texture = generate_noise_texture(&ctx, 128, 128, &config).unwrap();
+        let texture = generate_noise_texture_gpu(&ctx, 128, 128, &config).unwrap();
         let data = texture.read_to_f32(&ctx);
 
         assert_eq!(data.len(), 128 * 128);

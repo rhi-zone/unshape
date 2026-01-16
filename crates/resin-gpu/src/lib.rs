@@ -11,10 +11,10 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhizome_resin_gpu::{GpuContext, NoiseType, generate_noise_texture};
+//! use rhizome_resin_gpu::{GpuContext, NoiseType, noise_texture_gpu};
 //!
 //! let ctx = GpuContext::new()?;
-//! let texture = generate_noise_texture(&ctx, 512, 512, NoiseType::Perlin, 4.0)?;
+//! let texture = noise_texture_gpu(&ctx, 512, 512, NoiseType::Perlin, 4.0)?;
 //! ```
 
 mod context;
@@ -27,7 +27,7 @@ mod image_expr;
 
 pub use context::GpuContext;
 pub use error::GpuError;
-pub use noise::{NoiseConfig, NoiseType, generate_noise_texture, noise_texture};
+pub use noise::{NoiseConfig, NoiseType, generate_noise_texture_gpu, noise_texture_gpu};
 pub use texture::{GpuTexture, TextureFormat};
 
 #[cfg(feature = "image-expr")]
