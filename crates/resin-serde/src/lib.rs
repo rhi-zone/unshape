@@ -137,7 +137,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rhizome_resin_core::{DynNode, GraphError, PortDescriptor, Value, ValueType};
+    use rhizome_resin_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -158,7 +158,7 @@ mod tests {
             vec![PortDescriptor::new("value", ValueType::F32)]
         }
 
-        fn execute(&self, _inputs: &[Value]) -> Result<Vec<Value>, GraphError> {
+        fn execute(&self, _inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
             Ok(vec![Value::F32(self.value)])
         }
     }
@@ -188,7 +188,7 @@ mod tests {
             vec![PortDescriptor::new("result", ValueType::F32)]
         }
 
-        fn execute(&self, inputs: &[Value]) -> Result<Vec<Value>, GraphError> {
+        fn execute(&self, inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
             let a = inputs[0]
                 .as_f32()
                 .map_err(|e| GraphError::ExecutionError(e.to_string()))?;
@@ -242,7 +242,8 @@ mod tests {
             match node.type_name() {
                 "test::Const" => {
                     // Execute to get the value (hacky but works for test)
-                    let outputs = node.execute(&[]).ok()?;
+                    let ctx = EvalContext::new();
+                    let outputs = node.execute(&[], &ctx).ok()?;
                     let value = outputs[0].as_f32().ok()?;
                     Some(serde_json::json!({"value": value}))
                 }
@@ -285,7 +286,8 @@ mod tests {
 
         let extract = |node: &dyn DynNode| -> Option<serde_json::Value> {
             if node.type_name() == "test::Const" {
-                let outputs = node.execute(&[]).ok()?;
+                let ctx = EvalContext::new();
+                let outputs = node.execute(&[], &ctx).ok()?;
                 let value = outputs[0].as_f32().ok()?;
                 Some(serde_json::json!({"value": value}))
             } else {

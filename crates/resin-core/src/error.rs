@@ -69,6 +69,10 @@ pub enum GraphError {
     /// Wire was not found.
     #[error("wire not found")]
     WireNotFound,
+
+    /// Evaluation was cancelled.
+    #[error("evaluation cancelled")]
+    Cancelled,
 }
 
 #[cfg(test)]

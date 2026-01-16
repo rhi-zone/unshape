@@ -123,7 +123,7 @@ impl Default for NodeRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rhizome_resin_core::{GraphError, PortDescriptor, Value, ValueType};
+    use rhizome_resin_core::{EvalContext, GraphError, PortDescriptor, Value, ValueType};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -144,7 +144,7 @@ mod tests {
             vec![PortDescriptor::new("out", ValueType::F32)]
         }
 
-        fn execute(&self, _inputs: &[Value]) -> Result<Vec<Value>, GraphError> {
+        fn execute(&self, _inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
             Ok(vec![Value::F32(self.value)])
         }
     }
@@ -165,7 +165,8 @@ mod tests {
 
         assert_eq!(node.type_name(), "test::TestNode");
 
-        let outputs = node.execute(&[]).unwrap();
+        let ctx = EvalContext::new();
+        let outputs = node.execute(&[], &ctx).unwrap();
         assert_eq!(outputs[0].as_f32().unwrap(), 42.0);
     }
 
@@ -208,7 +209,8 @@ mod tests {
         let node = registry
             .deserialize("custom::Node", serde_json::json!({"value": 123.0}))
             .unwrap();
-        let outputs = node.execute(&[]).unwrap();
+        let ctx = EvalContext::new();
+        let outputs = node.execute(&[], &ctx).unwrap();
         assert_eq!(outputs[0].as_f32().unwrap(), 123.0);
     }
 }

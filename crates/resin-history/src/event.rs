@@ -455,7 +455,7 @@ impl Default for EventHistory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rhizome_resin_core::{DynNode, GraphError, PortDescriptor, Value, ValueType};
+    use rhizome_resin_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -473,7 +473,7 @@ mod tests {
         fn outputs(&self) -> Vec<PortDescriptor> {
             vec![PortDescriptor::new("out", ValueType::F32)]
         }
-        fn execute(&self, _: &[Value]) -> Result<Vec<Value>, GraphError> {
+        fn execute(&self, _: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
             Ok(vec![Value::F32(self.value)])
         }
     }

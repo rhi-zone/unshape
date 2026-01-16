@@ -11,6 +11,7 @@
 use std::collections::HashMap;
 
 use crate::error::GraphError;
+use crate::eval::EvalContext;
 use crate::node::{BoxedNode, DynNode};
 use crate::value::Value;
 
@@ -175,15 +176,36 @@ impl Graph {
 
     /// Executes the graph and returns outputs from the specified node.
     ///
+    /// Uses a default `EvalContext`. For custom context (time, cancellation, etc.),
+    /// use `execute_with_context`.
+    ///
     /// # Arguments
     /// * `output_node` - The node whose outputs to return.
     pub fn execute(&mut self, output_node: NodeId) -> Result<Vec<Value>, GraphError> {
+        self.execute_with_context(output_node, &EvalContext::new())
+    }
+
+    /// Executes the graph with a custom evaluation context.
+    ///
+    /// # Arguments
+    /// * `output_node` - The node whose outputs to return.
+    /// * `ctx` - Evaluation context (time, cancellation, quality hints, etc.)
+    pub fn execute_with_context(
+        &mut self,
+        output_node: NodeId,
+        ctx: &EvalContext,
+    ) -> Result<Vec<Value>, GraphError> {
         let order = self.topological_order()?.to_vec();
 
         // Storage for computed values: (node_id, port_index) -> Value
         let mut values: HashMap<(NodeId, usize), Value> = HashMap::new();
 
         for node_id in order {
+            // Check for cancellation between nodes
+            if ctx.is_cancelled() {
+                return Err(GraphError::Cancelled);
+            }
+
             let node = self.nodes.get(&node_id).unwrap();
             let inputs_desc = node.inputs();
             let num_inputs = inputs_desc.len();
@@ -220,7 +242,7 @@ impl Graph {
             }
 
             // Execute node
-            let outputs = node.execute(&inputs)?;
+            let outputs = node.execute(&inputs, ctx)?;
 
             // Store outputs
             for (port, value) in outputs.into_iter().enumerate() {
@@ -345,6 +367,7 @@ impl Graph {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::eval::EvalContext;
     use crate::node::PortDescriptor;
     use crate::value::ValueType;
 
@@ -367,7 +390,7 @@ mod tests {
             vec![PortDescriptor::new("result", ValueType::F32)]
         }
 
-        fn execute(&self, inputs: &[Value]) -> Result<Vec<Value>, GraphError> {
+        fn execute(&self, inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
             let a = inputs[0]
                 .as_f32()
                 .map_err(|e| GraphError::ExecutionError(e.to_string()))?;
@@ -394,7 +417,7 @@ mod tests {
             vec![PortDescriptor::new("value", ValueType::F32)]
         }
 
-        fn execute(&self, _inputs: &[Value]) -> Result<Vec<Value>, GraphError> {
+        fn execute(&self, _inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
             Ok(vec![Value::F32(self.0)])
         }
     }
@@ -433,7 +456,11 @@ mod tests {
                 vec![PortDescriptor::new("value", ValueType::Bool)]
             }
 
-            fn execute(&self, _inputs: &[Value]) -> Result<Vec<Value>, GraphError> {
+            fn execute(
+                &self,
+                _inputs: &[Value],
+                _ctx: &EvalContext,
+            ) -> Result<Vec<Value>, GraphError> {
                 Ok(vec![Value::Bool(true)])
             }
         }
@@ -464,7 +491,11 @@ mod tests {
                 vec![PortDescriptor::new("out", ValueType::F32)]
             }
 
-            fn execute(&self, inputs: &[Value]) -> Result<Vec<Value>, GraphError> {
+            fn execute(
+                &self,
+                inputs: &[Value],
+                _ctx: &EvalContext,
+            ) -> Result<Vec<Value>, GraphError> {
                 Ok(vec![inputs[0].clone()])
             }
         }
@@ -515,7 +546,10 @@ mod tests {
         assert_eq!(outputs[0].name, "result");
 
         // Test execution
-        let result = node.execute(&[Value::F32(10.0), Value::F32(5.0)]).unwrap();
+        let ctx = EvalContext::new();
+        let result = node
+            .execute(&[Value::F32(10.0), Value::F32(5.0)], &ctx)
+            .unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].as_f32().unwrap(), 15.0);
     }

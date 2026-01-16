@@ -1,6 +1,7 @@
 //! Node trait for graph execution.
 
 use crate::error::GraphError;
+use crate::eval::EvalContext;
 use crate::value::{Value, ValueType};
 
 /// Port descriptor for a node input or output.
@@ -34,14 +35,19 @@ pub trait DynNode: Send + Sync {
     /// Returns descriptors for all output ports.
     fn outputs(&self) -> Vec<PortDescriptor>;
 
-    /// Executes the node with the given inputs.
+    /// Executes the node with the given inputs and evaluation context.
     ///
     /// # Arguments
     /// * `inputs` - Input values, one per input port in order.
+    /// * `ctx` - Evaluation context (time, cancellation, quality hints, etc.)
     ///
     /// # Returns
     /// Output values, one per output port in order.
-    fn execute(&self, inputs: &[Value]) -> Result<Vec<Value>, GraphError>;
+    ///
+    /// # Cancellation
+    /// Long-running nodes should periodically check `ctx.is_cancelled()` and
+    /// return `Err(GraphError::Cancelled)` if true.
+    fn execute(&self, inputs: &[Value], ctx: &EvalContext) -> Result<Vec<Value>, GraphError>;
 }
 
 /// A boxed dynamic node.
