@@ -74,6 +74,7 @@ rhizome-resin-motion-fn = { path = "crates/resin-motion-fn" }
 rhizome-resin-curve = { path = "crates/resin-curve" }
 rhizome-resin-audio-codegen = { path = "crates/resin-audio-codegen" }
 rhizome-resin-jit = { path = "crates/resin-jit" }
+rhizome-resin-gpu = { path = "crates/resin-gpu" }
 
 [package]
 name = "rhizome-resin-examples"

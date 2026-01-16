@@ -116,6 +116,10 @@ mod tests {
         ) -> Result<Vec<Value>, rhizome_resin_core::GraphError> {
             Ok(vec![Value::F32(42.0)])
         }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
     }
 
     #[test]

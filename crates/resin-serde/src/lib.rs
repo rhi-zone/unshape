@@ -161,6 +161,10 @@ mod tests {
         fn execute(&self, _inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
             Ok(vec![Value::F32(self.value)])
         }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
     }
 
     impl SerializableNode for ConstNode {
@@ -196,6 +200,10 @@ mod tests {
                 .as_f32()
                 .map_err(|e| GraphError::ExecutionError(e.to_string()))?;
             Ok(vec![Value::F32(a + b)])
+        }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
         }
     }
 

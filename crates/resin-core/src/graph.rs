@@ -397,6 +397,7 @@ mod tests {
     use crate::eval::EvalContext;
     use crate::node::PortDescriptor;
     use crate::value::ValueType;
+    use std::any::Any;
 
     // Test node: adds two f32 values
     struct AddNode;
@@ -426,6 +427,10 @@ mod tests {
                 .map_err(|e| GraphError::ExecutionError(e.to_string()))?;
             Ok(vec![Value::F32(a + b)])
         }
+
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
     }
 
     // Test node: outputs a constant f32
@@ -446,6 +451,10 @@ mod tests {
 
         fn execute(&self, _inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
             Ok(vec![Value::F32(self.0)])
+        }
+
+        fn as_any(&self) -> &dyn Any {
+            self
         }
     }
 
@@ -490,6 +499,10 @@ mod tests {
             ) -> Result<Vec<Value>, GraphError> {
                 Ok(vec![Value::Bool(true)])
             }
+
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
         }
 
         let mut graph = Graph::new();
@@ -524,6 +537,10 @@ mod tests {
                 _ctx: &EvalContext,
             ) -> Result<Vec<Value>, GraphError> {
                 Ok(vec![inputs[0].clone()])
+            }
+
+            fn as_any(&self) -> &dyn Any {
+                self
             }
         }
 

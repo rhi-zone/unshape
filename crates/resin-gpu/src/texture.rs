@@ -2,6 +2,8 @@
 
 use crate::GpuContext;
 use crate::error::{GpuError, GpuResult};
+use rhizome_resin_core::{DataLocation, GraphValue};
+use std::any::Any;
 
 /// Texture format for GPU output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -216,5 +218,30 @@ impl GpuTexture {
     /// Reads the texture as RGBA u8 values (for Rgba8Unorm format).
     pub fn read_to_rgba8(&self, ctx: &GpuContext) -> Vec<u8> {
         self.read_to_bytes(ctx)
+    }
+}
+
+impl std::fmt::Debug for GpuTexture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GpuTexture")
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("format", &self.format)
+            .finish_non_exhaustive()
+    }
+}
+
+impl GraphValue for GpuTexture {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn type_name(&self) -> &'static str {
+        "GpuTexture"
+    }
+
+    fn location(&self) -> DataLocation {
+        // TODO: Support multiple GPU devices
+        DataLocation::Gpu { device_id: 0 }
     }
 }

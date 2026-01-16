@@ -3,6 +3,7 @@
 use crate::error::GraphError;
 use crate::eval::EvalContext;
 use crate::value::{Value, ValueType};
+use std::any::Any;
 
 /// Port descriptor for a node input or output.
 #[derive(Debug, Clone)]
@@ -25,7 +26,7 @@ impl PortDescriptor {
 /// This is the runtime interface for graph execution. Node authors
 /// typically don't implement this directly - instead they use derive
 /// macros that generate the implementation from concrete types.
-pub trait DynNode: Send + Sync {
+pub trait DynNode: Send + Sync + Any {
     /// Returns the type name for serialization/debugging.
     fn type_name(&self) -> &'static str;
 
@@ -48,6 +49,11 @@ pub trait DynNode: Send + Sync {
     /// Long-running nodes should periodically check `ctx.is_cancelled()` and
     /// return `Err(GraphError::Cancelled)` if true.
     fn execute(&self, inputs: &[Value], ctx: &EvalContext) -> Result<Vec<Value>, GraphError>;
+
+    /// Returns `self` as `&dyn Any` for downcasting and type identification.
+    ///
+    /// Used by compute backends to look up registered kernels by node type.
+    fn as_any(&self) -> &dyn Any;
 }
 
 /// A boxed dynamic node.

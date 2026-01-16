@@ -16,6 +16,8 @@ wgpu = "23"
 bytemuck = { version = "1.14", features = ["derive"] }
 pollster = "0.4"
 thiserror = { workspace = true }
+rhizome-resin-core = { workspace = true }
+rhizome-resin-backend = { workspace = true }
 rhizome-resin-op = { path = "../resin-op", optional = true }
 rhizome-resin-image = { path = "../resin-image", features = ["wgsl"], optional = true }
 rhizome-dew-linalg = { git = "https://github.com/rhizome-lab/dew", features = ["4d", "wgsl"], optional = true }

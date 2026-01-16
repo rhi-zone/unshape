@@ -226,6 +226,10 @@ pub fn derive_dyn_node(input: TokenStream) -> TokenStream {
                 node.compute();
                 Ok(vec![#(#output_collections),*])
             }
+
+            fn as_any(&self) -> &dyn ::std::any::Any {
+                self
+            }
         }
     };
 

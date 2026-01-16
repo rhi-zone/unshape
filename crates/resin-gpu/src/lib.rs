@@ -7,6 +7,22 @@
 //! - Batch field sampling: evaluate fields at thousands of points in parallel
 //! - Texture generation: render fields to 2D textures
 //! - Built-in noise shaders: Perlin, Simplex, FBM
+//! - Compute backend for heterogeneous execution
+//!
+//! # Compute Backend
+//!
+//! The [`GpuComputeBackend`] implements the [`ComputeBackend`](rhizome_resin_backend::ComputeBackend)
+//! trait, allowing GPU execution to be selected via [`ExecutionPolicy`](rhizome_resin_backend::ExecutionPolicy).
+//!
+//! ```ignore
+//! use rhizome_resin_gpu::{GpuComputeBackend, GpuKernel};
+//! use rhizome_resin_backend::BackendRegistry;
+//!
+//! let mut registry = BackendRegistry::with_cpu();
+//! if let Ok(gpu) = GpuComputeBackend::new() {
+//!     registry.register(Arc::new(gpu));
+//! }
+//! ```
 //!
 //! # Example
 //!
@@ -17,6 +33,7 @@
 //! let texture = noise_texture_gpu(&ctx, 512, 512, NoiseType::Perlin, 4.0)?;
 //! ```
 
+mod backend;
 mod context;
 mod error;
 mod noise;
@@ -25,6 +42,7 @@ mod texture;
 #[cfg(feature = "image-expr")]
 mod image_expr;
 
+pub use backend::{GpuComputeBackend, GpuKernel};
 pub use context::GpuContext;
 pub use error::GpuError;
 pub use noise::{NoiseConfig, NoiseType, generate_noise_texture_gpu, noise_texture_gpu};

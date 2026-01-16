@@ -4243,6 +4243,8 @@ dependencies = [
  "image",
  "pollster",
  "rhizome-dew-linalg",
+ "rhizome-resin-backend",
+ "rhizome-resin-core",
  "rhizome-resin-image",
  "rhizome-resin-op",
  "serde",
