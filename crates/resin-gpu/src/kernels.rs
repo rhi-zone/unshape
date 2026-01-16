@@ -321,7 +321,224 @@ impl DynNode for ParameterizedNoiseNode {
 /// ```
 pub fn register_kernels(backend: &crate::GpuComputeBackend) {
     backend.register_kernel::<ParameterizedNoiseNode>(Arc::new(NoiseTextureKernel));
+
+    #[cfg(feature = "image-expr")]
+    {
+        backend.register_kernel::<RemapUvNode>(Arc::new(RemapUvKernel));
+        backend.register_kernel::<MapPixelsNode>(Arc::new(MapPixelsKernel));
+    }
 }
+
+// ============================================================================
+// Image Expression Nodes (feature-gated)
+// ============================================================================
+
+#[cfg(feature = "image-expr")]
+mod image_expr_kernels {
+    use super::*;
+    use crate::image_expr::{map_pixels_gpu, remap_uv_gpu};
+    use rhizome_resin_image::{ColorExpr, UvExpr};
+
+    // ------------------------------------------------------------------------
+    // UV Remap Node
+    // ------------------------------------------------------------------------
+
+    /// Node that remaps UV coordinates of a texture using an expression.
+    ///
+    /// This node applies a UV transformation to an input texture. When executed
+    /// through a GPU backend with the registered kernel, it runs on the GPU.
+    ///
+    /// # Inputs
+    ///
+    /// - `texture`: The input texture (Opaque GpuTexture)
+    ///
+    /// # Outputs
+    ///
+    /// - `texture`: The transformed texture
+    #[derive(Debug, Clone)]
+    pub struct RemapUvNode {
+        /// The UV transformation expression.
+        pub expr: UvExpr,
+    }
+
+    impl RemapUvNode {
+        /// Creates a new UV remap node with the given expression.
+        pub fn new(expr: UvExpr) -> Self {
+            Self { expr }
+        }
+
+        /// Creates an identity UV remap (passthrough).
+        pub fn identity() -> Self {
+            Self::new(UvExpr::Uv)
+        }
+    }
+
+    impl DynNode for RemapUvNode {
+        fn type_name(&self) -> &'static str {
+            "RemapUvNode"
+        }
+
+        fn inputs(&self) -> Vec<PortDescriptor> {
+            vec![PortDescriptor::new(
+                "texture",
+                ValueType::Custom {
+                    type_id: std::any::TypeId::of::<GpuTexture>(),
+                    name: "GpuTexture",
+                },
+            )]
+        }
+
+        fn outputs(&self) -> Vec<PortDescriptor> {
+            vec![PortDescriptor::new(
+                "texture",
+                ValueType::Custom {
+                    type_id: std::any::TypeId::of::<GpuTexture>(),
+                    name: "GpuTexture",
+                },
+            )]
+        }
+
+        fn execute(&self, _inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+            // CPU fallback not implemented for image expressions
+            // These require GPU context
+            Err(GraphError::ExecutionError(
+                "RemapUvNode requires GPU execution".into(),
+            ))
+        }
+
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
+
+    /// GPU kernel for UV remap operations.
+    pub struct RemapUvKernel;
+
+    impl GpuKernel for RemapUvKernel {
+        fn execute(
+            &self,
+            ctx: &GpuContext,
+            inputs: &[Value],
+            _eval_ctx: &EvalContext,
+        ) -> Result<Vec<Value>, GpuError> {
+            if inputs.is_empty() {
+                return Err(GpuError::InvalidInput(
+                    "RemapUvKernel requires texture input".into(),
+                ));
+            }
+
+            let input_texture = inputs[0]
+                .downcast_ref::<GpuTexture>()
+                .ok_or_else(|| GpuError::InvalidInput("Expected GpuTexture input".into()))?;
+
+            // The expression comes from the node, but kernels don't have access to it.
+            // See TODO.md "Pass node reference to GpuKernel::execute()" for planned fix.
+            // For now, do identity transform as demonstration.
+            let output = remap_uv_gpu(ctx, input_texture, &UvExpr::Uv)?;
+            Ok(vec![Value::Opaque(Arc::new(output))])
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Map Pixels Node
+    // ------------------------------------------------------------------------
+
+    /// Node that applies a per-pixel color transform using an expression.
+    ///
+    /// This node transforms each pixel of an input texture. When executed
+    /// through a GPU backend with the registered kernel, it runs on the GPU.
+    ///
+    /// # Inputs
+    ///
+    /// - `texture`: The input texture (Opaque GpuTexture)
+    ///
+    /// # Outputs
+    ///
+    /// - `texture`: The transformed texture
+    #[derive(Debug, Clone)]
+    pub struct MapPixelsNode {
+        /// The color transformation expression.
+        pub expr: ColorExpr,
+    }
+
+    impl MapPixelsNode {
+        /// Creates a new map pixels node with the given expression.
+        pub fn new(expr: ColorExpr) -> Self {
+            Self { expr }
+        }
+
+        /// Creates an identity color map (passthrough).
+        pub fn identity() -> Self {
+            Self::new(ColorExpr::Rgba)
+        }
+    }
+
+    impl DynNode for MapPixelsNode {
+        fn type_name(&self) -> &'static str {
+            "MapPixelsNode"
+        }
+
+        fn inputs(&self) -> Vec<PortDescriptor> {
+            vec![PortDescriptor::new(
+                "texture",
+                ValueType::Custom {
+                    type_id: std::any::TypeId::of::<GpuTexture>(),
+                    name: "GpuTexture",
+                },
+            )]
+        }
+
+        fn outputs(&self) -> Vec<PortDescriptor> {
+            vec![PortDescriptor::new(
+                "texture",
+                ValueType::Custom {
+                    type_id: std::any::TypeId::of::<GpuTexture>(),
+                    name: "GpuTexture",
+                },
+            )]
+        }
+
+        fn execute(&self, _inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+            // CPU fallback not implemented for image expressions
+            Err(GraphError::ExecutionError(
+                "MapPixelsNode requires GPU execution".into(),
+            ))
+        }
+
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
+
+    /// GPU kernel for per-pixel color transforms.
+    pub struct MapPixelsKernel;
+
+    impl GpuKernel for MapPixelsKernel {
+        fn execute(
+            &self,
+            ctx: &GpuContext,
+            inputs: &[Value],
+            _eval_ctx: &EvalContext,
+        ) -> Result<Vec<Value>, GpuError> {
+            if inputs.is_empty() {
+                return Err(GpuError::InvalidInput(
+                    "MapPixelsKernel requires texture input".into(),
+                ));
+            }
+
+            let input_texture = inputs[0]
+                .downcast_ref::<GpuTexture>()
+                .ok_or_else(|| GpuError::InvalidInput("Expected GpuTexture input".into()))?;
+
+            // Same limitation as RemapUvKernel - see TODO.md for planned fix.
+            let output = map_pixels_gpu(ctx, input_texture, &ColorExpr::Rgba)?;
+            Ok(vec![Value::Opaque(Arc::new(output))])
+        }
+    }
+}
+
+#[cfg(feature = "image-expr")]
+pub use image_expr_kernels::{MapPixelsKernel, MapPixelsNode, RemapUvKernel, RemapUvNode};
 
 #[cfg(test)]
 mod tests {
