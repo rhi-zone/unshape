@@ -689,6 +689,463 @@ Decisions we've made but aren't 100% committed to.
 
 **Revisit if:** Scheduler grows complex enough to warrant isolation.
 
+## Crate Structure
+
+### Dependency Graph
+
+```
+resin-core ─────────────────┐
+     │                      │
+     │ (optional)           │
+     ▼                      │
+resin-backend ◄─────────────┘
+     │
+     │ (optional, feature-gated)
+     ▼
+resin-gpu
+```
+
+- `resin-core` has Value, DynNode, Graph, Evaluator — no GPU deps
+- `resin-backend` has ComputeBackend trait, BackendRegistry, ExecutionPolicy — abstractions only
+- `resin-gpu` implements GpuComputeBackend, depends on wgpu
+
+### resin-core changes
+
+**Value with type-erased opaque data:**
+
+```rust
+// value.rs
+use std::any::Any;
+use std::sync::Arc;
+
+/// Marker trait for values that can flow through graphs
+pub trait GraphValue: Any + Send + Sync {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+    fn clone_boxed(&self) -> Box<dyn GraphValue>;
+
+    /// Where this value currently resides
+    fn location(&self) -> DataLocation { DataLocation::Cpu }
+}
+
+/// Where data lives
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub enum DataLocation {
+    #[default]
+    Cpu,
+    Gpu { device_id: u32 },
+}
+
+#[derive(Debug, Clone)]
+pub enum Value {
+    // Primitives (inline, no allocation)
+    F32(f32),
+    F64(f64),
+    I32(i32),
+    Bool(bool),
+    Vec2(Vec2),
+    Vec3(Vec3),
+    Vec4(Vec4),
+
+    // Large/opaque values (heap allocated, type-erased)
+    // Use for Image, Mesh, GpuTexture, AudioBuffer, etc.
+    Opaque(Arc<dyn GraphValue>),
+}
+
+impl Value {
+    /// Create an opaque value from any GraphValue
+    pub fn opaque<T: GraphValue>(value: T) -> Self {
+        Value::Opaque(Arc::new(value))
+    }
+
+    /// Try to downcast an opaque value
+    pub fn downcast_ref<T: GraphValue + 'static>(&self) -> Option<&T> {
+        match self {
+            Value::Opaque(v) => v.as_any().downcast_ref(),
+            _ => None,
+        }
+    }
+
+    /// Where this value lives
+    pub fn location(&self) -> DataLocation {
+        match self {
+            Value::Opaque(v) => v.location(),
+            _ => DataLocation::Cpu,
+        }
+    }
+}
+```
+
+**ValueType becomes extensible:**
+
+```rust
+// value.rs
+use std::any::TypeId;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ValueType {
+    // Built-in primitives
+    F32,
+    F64,
+    I32,
+    Bool,
+    Vec2,
+    Vec3,
+    Vec4,
+
+    // Type-erased (registered types)
+    Custom { type_id: TypeId, name: &'static str },
+}
+
+impl ValueType {
+    pub fn of<T: 'static>(name: &'static str) -> Self {
+        ValueType::Custom { type_id: TypeId::of::<T>(), name }
+    }
+}
+```
+
+### resin-backend (new crate)
+
+Thin abstraction layer — no heavy dependencies.
+
+```rust
+// lib.rs
+use resin_core::{Value, DynNode, EvalContext, DataLocation};
+use std::sync::Arc;
+
+/// A compute backend that can execute nodes
+pub trait ComputeBackend: Send + Sync {
+    fn name(&self) -> &str;
+    fn capabilities(&self) -> BackendCapabilities;
+    fn supports_node(&self, node: &dyn DynNode) -> bool;
+    fn estimate_cost(&self, node: &dyn DynNode, workload: &WorkloadHint) -> Option<Cost>;
+    fn execute(
+        &self,
+        node: &dyn DynNode,
+        inputs: &[Value],
+        ctx: &EvalContext,
+    ) -> Result<Value, BackendError>;
+}
+
+#[derive(Clone, Debug)]
+pub struct BackendCapabilities {
+    pub kind: BackendKind,
+    pub bulk_efficient: bool,
+    pub streaming_efficient: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BackendKind {
+    Cpu,
+    CpuSimd,
+    Gpu,
+    Custom(String),
+}
+
+#[derive(Clone, Debug)]
+pub struct WorkloadHint {
+    pub element_count: usize,
+    pub input_bytes: usize,
+    pub output_bytes: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct Cost {
+    pub compute: f64,
+    pub transfer: f64,
+}
+
+#[derive(Debug)]
+pub enum BackendError {
+    Unsupported,
+    ExecutionFailed(String),
+    TransferFailed(String),
+}
+
+/// Registry of available backends
+pub struct BackendRegistry {
+    backends: Vec<Arc<dyn ComputeBackend>>,
+}
+
+impl BackendRegistry {
+    pub fn new() -> Self {
+        Self { backends: vec![] }
+    }
+
+    pub fn register(&mut self, backend: Arc<dyn ComputeBackend>) {
+        self.backends.push(backend);
+    }
+
+    pub fn get(&self, name: &str) -> Option<&Arc<dyn ComputeBackend>> {
+        self.backends.iter().find(|b| b.name() == name)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Arc<dyn ComputeBackend>> {
+        self.backends.iter()
+    }
+}
+
+/// Execution policy
+#[derive(Clone, Debug, Default)]
+pub enum ExecutionPolicy {
+    #[default]
+    Auto,
+    PreferKind(BackendKind),
+    Named(String),
+    LocalFirst,
+    MinimizeCost,
+}
+
+/// CPU backend - always available, uses DynNode::execute directly
+pub struct CpuBackend;
+
+impl ComputeBackend for CpuBackend {
+    fn name(&self) -> &str { "cpu" }
+
+    fn capabilities(&self) -> BackendCapabilities {
+        BackendCapabilities {
+            kind: BackendKind::Cpu,
+            bulk_efficient: false,
+            streaming_efficient: true,
+        }
+    }
+
+    fn supports_node(&self, _node: &dyn DynNode) -> bool {
+        true // CPU can run any node
+    }
+
+    fn estimate_cost(&self, _node: &dyn DynNode, workload: &WorkloadHint) -> Option<Cost> {
+        Some(Cost {
+            compute: workload.element_count as f64,
+            transfer: 0.0,
+        })
+    }
+
+    fn execute(
+        &self,
+        node: &dyn DynNode,
+        inputs: &[Value],
+        ctx: &EvalContext,
+    ) -> Result<Value, BackendError> {
+        node.execute(inputs, ctx)
+            .map(|outputs| outputs.into_iter().next().unwrap_or(Value::Bool(false)))
+            .map_err(|e| BackendError::ExecutionFailed(e.to_string()))
+    }
+}
+```
+
+### resin-gpu changes
+
+Implements `ComputeBackend`, provides GPU-specific types.
+
+```rust
+// backend.rs
+use resin_backend::{ComputeBackend, BackendCapabilities, BackendKind, WorkloadHint, Cost, BackendError};
+use resin_core::{Value, DynNode, EvalContext, GraphValue, DataLocation};
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
+use std::sync::Arc;
+
+/// GPU texture that implements GraphValue
+pub struct GpuTextureValue {
+    pub(crate) texture: wgpu::Texture,
+    pub(crate) view: wgpu::TextureView,
+    pub(crate) width: u32,
+    pub(crate) height: u32,
+    device_id: u32,
+}
+
+impl GraphValue for GpuTextureValue {
+    fn as_any(&self) -> &dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn clone_boxed(&self) -> Box<dyn GraphValue> {
+        panic!("GPU textures cannot be cloned directly") // or implement copy
+    }
+    fn location(&self) -> DataLocation {
+        DataLocation::Gpu { device_id: self.device_id }
+    }
+}
+
+/// GPU kernel for a specific node type
+pub trait GpuKernel: Send + Sync {
+    fn execute(
+        &self,
+        ctx: &GpuContext,
+        node: &dyn DynNode,
+        inputs: &[Value],
+        eval_ctx: &EvalContext,
+    ) -> Result<Value, BackendError>;
+}
+
+/// GPU compute backend
+pub struct GpuComputeBackend {
+    ctx: Arc<GpuContext>,
+    kernels: HashMap<TypeId, Box<dyn GpuKernel>>,
+    device_id: u32,
+}
+
+impl GpuComputeBackend {
+    pub fn new(ctx: Arc<GpuContext>) -> Self {
+        Self {
+            ctx,
+            kernels: HashMap::new(),
+            device_id: 0,
+        }
+    }
+
+    pub fn register_kernel<N: DynNode + 'static>(&mut self, kernel: impl GpuKernel + 'static) {
+        self.kernels.insert(TypeId::of::<N>(), Box::new(kernel));
+    }
+}
+
+impl ComputeBackend for GpuComputeBackend {
+    fn name(&self) -> &str { "gpu-compute" }
+
+    fn capabilities(&self) -> BackendCapabilities {
+        BackendCapabilities {
+            kind: BackendKind::Gpu,
+            bulk_efficient: true,
+            streaming_efficient: false,
+        }
+    }
+
+    fn supports_node(&self, node: &dyn DynNode) -> bool {
+        // Check if we have a kernel registered for this node type
+        // Note: needs node.type_id() or similar
+        false // TODO: implement type checking
+    }
+
+    fn estimate_cost(&self, _node: &dyn DynNode, workload: &WorkloadHint) -> Option<Cost> {
+        Some(Cost {
+            compute: 1.0 + workload.element_count as f64 * 0.001,
+            transfer: (workload.input_bytes + workload.output_bytes) as f64 * 0.01,
+        })
+    }
+
+    fn execute(
+        &self,
+        node: &dyn DynNode,
+        inputs: &[Value],
+        ctx: &EvalContext,
+    ) -> Result<Value, BackendError> {
+        // Look up kernel, dispatch
+        Err(BackendError::Unsupported) // TODO
+    }
+}
+```
+
+### EvalContext integration
+
+```rust
+// In resin-core, EvalContext stays simple
+pub struct EvalContext {
+    pub time: f64,
+    pub frame: u64,
+    pub dt: f64,
+    pub preview_mode: bool,
+    pub target_resolution: Option<(u32, u32)>,
+    pub seed: u64,
+    // ... existing fields
+}
+
+// In resin-backend, extend with a wrapper or separate type
+pub struct BackendEvalContext<'a> {
+    pub eval: &'a EvalContext,
+    pub backends: &'a BackendRegistry,
+    pub policy: ExecutionPolicy,
+}
+```
+
+### Scheduler integration with Evaluator
+
+```rust
+// In resin-backend
+use resin_core::{Graph, Evaluator, EvalRequest, EvalResult};
+
+/// Evaluator that uses backend scheduling
+pub struct BackendAwareEvaluator {
+    inner: Box<dyn Evaluator>,
+    registry: Arc<BackendRegistry>,
+    policy: ExecutionPolicy,
+}
+
+impl BackendAwareEvaluator {
+    pub fn new(
+        inner: impl Evaluator + 'static,
+        registry: Arc<BackendRegistry>,
+        policy: ExecutionPolicy,
+    ) -> Self {
+        Self {
+            inner: Box::new(inner),
+            registry,
+            policy,
+        }
+    }
+}
+
+impl Evaluator for BackendAwareEvaluator {
+    fn evaluate(
+        &mut self,
+        graph: &Graph,
+        request: &EvalRequest,
+        ctx: &mut EvalContext,
+    ) -> Result<EvalResult, GraphError> {
+        // For each node:
+        // 1. Select backend based on policy
+        // 2. Insert transfers if needed
+        // 3. Execute via backend
+        // 4. Return results
+        todo!()
+    }
+}
+```
+
+### Usage example
+
+```rust
+use resin_core::{Graph, LazyEvaluator, EvalContext};
+use resin_backend::{BackendRegistry, BackendAwareEvaluator, CpuBackend, ExecutionPolicy};
+use resin_gpu::{GpuContext, GpuComputeBackend};
+use std::sync::Arc;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Build graph
+    let graph = Graph::new();
+    // ... add nodes ...
+
+    // Setup backends
+    let mut registry = BackendRegistry::new();
+    registry.register(Arc::new(CpuBackend));
+
+    if let Ok(gpu_ctx) = GpuContext::new() {
+        let gpu = GpuComputeBackend::new(Arc::new(gpu_ctx));
+        registry.register(Arc::new(gpu));
+    }
+
+    // Create backend-aware evaluator
+    let lazy = LazyEvaluator::new();
+    let mut evaluator = BackendAwareEvaluator::new(
+        lazy,
+        Arc::new(registry),
+        ExecutionPolicy::Auto,
+    );
+
+    // Evaluate - scheduler picks backends automatically
+    let mut ctx = EvalContext::new();
+    let result = evaluator.evaluate(&graph, &request, &mut ctx)?;
+
+    Ok(())
+}
+```
+
+### Migration path
+
+1. **Phase 1:** Add `Value::Opaque` and `GraphValue` trait to resin-core
+2. **Phase 2:** Create `resin-backend` with traits and `CpuBackend`
+3. **Phase 3:** Move/refactor `resin-gpu` to implement `GpuComputeBackend`
+4. **Phase 4:** Add `BackendAwareEvaluator` that wraps existing evaluators
+5. **Phase 5:** Register GPU kernels for existing GPU ops (noise, image)
+
 ## Summary
 
 | Aspect | Design |
