@@ -370,6 +370,22 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
   - Documented SoA vs AoS limitation: traits only work with Struct-of-Arrays storage
   - AoS types (`SoftBody`, `GradientMesh`) cannot implement without restructuring
 
+### Compute Backends
+
+> **Goal:** Heterogeneous execution - GPU when available, CPU fallback, policy-based selection.
+> See `docs/design/compute-backends.md` for full design.
+
+- [ ] `ComputeBackend` trait - extensible backend abstraction (not enum)
+- [ ] `BackendRegistry` - register/query available backends
+- [ ] `CpuBackend` - default, always available
+- [ ] `GpuComputeBackend` - wgpu-based, registers GPU kernels per node type
+- [ ] `ExecutionPolicy` - Auto, PreferKind, Named, LocalFirst, MinimizeCost
+- [ ] `BackendScheduler` - matches policy to node capabilities
+- [ ] `WorkloadHint` - nodes advertise workload size for scheduling
+- [ ] `Cost` model - estimate compute + transfer costs
+- [ ] `DataLocation` tracking in `Value` - know where data lives
+- [ ] Integration with `EvalContext` - backends + policy fields
+
 ### Architecture / Future Extraction
 
 - [ ] Scene graph generalization - evaluate if resin-motion's scene graph should be extracted to resin-scene for general use (2D/3D hierarchy, transforms, parent-child relationships)
