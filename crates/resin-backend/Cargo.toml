@@ -1,0 +1,13 @@
+[package]
+name = "rhizome-resin-backend"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Compute backend abstraction for resin (CPU, GPU, etc.)"
+
+[features]
+default = []
+
+[dependencies]
+rhizome-resin-core = { path = "../resin-core" }
+thiserror.workspace = true

@@ -4089,6 +4089,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rhizome-resin-backend"
+version = "0.1.0"
+dependencies = [
+ "rhizome-resin-core",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "rhizome-resin-bytes"
 version = "0.1.0"
 dependencies = [
