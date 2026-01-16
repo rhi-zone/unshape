@@ -311,7 +311,7 @@ pub fn voronoi_diagram(points: &[Vec2]) -> VoronoiDiagram {
 
         // Sort triangles around the point to get cell vertices in order
         let mut cell_vertices = Vec::new();
-        let mut ordered = order_triangles_around_point(pi, tri_indices, &triangles);
+        let ordered = order_triangles_around_point(pi, tri_indices, &triangles);
 
         for ti in ordered {
             cell_vertices.push(voronoi_vertices[ti]);
@@ -329,7 +329,7 @@ pub fn voronoi_diagram(points: &[Vec2]) -> VoronoiDiagram {
 
     for (ti, tri) in triangles.iter().enumerate() {
         let tri_edges = tri.edges();
-        for (i, &(e1, e2)) in tri_edges.iter().enumerate() {
+        for &(e1, e2) in tri_edges.iter() {
             if seen_edges.contains(&(e1, e2)) {
                 continue;
             }

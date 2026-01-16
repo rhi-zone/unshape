@@ -196,7 +196,7 @@ impl WavFile {
         }
 
         let mut format: Option<(u16, u16, u32, u16)> = None; // (format_code, channels, sample_rate, bits)
-        let mut samples: Vec<f32> = Vec::new();
+        let samples: Vec<f32>;
 
         // Read chunks
         loop {

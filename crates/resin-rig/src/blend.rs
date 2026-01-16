@@ -5,7 +5,7 @@
 //! - Additive animation layers
 //! - 1D/2D blend trees for parametric blending
 
-use crate::{AnimationClip, AnimationTarget, Interpolate, Lerp, Transform3D};
+use crate::{AnimationClip, AnimationTarget, Lerp, Transform3D};
 use glam::Vec3;
 use std::collections::HashMap;
 

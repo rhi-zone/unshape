@@ -2,6 +2,11 @@
 
 ## Next Up
 
+### Warning Cleanup (2025-01-16)
+
+- [x] Analyzed and fixed all compile warnings. See `docs/design/dead-code-patterns.md` for patterns and lessons learned.
+  - `SvgElement::Group` kept with `#[allow(dead_code)]` - rendering support exists, just needs API
+
 - [x] Documentation audit - ensure all public APIs have docs (367 items fixed)
 - [x] Test coverage audit - 750+ tests passing, all crates covered
   - Well-tested: resin-mesh (153), resin-audio (123), resin-vector (117)

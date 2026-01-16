@@ -516,7 +516,7 @@ impl Spatializer {
         };
 
         // Apply delays and gains
-        for (i, &sample) in input.iter().enumerate() {
+        for (i, &_sample) in input.iter().enumerate() {
             // Left ear
             let left_idx = i.saturating_sub(near_delay);
             if left_idx < input.len() && azimuth < 0.0 {
