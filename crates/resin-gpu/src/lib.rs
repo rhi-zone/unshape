@@ -36,6 +36,7 @@
 mod backend;
 mod context;
 mod error;
+mod kernels;
 mod noise;
 mod texture;
 
@@ -45,6 +46,9 @@ mod image_expr;
 pub use backend::{GpuComputeBackend, GpuKernel};
 pub use context::GpuContext;
 pub use error::GpuError;
+pub use kernels::{
+    CpuNoiseData, NoiseTextureKernel, NoiseTextureNode, ParameterizedNoiseNode, register_kernels,
+};
 pub use noise::{NoiseConfig, NoiseType, generate_noise_texture_gpu, noise_texture_gpu};
 pub use texture::{GpuTexture, TextureFormat};
 
