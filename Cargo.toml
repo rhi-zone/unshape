@@ -94,6 +94,7 @@ dynop = [
 [dependencies]
 bevy = { workspace = true }
 rhizome-resin-core = { workspace = true }
+rhizome-resin-backend = { workspace = true }
 rhizome-resin-mesh = { workspace = true }
 rhizome-resin-audio = { workspace = true }
 rhizome-resin-vector = { workspace = true }
@@ -130,3 +131,7 @@ path = "examples/noise_texture.rs"
 name = "pipeline_roundtrip"
 path = "examples/pipeline_roundtrip.rs"
 required-features = ["dynop"]
+
+[[example]]
+name = "compute_backends"
+path = "examples/compute_backends.rs"
