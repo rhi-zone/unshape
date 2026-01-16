@@ -15,7 +15,7 @@
 //!
 //! let mono_audio: Vec<f32> = (0..1024).map(|i| (i as f32 * 0.1).sin()).collect();
 //!
-//! let spatializer = Spatializer::new(44100);
+//! let mut spatializer = Spatializer::new(44100);
 //! let (left, right) = spatializer.process_mono(&mono_audio, &source, &listener);
 //! ```
 
@@ -307,6 +307,30 @@ pub struct SpatializeOutput {
     pub right: Vec<f32>,
 }
 
+/// Pre-computed spatial parameters for sample-by-sample processing.
+///
+/// Compute once per frame with [`Spatializer::compute_params`], then use
+/// for processing all samples in that frame with [`Spatializer::process_sample`].
+#[derive(Debug, Clone, Copy)]
+pub struct SpatialParams {
+    /// Azimuth angle in radians (-PI to PI, 0 = front).
+    pub azimuth: f32,
+    /// Elevation angle in radians (-PI/2 to PI/2).
+    pub elevation: f32,
+    /// Distance from listener to source.
+    pub distance: f32,
+    /// Combined gain (distance attenuation * directivity).
+    pub gain: f32,
+    /// ITD delay in samples.
+    pub itd_samples: usize,
+    /// ILD linear gain factor.
+    pub ild_linear: f32,
+    /// Left channel pan gain (for Simple mode).
+    pub pan_gain_l: f32,
+    /// Right channel pan gain (for Simple mode).
+    pub pan_gain_r: f32,
+}
+
 /// Configuration for the spatializer.
 ///
 /// Operations on audio buffers use the ops-as-values pattern.
@@ -345,7 +369,7 @@ impl Spatialize {
     ///
     /// Returns stereo output (left, right).
     pub fn apply(&self, input: &SpatializeInput) -> SpatializeOutput {
-        let spatializer = Spatializer::with_config(input.sample_rate, self.clone());
+        let mut spatializer = Spatializer::with_config(input.sample_rate, self.clone());
         let (left, right) = spatializer.process_mono(&input.audio, &input.source, &input.listener);
         SpatializeOutput { left, right }
     }
@@ -382,6 +406,10 @@ pub struct Spatializer {
     /// Previous low-pass state for head shadow.
     lp_state_l: f32,
     lp_state_r: f32,
+    /// Fractional read position for Doppler resampling.
+    resample_pos: f64,
+    /// Previous sample for linear interpolation across buffer boundaries.
+    prev_sample: f32,
 }
 
 impl Spatializer {
@@ -401,16 +429,38 @@ impl Spatializer {
             delay_pos: 0,
             lp_state_l: 0.0,
             lp_state_r: 0.0,
+            resample_pos: 0.0,
+            prev_sample: 0.0,
         }
     }
 
     /// Processes a mono signal and returns stereo (left, right).
+    ///
+    /// This method maintains internal state (delay buffers, filter state) for
+    /// proper streaming across buffer boundaries. For stateless processing,
+    /// use [`process_mono_stateless`].
     pub fn process_mono(
-        &self,
+        &mut self,
         input: &[f32],
         source: &SpatialSource,
         listener: &SpatialListener,
     ) -> (Vec<f32>, Vec<f32>) {
+        // Apply Doppler effect if enabled
+        let processed_input: Vec<f32>;
+        let audio = if self.config.enable_doppler {
+            let factor = doppler_factor(
+                source.position,
+                source.velocity,
+                listener.position,
+                listener.velocity,
+                self.config.speed_of_sound,
+            );
+            processed_input = self.resample_doppler(input, factor as f64);
+            &processed_input[..]
+        } else {
+            input
+        };
+
         // Compute relative position
         let relative = source.position - listener.position;
         let distance = relative.length();
@@ -454,16 +504,65 @@ impl Spatializer {
 
         // Compute panning/HRTF based on mode
         match self.config.hrtf_mode {
-            HrtfMode::Simple => self.process_simple_pan(input, azimuth, gain),
-            HrtfMode::Basic => self.process_basic_hrtf(input, azimuth, elevation, distance, gain),
-            HrtfMode::Enhanced => {
-                self.process_enhanced_hrtf(input, azimuth, elevation, distance, gain)
-            }
+            HrtfMode::Simple => self.process_simple_pan(audio, azimuth, gain),
+            HrtfMode::Basic => self.process_basic_hrtf(audio, azimuth, gain),
+            HrtfMode::Enhanced => self.process_enhanced_hrtf(audio, azimuth, elevation, gain),
         }
     }
 
-    /// Simple stereo panning.
-    fn process_simple_pan(&self, input: &[f32], azimuth: f32, gain: f32) -> (Vec<f32>, Vec<f32>) {
+    /// Resamples input by Doppler factor using linear interpolation.
+    ///
+    /// Factor > 1 means higher pitch (approaching source), < 1 means lower pitch (receding).
+    fn resample_doppler(&mut self, input: &[f32], factor: f64) -> Vec<f32> {
+        if input.is_empty() {
+            return Vec::new();
+        }
+
+        // Output length: same as input (real-time constraint)
+        // We read from input at a rate determined by the Doppler factor
+        let mut output = Vec::with_capacity(input.len());
+
+        for _ in 0..input.len() {
+            // Integer and fractional parts of read position
+            let pos_int = self.resample_pos as usize;
+            let pos_frac = self.resample_pos - pos_int as f64;
+
+            // Get samples for interpolation
+            let s0 = if pos_int == 0 {
+                self.prev_sample
+            } else {
+                input.get(pos_int - 1).copied().unwrap_or(0.0)
+            };
+            let s1 = input.get(pos_int).copied().unwrap_or(0.0);
+
+            // Linear interpolation
+            let sample = s0 + (s1 - s0) * pos_frac as f32;
+            output.push(sample);
+
+            // Advance read position by Doppler factor
+            self.resample_pos += factor;
+        }
+
+        // Normalize position relative to input length and save state
+        if !input.is_empty() {
+            // Save last sample for next buffer's interpolation
+            self.prev_sample = *input.last().unwrap();
+            // Keep fractional overshoot for next buffer
+            self.resample_pos -= input.len() as f64;
+            // Clamp to valid range
+            self.resample_pos = self.resample_pos.max(0.0);
+        }
+
+        output
+    }
+
+    /// Simple stereo panning (stateless, no delay buffers needed).
+    fn process_simple_pan(
+        &mut self,
+        input: &[f32],
+        azimuth: f32,
+        gain: f32,
+    ) -> (Vec<f32>, Vec<f32>) {
         // Convert azimuth to pan position (-1 = left, +1 = right)
         let pan = (azimuth / PI).clamp(-1.0, 1.0);
 
@@ -479,12 +578,12 @@ impl Spatializer {
     }
 
     /// Basic HRTF with ITD and ILD.
+    ///
+    /// Uses circular delay buffers for proper ITD across buffer boundaries.
     fn process_basic_hrtf(
-        &self,
+        &mut self,
         input: &[f32],
         azimuth: f32,
-        _elevation: f32,
-        distance: f32,
         gain: f32,
     ) -> (Vec<f32>, Vec<f32>) {
         let mut left = vec![0.0; input.len()];
@@ -506,74 +605,71 @@ impl Spatializer {
         let ild_db = ild_factor * azimuth.abs() * (180.0 / PI) / 90.0 * 6.0;
         let ild_linear = 10.0f32.powf(-ild_db / 20.0);
 
-        // Determine which ear is closer
-        let (near_gain, far_gain, near_delay, far_delay) = if azimuth >= 0.0 {
-            // Sound is on the right
-            (gain, gain * ild_linear, 0, itd_samples)
-        } else {
-            // Sound is on the left
+        // Determine which ear is closer and compute gains/delays
+        let (gain_l, gain_r, delay_l, delay_r) = if azimuth >= 0.0 {
+            // Sound is on the right: right ear is near (no delay), left ear is far (delayed)
             (gain * ild_linear, gain, itd_samples, 0)
+        } else {
+            // Sound is on the left: left ear is near (no delay), right ear is far (delayed)
+            (gain, gain * ild_linear, 0, itd_samples)
         };
 
-        // Apply delays and gains
-        for (i, &_sample) in input.iter().enumerate() {
-            // Left ear
-            let left_idx = i.saturating_sub(near_delay);
-            if left_idx < input.len() && azimuth < 0.0 {
-                left[i] = input[left_idx] * near_gain;
-            } else {
-                let far_idx = i.saturating_sub(far_delay);
-                if far_idx < input.len() {
-                    left[i] = input[far_idx] * far_gain;
-                }
-            }
+        let buffer_len = self.delay_buffer_l.len();
 
-            // Right ear
-            let right_idx = i.saturating_sub(near_delay);
-            if right_idx < input.len() && azimuth >= 0.0 {
-                right[i] = input[right_idx] * near_gain;
-            } else {
-                let far_idx = i.saturating_sub(far_delay);
-                if far_idx < input.len() {
-                    right[i] = input[far_idx] * far_gain;
-                }
-            }
+        // Process each sample using circular delay buffers
+        for (i, &sample) in input.iter().enumerate() {
+            // Write input to both delay buffers at current position
+            self.delay_buffer_l[self.delay_pos] = sample;
+            self.delay_buffer_r[self.delay_pos] = sample;
+
+            // Read from delay buffers with appropriate delays
+            let read_pos_l = (self.delay_pos + buffer_len - delay_l) % buffer_len;
+            let read_pos_r = (self.delay_pos + buffer_len - delay_r) % buffer_len;
+
+            left[i] = self.delay_buffer_l[read_pos_l] * gain_l;
+            right[i] = self.delay_buffer_r[read_pos_r] * gain_r;
+
+            // Advance write position
+            self.delay_pos = (self.delay_pos + 1) % buffer_len;
         }
-
-        // Simple distance cue: slightly more reverb for far sources (not implemented here)
-        let _ = distance;
 
         (left, right)
     }
 
     /// Enhanced HRTF with frequency-dependent head shadow.
+    ///
+    /// Uses persistent lowpass filter state for proper streaming.
     fn process_enhanced_hrtf(
-        &self,
+        &mut self,
         input: &[f32],
         azimuth: f32,
         elevation: f32,
-        distance: f32,
         gain: f32,
     ) -> (Vec<f32>, Vec<f32>) {
         // Start with basic HRTF
-        let (mut left, mut right) =
-            self.process_basic_hrtf(input, azimuth, elevation, distance, gain);
+        let (mut left, mut right) = self.process_basic_hrtf(input, azimuth, gain);
 
         // Add frequency-dependent head shadow (low-pass on far ear)
         // More low-pass for sources behind the head
         let shadow_amount = (1.0 - azimuth.cos()).max(0.0) * 0.5;
 
-        // Simple one-pole low-pass
+        // Simple one-pole low-pass coefficient
         let cutoff_factor = 1.0 - shadow_amount * 0.8;
         let alpha = cutoff_factor.clamp(0.1, 1.0);
 
-        // Apply head shadow to far ear
+        // Apply head shadow to far ear using persistent state
         if azimuth >= 0.0 {
             // Right is near, apply shadow to left
-            apply_lowpass(&mut left, alpha);
+            for sample in left.iter_mut() {
+                self.lp_state_l = alpha * *sample + (1.0 - alpha) * self.lp_state_l;
+                *sample = self.lp_state_l;
+            }
         } else {
             // Left is near, apply shadow to right
-            apply_lowpass(&mut right, alpha);
+            for sample in right.iter_mut() {
+                self.lp_state_r = alpha * *sample + (1.0 - alpha) * self.lp_state_r;
+                *sample = self.lp_state_r;
+            }
         }
 
         // Pinna cues for elevation (simplified)
@@ -598,6 +694,185 @@ impl Spatializer {
         self.delay_pos = 0;
         self.lp_state_l = 0.0;
         self.lp_state_r = 0.0;
+        self.resample_pos = 0.0;
+        self.prev_sample = 0.0;
+    }
+
+    /// Computes spatial parameters for a source/listener pair.
+    ///
+    /// Use this to pre-compute parameters once per frame, then process
+    /// multiple samples with [`process_sample`].
+    pub fn compute_params(
+        &self,
+        source: &SpatialSource,
+        listener: &SpatialListener,
+    ) -> SpatialParams {
+        let relative = source.position - listener.position;
+        let distance = relative.length();
+
+        let right = listener.right();
+        let forward = listener.forward;
+
+        let local_x = relative.dot(right);
+        let local_z = relative.dot(forward);
+        let local_y = relative.dot(listener.up);
+
+        let azimuth = local_x.atan2(local_z);
+        let elevation = (local_y / distance.max(0.001)).clamp(-1.0, 1.0).asin();
+
+        let distance_gain = self.config.distance_model.gain(distance);
+
+        let directivity_gain = if source.directivity < 1.0 {
+            let to_listener = (listener.position - source.position).normalize();
+            let angle = source.direction.dot(to_listener).clamp(-1.0, 1.0).acos();
+
+            if angle <= source.inner_cone {
+                1.0
+            } else if angle >= source.outer_cone {
+                source.outer_gain
+            } else {
+                let t = (angle - source.inner_cone) / (source.outer_cone - source.inner_cone);
+                1.0 - t * (1.0 - source.outer_gain)
+            }
+        } else {
+            1.0
+        };
+
+        let gain = distance_gain * directivity_gain;
+
+        // Compute ITD/ILD parameters for Basic/Enhanced HRTF
+        let head_radius = 0.085;
+        let itd_seconds =
+            head_radius / self.config.speed_of_sound * (azimuth.sin().abs() + azimuth.abs());
+        let itd_samples =
+            ((itd_seconds * self.sample_rate as f32) as usize).min(self.config.max_itd_samples);
+
+        let ild_factor = 0.3;
+        let ild_db = ild_factor * azimuth.abs() * (180.0 / PI) / 90.0 * 6.0;
+        let ild_linear = 10.0f32.powf(-ild_db / 20.0);
+
+        // Pan gains for simple mode
+        let pan = (azimuth / PI).clamp(-1.0, 1.0);
+        let pan_angle = (pan + 1.0) * PI / 4.0;
+
+        SpatialParams {
+            azimuth,
+            elevation,
+            distance,
+            gain,
+            itd_samples,
+            ild_linear,
+            pan_gain_l: pan_angle.cos(),
+            pan_gain_r: pan_angle.sin(),
+        }
+    }
+
+    /// Processes a single sample and returns stereo output (left, right).
+    ///
+    /// Use [`compute_params`] to pre-compute spatial parameters, then call
+    /// this method for each sample. This avoids recomputing parameters for
+    /// every sample when source/listener positions don't change within a buffer.
+    ///
+    /// Note: Doppler effect is not applied in sample-by-sample mode. Use
+    /// [`process_mono`] for Doppler support.
+    pub fn process_sample(&mut self, sample: f32, params: &SpatialParams) -> (f32, f32) {
+        match self.config.hrtf_mode {
+            HrtfMode::Simple => {
+                let left = sample * params.pan_gain_l * params.gain;
+                let right = sample * params.pan_gain_r * params.gain;
+                (left, right)
+            }
+            HrtfMode::Basic => {
+                let (gain_l, gain_r, delay_l, delay_r) = if params.azimuth >= 0.0 {
+                    (
+                        params.gain * params.ild_linear,
+                        params.gain,
+                        params.itd_samples,
+                        0,
+                    )
+                } else {
+                    (
+                        params.gain,
+                        params.gain * params.ild_linear,
+                        0,
+                        params.itd_samples,
+                    )
+                };
+
+                let buffer_len = self.delay_buffer_l.len();
+
+                // Write to delay buffers
+                self.delay_buffer_l[self.delay_pos] = sample;
+                self.delay_buffer_r[self.delay_pos] = sample;
+
+                // Read with delays
+                let read_pos_l = (self.delay_pos + buffer_len - delay_l) % buffer_len;
+                let read_pos_r = (self.delay_pos + buffer_len - delay_r) % buffer_len;
+
+                let left = self.delay_buffer_l[read_pos_l] * gain_l;
+                let right = self.delay_buffer_r[read_pos_r] * gain_r;
+
+                self.delay_pos = (self.delay_pos + 1) % buffer_len;
+
+                (left, right)
+            }
+            HrtfMode::Enhanced => {
+                // Start with basic processing
+                let (mut left, mut right) = {
+                    let (gain_l, gain_r, delay_l, delay_r) = if params.azimuth >= 0.0 {
+                        (
+                            params.gain * params.ild_linear,
+                            params.gain,
+                            params.itd_samples,
+                            0,
+                        )
+                    } else {
+                        (
+                            params.gain,
+                            params.gain * params.ild_linear,
+                            0,
+                            params.itd_samples,
+                        )
+                    };
+
+                    let buffer_len = self.delay_buffer_l.len();
+
+                    self.delay_buffer_l[self.delay_pos] = sample;
+                    self.delay_buffer_r[self.delay_pos] = sample;
+
+                    let read_pos_l = (self.delay_pos + buffer_len - delay_l) % buffer_len;
+                    let read_pos_r = (self.delay_pos + buffer_len - delay_r) % buffer_len;
+
+                    let l = self.delay_buffer_l[read_pos_l] * gain_l;
+                    let r = self.delay_buffer_r[read_pos_r] * gain_r;
+
+                    self.delay_pos = (self.delay_pos + 1) % buffer_len;
+
+                    (l, r)
+                };
+
+                // Head shadow filtering
+                let shadow_amount = (1.0 - params.azimuth.cos()).max(0.0) * 0.5;
+                let cutoff_factor = 1.0 - shadow_amount * 0.8;
+                let alpha = cutoff_factor.clamp(0.1, 1.0);
+
+                if params.azimuth >= 0.0 {
+                    self.lp_state_l = alpha * left + (1.0 - alpha) * self.lp_state_l;
+                    left = self.lp_state_l;
+                } else {
+                    self.lp_state_r = alpha * right + (1.0 - alpha) * self.lp_state_r;
+                    right = self.lp_state_r;
+                }
+
+                // Elevation effect
+                let elevation_effect = params.elevation.abs() / (PI / 2.0);
+                let high_shelf = 1.0 - elevation_effect * 0.2;
+                left *= high_shelf;
+                right *= high_shelf;
+
+                (left, right)
+            }
+        }
     }
 }
 
@@ -618,15 +893,6 @@ pub fn doppler_factor(
     // Doppler formula: f' = f * (c + v_listener) / (c + v_source)
     let c = speed_of_sound;
     ((c + v_listener) / (c + v_source)).clamp(0.5, 2.0)
-}
-
-/// Applies a simple one-pole low-pass filter in place.
-fn apply_lowpass(signal: &mut [f32], alpha: f32) {
-    let mut state = signal.first().copied().unwrap_or(0.0);
-    for sample in signal.iter_mut() {
-        state = alpha * *sample + (1.0 - alpha) * state;
-        *sample = state;
-    }
 }
 
 /// Stereo mix utilities.
@@ -725,7 +991,7 @@ mod tests {
 
     #[test]
     fn test_spatializer_simple_pan() {
-        let spatializer = Spatializer::new(44100);
+        let mut spatializer = Spatializer::new(44100);
 
         let input: Vec<f32> = (0..1024).map(|i| (i as f32 * 0.1).sin()).collect();
 
@@ -744,7 +1010,7 @@ mod tests {
 
     #[test]
     fn test_spatializer_center() {
-        let spatializer = Spatializer::new(44100);
+        let mut spatializer = Spatializer::new(44100);
 
         let input: Vec<f32> = (0..1024).map(|i| (i as f32 * 0.1).sin()).collect();
 
@@ -816,7 +1082,7 @@ mod tests {
     fn test_hrtf_basic() {
         let mut config = Spatialize::default();
         config.hrtf_mode = HrtfMode::Basic;
-        let spatializer = Spatializer::with_config(44100, config);
+        let mut spatializer = Spatializer::with_config(44100, config);
 
         let input: Vec<f32> = (0..1024).map(|i| (i as f32 * 0.1).sin()).collect();
 
@@ -831,7 +1097,7 @@ mod tests {
 
     #[test]
     fn test_directional_source() {
-        let spatializer = Spatializer::new(44100);
+        let mut spatializer = Spatializer::new(44100);
 
         let input: Vec<f32> = vec![1.0; 100];
 
@@ -849,5 +1115,82 @@ mod tests {
         // Should be attenuated because listener is behind the cone
         let energy: f32 = left.iter().map(|s| s * s).sum();
         assert!(energy < 100.0 * 0.5, "Directional source should attenuate");
+    }
+
+    #[test]
+    fn test_streaming_api_matches_batch() {
+        // Test that sample-by-sample processing matches batch processing
+        // (when Doppler is disabled)
+        let mut config = Spatialize::default();
+        config.enable_doppler = false;
+        config.hrtf_mode = HrtfMode::Simple;
+
+        let input: Vec<f32> = (0..256).map(|i| (i as f32 * 0.1).sin()).collect();
+        let source = SpatialSource::at(Vec3::new(1.0, 0.0, 0.0));
+        let listener = SpatialListener::default();
+
+        // Batch processing
+        let mut batch_spatializer = Spatializer::with_config(44100, config.clone());
+        let (batch_left, batch_right) = batch_spatializer.process_mono(&input, &source, &listener);
+
+        // Sample-by-sample processing
+        let mut stream_spatializer = Spatializer::with_config(44100, config);
+        let params = stream_spatializer.compute_params(&source, &listener);
+
+        let mut stream_left = Vec::with_capacity(input.len());
+        let mut stream_right = Vec::with_capacity(input.len());
+
+        for &sample in &input {
+            let (l, r) = stream_spatializer.process_sample(sample, &params);
+            stream_left.push(l);
+            stream_right.push(r);
+        }
+
+        // Compare outputs
+        for i in 0..input.len() {
+            assert!(
+                (batch_left[i] - stream_left[i]).abs() < 0.001,
+                "Left mismatch at {}: {} vs {}",
+                i,
+                batch_left[i],
+                stream_left[i]
+            );
+            assert!(
+                (batch_right[i] - stream_right[i]).abs() < 0.001,
+                "Right mismatch at {}: {} vs {}",
+                i,
+                batch_right[i],
+                stream_right[i]
+            );
+        }
+    }
+
+    #[test]
+    fn test_streaming_api_hrtf_basic() {
+        let mut config = Spatialize::default();
+        config.enable_doppler = false;
+        config.hrtf_mode = HrtfMode::Basic;
+
+        let input: Vec<f32> = (0..256).map(|i| (i as f32 * 0.1).sin()).collect();
+        let source = SpatialSource::at(Vec3::new(1.0, 0.0, 0.0));
+        let listener = SpatialListener::default();
+
+        // Process using streaming API
+        let mut spatializer = Spatializer::with_config(44100, config);
+        let params = spatializer.compute_params(&source, &listener);
+
+        let mut left = Vec::with_capacity(input.len());
+        let mut right = Vec::with_capacity(input.len());
+
+        for &sample in &input {
+            let (l, r) = spatializer.process_sample(sample, &params);
+            left.push(l);
+            right.push(r);
+        }
+
+        // Right should be louder (source is on the right)
+        let left_energy: f32 = left.iter().map(|s| s * s).sum();
+        let right_energy: f32 = right.iter().map(|s| s * s).sum();
+        assert!(right_energy > left_energy);
     }
 }
