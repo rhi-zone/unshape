@@ -3,6 +3,7 @@
 use glam::{Vec2, Vec3, Vec4};
 use std::any::TypeId;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 
 use crate::error::TypeError;
 
@@ -195,6 +196,62 @@ impl From<Vec4> for Value {
     }
 }
 
+impl Hash for Value {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // Discriminant first for type safety
+        std::mem::discriminant(self).hash(state);
+        match self {
+            Value::F32(v) => v.to_bits().hash(state),
+            Value::F64(v) => v.to_bits().hash(state),
+            Value::I32(v) => v.hash(state),
+            Value::Bool(v) => v.hash(state),
+            Value::Vec2(v) => {
+                v.x.to_bits().hash(state);
+                v.y.to_bits().hash(state);
+            }
+            Value::Vec3(v) => {
+                v.x.to_bits().hash(state);
+                v.y.to_bits().hash(state);
+                v.z.to_bits().hash(state);
+            }
+            Value::Vec4(v) => {
+                v.x.to_bits().hash(state);
+                v.y.to_bits().hash(state);
+                v.z.to_bits().hash(state);
+                v.w.to_bits().hash(state);
+            }
+        }
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::F32(a), Value::F32(b)) => a.to_bits() == b.to_bits(),
+            (Value::F64(a), Value::F64(b)) => a.to_bits() == b.to_bits(),
+            (Value::I32(a), Value::I32(b)) => a == b,
+            (Value::Bool(a), Value::Bool(b)) => a == b,
+            (Value::Vec2(a), Value::Vec2(b)) => {
+                a.x.to_bits() == b.x.to_bits() && a.y.to_bits() == b.y.to_bits()
+            }
+            (Value::Vec3(a), Value::Vec3(b)) => {
+                a.x.to_bits() == b.x.to_bits()
+                    && a.y.to_bits() == b.y.to_bits()
+                    && a.z.to_bits() == b.z.to_bits()
+            }
+            (Value::Vec4(a), Value::Vec4(b)) => {
+                a.x.to_bits() == b.x.to_bits()
+                    && a.y.to_bits() == b.y.to_bits()
+                    && a.z.to_bits() == b.z.to_bits()
+                    && a.w.to_bits() == b.w.to_bits()
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Value {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -287,5 +344,66 @@ mod tests {
         let _: Value = Vec2::ZERO.into();
         let _: Value = Vec3::ZERO.into();
         let _: Value = Vec4::ZERO.into();
+    }
+
+    #[test]
+    fn test_value_hash_eq() {
+        use std::collections::hash_map::DefaultHasher;
+
+        fn hash(v: &Value) -> u64 {
+            let mut h = DefaultHasher::new();
+            v.hash(&mut h);
+            h.finish()
+        }
+
+        // Same values should hash equally
+        assert_eq!(hash(&Value::F32(1.0)), hash(&Value::F32(1.0)));
+        assert_eq!(hash(&Value::I32(42)), hash(&Value::I32(42)));
+        assert_eq!(
+            hash(&Value::Vec3(Vec3::new(1.0, 2.0, 3.0))),
+            hash(&Value::Vec3(Vec3::new(1.0, 2.0, 3.0)))
+        );
+
+        // Different values should (usually) hash differently
+        assert_ne!(hash(&Value::F32(1.0)), hash(&Value::F32(2.0)));
+        assert_ne!(hash(&Value::F32(1.0)), hash(&Value::I32(1)));
+
+        // PartialEq consistency
+        assert_eq!(Value::F32(1.0), Value::F32(1.0));
+        assert_ne!(Value::F32(1.0), Value::F32(2.0));
+        assert_ne!(Value::F32(1.0), Value::I32(1));
+    }
+
+    #[test]
+    fn test_value_hash_nan() {
+        use std::collections::hash_map::DefaultHasher;
+
+        fn hash(v: &Value) -> u64 {
+            let mut h = DefaultHasher::new();
+            v.hash(&mut h);
+            h.finish()
+        }
+
+        // NaN with same bit pattern should hash consistently
+        let nan1 = Value::F32(f32::NAN);
+        let nan2 = Value::F32(f32::NAN);
+        assert_eq!(hash(&nan1), hash(&nan2));
+        // Using to_bits means same bit pattern = equal
+        assert_eq!(nan1, nan2);
+    }
+
+    #[test]
+    fn test_value_usable_as_map_key() {
+        use std::collections::HashMap;
+
+        let mut map: HashMap<Value, &str> = HashMap::new();
+        map.insert(Value::F32(1.0), "one");
+        map.insert(Value::I32(2), "two");
+        map.insert(Value::Vec3(Vec3::X), "x-axis");
+
+        assert_eq!(map.get(&Value::F32(1.0)), Some(&"one"));
+        assert_eq!(map.get(&Value::I32(2)), Some(&"two"));
+        assert_eq!(map.get(&Value::Vec3(Vec3::X)), Some(&"x-axis"));
+        assert_eq!(map.get(&Value::F32(2.0)), None);
     }
 }

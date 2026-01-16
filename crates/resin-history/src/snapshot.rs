@@ -176,7 +176,7 @@ impl Default for SnapshotHistory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rhizome_resin_core::{GraphError, PortDescriptor, Value, ValueType};
+    use rhizome_resin_core::{EvalContext, GraphError, PortDescriptor, Value, ValueType};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -194,7 +194,7 @@ mod tests {
         fn outputs(&self) -> Vec<PortDescriptor> {
             vec![PortDescriptor::new("out", ValueType::F32)]
         }
-        fn execute(&self, _: &[Value]) -> Result<Vec<Value>, GraphError> {
+        fn execute(&self, _: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
             Ok(vec![Value::F32(self.value)])
         }
     }
@@ -210,7 +210,8 @@ mod tests {
 
     fn extract_params(node: &dyn DynNode) -> Option<serde_json::Value> {
         if node.type_name() == "test::Node" {
-            let outputs = node.execute(&[]).ok()?;
+            let ctx = EvalContext::new();
+            let outputs = node.execute(&[], &ctx).ok()?;
             let value = outputs[0].as_f32().ok()?;
             Some(serde_json::json!({"value": value}))
         } else {

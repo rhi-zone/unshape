@@ -219,6 +219,7 @@ pub fn derive_dyn_node(input: TokenStream) -> TokenStream {
             fn execute(
                 &self,
                 inputs: &[#crate_path::Value],
+                _ctx: &#crate_path::EvalContext,
             ) -> Result<Vec<#crate_path::Value>, #crate_path::GraphError> {
                 let mut node = self.clone();
                 #(#input_extractions)*
