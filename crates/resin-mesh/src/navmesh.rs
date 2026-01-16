@@ -304,7 +304,6 @@ impl Default for NavMesh {
 #[derive(Clone)]
 struct PathNode {
     poly_idx: usize,
-    g_cost: f32,
     f_cost: f32,
 }
 
@@ -379,7 +378,6 @@ pub fn find_path(navmesh: &NavMesh, start: Vec3, end: Vec3) -> Option<NavPath> {
     g_score.insert(start_poly, 0.0);
     open_set.push(PathNode {
         poly_idx: start_poly,
-        g_cost: 0.0,
         f_cost: heuristic(start_poly),
     });
 
@@ -439,7 +437,6 @@ pub fn find_path(navmesh: &NavMesh, start: Vec3, end: Vec3) -> Option<NavPath> {
                 let f = tentative_g + heuristic(neighbor);
                 open_set.push(PathNode {
                     poly_idx: neighbor,
-                    g_cost: tentative_g,
                     f_cost: f,
                 });
             }

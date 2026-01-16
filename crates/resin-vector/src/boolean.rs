@@ -453,7 +453,6 @@ pub fn cubic_self_intersections(
 pub fn closest_point_on_curve(curve: &CurveSegment, point: Vec2, samples: usize) -> ClosestPoint {
     let mut best_t = 0.0;
     let mut best_dist = f32::MAX;
-    let mut best_point = curve.evaluate(0.0);
 
     // Initial sampling
     for i in 0..=samples {
@@ -463,7 +462,6 @@ pub fn closest_point_on_curve(curve: &CurveSegment, point: Vec2, samples: usize)
         if dist < best_dist {
             best_dist = dist;
             best_t = t;
-            best_point = p;
         }
     }
 
@@ -483,7 +481,7 @@ pub fn closest_point_on_curve(curve: &CurveSegment, point: Vec2, samples: usize)
         best_t = (best_t + delta_t * 0.5).clamp(0.0, 1.0);
     }
 
-    best_point = curve.evaluate(best_t);
+    let best_point = curve.evaluate(best_t);
     ClosestPoint {
         point: best_point,
         t: best_t,

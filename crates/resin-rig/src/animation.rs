@@ -3,7 +3,7 @@
 //! Provides a system for storing and sampling animated values over time.
 
 use crate::Transform3D;
-use glam::{Quat, Vec3};
+use glam::Vec3;
 pub use rhizome_resin_easing::Lerp;
 use std::collections::HashMap;
 

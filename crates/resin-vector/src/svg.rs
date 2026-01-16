@@ -222,6 +222,9 @@ enum SvgElement {
         y2: f32,
         style: SvgStyle,
     },
+    /// SVG group element with optional transform.
+    /// Not yet used - rendering support exists but no API creates groups yet.
+    #[allow(dead_code)]
     Group {
         elements: Vec<SvgElement>,
         transform: Option<String>,

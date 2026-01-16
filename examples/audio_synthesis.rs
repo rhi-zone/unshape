@@ -5,7 +5,7 @@
 //!
 //! Run with: `cargo run --example audio_synthesis`
 
-use rhizome_resin_audio::{Chorus, FmOsc, Reverb, WavFile};
+use rhizome_resin_audio::{FmOsc, Reverb, WavFile, chorus};
 
 fn main() {
     let sample_rate = 44100u32;
@@ -55,7 +55,7 @@ fn main() {
     println!("Applying effects...");
 
     // Apply chorus
-    let mut chorus = Chorus::new(sample_rate as f32);
+    let mut chorus = chorus(sample_rate as f32);
     for sample in &mut samples {
         *sample = chorus.process(*sample);
     }

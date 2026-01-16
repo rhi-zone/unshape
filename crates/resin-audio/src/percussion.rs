@@ -44,12 +44,8 @@ pub struct PercussionInput {
 /// A single resonant mode.
 #[derive(Debug, Clone)]
 struct Mode {
-    /// Frequency in Hz.
-    freq: f32,
     /// Amplitude (relative).
     amplitude: f32,
-    /// Decay time constant (seconds).
-    decay: f32,
     /// Current phase.
     phase: f32,
     /// Current amplitude envelope.
@@ -66,9 +62,7 @@ impl Mode {
         let decay_coeff = (-1.0 / (decay * sample_rate)).exp();
 
         Self {
-            freq,
             amplitude,
-            decay,
             phase: 0.0,
             envelope: 0.0,
             phase_inc,
@@ -192,8 +186,6 @@ pub type MembraneConfig = MembraneSynth;
 /// Uses Bessel function zeros for mode frequencies.
 pub struct Membrane {
     modes: Vec<Mode>,
-    sample_rate: f32,
-    config: MembraneSynth,
 }
 
 impl Membrane {
@@ -234,11 +226,7 @@ impl Membrane {
             modes.push(Mode::new(freq, amplitude, decay, sample_rate));
         }
 
-        Self {
-            modes,
-            sample_rate,
-            config,
-        }
+        Self { modes }
     }
 
     /// Triggers the membrane with the given velocity (0-1).
@@ -373,7 +361,6 @@ pub type BarConfig = BarSynth;
 pub struct Bar {
     modes: Vec<Mode>,
     sample_rate: f32,
-    config: BarSynth,
     /// Optional vibrato for vibraphone effect.
     vibrato_phase: f32,
     vibrato_rate: f32,
@@ -414,7 +401,6 @@ impl Bar {
         Self {
             modes,
             sample_rate,
-            config,
             vibrato_phase: 0.0,
             vibrato_rate: 0.0,
             vibrato_depth: 0.0,
@@ -581,8 +567,6 @@ pub type PlateConfig = PlateSynth;
 /// Uses a dense, inharmonic spectrum characteristic of plates.
 pub struct Plate {
     modes: Vec<Mode>,
-    sample_rate: f32,
-    config: PlateSynth,
     noise_state: u32,
 }
 
@@ -620,8 +604,6 @@ impl Plate {
 
         Self {
             modes,
-            sample_rate,
-            config,
             noise_state: 54321,
         }
     }
