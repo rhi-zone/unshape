@@ -5,10 +5,12 @@
 //!
 //! Run with: `cargo run --example compute_backends`
 
-use rhizome_resin_backend::{BackendNodeExecutor, BackendRegistry, ExecutionPolicy, Scheduler};
+use rhizome_resin_backend::{
+    BackendNodeExecutor, BackendRegistry, ExecutionPolicy, LazyEvaluator, Scheduler,
+    backend_evaluator,
+};
 use rhizome_resin_core::{
-    DynNode, EvalContext, Evaluator, Graph, GraphError, LazyEvaluator, PortDescriptor, Value,
-    ValueType,
+    DynNode, EvalContext, Evaluator, Graph, GraphError, PortDescriptor, Value, ValueType,
 };
 use std::any::Any;
 
@@ -148,10 +150,12 @@ fn main() {
         graph.wires().len()
     );
 
-    // Setup backend registry
-    let registry = BackendRegistry::with_cpu();
+    // Simple API: backend_evaluator() convenience function
+    let mut evaluator = backend_evaluator(ExecutionPolicy::Auto);
+
+    // Show available backends via the scheduler
     println!("Available backends:");
-    for backend in registry.iter() {
+    for backend in evaluator.executor().scheduler().registry().iter() {
         let caps = backend.capabilities();
         println!(
             "  - {} ({:?}, bulk_efficient={}, streaming_efficient={})",
@@ -162,10 +166,6 @@ fn main() {
         );
     }
     println!();
-
-    // Create scheduler with Auto policy
-    let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
-    let mut evaluator = LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler));
 
     // Evaluate
     let ctx = EvalContext::new();
@@ -206,12 +206,20 @@ fn main() {
     ];
 
     for (name, policy) in policies {
-        let registry = BackendRegistry::with_cpu();
-        let scheduler = Scheduler::new(registry, policy);
-        let mut evaluator = LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler));
+        // Simple: use backend_evaluator()
+        let mut evaluator = backend_evaluator(policy);
         let result = evaluator.evaluate(&graph, &[add], &ctx).unwrap();
         println!("  {}: output = {:?}", name, result.outputs[0][0]);
     }
+
+    // Advanced API: manual setup for custom registries
+    println!("\nAdvanced: manual setup with custom registry");
+    let registry = BackendRegistry::with_cpu();
+    // Could add GPU here: registry.register(Arc::new(gpu_backend));
+    let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
+    let mut evaluator = LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler));
+    let result = evaluator.evaluate(&graph, &[add], &ctx).unwrap();
+    println!("  Output: {:?}", result.outputs[0][0]);
 
     println!("\nDemo complete!");
 }

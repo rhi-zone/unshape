@@ -14,10 +14,18 @@ The compute backends system is fully implemented:
 | `resin-backend` | `ComputeBackend` trait, `CpuBackend`, `BackendRegistry`, `ExecutionPolicy`, `Scheduler`, `BackendNodeExecutor` |
 | `resin-gpu` | `GpuComputeBackend`, `GpuKernel` trait, kernels for noise and image-expr |
 
-**Quick start:**
+**Quick start (simple):**
 ```rust
-use rhizome_resin_backend::{BackendRegistry, BackendNodeExecutor, Scheduler, ExecutionPolicy};
-use rhizome_resin_core::LazyEvaluator;
+use rhizome_resin_backend::{backend_evaluator, ExecutionPolicy};
+
+// One-liner: CPU backend with auto policy
+let mut evaluator = backend_evaluator(ExecutionPolicy::Auto);
+let result = evaluator.evaluate(&graph, &[output_node], &ctx)?;
+```
+
+**Quick start (with GPU):**
+```rust
+use rhizome_resin_backend::{BackendRegistry, BackendNodeExecutor, Scheduler, ExecutionPolicy, LazyEvaluator};
 use rhizome_resin_gpu::{GpuComputeBackend, register_kernels};
 
 // Setup registry with CPU (always) and GPU (if available)
@@ -29,8 +37,7 @@ if let Ok(gpu) = GpuComputeBackend::new() {
 
 // Create scheduler and evaluator
 let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
-let executor = BackendNodeExecutor::new(scheduler);
-let mut evaluator = LazyEvaluator::with_executor(executor);
+let mut evaluator = LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler));
 
 // Evaluate - backends selected automatically per node
 let result = evaluator.evaluate(&graph, &[output_node], &ctx)?;

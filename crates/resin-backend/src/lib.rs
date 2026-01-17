@@ -9,25 +9,32 @@
 //! - [`ComputeBackend`] - Trait for execution backends
 //! - [`BackendRegistry`] - Collection of available backends
 //! - [`ExecutionPolicy`] - How to choose backends
-//! - [`CpuBackend`] - Default CPU backend (always available)
+//! - [`BackendNodeExecutor`] - Node executor that routes through backends
+//! - [`backend_evaluator`] - Convenience function for common setup
 //!
-//! # Example
+//! # Quick Start
 //!
 //! ```
-//! use rhizome_resin_backend::{BackendRegistry, CpuBackend, ExecutionPolicy};
-//! use std::sync::Arc;
+//! use rhizome_resin_backend::{backend_evaluator, ExecutionPolicy};
 //!
-//! // Create registry with CPU backend
-//! let mut registry = BackendRegistry::new();
-//! registry.register(Arc::new(CpuBackend));
+//! // Create evaluator with CPU backend and auto policy
+//! let mut evaluator = backend_evaluator(ExecutionPolicy::Auto);
 //!
-//! // GPU backends can be registered when available
-//! // if let Ok(gpu) = GpuBackend::new() {
-//! //     registry.register(Arc::new(gpu));
-//! // }
+//! // Use with graph evaluation:
+//! // let result = evaluator.evaluate(&graph, &[output], &ctx)?;
+//! ```
 //!
-//! // Policy determines backend selection
-//! let policy = ExecutionPolicy::Auto;
+//! # Advanced Usage
+//!
+//! For custom backend registration (e.g., GPU):
+//!
+//! ```
+//! use rhizome_resin_backend::{BackendRegistry, BackendNodeExecutor, Scheduler, ExecutionPolicy, LazyEvaluator};
+//!
+//! let registry = BackendRegistry::with_cpu();
+//! // registry.register(Arc::new(gpu_backend));  // Add GPU if available
+//! let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
+//! let evaluator = LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler));
 //! ```
 //!
 //! See `docs/design/compute-backends.md` for full design documentation.
@@ -47,4 +54,25 @@ pub use registry::BackendRegistry;
 pub use scheduler::{BackendEvalResult, BackendNodeExecutor, Scheduler};
 
 // Re-export core types for convenience
-pub use rhizome_resin_core::{DataLocation, DynNode, EvalContext, GraphValue, Value};
+pub use rhizome_resin_core::{
+    DataLocation, DynNode, EvalContext, GraphValue, LazyEvaluator, Value,
+};
+
+/// Creates a backend-aware evaluator with CPU backend and the given policy.
+///
+/// This is a convenience function for the common case. For more control,
+/// build the components manually:
+///
+/// ```
+/// use rhizome_resin_backend::{BackendRegistry, BackendNodeExecutor, Scheduler, ExecutionPolicy};
+/// use rhizome_resin_core::LazyEvaluator;
+///
+/// let registry = BackendRegistry::with_cpu();
+/// let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
+/// let evaluator = LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler));
+/// ```
+pub fn backend_evaluator(policy: ExecutionPolicy) -> LazyEvaluator<BackendNodeExecutor> {
+    let registry = BackendRegistry::with_cpu();
+    let scheduler = Scheduler::new(registry, policy);
+    LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler))
+}
