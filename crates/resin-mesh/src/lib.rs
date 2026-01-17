@@ -9,6 +9,7 @@ mod boolean;
 mod curvature;
 mod curve_mesh;
 mod decimate;
+mod edit;
 pub mod geodesic;
 mod halfedge;
 mod lattice;
@@ -54,6 +55,47 @@ pub use curve_mesh::{
     sweep_profile, sweep_profile_with_config,
 };
 pub use decimate::{Decimate, DecimateConfig, decimate};
+pub use edit::{
+    // Advanced operations
+    BridgeEdgeLoops,
+    CreaseEdges,
+    // Simple operations
+    DeleteFaces,
+    EdgeCreases,
+    // Complex operations
+    ExtrudeFaces,
+    InsetFaces,
+    KnifeCut,
+    KnifePoint,
+    MergeMode,
+    MergeVertices,
+    PokeFaces,
+    RipVertices,
+    // Medium operations
+    ScaleFaces,
+    SlideEdges,
+    SmoothVertices,
+    SplitEdges,
+    SubdivideFaces,
+    TransformVertices,
+    TriangulateFaces,
+    bridge_edge_loops,
+    delete_faces,
+    extrude_faces,
+    inset_faces_individual,
+    inset_faces_region,
+    knife_cut,
+    merge_vertices,
+    poke_faces,
+    rip_vertices,
+    scale_faces,
+    slide_edges,
+    smooth_vertices,
+    split_edges,
+    subdivide_faces,
+    transform_vertices,
+    transform_vertices_soft,
+};
 pub use halfedge::{
     Face, FaceId, HalfEdge, HalfEdgeId, HalfEdgeMesh, Vertex as HEVertex, VertexId,
 };
@@ -137,4 +179,19 @@ pub fn register_ops(registry: &mut rhizome_resin_op::OpRegistry) {
     registry.register_type::<Revolve>("resin::Revolve");
     registry.register_type::<Smooth>("resin::Smooth");
     registry.register_type::<Sweep>("resin::Sweep");
+
+    // Selection-aware editing operations
+    registry.register_type::<DeleteFaces>("resin::DeleteFaces");
+    registry.register_type::<TransformVertices>("resin::TransformVertices");
+    registry.register_type::<TriangulateFaces>("resin::TriangulateFaces");
+    registry.register_type::<PokeFaces>("resin::PokeFaces");
+    registry.register_type::<ScaleFaces>("resin::ScaleFaces");
+    registry.register_type::<SmoothVertices>("resin::SmoothVertices");
+    registry.register_type::<MergeVertices>("resin::MergeVertices");
+    registry.register_type::<SplitEdges>("resin::SplitEdges");
+    registry.register_type::<ExtrudeFaces>("resin::ExtrudeFaces");
+    registry.register_type::<InsetFaces>("resin::InsetFaces");
+    registry.register_type::<SubdivideFaces>("resin::SubdivideFaces");
+    registry.register_type::<SlideEdges>("resin::SlideEdges");
+    registry.register_type::<RipVertices>("resin::RipVertices");
 }
