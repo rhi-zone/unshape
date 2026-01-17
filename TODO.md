@@ -2,6 +2,17 @@
 
 ## Next Up
 
+### Mesh Primitives
+
+> **Goal:** Complete the basic primitive set for constructive modeling.
+
+- [x] Cylinder primitive - `cylinder(radius, height, segments)`
+- [x] Cone primitive - `cone(radius, height, segments)`
+- [x] Torus primitive - `torus(major_radius, minor_radius, major_segments, minor_segments)`
+- [x] Plane/grid primitive - `plane(width, depth, subdivisions_x, subdivisions_z)`
+- [x] Icosphere primitive - `icosphere(subdivisions)` (geodesic sphere)
+- [x] Pyramid primitive - `pyramid(base_size, height)`
+
 ### Warning Cleanup (2025-01-16)
 
 - [x] Analyzed and fixed all compile warnings. See `docs/design/dead-code-patterns.md` for patterns and lessons learned.
@@ -55,13 +66,7 @@
 
 > **Goal:** Interactive mesh editing - start from primitive, select elements, transform, extrude, etc.
 
-**Primitives:**
-- [ ] Cylinder primitive - `cylinder(radius, height, segments)`
-- [ ] Cone primitive - `cone(radius, height, segments)`
-- [ ] Torus primitive - `torus(major_radius, minor_radius, major_segments, minor_segments)`
-- [ ] Pyramid primitive - `pyramid(base_size, height)`
-- [ ] Icosphere primitive - `icosphere(subdivisions)` (geodesic sphere)
-- [ ] Plane/grid primitive - `plane(width, height, subdivisions_x, subdivisions_y)`
+**Primitives:** *(Moved to Next Up)*
 
 **Selection System:**
 - [ ] MeshSelection struct - store selected vertices/edges/faces as index sets

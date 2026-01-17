@@ -88,7 +88,10 @@ pub use ops::{
     recalculate_normals, smooth, smooth_taubin, smooth_with_config, solidify, split_faces,
     weld_vertices,
 };
-pub use primitives::{box_mesh, sphere, uv_sphere};
+pub use primitives::{
+    Cone, Cylinder, Icosphere, Plane, Pyramid, Torus, box_mesh, cone, cylinder, icosphere, plane,
+    pyramid, sphere, torus, uv_sphere,
+};
 pub use remesh::{
     QuadMesh, Quadify, QuadifyConfig, Remesh, RemeshConfig, average_edge_length, isotropic_remesh,
     quadify,
