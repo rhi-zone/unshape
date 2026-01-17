@@ -169,18 +169,24 @@ impl GpuKernel for NoiseTextureKernel {
     fn execute(
         &self,
         ctx: &GpuContext,
+        node: &dyn DynNode,
         inputs: &[Value],
         _eval_ctx: &EvalContext,
     ) -> Result<Vec<Value>, GpuError> {
-        // The node parameters come from the node itself, not inputs
-        // We need to get them from the eval context or reconstruct
-        // For now, we'll expect the kernel to be called with node info embedded
+        // Try to get parameters from node first (for NoiseTextureNode)
+        // Fall back to inputs for ParameterizedNoiseNode
+        if let Some(noise_node) = node.as_any().downcast_ref::<NoiseTextureNode>() {
+            // Node stores parameters internally
+            let texture = generate_noise_texture_gpu(
+                ctx,
+                noise_node.width,
+                noise_node.height,
+                &noise_node.config,
+            )?;
+            return Ok(vec![Value::Opaque(Arc::new(texture))]);
+        }
 
-        // This is a limitation of the current design - the kernel doesn't
-        // have direct access to the node. We'll need to pass parameters
-        // through inputs or use a different approach.
-
-        // For demonstration, we'll accept parameters as inputs:
+        // ParameterizedNoiseNode: parameters come from inputs
         // inputs[0] = width (I32)
         // inputs[1] = height (I32)
         // inputs[2] = scale (F32)
@@ -418,6 +424,7 @@ mod image_expr_kernels {
         fn execute(
             &self,
             ctx: &GpuContext,
+            node: &dyn DynNode,
             inputs: &[Value],
             _eval_ctx: &EvalContext,
         ) -> Result<Vec<Value>, GpuError> {
@@ -431,10 +438,14 @@ mod image_expr_kernels {
                 .downcast_ref::<GpuTexture>()
                 .ok_or_else(|| GpuError::InvalidInput("Expected GpuTexture input".into()))?;
 
-            // The expression comes from the node, but kernels don't have access to it.
-            // See TODO.md "Pass node reference to GpuKernel::execute()" for planned fix.
-            // For now, do identity transform as demonstration.
-            let output = remap_uv_gpu(ctx, input_texture, &UvExpr::Uv)?;
+            // Get expression from node
+            let expr = node
+                .as_any()
+                .downcast_ref::<RemapUvNode>()
+                .map(|n| &n.expr)
+                .unwrap_or(&UvExpr::Uv); // fallback to identity
+
+            let output = remap_uv_gpu(ctx, input_texture, expr)?;
             Ok(vec![Value::Opaque(Arc::new(output))])
         }
     }
@@ -517,6 +528,7 @@ mod image_expr_kernels {
         fn execute(
             &self,
             ctx: &GpuContext,
+            node: &dyn DynNode,
             inputs: &[Value],
             _eval_ctx: &EvalContext,
         ) -> Result<Vec<Value>, GpuError> {
@@ -530,8 +542,14 @@ mod image_expr_kernels {
                 .downcast_ref::<GpuTexture>()
                 .ok_or_else(|| GpuError::InvalidInput("Expected GpuTexture input".into()))?;
 
-            // Same limitation as RemapUvKernel - see TODO.md for planned fix.
-            let output = map_pixels_gpu(ctx, input_texture, &ColorExpr::Rgba)?;
+            // Get expression from node
+            let expr = node
+                .as_any()
+                .downcast_ref::<MapPixelsNode>()
+                .map(|n| &n.expr)
+                .unwrap_or(&ColorExpr::Rgba); // fallback to identity
+
+            let output = map_pixels_gpu(ctx, input_texture, expr)?;
             Ok(vec![Value::Opaque(Arc::new(output))])
         }
     }
