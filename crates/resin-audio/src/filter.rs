@@ -295,6 +295,87 @@ impl BiquadCoeffs {
             a2: a2 / a0,
         }
     }
+
+    /// Creates peaking EQ biquad coefficients (bell curve).
+    ///
+    /// Boosts or cuts frequencies around `center` by `gain_db` decibels
+    /// with bandwidth controlled by `q`.
+    pub fn peaking(center: f32, q: f32, gain_db: f32, sample_rate: f32) -> Self {
+        let a = 10.0_f32.powf(gain_db / 40.0);
+        let omega = 2.0 * PI * center / sample_rate;
+        let sin_omega = omega.sin();
+        let cos_omega = omega.cos();
+        let alpha = sin_omega / (2.0 * q);
+
+        let b0 = 1.0 + alpha * a;
+        let b1 = -2.0 * cos_omega;
+        let b2 = 1.0 - alpha * a;
+        let a0 = 1.0 + alpha / a;
+        let a1 = -2.0 * cos_omega;
+        let a2 = 1.0 - alpha / a;
+
+        Self {
+            b0: b0 / a0,
+            b1: b1 / a0,
+            b2: b2 / a0,
+            a1: a1 / a0,
+            a2: a2 / a0,
+        }
+    }
+
+    /// Creates low shelf biquad coefficients.
+    ///
+    /// Boosts or cuts frequencies below `cutoff` by `gain_db` decibels.
+    pub fn low_shelf(cutoff: f32, q: f32, gain_db: f32, sample_rate: f32) -> Self {
+        let a = 10.0_f32.powf(gain_db / 40.0);
+        let omega = 2.0 * PI * cutoff / sample_rate;
+        let sin_omega = omega.sin();
+        let cos_omega = omega.cos();
+        let alpha = sin_omega / (2.0 * q);
+        let two_sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
+
+        let b0 = a * ((a + 1.0) - (a - 1.0) * cos_omega + two_sqrt_a_alpha);
+        let b1 = 2.0 * a * ((a - 1.0) - (a + 1.0) * cos_omega);
+        let b2 = a * ((a + 1.0) - (a - 1.0) * cos_omega - two_sqrt_a_alpha);
+        let a0 = (a + 1.0) + (a - 1.0) * cos_omega + two_sqrt_a_alpha;
+        let a1 = -2.0 * ((a - 1.0) + (a + 1.0) * cos_omega);
+        let a2 = (a + 1.0) + (a - 1.0) * cos_omega - two_sqrt_a_alpha;
+
+        Self {
+            b0: b0 / a0,
+            b1: b1 / a0,
+            b2: b2 / a0,
+            a1: a1 / a0,
+            a2: a2 / a0,
+        }
+    }
+
+    /// Creates high shelf biquad coefficients.
+    ///
+    /// Boosts or cuts frequencies above `cutoff` by `gain_db` decibels.
+    pub fn high_shelf(cutoff: f32, q: f32, gain_db: f32, sample_rate: f32) -> Self {
+        let a = 10.0_f32.powf(gain_db / 40.0);
+        let omega = 2.0 * PI * cutoff / sample_rate;
+        let sin_omega = omega.sin();
+        let cos_omega = omega.cos();
+        let alpha = sin_omega / (2.0 * q);
+        let two_sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
+
+        let b0 = a * ((a + 1.0) + (a - 1.0) * cos_omega + two_sqrt_a_alpha);
+        let b1 = -2.0 * a * ((a - 1.0) + (a + 1.0) * cos_omega);
+        let b2 = a * ((a + 1.0) + (a - 1.0) * cos_omega - two_sqrt_a_alpha);
+        let a0 = (a + 1.0) - (a - 1.0) * cos_omega + two_sqrt_a_alpha;
+        let a1 = 2.0 * ((a - 1.0) - (a + 1.0) * cos_omega);
+        let a2 = (a + 1.0) - (a - 1.0) * cos_omega - two_sqrt_a_alpha;
+
+        Self {
+            b0: b0 / a0,
+            b1: b1 / a0,
+            b2: b2 / a0,
+            a1: a1 / a0,
+            a2: a2 / a0,
+        }
+    }
 }
 
 /// Biquad filter (second-order IIR).
@@ -342,6 +423,21 @@ impl Biquad {
     /// Creates an all-pass biquad filter.
     pub fn allpass(center: f32, q: f32, sample_rate: f32) -> Self {
         Self::new(BiquadCoeffs::allpass(center, q, sample_rate))
+    }
+
+    /// Creates a peaking EQ biquad filter (bell curve).
+    pub fn peaking(center: f32, q: f32, gain_db: f32, sample_rate: f32) -> Self {
+        Self::new(BiquadCoeffs::peaking(center, q, gain_db, sample_rate))
+    }
+
+    /// Creates a low shelf biquad filter.
+    pub fn low_shelf(cutoff: f32, q: f32, gain_db: f32, sample_rate: f32) -> Self {
+        Self::new(BiquadCoeffs::low_shelf(cutoff, q, gain_db, sample_rate))
+    }
+
+    /// Creates a high shelf biquad filter.
+    pub fn high_shelf(cutoff: f32, q: f32, gain_db: f32, sample_rate: f32) -> Self {
+        Self::new(BiquadCoeffs::high_shelf(cutoff, q, gain_db, sample_rate))
     }
 
     /// Sets new coefficients.
@@ -613,5 +709,129 @@ mod tests {
         // After reset, should start fresh
         let out = filter.process(1.0);
         assert!(out < 0.5); // Should be ramping up from 0
+    }
+
+    #[test]
+    fn test_peaking_eq_boost() {
+        let sample_rate = 44100.0;
+        let center = 1000.0;
+        let mut filter = Biquad::peaking(center, 1.0, 6.0, sample_rate);
+
+        // Generate sine at center frequency
+        let mut signal: Vec<f32> = (0..4410)
+            .map(|i| (2.0 * std::f32::consts::PI * center * i as f32 / sample_rate).sin())
+            .collect();
+
+        // Warm up filter
+        for sample in signal.iter_mut().take(100) {
+            *sample = filter.process(*sample);
+        }
+
+        // Measure RMS of remaining signal
+        let rms: f32 = signal[100..]
+            .iter()
+            .map(|&x| filter.process(x).powi(2))
+            .sum::<f32>()
+            .sqrt();
+
+        // With +6dB boost, output should be louder than input
+        // Input RMS of sine is ~0.707, boosted should be ~1.4
+        assert!(rms > 50.0, "Peaking filter should boost center frequency");
+    }
+
+    #[test]
+    fn test_peaking_eq_cut() {
+        let sample_rate = 44100.0;
+        let center = 1000.0;
+
+        // Generate sine at center frequency
+        let signal: Vec<f32> = (0..4410)
+            .map(|i| (2.0 * std::f32::consts::PI * center * i as f32 / sample_rate).sin())
+            .collect();
+
+        // Measure with boost
+        let mut boost_filter = Biquad::peaking(center, 1.0, 12.0, sample_rate);
+        let mut boost_max = 0.0f32;
+        for &sample in signal.iter() {
+            boost_max = boost_max.max(boost_filter.process(sample).abs());
+        }
+
+        // Measure with cut
+        let mut cut_filter = Biquad::peaking(center, 1.0, -12.0, sample_rate);
+        let mut cut_max = 0.0f32;
+        for &sample in signal.iter() {
+            cut_max = cut_max.max(cut_filter.process(sample).abs());
+        }
+
+        // Boost should increase, cut should decrease relative to unity (1.0)
+        assert!(
+            boost_max > 1.0,
+            "Boost should exceed unity, got {}",
+            boost_max
+        );
+        assert!(cut_max < 1.0, "Cut should be below unity, got {}", cut_max);
+        assert!(
+            boost_max > cut_max * 2.0,
+            "Boost should be significantly more than cut"
+        );
+    }
+
+    #[test]
+    fn test_low_shelf() {
+        let sample_rate = 44100.0;
+        let mut filter = Biquad::low_shelf(200.0, 0.707, 6.0, sample_rate);
+
+        // Low frequency should be boosted
+        let low_freq = 100.0;
+        let signal: Vec<f32> = (0..4410)
+            .map(|i| (2.0 * std::f32::consts::PI * low_freq * i as f32 / sample_rate).sin())
+            .collect();
+
+        let mut max_out = 0.0f32;
+        for &sample in signal.iter().skip(100) {
+            max_out = max_out.max(filter.process(sample).abs());
+        }
+
+        // Boosted signal should exceed unity
+        assert!(max_out > 1.0, "Low shelf should boost low frequencies");
+    }
+
+    #[test]
+    fn test_high_shelf() {
+        let sample_rate = 44100.0;
+        let mut filter = Biquad::high_shelf(2000.0, 0.707, 6.0, sample_rate);
+
+        // High frequency should be boosted
+        let high_freq = 4000.0;
+        let signal: Vec<f32> = (0..4410)
+            .map(|i| (2.0 * std::f32::consts::PI * high_freq * i as f32 / sample_rate).sin())
+            .collect();
+
+        let mut max_out = 0.0f32;
+        for &sample in signal.iter().skip(100) {
+            max_out = max_out.max(filter.process(sample).abs());
+        }
+
+        // Boosted signal should exceed unity
+        assert!(max_out > 1.0, "High shelf should boost high frequencies");
+    }
+
+    #[test]
+    fn test_peaking_zero_gain_is_identity() {
+        let sample_rate = 44100.0;
+        let mut filter = Biquad::peaking(1000.0, 1.0, 0.0, sample_rate);
+
+        // With 0 dB gain, filter should pass signal unchanged
+        let input = 0.5;
+        // Warm up
+        for _ in 0..100 {
+            filter.process(input);
+        }
+        let output = filter.process(input);
+
+        assert!(
+            (output - input).abs() < 0.01,
+            "Peaking with 0dB should be identity"
+        );
     }
 }

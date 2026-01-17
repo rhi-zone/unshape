@@ -20,6 +20,7 @@ codegen-bench = ["codegen"]
 
 [dependencies]
 rhizome-resin-core = { path = "../resin-core" }
+rhizome-resin-expr-field = { path = "../resin-expr-field" }
 serde = { workspace = true, optional = true }
 rhizome-resin-op = { path = "../resin-op", optional = true }
 rhizome-resin-audio-codegen = { path = "../resin-audio-codegen", optional = true }

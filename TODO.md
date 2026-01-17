@@ -60,6 +60,8 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 **Pattern/Sequencing (TidalCycles-inspired):**
 - [x] Pattern combinators - `fast()`, `slow()`, `rev()`, `jux()` transformations
 - ~~Pattern mini-notation~~ - Not planned (DSLs avoided per docs/philosophy.md)
+- [x] `Warp` op - time remapping via Dew expr (covers swing, humanize, quantize)
+- See `docs/design/pattern-primitives.md` for primitive design decisions
 
 **Quality of Life:**
 - [x] Weight painting tools - weight smoothing, heat diffusion for skinning
@@ -110,7 +112,7 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 - [x] Smooth vertices - `SmoothVertices::apply()` selection-aware Laplacian smoothing
 
 **Subdivision:**
-- [ ] Catmull-Clark subdivision - `subdivide_catmull_clark(mesh, levels)`
+- [x] Catmull-Clark subdivision - `CatmullClark` op struct, `subdivide_catmull_clark(mesh, levels)`
 - [ ] Selective subdivision - selection-aware Catmull-Clark
 
 **Edit History:** Use `resin-history` (SnapshotHistory or EventHistory) - already implemented.
@@ -235,12 +237,13 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 - [x] Limiter - brickwall limiting, lookahead (Limiter)
 - [x] Noise gate - threshold-based gating with attack/hold/release (NoiseGate)
 - [x] Bitcrusher - bit depth reduction, sample rate reduction (Bitcrusher)
-- [ ] Wah-wah - envelope follower + bandpass, auto-wah
-- [ ] Octaver - pitch tracking, sub-octave generation
-- [ ] Pitch shifter - real-time pitch shifting (simple, not time-stretch)
-- [ ] Ring modulator - carrier frequency modulation
-- [ ] Parametric EQ - multi-band with Q control
-- [ ] Graphic EQ - fixed frequency bands
+- [x] Ring modulator - RingMod takes any AudioNode as carrier
+- [x] Pitch shifter - pitch_shift() in spectral.rs
+- [x] Peaking/Parametric EQ - BiquadCoeffs::peaking(freq, q, gain_db)
+- [x] Shelf filters - BiquadCoeffs::low_shelf(), high_shelf()
+- ~~Wah-wah~~ - composable: EnvelopeFollower + Biquad::bandpass
+- ~~Octaver~~ - composable: pitch detection + synthesis at half freq
+- ~~Graphic EQ~~ - composable: array of peaking filters at fixed frequencies
 - [ ] Cabinet simulation - speaker impulse responses, mic placement
 
 ### Glitch Art (image/video)
