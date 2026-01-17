@@ -2,16 +2,20 @@
 
 ## Next Up
 
-### Mesh Primitives
+### Mesh Primitives (2025-01-17)
 
 > **Goal:** Complete the basic primitive set for constructive modeling.
 
-- [x] Cylinder primitive - `cylinder(radius, height, segments)`
-- [x] Cone primitive - `cone(radius, height, segments)`
-- [x] Torus primitive - `torus(major_radius, minor_radius, major_segments, minor_segments)`
-- [x] Plane/grid primitive - `plane(width, depth, subdivisions_x, subdivisions_z)`
-- [x] Icosphere primitive - `icosphere(subdivisions)` (geodesic sphere)
-- [x] Pyramid primitive - `pyramid(base_size, height)`
+- [x] `Cuboid` - box/cube with width, height, depth
+- [x] `UvSphere` - latitude/longitude sphere with radius
+- [x] `Icosphere` - geodesic sphere with radius and subdivisions
+- [x] `Cylinder` - with caps (low segments = prisms)
+- [x] `Cone` - with base cap (low segments = pyramids)
+- [x] `Torus` - donut shape
+- [x] `Plane` - subdivided flat grid
+
+All primitives are serializable structs with `apply()` method (ops-as-values pattern).
+Pyramid removed - use `Cone { segments: 4, .. }` instead.
 
 ### Warning Cleanup (2025-01-16)
 
