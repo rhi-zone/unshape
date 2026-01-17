@@ -18,12 +18,14 @@
 //! let hemesh = HalfEdgeMesh::from_mesh(&mesh);
 //!
 //! // Perform operations
-//! let subdivided = hemesh.catmull_clark();
+//! let subdivided = hemesh.catmull_clark(None);
 //!
 //! // Convert back to indexed mesh
 //! let mesh = subdivided.to_mesh();
 //! ```
 
+use crate::edit::EdgeCreases;
+use crate::selection::Edge;
 use glam::{Vec2, Vec3};
 use std::collections::HashMap;
 
@@ -123,6 +125,9 @@ pub struct HalfEdgeMesh {
     pub vertices: Vec<Vertex>,
     /// All faces.
     pub faces: Vec<Face>,
+    /// Edge crease weights for subdivision control.
+    /// Key is sorted vertex pair (min, max), value is weight 0.0 (smooth) to 1.0 (sharp).
+    pub edge_creases: HashMap<(u32, u32), f32>,
 }
 
 impl HalfEdgeMesh {
@@ -493,11 +498,28 @@ impl HalfEdgeMesh {
 
     // ==================== Catmull-Clark Subdivision ====================
 
+    /// Returns the crease weight for an edge, checking both input creases and internal storage.
+    fn get_crease_weight(&self, key: (u32, u32), input_creases: Option<&EdgeCreases>) -> f32 {
+        // Check input creases first
+        if let Some(creases) = input_creases {
+            let edge = Edge::new(key.0, key.1);
+            if let Some(&weight) = creases.weights.get(&edge) {
+                return weight;
+            }
+        }
+        // Fall back to internal storage
+        self.edge_creases.get(&key).copied().unwrap_or(0.0)
+    }
+
     /// Performs Catmull-Clark subdivision.
     ///
     /// This subdivision scheme works on arbitrary polygon meshes and produces
     /// a smooth limit surface. After one iteration, all faces become quads.
-    pub fn catmull_clark(&self) -> HalfEdgeMesh {
+    ///
+    /// If `creases` is provided, edges with crease weights will maintain sharpness.
+    /// Crease weight 0.0 = fully smooth, 1.0 = fully sharp (like a boundary edge).
+    /// Creases are propagated to child edges in the result mesh.
+    pub fn catmull_clark(&self, creases: Option<&EdgeCreases>) -> HalfEdgeMesh {
         // Step 1: Compute face points (centroid of each face)
         let face_points: Vec<Vec3> = (0..self.faces.len())
             .map(|i| self.face_centroid(FaceId(i as u32)))
@@ -528,8 +550,12 @@ impl HalfEdgeMesh {
             processed_edges.insert(key, true);
 
             let midpoint = self.edge_midpoint(HalfEdgeId(i as u32));
+            let crease_weight = self.get_crease_weight(key, creases);
 
             if self.is_boundary_edge(HalfEdgeId(i as u32)) {
+                edge_points.insert(key, midpoint);
+            } else if crease_weight >= 1.0 {
+                // Fully sharp crease: edge point is just the midpoint
                 edge_points.insert(key, midpoint);
             } else {
                 // Average of midpoint and two adjacent face centroids
@@ -537,7 +563,14 @@ impl HalfEdgeMesh {
                 let f1 = self.halfedges[he.twin.0 as usize].face;
                 let fp0 = face_points[f0.0 as usize];
                 let fp1 = face_points[f1.0 as usize];
-                edge_points.insert(key, (midpoint + fp0 + fp1) / 3.0);
+                let smooth_point = (midpoint + fp0 + fp1) / 3.0;
+
+                // Blend between smooth and sharp based on crease weight
+                if crease_weight > 0.0 {
+                    edge_points.insert(key, smooth_point.lerp(midpoint, crease_weight));
+                } else {
+                    edge_points.insert(key, smooth_point);
+                }
             }
         }
 
@@ -589,8 +622,7 @@ impl HalfEdgeMesh {
                         v.position
                     }
                 } else {
-                    // Interior vertex
-                    let faces = self.vertex_faces(vid);
+                    // Interior vertex - check for incident creased edges
                     let neighbors = self.vertex_neighbors(vid);
                     let n = neighbors.len() as f32;
 
@@ -598,26 +630,72 @@ impl HalfEdgeMesh {
                         return v.position;
                     }
 
-                    // F = average of face points
-                    let f: Vec3 = faces
-                        .iter()
-                        .map(|f| face_points[f.0 as usize])
-                        .sum::<Vec3>()
-                        / faces.len() as f32;
+                    // Find incident creased edges
+                    let mut creased_neighbors: Vec<(VertexId, f32)> = Vec::new();
+                    for neighbor in &neighbors {
+                        let key = if vid.0 < neighbor.0 {
+                            (vid.0, neighbor.0)
+                        } else {
+                            (neighbor.0, vid.0)
+                        };
+                        let weight = self.get_crease_weight(key, creases);
+                        if weight > 0.0 {
+                            creased_neighbors.push((*neighbor, weight));
+                        }
+                    }
 
-                    // R = average of edge midpoints
-                    let r: Vec3 = neighbors
-                        .iter()
-                        .map(|neighbor| {
-                            let mid =
-                                (v.position + self.vertices[neighbor.0 as usize].position) * 0.5;
-                            mid
-                        })
-                        .sum::<Vec3>()
-                        / n;
+                    if creased_neighbors.len() >= 3 {
+                        // Corner vertex (3+ creased edges): keep original position
+                        v.position
+                    } else if creased_neighbors.len() == 2 {
+                        // Crease vertex (exactly 2 creased edges): use crease rule
+                        // Similar to boundary vertex - average with midpoints of creased edges
+                        let avg_weight = (creased_neighbors[0].1 + creased_neighbors[1].1) / 2.0;
+                        let mid0 = (v.position
+                            + self.vertices[creased_neighbors[0].0.0 as usize].position)
+                            * 0.5;
+                        let mid1 = (v.position
+                            + self.vertices[creased_neighbors[1].0.0 as usize].position)
+                            * 0.5;
+                        let crease_pos = (mid0 + mid1 + v.position * 2.0) / 4.0;
 
-                    // New position = (F + 2R + (n-3)P) / n
-                    (f + r * 2.0 + v.position * (n - 3.0)) / n
+                        // Also compute smooth position for blending
+                        let faces = self.vertex_faces(vid);
+                        let f: Vec3 = faces
+                            .iter()
+                            .map(|f| face_points[f.0 as usize])
+                            .sum::<Vec3>()
+                            / faces.len() as f32;
+                        let r: Vec3 = neighbors
+                            .iter()
+                            .map(|neighbor| {
+                                (v.position + self.vertices[neighbor.0 as usize].position) * 0.5
+                            })
+                            .sum::<Vec3>()
+                            / n;
+                        let smooth_pos = (f + r * 2.0 + v.position * (n - 3.0)) / n;
+
+                        // Blend based on average crease weight
+                        smooth_pos.lerp(crease_pos, avg_weight)
+                    } else {
+                        // Standard smooth vertex
+                        let faces = self.vertex_faces(vid);
+                        let f: Vec3 = faces
+                            .iter()
+                            .map(|f| face_points[f.0 as usize])
+                            .sum::<Vec3>()
+                            / faces.len() as f32;
+                        let r: Vec3 = neighbors
+                            .iter()
+                            .map(|neighbor| {
+                                (v.position + self.vertices[neighbor.0 as usize].position) * 0.5
+                            })
+                            .sum::<Vec3>()
+                            / n;
+
+                        // New position = (F + 2R + (n-3)P) / n
+                        (f + r * 2.0 + v.position * (n - 3.0)) / n
+                    }
                 }
             })
             .collect();
@@ -656,6 +734,30 @@ impl HalfEdgeMesh {
                 uv: Vec2::ZERO,
                 halfedge: HalfEdgeId::NULL,
             });
+        }
+
+        // Propagate creases to child edges
+        // Each original creased edge (v0, v1) becomes two child edges:
+        // (v0, edge_point) and (edge_point, v1)
+        for (&key, &edge_point_idx) in &edge_vertex_map {
+            let weight = self.get_crease_weight(key, creases);
+            if weight > 0.0 {
+                // Child edge 1: (v0, edge_point)
+                let child_key1 = if key.0 < edge_point_idx {
+                    (key.0, edge_point_idx)
+                } else {
+                    (edge_point_idx, key.0)
+                };
+                result.edge_creases.insert(child_key1, weight);
+
+                // Child edge 2: (v1, edge_point)
+                let child_key2 = if key.1 < edge_point_idx {
+                    (key.1, edge_point_idx)
+                } else {
+                    (edge_point_idx, key.1)
+                };
+                result.edge_creases.insert(child_key2, weight);
+            }
         }
 
         // Create quads for each original face
@@ -909,7 +1011,7 @@ mod tests {
     fn test_catmull_clark_triangle() {
         let mesh = triangle_mesh();
         let hemesh = HalfEdgeMesh::from_mesh(&mesh);
-        let subdivided = hemesh.catmull_clark();
+        let subdivided = hemesh.catmull_clark(None);
 
         // After Catmull-Clark, all faces should be quads
         // Original triangle becomes 3 quads (one per original vertex)
@@ -925,7 +1027,7 @@ mod tests {
     fn test_catmull_clark_quad() {
         let mesh = quad_mesh();
         let hemesh = HalfEdgeMesh::from_mesh(&mesh);
-        let subdivided = hemesh.catmull_clark();
+        let subdivided = hemesh.catmull_clark(None);
 
         // Each original triangle becomes 3 quads, so 2 triangles -> 6 quads
         assert_eq!(subdivided.face_count(), 6);
@@ -945,7 +1047,7 @@ mod tests {
     fn test_catmull_clark_roundtrip() {
         let mesh = triangle_mesh();
         let hemesh = HalfEdgeMesh::from_mesh(&mesh);
-        let subdivided = hemesh.catmull_clark();
+        let subdivided = hemesh.catmull_clark(None);
         let final_mesh = subdivided.to_mesh();
 
         // Should have vertices and triangles

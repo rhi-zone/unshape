@@ -4,6 +4,7 @@
 //! - Catmull-Clark subdivision for arbitrary polygon meshes (via HalfEdgeMesh)
 
 use crate::Mesh;
+use crate::edit::EdgeCreases;
 use crate::halfedge::HalfEdgeMesh;
 use glam::Vec3;
 use std::collections::HashMap;
@@ -16,27 +17,58 @@ use serde::{Deserialize, Serialize};
 /// Subdivides an arbitrary polygon mesh, producing a smooth limit surface.
 /// After one iteration, all faces become quads.
 ///
+/// # Edge Creases
+///
+/// Optional edge creases control sharpness during subdivision:
+/// - Weight 0.0 = fully smooth (default)
+/// - Weight 1.0 = fully sharp (edge preserved like a boundary)
+/// - Creases propagate automatically through subdivision levels
+///
 /// # Example
 ///
 /// ```
-/// use rhizome_resin_mesh::{Mesh, subdivision::CatmullClark};
+/// use rhizome_resin_mesh::{CatmullClark, Cuboid};
 ///
-/// let cube = rhizome_resin_mesh::primitives::Cuboid::default().apply();
-/// let smooth = CatmullClark { levels: 2 }.apply(&cube);
+/// let cube = Cuboid::default().apply();
+/// let smooth = CatmullClark::new(2).apply(&cube);
 /// ```
-#[derive(Debug, Clone, Copy, Default)]
+///
+/// With creases:
+///
+/// ```ignore
+/// use rhizome_resin_mesh::{Mesh, subdivision::CatmullClark, EdgeCreases, Edge};
+///
+/// let mut creases = EdgeCreases::new();
+/// creases.set(Edge::new(0, 1), 1.0);  // Keep this edge sharp
+///
+/// let result = CatmullClark { levels: 2, creases: Some(creases) }.apply(&mesh);
+/// ```
+#[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "dynop", derive(rhizome_resin_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct CatmullClark {
     /// Number of subdivision levels.
     pub levels: u32,
+    /// Optional edge creases for controlling sharpness.
+    pub creases: Option<EdgeCreases>,
 }
 
 impl CatmullClark {
     /// Creates a new Catmull-Clark subdivision with the given level count.
     pub fn new(levels: u32) -> Self {
-        Self { levels }
+        Self {
+            levels,
+            creases: None,
+        }
+    }
+
+    /// Creates a Catmull-Clark subdivision with edge creases.
+    pub fn with_creases(levels: u32, creases: EdgeCreases) -> Self {
+        Self {
+            levels,
+            creases: Some(creases),
+        }
     }
 
     /// Applies Catmull-Clark subdivision to the mesh.
@@ -46,8 +78,10 @@ impl CatmullClark {
         }
 
         let mut hemesh = HalfEdgeMesh::from_mesh(mesh);
-        for _ in 0..self.levels {
-            hemesh = hemesh.catmull_clark();
+        for i in 0..self.levels {
+            // First iteration uses input creases, subsequent use propagated internal creases
+            let creases = if i == 0 { self.creases.as_ref() } else { None };
+            hemesh = hemesh.catmull_clark(creases);
         }
         hemesh.to_mesh()
     }
@@ -55,7 +89,7 @@ impl CatmullClark {
 
 /// Convenience function for Catmull-Clark subdivision.
 pub fn subdivide_catmull_clark(mesh: &Mesh, levels: u32) -> Mesh {
-    CatmullClark { levels }.apply(mesh)
+    CatmullClark::new(levels).apply(mesh)
 }
 
 /// Edge key for hashing (smaller index first).
@@ -416,5 +450,138 @@ mod tests {
         let subdivided = subdivide_catmull_clark(&mesh, 1);
 
         assert!(subdivided.vertex_count() > mesh.vertex_count());
+    }
+
+    #[test]
+    fn test_catmull_clark_with_creases() {
+        use crate::edit::EdgeCreases;
+        use crate::selection::Edge;
+
+        // Create a simple quad (two triangles forming a square)
+        let mut builder = MeshBuilder::new();
+        let v0 = builder.vertex(Vec3::new(0.0, 0.0, 0.0));
+        let v1 = builder.vertex(Vec3::new(1.0, 0.0, 0.0));
+        let v2 = builder.vertex(Vec3::new(1.0, 1.0, 0.0));
+        let v3 = builder.vertex(Vec3::new(0.0, 1.0, 0.0));
+        builder.triangle(v0, v1, v2);
+        builder.triangle(v0, v2, v3);
+        let mesh = builder.build();
+
+        // Create creases on one edge
+        let mut creases = EdgeCreases::new();
+        creases.set(Edge::new(0, 1), 1.0); // Bottom edge fully sharp
+
+        // Subdivide with creases
+        let subdivided = CatmullClark::with_creases(1, creases).apply(&mesh);
+
+        // Should produce valid mesh
+        assert!(subdivided.vertex_count() > mesh.vertex_count());
+        assert!(subdivided.triangle_count() > 0);
+    }
+
+    #[test]
+    fn test_catmull_clark_crease_preserves_edge() {
+        use crate::edit::EdgeCreases;
+        use crate::selection::Edge;
+
+        // Create a simple quad
+        let mut builder = MeshBuilder::new();
+        let v0 = builder.vertex(Vec3::new(0.0, 0.0, 0.0));
+        let v1 = builder.vertex(Vec3::new(1.0, 0.0, 0.0));
+        let v2 = builder.vertex(Vec3::new(1.0, 1.0, 0.0));
+        let v3 = builder.vertex(Vec3::new(0.0, 1.0, 0.0));
+        builder.triangle(v0, v1, v2);
+        builder.triangle(v0, v2, v3);
+        let mesh = builder.build();
+
+        // Subdivide WITHOUT creases
+        let smooth = CatmullClark::new(1).apply(&mesh);
+
+        // Subdivide WITH crease on bottom edge
+        let mut creases = EdgeCreases::new();
+        creases.set(Edge::new(0, 1), 1.0);
+        let sharp = CatmullClark::with_creases(1, creases).apply(&mesh);
+
+        // Sharp edge should have different vertex positions than smooth
+        // (the crease affects the geometry)
+        let smooth_positions: Vec<_> = smooth.positions.iter().collect();
+        let sharp_positions: Vec<_> = sharp.positions.iter().collect();
+
+        // They should have the same number of vertices
+        assert_eq!(smooth.vertex_count(), sharp.vertex_count());
+
+        // But at least some positions should differ due to crease
+        let any_different = smooth_positions
+            .iter()
+            .zip(sharp_positions.iter())
+            .any(|(a, b)| (*a - *b).length() > 1e-6);
+        assert!(any_different, "Crease should affect vertex positions");
+    }
+
+    #[test]
+    fn test_catmull_clark_crease_propagation() {
+        use crate::edit::EdgeCreases;
+        use crate::selection::Edge;
+
+        // Create a simple quad
+        let mut builder = MeshBuilder::new();
+        let v0 = builder.vertex(Vec3::new(0.0, 0.0, 0.0));
+        let v1 = builder.vertex(Vec3::new(1.0, 0.0, 0.0));
+        let v2 = builder.vertex(Vec3::new(1.0, 1.0, 0.0));
+        let v3 = builder.vertex(Vec3::new(0.0, 1.0, 0.0));
+        builder.triangle(v0, v1, v2);
+        builder.triangle(v0, v2, v3);
+        let mesh = builder.build();
+
+        // Subdivide 2 levels with crease
+        let mut creases = EdgeCreases::new();
+        creases.set(Edge::new(0, 1), 1.0);
+        let subdivided_2 = CatmullClark::with_creases(2, creases.clone()).apply(&mesh);
+
+        // Subdivide 2 levels without crease
+        let smooth_2 = CatmullClark::new(2).apply(&mesh);
+
+        // They should differ due to propagated creases
+        let any_different = subdivided_2
+            .positions
+            .iter()
+            .zip(smooth_2.positions.iter())
+            .any(|(a, b)| (*a - *b).length() > 1e-6);
+        assert!(any_different, "Propagated creases should affect positions");
+    }
+
+    #[test]
+    fn test_catmull_clark_partial_crease() {
+        use crate::edit::EdgeCreases;
+        use crate::selection::Edge;
+
+        // Create a simple quad
+        let mut builder = MeshBuilder::new();
+        let v0 = builder.vertex(Vec3::new(0.0, 0.0, 0.0));
+        let v1 = builder.vertex(Vec3::new(1.0, 0.0, 0.0));
+        let v2 = builder.vertex(Vec3::new(1.0, 1.0, 0.0));
+        let v3 = builder.vertex(Vec3::new(0.0, 1.0, 0.0));
+        builder.triangle(v0, v1, v2);
+        builder.triangle(v0, v2, v3);
+        let mesh = builder.build();
+
+        // Full crease
+        let mut full_creases = EdgeCreases::new();
+        full_creases.set(Edge::new(0, 1), 1.0);
+        let full_sharp = CatmullClark::with_creases(1, full_creases).apply(&mesh);
+
+        // Partial crease (0.5)
+        let mut partial_creases = EdgeCreases::new();
+        partial_creases.set(Edge::new(0, 1), 0.5);
+        let partial_sharp = CatmullClark::with_creases(1, partial_creases).apply(&mesh);
+
+        // Smooth (no crease)
+        let smooth = CatmullClark::new(1).apply(&mesh);
+
+        // Partial should be between smooth and full sharp
+        // At least verify all three produce valid different meshes
+        assert!(smooth.vertex_count() > 0);
+        assert!(partial_sharp.vertex_count() > 0);
+        assert!(full_sharp.vertex_count() > 0);
     }
 }

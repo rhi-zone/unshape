@@ -113,7 +113,10 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 
 **Subdivision:**
 - [x] Catmull-Clark subdivision - `CatmullClark` op struct, `subdivide_catmull_clark(mesh, levels)`
-- [ ] Selective subdivision - selection-aware Catmull-Clark
+- [x] Crease-aware Catmull-Clark - `CatmullClark { levels, creases: Option<EdgeCreases> }`
+  - `catmull_clark(creases: Option<&EdgeCreases>)` on HalfEdgeMesh
+  - Creases propagate to child edges through subdivision levels
+  - Selection → crease: `CreaseEdges::apply(selection)` converts selection to creases
 
 **Edit History:** Use `resin-history` (SnapshotHistory or EventHistory) - already implemented.
 
@@ -244,7 +247,7 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 - ~~Wah-wah~~ - composable: EnvelopeFollower + Biquad::bandpass
 - ~~Octaver~~ - composable: pitch detection + synthesis at half freq
 - ~~Graphic EQ~~ - composable: array of peaking filters at fixed frequencies
-- [ ] Cabinet simulation - speaker impulse responses, mic placement
+- ~~Cabinet simulation~~ - composable: ConvolutionReverb with cabinet IRs (IRs are data, not primitives)
 
 ### Glitch Art (image/video)
 

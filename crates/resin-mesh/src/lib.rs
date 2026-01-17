@@ -138,7 +138,9 @@ pub use remesh::{
 };
 pub use sdf::{GenerateSdf, SdfConfig, SdfGrid, mesh_to_sdf, mesh_to_sdf_fast, raymarch};
 pub use selection::{Edge, Falloff, MeshSelection, SelectionMode, SoftSelection};
-pub use subdivision::{subdivide_linear, subdivide_loop, subdivide_loop_n};
+pub use subdivision::{
+    CatmullClark, subdivide_catmull_clark, subdivide_linear, subdivide_loop, subdivide_loop_n,
+};
 pub use terrain::{CombinedErosion, Heightfield, HydraulicErosion, ThermalErosion};
 pub use topology::{
     TopologyInfo, analyze_topology, connected_components, euler_characteristic,
