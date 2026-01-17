@@ -88,30 +88,30 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 **Selection System:** *(Moved to Next Up)*
 
 **Face Operations:**
-- [ ] Extrude faces - `extrude_faces(selection, amount)` with new side faces
-- [ ] Inset faces - `inset_faces(selection, amount, depth)` individual face inset
-- [ ] Scale faces - `scale_faces(selection, factor)` scale around face centers
-- [ ] Delete faces - `delete_faces(selection)` with cleanup options (verts, edges)
-- [ ] Subdivide faces - `subdivide_faces(selection)` selective subdivision
-- [ ] Poke faces - `poke_faces(selection)` add vertex at face center
-- [ ] Triangulate faces - `triangulate_faces(selection)` convert quads to tris
+- [x] Extrude faces - `ExtrudeFaces::apply()` with side faces connecting to selection boundary
+- [x] Inset faces - `InsetFaces::apply()` individual or region inset
+- [x] Scale faces - `ScaleFaces::apply()` scale around face centers
+- [x] Delete faces - `DeleteFaces::apply()` with orphaned vertex cleanup
+- [x] Subdivide faces - `SubdivideFaces::apply()` selective midpoint subdivision
+- [x] Poke faces - `PokeFaces::apply()` add vertex at face center with optional offset
+- [x] Triangulate faces - `TriangulateFaces::apply()` (no-op for IndexedMesh, for HalfEdgeMesh)
 
 **Edge Operations:**
-- [ ] Bridge edge loops - `bridge_edges(loop1, loop2)` connect two edge loops
-- [ ] Edge slide - `slide_edges(selection, factor)` slide along adjacent faces
-- [ ] Edge crease - `crease_edges(selection, weight)` for subdivision control
-- [ ] Knife/cut - `knife_cut(path)` cut through mesh with arbitrary path
-- [ ] Edge split - `split_edges(selection)` duplicate edges (hard edge)
+- [x] Bridge edge loops - `BridgeEdgeLoops::apply()` connect two edge loops with segments/twist
+- [x] Edge slide - `SlideEdges::apply()` slide along adjacent faces
+- [x] Edge crease - `CreaseEdges::apply()` + `EdgeCreases` for subdivision control
+- [x] Knife/cut - `KnifeCut::apply()` cut through mesh at barycentric points
+- [x] Edge split - `SplitEdges::apply()` duplicate edges for hard edges
 
 **Vertex Operations:**
-- [ ] Transform vertices - `transform_vertices(selection, matrix)` arbitrary transform
-- [ ] Merge vertices - `merge_vertices(selection, mode)` at center/cursor/collapse
-- [ ] Rip vertices - `rip_vertices(selection)` disconnect from adjacent faces
-- [ ] Smooth vertices - `smooth_vertices(selection, factor)` relax positions
+- [x] Transform vertices - `TransformVertices::apply()` with soft selection support
+- [x] Merge vertices - `MergeVertices::apply()` at center/position/first/last
+- [x] Rip vertices - `RipVertices::apply()` disconnect from adjacent faces
+- [x] Smooth vertices - `SmoothVertices::apply()` selection-aware Laplacian smoothing
 
 **Subdivision:**
 - [ ] Catmull-Clark subdivision - `subdivide_catmull_clark(mesh, levels)`
-- [ ] Selective subdivision - `subdivide_selected(selection, method)`
+- [ ] Selective subdivision - selection-aware Catmull-Clark
 
 **Edit History:** Use `resin-history` (SnapshotHistory or EventHistory) - already implemented.
 
