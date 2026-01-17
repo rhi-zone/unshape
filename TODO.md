@@ -47,8 +47,9 @@
   - `DefaultNodeExecutor` calls `node.execute()` directly (default behavior)
   - `BackendNodeExecutor` in resin-backend wraps `Scheduler` for GPU routing
   - No more duplication - just use `LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler))`
-- [ ] Pass node reference to GpuKernel::execute() - kernels need access to node params (expressions, configs)
-  - Currently kernels only get inputs, but nodes like RemapUvNode store expressions internally
+- [x] Pass node reference to GpuKernel::execute() - kernels need access to node params (expressions, configs)
+  - `GpuKernel::execute()` now receives `&dyn DynNode` parameter
+  - Kernels can downcast to access node-specific fields (e.g., `RemapUvNode::expr`)
 
 ### Constructive Modeling (Blender-style workflow)
 

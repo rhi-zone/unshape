@@ -25,9 +25,12 @@ use std::sync::{Arc, RwLock};
 ///     fn execute(
 ///         &self,
 ///         ctx: &GpuContext,
+///         node: &dyn DynNode,
 ///         inputs: &[Value],
 ///         eval_ctx: &EvalContext,
 ///     ) -> Result<Vec<Value>, GpuError> {
+///         // Access node parameters via downcast
+///         let my_node = node.as_any().downcast_ref::<MyNoiseNode>().unwrap();
 ///         // Execute compute shader...
 ///         todo!()
 ///     }
@@ -145,7 +148,7 @@ impl ComputeBackend for GpuComputeBackend {
         let kernel = self.get_kernel(node).ok_or(BackendError::Unsupported)?;
 
         kernel
-            .execute(&self.ctx, inputs, ctx)
+            .execute(&self.ctx, node, inputs, ctx)
             .map_err(|e| BackendError::ExecutionFailed(e.to_string()))
     }
 }
@@ -160,6 +163,7 @@ pub trait GpuKernel: Send + Sync {
     /// # Arguments
     ///
     /// * `ctx` - The GPU context with device and queue
+    /// * `node` - The node being executed (for accessing node parameters)
     /// * `inputs` - Input values for the operation
     /// * `eval_ctx` - Evaluation context (time, etc.)
     ///
@@ -169,6 +173,7 @@ pub trait GpuKernel: Send + Sync {
     fn execute(
         &self,
         ctx: &GpuContext,
+        node: &dyn DynNode,
         inputs: &[Value],
         eval_ctx: &EvalContext,
     ) -> Result<Vec<Value>, GpuError>;
@@ -222,6 +227,7 @@ mod tests {
         fn execute(
             &self,
             _ctx: &GpuContext,
+            _node: &dyn DynNode,
             _inputs: &[Value],
             _eval_ctx: &EvalContext,
         ) -> Result<Vec<Value>, GpuError> {

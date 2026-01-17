@@ -1218,8 +1218,7 @@ Nodes like `RemapUvNode` require GPU (return error from `execute()`).
 
 This keeps the core evaluation strategy unchanged while allowing heterogeneous execution across CPU/GPU/future backends.
 
-## Known Limitations / Future Work
+## Architecture Notes
 
-See TODO.md "Compute Backend Architecture" section:
-
-1. **Kernel node access** - `GpuKernel::execute()` doesn't receive the node, so kernels can't access node parameters (expressions, configs). Workaround: use parameterized nodes with primitive inputs. Fix: pass `&dyn DynNode` to kernels.
+**Kernel node access:** `GpuKernel::execute()` receives `&dyn DynNode`, so kernels can
+downcast to access node-specific parameters (e.g., `RemapUvNode::expr`).
