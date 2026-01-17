@@ -41,16 +41,12 @@
 
 ### Compute Backend Architecture
 
-- [ ] NodeExecutor trait - decouple node execution from evaluation logic
-  - Extract node execution into `NodeExecutor` trait with `execute(node, inputs, ctx)` method
-  - `LazyEvaluator` delegates to injected executor (default = direct node.execute())
-  - `BackendNodeExecutor` wraps `Scheduler` for GPU routing
-  - Eliminates duplication between LazyEvaluator and BackendAwareEvaluator
-  ```rust
-  pub trait NodeExecutor: Send + Sync {
-      fn execute(&self, node: &dyn DynNode, inputs: &[Value], ctx: &EvalContext) -> Result<Vec<Value>, GraphError>;
-  }
-  ```
+- [x] NodeExecutor trait - decouple node execution from evaluation logic
+  - `NodeExecutor` trait in resin-core with `execute(node, inputs, ctx)` method
+  - `LazyEvaluator<E: NodeExecutor>` is now generic, delegates to executor
+  - `DefaultNodeExecutor` calls `node.execute()` directly (default behavior)
+  - `BackendNodeExecutor` in resin-backend wraps `Scheduler` for GPU routing
+  - No more duplication - just use `LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler))`
 - [ ] Pass node reference to GpuKernel::execute() - kernels need access to node params (expressions, configs)
   - Currently kernels only get inputs, but nodes like RemapUvNode store expressions internally
 

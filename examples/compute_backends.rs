@@ -5,9 +5,10 @@
 //!
 //! Run with: `cargo run --example compute_backends`
 
-use rhizome_resin_backend::{BackendAwareEvaluator, BackendRegistry, ExecutionPolicy, Scheduler};
+use rhizome_resin_backend::{BackendNodeExecutor, BackendRegistry, ExecutionPolicy, Scheduler};
 use rhizome_resin_core::{
-    DynNode, EvalContext, Evaluator, Graph, GraphError, PortDescriptor, Value, ValueType,
+    DynNode, EvalContext, Evaluator, Graph, GraphError, LazyEvaluator, PortDescriptor, Value,
+    ValueType,
 };
 use std::any::Any;
 
@@ -164,7 +165,7 @@ fn main() {
 
     // Create scheduler with Auto policy
     let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
-    let mut evaluator = BackendAwareEvaluator::new(scheduler);
+    let mut evaluator = LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler));
 
     // Evaluate
     let ctx = EvalContext::new();
@@ -207,7 +208,7 @@ fn main() {
     for (name, policy) in policies {
         let registry = BackendRegistry::with_cpu();
         let scheduler = Scheduler::new(registry, policy);
-        let mut evaluator = BackendAwareEvaluator::new(scheduler);
+        let mut evaluator = LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler));
         let result = evaluator.evaluate(&graph, &[add], &ctx).unwrap();
         println!("  {}: output = {:?}", name, result.outputs[0][0]);
     }

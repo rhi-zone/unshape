@@ -1,8 +1,11 @@
 //! Backend-aware execution scheduling.
 //!
-//! This module provides the [`BackendAwareEvaluator`] which wraps any
-//! [`Evaluator`](rhizome_resin_core::eval::Evaluator) and routes node
-//! execution through appropriate compute backends.
+//! This module provides:
+//! - [`Scheduler`] - Selects backends for node execution based on policy
+//! - [`BackendNodeExecutor`] - Node executor that routes through backends
+//!
+//! Use `BackendNodeExecutor` with [`LazyEvaluator`](rhizome_resin_core::LazyEvaluator)
+//! for backend-aware evaluation with caching.
 
 use crate::backend::{ComputeBackend, Cost, WorkloadHint};
 use crate::error::BackendError;
@@ -189,61 +192,35 @@ pub struct BackendEvalResult {
 }
 
 // ============================================================================
-// Backend-Aware Evaluator
+// Backend Node Executor
 // ============================================================================
 
-use rhizome_resin_core::{
-    CacheKey, CachePolicy, EvalCache, EvalResult, Evaluator, Graph, GraphError, KeepAllPolicy,
-};
-use std::time::Instant;
+use rhizome_resin_core::{GraphError, NodeExecutor};
 
-/// Evaluator that routes node execution through compute backends.
+/// Node executor that routes execution through compute backends.
 ///
-/// This evaluator implements lazy evaluation with caching, similar to
-/// [`LazyEvaluator`](rhizome_resin_core::LazyEvaluator), but routes each
-/// node's execution through the [`Scheduler`] to select the best backend.
+/// This executor uses a [`Scheduler`] to select the best backend for each node,
+/// based on the configured [`ExecutionPolicy`](crate::ExecutionPolicy).
 ///
-/// # Example
+/// Use with [`LazyEvaluator`] to get backend-aware evaluation with caching:
 ///
 /// ```ignore
-/// use rhizome_resin_backend::{
-///     BackendAwareEvaluator, BackendRegistry, ExecutionPolicy, Scheduler,
-/// };
-/// use rhizome_resin_core::{Graph, EvalContext, Evaluator};
+/// use rhizome_resin_backend::{BackendNodeExecutor, BackendRegistry, ExecutionPolicy, Scheduler};
+/// use rhizome_resin_core::LazyEvaluator;
 ///
-/// // Set up registry with CPU and optionally GPU
 /// let registry = BackendRegistry::with_cpu();
 /// let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
-///
-/// // Create evaluator
-/// let mut evaluator = BackendAwareEvaluator::new(scheduler);
-///
-/// // Evaluate graph - backends selected automatically per node
-/// let result = evaluator.evaluate(&graph, &[output_node], &ctx)?;
+/// let executor = BackendNodeExecutor::new(scheduler);
+/// let mut evaluator = LazyEvaluator::with_executor(executor);
 /// ```
-pub struct BackendAwareEvaluator {
+pub struct BackendNodeExecutor {
     scheduler: Scheduler,
-    cache: EvalCache,
-    policy: Box<dyn CachePolicy>,
 }
 
-impl BackendAwareEvaluator {
-    /// Creates a new backend-aware evaluator with the given scheduler.
+impl BackendNodeExecutor {
+    /// Creates a new backend executor with the given scheduler.
     pub fn new(scheduler: Scheduler) -> Self {
-        Self {
-            scheduler,
-            cache: EvalCache::new(),
-            policy: Box::new(KeepAllPolicy),
-        }
-    }
-
-    /// Creates an evaluator with a custom cache policy.
-    pub fn with_cache_policy(scheduler: Scheduler, policy: impl CachePolicy + 'static) -> Self {
-        Self {
-            scheduler,
-            cache: EvalCache::new(),
-            policy: Box::new(policy),
-        }
+        Self { scheduler }
     }
 
     /// Returns a reference to the scheduler.
@@ -255,144 +232,22 @@ impl BackendAwareEvaluator {
     pub fn scheduler_mut(&mut self) -> &mut Scheduler {
         &mut self.scheduler
     }
-
-    /// Recursively evaluate a node using backends.
-    fn evaluate_node(
-        &mut self,
-        graph: &Graph,
-        node_id: NodeId,
-        ctx: &EvalContext,
-        computed: &mut Vec<NodeId>,
-        cached: &mut Vec<NodeId>,
-        backend_assignments: &mut Vec<(NodeId, String)>,
-    ) -> Result<Vec<Value>, GraphError> {
-        // Check for cancellation
-        if ctx.is_cancelled() {
-            return Err(GraphError::Cancelled);
-        }
-
-        let node = graph
-            .get_node(node_id)
-            .ok_or(GraphError::NodeNotFound(node_id))?;
-
-        let inputs_desc = node.inputs();
-        let num_inputs = inputs_desc.len();
-
-        // Gather inputs by recursively evaluating upstream nodes
-        let mut inputs = Vec::with_capacity(num_inputs);
-        for port in 0..num_inputs {
-            let wire = graph
-                .wires()
-                .iter()
-                .find(|w| w.to_node == node_id && w.to_port == port);
-
-            match wire {
-                Some(w) => {
-                    let upstream_outputs = self.evaluate_node(
-                        graph,
-                        w.from_node,
-                        ctx,
-                        computed,
-                        cached,
-                        backend_assignments,
-                    )?;
-                    let value = upstream_outputs.get(w.from_port).cloned().ok_or_else(|| {
-                        GraphError::ExecutionError(format!(
-                            "missing output port {} on node {}",
-                            w.from_port, w.from_node
-                        ))
-                    })?;
-                    inputs.push(value);
-                }
-                None => {
-                    return Err(GraphError::UnconnectedInput {
-                        node: node_id,
-                        port,
-                    });
-                }
-            }
-        }
-
-        // Check cache
-        let cache_key = CacheKey::new(node_id, &inputs);
-        if let Some(entry) = self.cache.get(&cache_key) {
-            if self.policy.is_valid(&cache_key, entry) {
-                cached.push(node_id);
-                return Ok(entry.outputs.clone());
-            }
-        }
-
-        // Estimate workload for backend selection
-        let workload = estimate_workload(&inputs);
-
-        // Execute through scheduler (selects best backend)
-        let outputs = self
-            .scheduler
-            .execute(node.as_ref(), &inputs, ctx, &workload)
-            .map_err(|e| GraphError::ExecutionError(e.to_string()))?;
-
-        // Record which backend was used
-        if let Some(backend) = self.scheduler.select_backend(node.as_ref(), &workload) {
-            backend_assignments.push((node_id, backend.name().to_string()));
-        }
-
-        // Cache result if policy allows
-        if self.policy.should_cache(node_id, &outputs) {
-            self.cache.insert(cache_key, outputs.clone());
-        }
-
-        computed.push(node_id);
-        Ok(outputs)
-    }
 }
 
-impl Evaluator for BackendAwareEvaluator {
-    fn evaluate(
-        &mut self,
-        graph: &Graph,
-        outputs: &[NodeId],
+impl NodeExecutor for BackendNodeExecutor {
+    fn execute(
+        &self,
+        node: &dyn DynNode,
+        inputs: &[Value],
         ctx: &EvalContext,
-    ) -> Result<EvalResult, GraphError> {
-        let start = Instant::now();
-        let mut computed = Vec::new();
-        let mut cached = Vec::new();
-        let mut backend_assignments = Vec::new();
-        let mut results = Vec::with_capacity(outputs.len());
+    ) -> Result<Vec<Value>, GraphError> {
+        // Estimate workload for backend selection
+        let workload = estimate_workload(inputs);
 
-        for &node_id in outputs {
-            let node_outputs = self.evaluate_node(
-                graph,
-                node_id,
-                ctx,
-                &mut computed,
-                &mut cached,
-                &mut backend_assignments,
-            )?;
-            results.push(node_outputs);
-        }
-
-        Ok(EvalResult {
-            outputs: results,
-            computed_nodes: computed,
-            cached_nodes: cached,
-            elapsed: start.elapsed(),
-        })
-    }
-
-    fn invalidate(&mut self, node: NodeId) {
-        let keys_to_remove: Vec<_> = self
-            .cache
-            .keys()
-            .filter(|k| k.node_id == node)
-            .cloned()
-            .collect();
-        for key in keys_to_remove {
-            self.cache.remove(&key);
-        }
-    }
-
-    fn clear_cache(&mut self) {
-        self.cache.clear();
+        // Execute through scheduler (selects best backend)
+        self.scheduler
+            .execute(node, inputs, ctx, &workload)
+            .map_err(|e| GraphError::ExecutionError(e.to_string()))
     }
 }
 
@@ -570,8 +425,10 @@ mod tests {
     }
 
     // ========================================================================
-    // BackendAwareEvaluator tests
+    // BackendNodeExecutor tests
     // ========================================================================
+
+    use rhizome_resin_core::{Evaluator, Graph, LazyEvaluator};
 
     struct ConstNode(f32);
 
@@ -631,10 +488,10 @@ mod tests {
     }
 
     #[test]
-    fn test_backend_aware_evaluator_simple() {
+    fn test_backend_executor_simple() {
         let registry = BackendRegistry::with_cpu();
         let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
-        let mut evaluator = BackendAwareEvaluator::new(scheduler);
+        let mut evaluator = LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler));
 
         let mut graph = Graph::new();
         let const_a = graph.add_node(ConstNode(2.0));
@@ -653,10 +510,10 @@ mod tests {
     }
 
     #[test]
-    fn test_backend_aware_evaluator_caching() {
+    fn test_backend_executor_caching() {
         let registry = BackendRegistry::with_cpu();
         let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
-        let mut evaluator = BackendAwareEvaluator::new(scheduler);
+        let mut evaluator = LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler));
 
         let mut graph = Graph::new();
         let const_node = graph.add_node(ConstNode(42.0));
@@ -678,10 +535,10 @@ mod tests {
     }
 
     #[test]
-    fn test_backend_aware_evaluator_invalidate() {
+    fn test_backend_executor_invalidate() {
         let registry = BackendRegistry::with_cpu();
         let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
-        let mut evaluator = BackendAwareEvaluator::new(scheduler);
+        let mut evaluator = LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler));
 
         let mut graph = Graph::new();
         let const_node = graph.add_node(ConstNode(42.0));
@@ -701,10 +558,10 @@ mod tests {
     }
 
     #[test]
-    fn test_backend_aware_evaluator_clear_cache() {
+    fn test_backend_executor_clear_cache() {
         let registry = BackendRegistry::with_cpu();
         let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
-        let mut evaluator = BackendAwareEvaluator::new(scheduler);
+        let mut evaluator = LazyEvaluator::with_executor(BackendNodeExecutor::new(scheduler));
 
         let mut graph = Graph::new();
         let const_node = graph.add_node(ConstNode(42.0));

@@ -83,7 +83,67 @@ use std::time::{Duration, Instant};
 
 use crate::error::GraphError;
 use crate::graph::{Graph, NodeId};
+use crate::node::DynNode;
 use crate::value::Value;
+
+// ============================================================================
+// Node Executor Trait
+// ============================================================================
+
+/// Strategy for executing a single node.
+///
+/// This trait allows different execution backends to be plugged into evaluators
+/// without duplicating the traversal and caching logic. Implementations can:
+/// - Route execution to CPU/GPU backends
+/// - Apply transformations to inputs/outputs
+/// - Collect execution metrics
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_resin_core::{NodeExecutor, DynNode, Value, EvalContext, GraphError};
+///
+/// struct LoggingExecutor;
+///
+/// impl NodeExecutor for LoggingExecutor {
+///     fn execute(
+///         &self,
+///         node: &dyn DynNode,
+///         inputs: &[Value],
+///         ctx: &EvalContext,
+///     ) -> Result<Vec<Value>, GraphError> {
+///         println!("Executing node: {}", node.type_name());
+///         node.execute(inputs, ctx)
+///     }
+/// }
+/// ```
+pub trait NodeExecutor: Send + Sync {
+    /// Execute a node with the given inputs.
+    fn execute(
+        &self,
+        node: &dyn DynNode,
+        inputs: &[Value],
+        ctx: &EvalContext,
+    ) -> Result<Vec<Value>, GraphError>;
+}
+
+/// Default node executor that calls `node.execute()` directly.
+///
+/// This is the standard executor used by [`LazyEvaluator`] when no
+/// custom executor is provided.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DefaultNodeExecutor;
+
+impl NodeExecutor for DefaultNodeExecutor {
+    fn execute(
+        &self,
+        node: &dyn DynNode,
+        inputs: &[Value],
+        ctx: &EvalContext,
+    ) -> Result<Vec<Value>, GraphError> {
+        node.execute(inputs, ctx)
+    }
+}
 
 /// Token for cooperative cancellation of graph evaluation.
 ///
@@ -528,21 +588,48 @@ pub trait Evaluator {
 /// - Recursive pull-based evaluation
 /// - Memoization of computed values
 /// - Caching with pluggable policy
-pub struct LazyEvaluator {
+/// - Pluggable node execution via [`NodeExecutor`]
+///
+/// # Type Parameter
+///
+/// The executor `E` determines how nodes are executed. The default
+/// [`DefaultNodeExecutor`] simply calls `node.execute()`. Custom executors
+/// can route execution to different backends (CPU, GPU) or add instrumentation.
+///
+/// # Example: Custom Executor
+///
+/// ```ignore
+/// use rhizome_resin_core::{LazyEvaluator, NodeExecutor, DynNode, Value, EvalContext, GraphError};
+///
+/// struct CountingExecutor { count: std::cell::Cell<usize> }
+///
+/// impl NodeExecutor for CountingExecutor {
+///     fn execute(&self, node: &dyn DynNode, inputs: &[Value], ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+///         self.count.set(self.count.get() + 1);
+///         node.execute(inputs, ctx)
+///     }
+/// }
+///
+/// let executor = CountingExecutor { count: std::cell::Cell::new(0) };
+/// let evaluator = LazyEvaluator::with_executor(executor);
+/// ```
+pub struct LazyEvaluator<E: NodeExecutor = DefaultNodeExecutor> {
+    executor: E,
     cache: EvalCache,
     policy: Box<dyn CachePolicy>,
 }
 
-impl Default for LazyEvaluator {
+impl Default for LazyEvaluator<DefaultNodeExecutor> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl LazyEvaluator {
-    /// Create a new lazy evaluator with default cache policy (KeepAll).
+impl LazyEvaluator<DefaultNodeExecutor> {
+    /// Create a new lazy evaluator with default executor and cache policy.
     pub fn new() -> Self {
         Self {
+            executor: DefaultNodeExecutor,
             cache: EvalCache::new(),
             policy: Box::new(KeepAllPolicy),
         }
@@ -551,9 +638,40 @@ impl LazyEvaluator {
     /// Create a lazy evaluator with a custom cache policy.
     pub fn with_policy(policy: impl CachePolicy + 'static) -> Self {
         Self {
+            executor: DefaultNodeExecutor,
             cache: EvalCache::new(),
             policy: Box::new(policy),
         }
+    }
+}
+
+impl<E: NodeExecutor> LazyEvaluator<E> {
+    /// Create a lazy evaluator with a custom node executor.
+    pub fn with_executor(executor: E) -> Self {
+        Self {
+            executor,
+            cache: EvalCache::new(),
+            policy: Box::new(KeepAllPolicy),
+        }
+    }
+
+    /// Create a lazy evaluator with both custom executor and cache policy.
+    pub fn with_executor_and_policy(executor: E, policy: impl CachePolicy + 'static) -> Self {
+        Self {
+            executor,
+            cache: EvalCache::new(),
+            policy: Box::new(policy),
+        }
+    }
+
+    /// Returns a reference to the node executor.
+    pub fn executor(&self) -> &E {
+        &self.executor
+    }
+
+    /// Returns a mutable reference to the node executor.
+    pub fn executor_mut(&mut self) -> &mut E {
+        &mut self.executor
     }
 
     /// Recursively evaluate a node, using cache when possible.
@@ -617,8 +735,8 @@ impl LazyEvaluator {
             }
         }
 
-        // Execute node
-        let outputs = node.execute(&inputs, ctx)?;
+        // Execute node through the executor
+        let outputs = self.executor.execute(node.as_ref(), &inputs, ctx)?;
 
         // Cache result if policy allows
         if self.policy.should_cache(node_id, &outputs) {
@@ -630,7 +748,7 @@ impl LazyEvaluator {
     }
 }
 
-impl Evaluator for LazyEvaluator {
+impl<E: NodeExecutor> Evaluator for LazyEvaluator<E> {
     fn evaluate(
         &mut self,
         graph: &Graph,
