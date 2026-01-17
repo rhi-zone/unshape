@@ -1,11 +1,62 @@
 //! Mesh subdivision algorithms.
 //!
-//! Currently implements Loop subdivision for triangle meshes.
-//! Catmull-Clark subdivision would require a quad mesh representation.
+//! - Loop subdivision for triangle meshes
+//! - Catmull-Clark subdivision for arbitrary polygon meshes (via HalfEdgeMesh)
 
 use crate::Mesh;
+use crate::halfedge::HalfEdgeMesh;
 use glam::Vec3;
 use std::collections::HashMap;
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+/// Catmull-Clark subdivision operation.
+///
+/// Subdivides an arbitrary polygon mesh, producing a smooth limit surface.
+/// After one iteration, all faces become quads.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_mesh::{Mesh, subdivision::CatmullClark};
+///
+/// let cube = rhizome_resin_mesh::primitives::Cuboid::default().apply();
+/// let smooth = CatmullClark { levels: 2 }.apply(&cube);
+/// ```
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(rhizome_resin_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
+pub struct CatmullClark {
+    /// Number of subdivision levels.
+    pub levels: u32,
+}
+
+impl CatmullClark {
+    /// Creates a new Catmull-Clark subdivision with the given level count.
+    pub fn new(levels: u32) -> Self {
+        Self { levels }
+    }
+
+    /// Applies Catmull-Clark subdivision to the mesh.
+    pub fn apply(&self, mesh: &Mesh) -> Mesh {
+        if self.levels == 0 {
+            return mesh.clone();
+        }
+
+        let mut hemesh = HalfEdgeMesh::from_mesh(mesh);
+        for _ in 0..self.levels {
+            hemesh = hemesh.catmull_clark();
+        }
+        hemesh.to_mesh()
+    }
+}
+
+/// Convenience function for Catmull-Clark subdivision.
+pub fn subdivide_catmull_clark(mesh: &Mesh, levels: u32) -> Mesh {
+    CatmullClark { levels }.apply(mesh)
+}
 
 /// Edge key for hashing (smaller index first).
 fn edge_key(a: u32, b: u32) -> (u32, u32) {
@@ -318,5 +369,52 @@ mod tests {
             assert!(pos.y >= -0.1 && pos.y <= 1.0);
             assert!(pos.z >= -0.1 && pos.z <= 1.0);
         }
+    }
+
+    #[test]
+    fn test_catmull_clark_triangle() {
+        let mesh = triangle_mesh();
+        let subdivided = CatmullClark::new(1).apply(&mesh);
+
+        // Should produce a valid mesh with more triangles
+        assert!(subdivided.vertex_count() > mesh.vertex_count());
+        assert!(subdivided.triangle_count() > 0);
+    }
+
+    #[test]
+    fn test_catmull_clark_tetrahedron() {
+        let mesh = tetrahedron();
+        let subdivided = CatmullClark::new(1).apply(&mesh);
+
+        // After subdivision, should have more geometry
+        assert!(subdivided.vertex_count() > mesh.vertex_count());
+    }
+
+    #[test]
+    fn test_catmull_clark_zero_levels() {
+        let mesh = triangle_mesh();
+        let subdivided = CatmullClark::new(0).apply(&mesh);
+
+        // Zero levels should return unchanged mesh
+        assert_eq!(subdivided.vertex_count(), mesh.vertex_count());
+        assert_eq!(subdivided.triangle_count(), mesh.triangle_count());
+    }
+
+    #[test]
+    fn test_catmull_clark_multiple_levels() {
+        let mesh = triangle_mesh();
+        let sub1 = CatmullClark::new(1).apply(&mesh);
+        let sub2 = CatmullClark::new(2).apply(&mesh);
+
+        // More levels = more vertices
+        assert!(sub2.vertex_count() > sub1.vertex_count());
+    }
+
+    #[test]
+    fn test_subdivide_catmull_clark_convenience() {
+        let mesh = triangle_mesh();
+        let subdivided = subdivide_catmull_clark(&mesh, 1);
+
+        assert!(subdivided.vertex_count() > mesh.vertex_count());
     }
 }

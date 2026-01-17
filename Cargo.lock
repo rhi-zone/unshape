@@ -4065,6 +4065,7 @@ dependencies = [
  "criterion",
  "rhizome-resin-audio-codegen",
  "rhizome-resin-core",
+ "rhizome-resin-expr-field",
  "rhizome-resin-jit",
  "rhizome-resin-op",
  "serde",

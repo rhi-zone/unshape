@@ -27,7 +27,12 @@
 //! let both = cat(vec![kicks, reversed]);
 //! ```
 
+use rhizome_resin_expr_field::FieldExpr;
+use std::collections::HashMap;
 use std::sync::Arc as StdArc;
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// A time value in cycles (0.0 to 1.0 per cycle).
 pub type Time = f64;
@@ -448,7 +453,17 @@ pub fn chop<T: Clone + Send + Sync + 'static>(n: usize, pattern: Pattern<T>) -> 
     })
 }
 
-/// Euclidean rhythm generator.
+/// Euclidean rhythm generator (Bjorklund's algorithm).
+///
+/// Distributes `hits` events evenly across `steps` time slots.
+/// Classic patterns like tresillo (3,8) and clave (5,16) emerge naturally.
+///
+/// # Design Note
+///
+/// This could theoretically decompose to `range(n).filter(euclidean_predicate)`,
+/// but `filter` doesn't have enough other use cases to justify its existence
+/// as a primitive. See `docs/design/pattern-primitives.md` for the full
+/// analysis of pattern primitive decisions.
 pub fn euclid<T: Clone + Send + Sync + 'static>(hits: usize, steps: usize, value: T) -> Pattern<T> {
     if steps == 0 || hits == 0 {
         return Pattern::silence();
@@ -479,6 +494,91 @@ pub fn euclid<T: Clone + Send + Sync + 'static>(hits: usize, steps: usize, value
         .collect();
 
     Pattern::from_events(events)
+}
+
+// ============================================================================
+// Warp (time remapping)
+// ============================================================================
+
+/// Time remapping operation via Dew expression.
+///
+/// Transforms event timing by evaluating a [`FieldExpr`] at each event's onset.
+/// The expression receives the onset time as `x` and should return the new time.
+///
+/// This single primitive covers multiple use cases:
+/// - **Swing**: `x + (floor(x * 2.0) % 2.0) * amount`
+/// - **Humanize**: `x + rand(x) * amount` (requires rand in expr)
+/// - **Quantize**: `floor(x * grid) / grid` or `round(x * grid) / grid`
+///
+/// See `docs/design/pattern-primitives.md` for design rationale.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_audio::pattern::{Pattern, Warp};
+/// use rhizome_resin_expr_field::FieldExpr;
+///
+/// let pattern = Pattern::from_events(vec![(0.25, 0.5, "hit")]);
+///
+/// // Quantize to 0.5 grid (floor)
+/// let quantize = Warp {
+///     time_expr: FieldExpr::Mul(
+///         Box::new(FieldExpr::Floor(Box::new(FieldExpr::Mul(
+///             Box::new(FieldExpr::X),
+///             Box::new(FieldExpr::Constant(2.0)),
+///         )))),
+///         Box::new(FieldExpr::Constant(0.5)),
+///     ),
+/// };
+/// let quantized = quantize.apply(pattern);
+/// ```
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Warp {
+    /// Expression that maps old onset time (x) to new onset time.
+    pub time_expr: FieldExpr,
+}
+
+impl Warp {
+    /// Creates a new warp operation with the given time expression.
+    pub fn new(time_expr: FieldExpr) -> Self {
+        Self { time_expr }
+    }
+
+    /// Applies the time warp to a pattern.
+    pub fn apply<T: Clone + Send + Sync + 'static>(&self, pattern: Pattern<T>) -> Pattern<T> {
+        let query = pattern.query;
+        let expr = self.time_expr.clone();
+
+        Pattern::from_query(move |arc| {
+            // Query a wider arc to catch events that might warp into our range
+            // This is a heuristic - extreme warps might need wider margins
+            let margin = 1.0;
+            let wide_arc = TimeArc::new(arc.start - margin, arc.end + margin);
+
+            query(wide_arc)
+                .into_iter()
+                .map(|e| {
+                    let new_onset =
+                        expr.eval(e.onset as f32, 0.0, 0.0, 0.0, &HashMap::new()) as f64;
+                    Event {
+                        onset: new_onset,
+                        duration: e.duration,
+                        value: e.value,
+                    }
+                })
+                .filter(|e| e.onset >= arc.start && e.onset < arc.end)
+                .collect()
+        })
+    }
+}
+
+/// Convenience function for warping pattern timing.
+pub fn warp<T: Clone + Send + Sync + 'static>(
+    time_expr: FieldExpr,
+    pattern: Pattern<T>,
+) -> Pattern<T> {
+    Warp::new(time_expr).apply(pattern)
 }
 
 #[cfg(test)]
@@ -655,5 +755,71 @@ mod tests {
         let i = intersection.unwrap();
         assert!((i.start - 0.5).abs() < 0.001);
         assert!((i.end - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_warp_identity() {
+        // x -> x should leave pattern unchanged
+        let pattern = Pattern::from_events(vec![(0.25, 0.5, "hit")]);
+        let warped = Warp::new(FieldExpr::X).apply(pattern);
+
+        let events = warped.query_cycle(0);
+        assert_eq!(events.len(), 1);
+        assert!((events[0].onset - 0.25).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_warp_shift() {
+        // x -> x + 0.1 should shift events forward
+        let pattern = Pattern::from_events(vec![(0.2, 0.5, "hit")]);
+        let shift_expr = FieldExpr::Add(Box::new(FieldExpr::X), Box::new(FieldExpr::Constant(0.1)));
+        let warped = Warp::new(shift_expr).apply(pattern);
+
+        let events = warped.query_cycle(0);
+        assert_eq!(events.len(), 1);
+        assert!((events[0].onset - 0.3).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_warp_quantize_floor() {
+        // floor(x * 4) / 4 should quantize to 0.25 grid
+        let pattern = Pattern::from_events(vec![(0.3, 0.1, "hit")]);
+        let quantize_expr = FieldExpr::Div(
+            Box::new(FieldExpr::Floor(Box::new(FieldExpr::Mul(
+                Box::new(FieldExpr::X),
+                Box::new(FieldExpr::Constant(4.0)),
+            )))),
+            Box::new(FieldExpr::Constant(4.0)),
+        );
+        let warped = Warp::new(quantize_expr).apply(pattern);
+
+        let events = warped.query_cycle(0);
+        assert_eq!(events.len(), 1);
+        // 0.3 * 4 = 1.2, floor = 1, / 4 = 0.25
+        assert!((events[0].onset - 0.25).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_warp_convenience_fn() {
+        let pattern = Pattern::from_events(vec![(0.5, 0.5, "x")]);
+        let warped = warp(FieldExpr::X, pattern);
+
+        let events = warped.query_cycle(0);
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn test_warp_multiple_events() {
+        // Shift all events by 0.05
+        let pattern =
+            Pattern::from_events(vec![(0.0, 0.1, "a"), (0.25, 0.1, "b"), (0.5, 0.1, "c")]);
+        let shift = FieldExpr::Add(Box::new(FieldExpr::X), Box::new(FieldExpr::Constant(0.05)));
+        let warped = Warp::new(shift).apply(pattern);
+
+        let events = warped.query_cycle(0);
+        assert_eq!(events.len(), 3);
+        assert!((events[0].onset - 0.05).abs() < 0.001);
+        assert!((events[1].onset - 0.30).abs() < 0.001);
+        assert!((events[2].onset - 0.55).abs() < 0.001);
     }
 }
