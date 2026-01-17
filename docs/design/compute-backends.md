@@ -10,13 +10,14 @@ The compute backends system is fully implemented:
 
 | Crate | What's There |
 |-------|--------------|
-| `resin-core` | `Value::Opaque`, `GraphValue` trait, `DataLocation`, `DynNode::as_any()` |
-| `resin-backend` | `ComputeBackend` trait, `CpuBackend`, `BackendRegistry`, `ExecutionPolicy`, `Scheduler`, `BackendAwareEvaluator` |
+| `resin-core` | `Value::Opaque`, `GraphValue` trait, `DataLocation`, `DynNode::as_any()`, `NodeExecutor` trait, `LazyEvaluator<E>` |
+| `resin-backend` | `ComputeBackend` trait, `CpuBackend`, `BackendRegistry`, `ExecutionPolicy`, `Scheduler`, `BackendNodeExecutor` |
 | `resin-gpu` | `GpuComputeBackend`, `GpuKernel` trait, kernels for noise and image-expr |
 
 **Quick start:**
 ```rust
-use rhizome_resin_backend::{BackendRegistry, BackendAwareEvaluator, Scheduler, ExecutionPolicy};
+use rhizome_resin_backend::{BackendRegistry, BackendNodeExecutor, Scheduler, ExecutionPolicy};
+use rhizome_resin_core::LazyEvaluator;
 use rhizome_resin_gpu::{GpuComputeBackend, register_kernels};
 
 // Setup registry with CPU (always) and GPU (if available)
@@ -28,7 +29,8 @@ if let Ok(gpu) = GpuComputeBackend::new() {
 
 // Create scheduler and evaluator
 let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
-let mut evaluator = BackendAwareEvaluator::new(scheduler);
+let executor = BackendNodeExecutor::new(scheduler);
+let mut evaluator = LazyEvaluator::with_executor(executor);
 
 // Evaluate - backends selected automatically per node
 let result = evaluator.evaluate(&graph, &[output_node], &ctx)?;
@@ -1210,7 +1212,7 @@ Nodes like `RemapUvNode` require GPU (return error from `execute()`).
 | Extensibility | Registry, any impl can register |
 | Policy | Intent-based enum, not backend names |
 | Scheduling | `Scheduler` matches policy to capabilities |
-| Evaluation | `BackendAwareEvaluator` implements `Evaluator` trait |
+| Evaluation | `LazyEvaluator<BackendNodeExecutor>` via `NodeExecutor` trait |
 | Data location | Tracked via `GraphValue::location()` |
 | Cost model | Estimate compute + transfer |
 
@@ -1220,6 +1222,4 @@ This keeps the core evaluation strategy unchanged while allowing heterogeneous e
 
 See TODO.md "Compute Backend Architecture" section:
 
-1. **NodeExecutor trait** - Currently `BackendAwareEvaluator` duplicates evaluation logic from `LazyEvaluator`. Future refactor: extract `NodeExecutor` trait for pluggable execution.
-
-2. **Kernel node access** - `GpuKernel::execute()` doesn't receive the node, so kernels can't access node parameters (expressions, configs). Workaround: use parameterized nodes with primitive inputs. Fix: pass `&dyn DynNode` to kernels.
+1. **Kernel node access** - `GpuKernel::execute()` doesn't receive the node, so kernels can't access node parameters (expressions, configs). Workaround: use parameterized nodes with primitive inputs. Fix: pass `&dyn DynNode` to kernels.

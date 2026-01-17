@@ -46,9 +46,9 @@ mod value;
 
 pub use error::{GraphError, TypeError};
 pub use eval::{
-    CacheEntry, CacheKey, CachePolicy, CancellationMode, CancellationToken, ErrorHandling,
-    EvalCache, EvalContext, EvalProgress, EvalResult, Evaluator, FeedbackState, KeepAllPolicy,
-    LazyEvaluator,
+    CacheEntry, CacheKey, CachePolicy, CancellationMode, CancellationToken, DefaultNodeExecutor,
+    ErrorHandling, EvalCache, EvalContext, EvalProgress, EvalResult, Evaluator, FeedbackState,
+    KeepAllPolicy, LazyEvaluator, NodeExecutor,
 };
 pub use glam;
 pub use graph::{Graph, NodeId, Wire};
