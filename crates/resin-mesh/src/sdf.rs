@@ -426,7 +426,7 @@ pub fn raymarch(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::box_mesh;
+    use crate::Cuboid;
 
     #[test]
     fn test_sdf_grid_creation() {
@@ -466,7 +466,7 @@ mod tests {
 
     #[test]
     fn test_mesh_to_sdf_box() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let config = SdfConfig {
             resolution: (16, 16, 16),
             padding: 1.5,
@@ -486,7 +486,7 @@ mod tests {
 
     #[test]
     fn test_mesh_to_sdf_fast() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let config = SdfConfig {
             resolution: (8, 8, 8),
             ..Default::default()
@@ -501,7 +501,7 @@ mod tests {
 
     #[test]
     fn test_sdf_gradient() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let config = SdfConfig {
             resolution: (16, 16, 16),
             padding: 1.5,

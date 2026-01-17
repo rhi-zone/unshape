@@ -612,7 +612,7 @@ pub fn ao_to_vertex_colors(ao_values: &[f32]) -> Vec<[f32; 4]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::box_mesh;
+    use crate::Cuboid;
 
     #[test]
     fn test_ao_config_default() {
@@ -631,7 +631,7 @@ mod tests {
 
     #[test]
     fn test_ao_accelerator_build() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let accel = AoAccelerator::build(&mesh);
 
         assert!(!accel.triangles.is_empty());
@@ -639,7 +639,7 @@ mod tests {
 
     #[test]
     fn test_ao_accelerator_occluded() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let accel = AoAccelerator::build(&mesh);
 
         // Ray from outside pointing at mesh should hit
@@ -653,7 +653,7 @@ mod tests {
 
     #[test]
     fn test_bake_ao_vertices() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let config = BakeAo::low();
 
         let ao_values = bake_ao_vertices(&mesh, &config);
@@ -758,7 +758,7 @@ mod tests {
 
     #[test]
     fn test_compute_vertex_normals() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let normals = compute_vertex_normals(&mesh);
 
         assert_eq!(normals.len(), mesh.positions.len());

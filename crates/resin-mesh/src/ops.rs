@@ -536,9 +536,9 @@ pub type SmoothConfig = Smooth;
 /// # Example
 ///
 /// ```ignore
-/// use rhizome_resin_mesh::{box_mesh, smooth};
+/// use rhizome_resin_mesh::{Cuboid, smooth};
 ///
-/// let cube = box_mesh();
+/// let cube = Cuboid::default().apply();
 /// let smoothed = smooth(&cube, 0.5, 3);
 /// ```
 pub fn smooth(mesh: &Mesh, lambda: f32, iterations: usize) -> Mesh {
@@ -785,11 +785,11 @@ fn collect_boundary_edges(mesh: &Mesh) -> Vec<(u32, u32)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::box_mesh;
+    use crate::Cuboid;
 
     #[test]
     fn test_extrude_basic() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let extruded = extrude(&cube, 0.5);
 
         // Should have more vertices and triangles
@@ -799,7 +799,7 @@ mod tests {
 
     #[test]
     fn test_solidify() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let solid = solidify(&cube, 0.1);
 
         // Solidify creates inner and outer shell plus sides
@@ -808,7 +808,7 @@ mod tests {
 
     #[test]
     fn test_inset() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let inseted = inset(&cube, 0.3);
 
         // Inset creates many more triangles
@@ -817,7 +817,7 @@ mod tests {
 
     #[test]
     fn test_flip_normals() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let flipped = flip_normals(&cube);
 
         // Same vertex/triangle count
@@ -832,7 +832,7 @@ mod tests {
 
     #[test]
     fn test_double_sided() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let doubled = make_double_sided(&cube);
 
         // Should have exactly double the geometry
@@ -861,7 +861,7 @@ mod tests {
 
     #[test]
     fn test_split_faces() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let split = split_faces(&cube);
 
         // Each triangle gets 3 unique vertices
@@ -870,7 +870,7 @@ mod tests {
 
     #[test]
     fn test_inset_with_depth() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let inseted = inset_with_config(
             &cube,
             InsetConfig {
@@ -887,7 +887,7 @@ mod tests {
 
     #[test]
     fn test_smooth_basic() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         // Use preserve_boundary: false since box_mesh has split vertices
         let smoothed = smooth_with_config(
             &cube,
@@ -914,7 +914,7 @@ mod tests {
 
     #[test]
     fn test_smooth_zero_iterations() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let smoothed = smooth(&cube, 0.5, 0);
 
         // Zero iterations should return identical mesh
@@ -925,7 +925,7 @@ mod tests {
 
     #[test]
     fn test_smooth_zero_lambda() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let smoothed = smooth(&cube, 0.0, 5);
 
         // Zero lambda should return identical mesh
@@ -936,7 +936,7 @@ mod tests {
 
     #[test]
     fn test_smooth_with_config() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let smoothed = smooth_with_config(
             &cube,
             SmoothConfig {
@@ -953,7 +953,7 @@ mod tests {
 
     #[test]
     fn test_smooth_taubin() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         // Typical Taubin parameters: lambda = 0.5, mu = -0.53
         let smoothed = smooth_taubin(&cube, 0.5, -0.53, 3);
 
@@ -964,7 +964,7 @@ mod tests {
 
     #[test]
     fn test_smooth_preserves_normals() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let smoothed = smooth(&cube, 0.5, 2);
 
         // Should still have valid normals
@@ -982,7 +982,7 @@ mod tests {
 #[cfg(all(test, feature = "dynop"))]
 mod dynop_tests {
     use super::*;
-    use crate::box_mesh;
+    use crate::Cuboid;
     use rhizome_resin_op::{DynOp, OpRegistry, OpType, OpValue};
 
     #[test]
@@ -1002,7 +1002,7 @@ mod dynop_tests {
         assert_eq!(deserialized.type_name(), "resin::Smooth");
 
         // Execute both and compare
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let direct_result = op.apply(&cube);
 
         let input = OpValue::new(OpType::of::<Mesh>("Mesh"), cube);
@@ -1023,7 +1023,7 @@ mod dynop_tests {
 
         let deserialized = registry.deserialize("resin::Extrude", params).unwrap();
 
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let direct_result = op.apply(&cube);
 
         let input = OpValue::new(OpType::of::<Mesh>("Mesh"), cube);
@@ -1043,7 +1043,7 @@ mod dynop_tests {
 
         let deserialized = registry.deserialize("resin::Inset", params).unwrap();
 
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let direct_result = op.apply(&cube);
 
         let input = OpValue::new(OpType::of::<Mesh>("Mesh"), cube);
@@ -1084,7 +1084,7 @@ mod dynop_tests {
         assert_eq!(output_type.name, "Mesh");
 
         // Execute
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let input = OpValue::new(OpType::of::<Mesh>("Mesh"), cube.clone());
         let output = pipeline.execute(input, &registry).unwrap();
         let result: Mesh = output.downcast().unwrap();

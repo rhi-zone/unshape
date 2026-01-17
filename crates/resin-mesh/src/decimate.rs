@@ -446,11 +446,11 @@ fn find_boundary_vertices(triangles: &[[usize; 3]], vertex_count: usize) -> Hash
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{box_mesh, uv_sphere};
+    use crate::{Cuboid, UvSphere};
 
     #[test]
     fn test_decimate_basic() {
-        let mesh = uv_sphere(16, 8);
+        let mesh = UvSphere::new(1.0, 16, 8).apply();
         let original_tris = mesh.triangle_count();
 
         let mut config = DecimateConfig::target_ratio(0.5);
@@ -466,7 +466,7 @@ mod tests {
 
     #[test]
     fn test_decimate_target_triangles() {
-        let mesh = uv_sphere(16, 8);
+        let mesh = UvSphere::new(1.0, 16, 8).apply();
         let original = mesh.triangle_count();
 
         // Don't preserve boundary so we can actually decimate
@@ -483,7 +483,7 @@ mod tests {
 
     #[test]
     fn test_decimate_preserves_normals() {
-        let mesh = uv_sphere(16, 8);
+        let mesh = UvSphere::new(1.0, 16, 8).apply();
         assert!(mesh.has_normals());
 
         let decimated = decimate(&mesh, DecimateConfig::target_ratio(0.3));
@@ -504,7 +504,7 @@ mod tests {
     #[test]
     fn test_decimate_already_small() {
         // Box mesh has only 12 triangles
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let original_tris = mesh.triangle_count();
 
         // Try to decimate to more triangles than we have
@@ -516,7 +516,7 @@ mod tests {
 
     #[test]
     fn test_decimate_config_max_error() {
-        let mesh = uv_sphere(16, 8);
+        let mesh = UvSphere::new(1.0, 16, 8).apply();
 
         // Very small max_error should prevent most collapses
         let mut config = DecimateConfig::target_ratio(0.1);
@@ -532,7 +532,7 @@ mod tests {
 
     #[test]
     fn test_decimate_valid_mesh() {
-        let mesh = uv_sphere(16, 8);
+        let mesh = UvSphere::new(1.0, 16, 8).apply();
         let decimated = decimate(&mesh, DecimateConfig::target_ratio(0.3));
 
         // All indices should be valid

@@ -437,7 +437,7 @@ pub fn bevel_mesh_vertices(mesh: &Mesh, vertex_indices: &[u32], config: &BevelCo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::box_mesh;
+    use crate::Cuboid;
 
     #[test]
     fn test_bevel_config_default() {
@@ -464,7 +464,7 @@ mod tests {
 
     #[test]
     fn test_bevel_vertices_basic() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let hemesh = HalfEdgeMesh::from_mesh(&cube);
 
         // Bevel just the first vertex
@@ -478,7 +478,7 @@ mod tests {
 
     #[test]
     fn test_bevel_vertices_multiple() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let hemesh = HalfEdgeMesh::from_mesh(&cube);
 
         // Bevel multiple vertices
@@ -492,7 +492,7 @@ mod tests {
 
     #[test]
     fn test_bevel_zero_amount() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let hemesh = HalfEdgeMesh::from_mesh(&cube);
 
         // Zero amount should return unchanged mesh
@@ -504,7 +504,7 @@ mod tests {
 
     #[test]
     fn test_bevel_empty_vertices() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let hemesh = HalfEdgeMesh::from_mesh(&cube);
 
         // Empty vertex list should return unchanged mesh
@@ -516,7 +516,7 @@ mod tests {
 
     #[test]
     fn test_bevel_mesh_vertices_convenience() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let config = BevelConfig::chamfer(0.1);
 
         let beveled = bevel_mesh_vertices(&cube, &[0, 1], &config);
@@ -527,7 +527,7 @@ mod tests {
 
     #[test]
     fn test_bevel_edges_basic() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let hemesh = HalfEdgeMesh::from_mesh(&cube);
 
         let config = BevelConfig::chamfer(0.05);

@@ -859,11 +859,11 @@ fn orthonormal_basis(n: Vec3) -> (Vec3, Vec3) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::box_mesh;
+    use crate::Cuboid;
 
     #[test]
     fn test_planar_projection() {
-        let mut mesh = box_mesh();
+        let mut mesh = Cuboid::default().apply();
         project_planar(&mut mesh, Mat4::IDENTITY, Vec2::ONE);
 
         assert_eq!(mesh.uvs.len(), mesh.positions.len());
@@ -871,7 +871,7 @@ mod tests {
 
     #[test]
     fn test_planar_axis_projection() {
-        let mut mesh = box_mesh();
+        let mut mesh = Cuboid::default().apply();
         project_planar_axis(&mut mesh, ProjectionAxis::Z, Vec2::ONE);
 
         assert_eq!(mesh.uvs.len(), mesh.positions.len());
@@ -879,7 +879,7 @@ mod tests {
 
     #[test]
     fn test_cylindrical_projection() {
-        let mut mesh = box_mesh();
+        let mut mesh = Cuboid::default().apply();
         project_cylindrical(&mut mesh, &CylindricalConfig::default());
 
         assert_eq!(mesh.uvs.len(), mesh.positions.len());
@@ -893,7 +893,7 @@ mod tests {
 
     #[test]
     fn test_spherical_projection() {
-        let mut mesh = box_mesh();
+        let mut mesh = Cuboid::default().apply();
         project_spherical(&mut mesh, &SphericalConfig::default());
 
         assert_eq!(mesh.uvs.len(), mesh.positions.len());
@@ -907,7 +907,7 @@ mod tests {
 
     #[test]
     fn test_box_projection() {
-        let mut mesh = box_mesh();
+        let mut mesh = Cuboid::default().apply();
         project_box(&mut mesh, &BoxConfig::default());
 
         assert_eq!(mesh.uvs.len(), mesh.positions.len());
@@ -915,7 +915,7 @@ mod tests {
 
     #[test]
     fn test_box_per_face_projection() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let projected = project_box_per_face(&mesh, &BoxConfig::default());
 
         // Each triangle gets 3 unique vertices
@@ -925,7 +925,7 @@ mod tests {
 
     #[test]
     fn test_scale_uvs() {
-        let mut mesh = box_mesh();
+        let mut mesh = Cuboid::default().apply();
         project_planar(&mut mesh, Mat4::IDENTITY, Vec2::ONE);
 
         let original_uvs = mesh.uvs.clone();
@@ -939,7 +939,7 @@ mod tests {
 
     #[test]
     fn test_translate_uvs() {
-        let mut mesh = box_mesh();
+        let mut mesh = Cuboid::default().apply();
         project_planar(&mut mesh, Mat4::IDENTITY, Vec2::ONE);
 
         let original_uvs = mesh.uvs.clone();
@@ -953,7 +953,7 @@ mod tests {
 
     #[test]
     fn test_normalize_uvs() {
-        let mut mesh = box_mesh();
+        let mut mesh = Cuboid::default().apply();
         project_planar(&mut mesh, Mat4::IDENTITY, Vec2::ONE);
 
         normalize_uvs(&mut mesh);
@@ -967,7 +967,7 @@ mod tests {
 
     #[test]
     fn test_rotate_uvs() {
-        let mut mesh = box_mesh();
+        let mut mesh = Cuboid::default().apply();
         project_planar(&mut mesh, Mat4::IDENTITY, Vec2::ONE);
         normalize_uvs(&mut mesh);
 
@@ -980,7 +980,7 @@ mod tests {
 
     #[test]
     fn test_find_uv_islands() {
-        let mut mesh = box_mesh();
+        let mut mesh = Cuboid::default().apply();
         project_box(&mut mesh, &BoxConfig::default());
 
         let islands = find_uv_islands(&mesh);
@@ -1043,7 +1043,7 @@ mod tests {
 
     #[test]
     fn test_pack_mesh_uvs() {
-        let mut mesh = box_mesh();
+        let mut mesh = Cuboid::default().apply();
         project_box(&mut mesh, &BoxConfig::default());
 
         let config = AtlasPackConfig::default();

@@ -818,7 +818,7 @@ mod tests {
     }
 
     fn cube_mesh() -> Mesh {
-        crate::box_mesh()
+        crate::Cuboid::default().apply()
     }
 
     #[test]

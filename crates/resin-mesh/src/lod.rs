@@ -9,9 +9,9 @@
 //! # Example
 //!
 //! ```
-//! use rhizome_resin_mesh::{uv_sphere, LodConfig, generate_lod_chain};
+//! use rhizome_resin_mesh::{UvSphere, LodConfig, generate_lod_chain};
 //!
-//! let high_poly = uv_sphere(32, 16);
+//! let high_poly = UvSphere::new(1.0, 32, 16).apply();
 //! let lod_chain = LodConfig::default().apply(&high_poly);
 //!
 //! // Use different LODs based on distance
@@ -312,11 +312,11 @@ pub fn estimate_bounding_radius(mesh: &Mesh) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::uv_sphere;
+    use crate::UvSphere;
 
     #[test]
     fn test_generate_lod_chain() {
-        let mesh = uv_sphere(32, 16);
+        let mesh = UvSphere::new(1.0, 32, 16).apply();
         let config = LodConfig::default();
         let chain = generate_lod_chain(&mesh, &config);
 
@@ -339,7 +339,7 @@ mod tests {
 
     #[test]
     fn test_lod_chain_selection() {
-        let mesh = uv_sphere(32, 16);
+        let mesh = UvSphere::new(1.0, 32, 16).apply();
         let config = LodConfig::with_levels(4);
         let chain = generate_lod_chain(&mesh, &config);
 
@@ -354,7 +354,7 @@ mod tests {
 
     #[test]
     fn test_lod_chain_by_distance() {
-        let mesh = uv_sphere(32, 16);
+        let mesh = UvSphere::new(1.0, 32, 16).apply();
         let chain = generate_lod_chain(&mesh, &LodConfig::default());
 
         let fov = std::f32::consts::FRAC_PI_2; // 90 degrees
@@ -385,7 +385,7 @@ mod tests {
 
     #[test]
     fn test_lod_chain_with_targets() {
-        let mesh = uv_sphere(32, 16);
+        let mesh = UvSphere::new(1.0, 32, 16).apply();
         let original_tris = mesh.triangle_count();
 
         let targets = vec![original_tris / 2, original_tris / 4, original_tris / 8];
@@ -400,7 +400,7 @@ mod tests {
 
     #[test]
     fn test_estimate_bounding_radius() {
-        let mesh = uv_sphere(16, 8);
+        let mesh = UvSphere::new(1.0, 16, 8).apply();
         let radius = estimate_bounding_radius(&mesh);
 
         // UV sphere with default params should have radius ~1.0
@@ -409,7 +409,7 @@ mod tests {
 
     #[test]
     fn test_lod_chain_memory() {
-        let mesh = uv_sphere(32, 16);
+        let mesh = UvSphere::new(1.0, 32, 16).apply();
         let chain = generate_lod_chain(&mesh, &LodConfig::default());
 
         let total_memory = chain.memory_estimate();
@@ -429,7 +429,7 @@ mod tests {
 
     #[test]
     fn test_lod_accessors() {
-        let mesh = uv_sphere(32, 16);
+        let mesh = UvSphere::new(1.0, 32, 16).apply();
         let chain = generate_lod_chain(&mesh, &LodConfig::default());
 
         assert!(chain.highest_detail().is_some());

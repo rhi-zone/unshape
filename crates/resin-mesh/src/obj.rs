@@ -9,9 +9,9 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhizome_resin_mesh::{box_mesh, export_obj, import_obj};
+//! use rhizome_resin_mesh::{Cuboid, export_obj, import_obj};
 //!
-//! let cube = box_mesh();
+//! let cube = Cuboid::default().apply();
 //! let obj_string = export_obj(&cube);
 //!
 //! let imported = import_obj(&obj_string).unwrap();
@@ -324,7 +324,7 @@ pub fn export_obj_with_name(mesh: &Mesh, name: Option<&str>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::box_mesh;
+    use crate::Cuboid;
 
     #[test]
     fn test_export_simple_triangle() {
@@ -418,7 +418,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip() {
-        let original = box_mesh();
+        let original = Cuboid::default().apply();
         let obj = export_obj(&original);
         let imported = import_obj(&obj).unwrap();
 
@@ -486,7 +486,7 @@ mod tests {
 
     #[test]
     fn test_export_with_name() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let obj = export_obj_with_name(&mesh, Some("MyCube"));
         assert!(obj.contains("o MyCube"));
     }

@@ -464,10 +464,10 @@ pub fn boolean_intersect(a: &Mesh, b: &Mesh) -> Mesh {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::box_mesh;
+    use crate::Cuboid;
 
     fn cube_at(center: Vec3, size: f32) -> Mesh {
-        let mut mesh = box_mesh();
+        let mut mesh = Cuboid::default().apply();
         let half = size / 2.0;
         for pos in &mut mesh.positions {
             *pos = *pos * half + center;
@@ -563,7 +563,7 @@ mod tests {
 
     #[test]
     fn test_bsp_tree_build() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let polygons = mesh_to_polygons(&cube);
 
         let tree = BspNode::from_polygons(polygons);
@@ -575,7 +575,7 @@ mod tests {
 
     #[test]
     fn test_polygon_to_mesh_roundtrip() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let polygons = mesh_to_polygons(&cube);
         let result = polygons_to_mesh(&polygons);
 
@@ -586,7 +586,7 @@ mod tests {
 
     #[test]
     fn test_mesh_to_polygons() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let polygons = mesh_to_polygons(&cube);
 
         // Cube has 12 triangles

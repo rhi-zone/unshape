@@ -9,9 +9,9 @@
 //! # Example
 //!
 //! ```
-//! use rhizome_resin_mesh::{uv_sphere, analyze_topology};
+//! use rhizome_resin_mesh::{UvSphere, analyze_topology};
 //!
-//! let sphere = uv_sphere(16, 8);
+//! let sphere = UvSphere::new(1.0, 16, 8).apply();
 //! let topo = analyze_topology(&sphere);
 //!
 //! assert!(topo.is_closed);
@@ -570,11 +570,11 @@ pub fn extract_boundary_loops(mesh: &Mesh) -> Vec<Vec<u32>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{box_mesh, uv_sphere};
+    use crate::{Cuboid, UvSphere};
 
     #[test]
     fn test_sphere_topology() {
-        let sphere = uv_sphere(16, 8);
+        let sphere = UvSphere::new(1.0, 16, 8).apply();
         let topo = analyze_topology(&sphere);
 
         // Sphere should be closed manifold with genus 0
@@ -587,7 +587,7 @@ mod tests {
 
     #[test]
     fn test_box_topology() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let topo = analyze_topology(&cube);
 
         // Box should be closed manifold with genus 0
@@ -599,7 +599,7 @@ mod tests {
 
     #[test]
     fn test_euler_characteristic_sphere() {
-        let sphere = uv_sphere(16, 8);
+        let sphere = UvSphere::new(1.0, 16, 8).apply();
         let chi = euler_characteristic(&sphere);
 
         // Euler characteristic of sphere is 2
@@ -759,7 +759,7 @@ mod tests {
 
     #[test]
     fn test_topology_summary() {
-        let sphere = uv_sphere(8, 4);
+        let sphere = UvSphere::new(1.0, 8, 4).apply();
         let topo = analyze_topology(&sphere);
         let summary = topo.summary();
 
@@ -769,7 +769,7 @@ mod tests {
 
     #[test]
     fn test_is_watertight() {
-        let sphere = uv_sphere(8, 4);
+        let sphere = UvSphere::new(1.0, 8, 4).apply();
         let topo = analyze_topology(&sphere);
         assert!(topo.is_watertight());
 
@@ -790,7 +790,7 @@ mod tests {
 
     #[test]
     fn test_convenience_functions() {
-        let sphere = uv_sphere(8, 4);
+        let sphere = UvSphere::new(1.0, 8, 4).apply();
 
         assert!(is_manifold(&sphere));
         assert!(is_closed(&sphere));

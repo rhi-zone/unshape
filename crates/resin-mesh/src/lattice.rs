@@ -599,7 +599,7 @@ mod tests {
 
     #[test]
     fn test_lattice_deform_mesh() {
-        let mut mesh = crate::box_mesh();
+        let mut mesh = crate::Cuboid::default().apply();
 
         let mut lattice = Lattice::from_mesh(&mesh, 3);
 

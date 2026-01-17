@@ -8,9 +8,9 @@
 //! # Example
 //!
 //! ```
-//! use rhizome_resin_mesh::{sphere, gaussian_curvature, mean_curvature};
+//! use rhizome_resin_mesh::{UvSphere, gaussian_curvature, mean_curvature};
 //!
-//! let mesh = sphere();
+//! let mesh = UvSphere::default().apply();
 //! let k_values = gaussian_curvature(&mesh);
 //! let h_values = mean_curvature(&mesh);
 //!
@@ -333,12 +333,12 @@ fn compute_vertex_normals(mesh: &Mesh) -> Vec<Vec3> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{box_mesh, sphere, uv_sphere};
+    use crate::{Cuboid, UvSphere};
 
     #[test]
     fn test_gaussian_curvature_sphere() {
         // A sphere should have positive Gaussian curvature everywhere
-        let mesh = uv_sphere(16, 16);
+        let mesh = UvSphere::new(1.0, 16, 16).apply();
         let k = gaussian_curvature(&mesh);
 
         assert!(!k.is_empty());
@@ -350,7 +350,7 @@ mod tests {
     #[test]
     fn test_mean_curvature_sphere() {
         // A sphere should have positive mean curvature everywhere
-        let mesh = uv_sphere(16, 16);
+        let mesh = UvSphere::new(1.0, 16, 16).apply();
         let h = mean_curvature(&mesh);
 
         assert!(!h.is_empty());
@@ -361,7 +361,7 @@ mod tests {
 
     #[test]
     fn test_principal_curvatures() {
-        let mesh = sphere();
+        let mesh = UvSphere::default().apply();
         let (k1, k2) = principal_curvatures(&mesh);
 
         assert_eq!(k1.len(), mesh.positions.len());
@@ -375,7 +375,7 @@ mod tests {
 
     #[test]
     fn test_compute_curvature() {
-        let mesh = sphere();
+        let mesh = UvSphere::default().apply();
         let result = compute_curvature(&mesh);
 
         assert_eq!(result.gaussian.len(), mesh.positions.len());
@@ -387,7 +387,7 @@ mod tests {
     #[test]
     fn test_box_curvature() {
         // A box has zero Gaussian curvature on faces, undefined at edges/corners
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let k = gaussian_curvature(&mesh);
         let h = mean_curvature(&mesh);
 

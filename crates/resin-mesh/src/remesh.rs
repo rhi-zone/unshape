@@ -9,9 +9,9 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhizome_resin_mesh::{box_mesh, Remesh};
+//! use rhizome_resin_mesh::{Cuboid, Remesh};
 //!
-//! let mesh = box_mesh();
+//! let mesh = Cuboid::default().apply();
 //! let remeshed = Remesh::default().apply(&mesh);
 //! ```
 
@@ -558,7 +558,7 @@ pub fn average_edge_length(mesh: &Mesh) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::box_mesh;
+    use crate::Cuboid;
 
     #[test]
     fn test_remesh_config_default() {
@@ -569,7 +569,7 @@ mod tests {
 
     #[test]
     fn test_isotropic_remesh() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let config = RemeshConfig {
             target_edge_length: 0.3,
             iterations: 2,
@@ -587,7 +587,7 @@ mod tests {
 
     #[test]
     fn test_average_edge_length() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let avg = average_edge_length(&mesh);
 
         // Box mesh edges should be around 1.0 (unit cube)
@@ -620,7 +620,7 @@ mod tests {
 
     #[test]
     fn test_quadify() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let config = QuadifyConfig::default();
 
         let quad_mesh = quadify(&mesh, &config);
@@ -648,7 +648,7 @@ mod tests {
 
     #[test]
     fn test_smooth_vertices() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::default().apply();
         let smoothed = smooth_vertices(&mesh, 0.5, false);
 
         // Positions should be different

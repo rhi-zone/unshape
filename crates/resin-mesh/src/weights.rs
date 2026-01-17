@@ -9,9 +9,9 @@
 //! # Example
 //!
 //! ```
-//! use rhizome_resin_mesh::{uv_sphere, VertexWeights, smooth_weights};
+//! use rhizome_resin_mesh::{UvSphere, VertexWeights, smooth_weights};
 //!
-//! let sphere = uv_sphere(16, 8);
+//! let sphere = UvSphere::new(1.0, 16, 8).apply();
 //! let mut weights = VertexWeights::new(sphere.vertex_count(), 2);
 //!
 //! // Set initial weights
@@ -491,7 +491,7 @@ pub fn invert_weights(weights: &mut VertexWeights, influence: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::uv_sphere;
+    use crate::UvSphere;
 
     #[test]
     fn test_vertex_weights_basic() {
@@ -524,7 +524,7 @@ mod tests {
 
     #[test]
     fn test_smooth_weights() {
-        let mesh = uv_sphere(8, 4);
+        let mesh = UvSphere::new(1.0, 8, 4).apply();
         let mut weights = VertexWeights::new(mesh.vertex_count(), 1);
 
         // Set one vertex to 1.0, rest to 0.0
@@ -541,7 +541,7 @@ mod tests {
 
     #[test]
     fn test_heat_diffusion() {
-        let mesh = uv_sphere(8, 4);
+        let mesh = UvSphere::new(1.0, 8, 4).apply();
 
         let mut initial = HashMap::new();
         initial.insert(0, 1.0);
@@ -558,7 +558,7 @@ mod tests {
 
     #[test]
     fn test_gradient_weights() {
-        let mesh = uv_sphere(8, 4);
+        let mesh = UvSphere::new(1.0, 8, 4).apply();
 
         let weights = gradient_weights(&mesh, Vec3::Y, -1.0, 1.0);
 
@@ -570,7 +570,7 @@ mod tests {
 
     #[test]
     fn test_radial_weights() {
-        let mesh = uv_sphere(8, 4);
+        let mesh = UvSphere::new(1.0, 8, 4).apply();
 
         let weights = radial_weights(&mesh, Vec3::ZERO, 2.0, 1.0);
 
@@ -614,13 +614,13 @@ mod tests {
 
     #[test]
     fn test_transfer_weights_nearest() {
-        let source = uv_sphere(4, 2);
+        let source = UvSphere::new(1.0, 4, 2).apply();
         let mut source_weights = VertexWeights::new(source.vertex_count(), 1);
         for v in 0..source.vertex_count() {
             source_weights.set(v, 0, (v as f32) / (source.vertex_count() as f32));
         }
 
-        let target = uv_sphere(8, 4);
+        let target = UvSphere::new(1.0, 8, 4).apply();
         let transferred = transfer_weights_nearest(&source, &source_weights, &target);
 
         // Should have same influence count
@@ -631,7 +631,7 @@ mod tests {
 
     #[test]
     fn test_automatic_weights() {
-        let mesh = uv_sphere(8, 4);
+        let mesh = UvSphere::new(1.0, 8, 4).apply();
 
         let mut bone_vertices = HashMap::new();
         bone_vertices.insert(0, vec![0]);

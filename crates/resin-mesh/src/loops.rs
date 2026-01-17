@@ -441,7 +441,7 @@ pub fn grow_edge_selection(mesh: &HalfEdgeMesh, edges: &[HalfEdgeId]) -> Vec<Hal
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::box_mesh;
+    use crate::Cuboid;
 
     fn make_quad_plane() -> HalfEdgeMesh {
         // Create a 2x2 grid of quads for testing
@@ -478,7 +478,7 @@ mod tests {
 
     #[test]
     fn test_select_edge_loop_null() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let hemesh = HalfEdgeMesh::from_mesh(&cube);
         let result = select_edge_loop(&hemesh, HalfEdgeId::NULL);
         assert!(result.is_empty());
@@ -514,7 +514,7 @@ mod tests {
 
     #[test]
     fn test_select_vertex_edges() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let hemesh = HalfEdgeMesh::from_mesh(&cube);
 
         if hemesh.vertices.is_empty() {
@@ -528,7 +528,7 @@ mod tests {
 
     #[test]
     fn test_select_face_edges() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let hemesh = HalfEdgeMesh::from_mesh(&cube);
 
         if hemesh.faces.is_empty() {
@@ -542,7 +542,7 @@ mod tests {
 
     #[test]
     fn test_edges_to_vertices() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let hemesh = HalfEdgeMesh::from_mesh(&cube);
 
         if hemesh.halfedges.is_empty() {
@@ -557,7 +557,7 @@ mod tests {
 
     #[test]
     fn test_edges_to_faces() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let hemesh = HalfEdgeMesh::from_mesh(&cube);
 
         if hemesh.halfedges.is_empty() {
@@ -572,7 +572,7 @@ mod tests {
 
     #[test]
     fn test_grow_edge_selection() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let hemesh = HalfEdgeMesh::from_mesh(&cube);
 
         if hemesh.halfedges.is_empty() {
@@ -594,7 +594,7 @@ mod tests {
 
     #[test]
     fn test_loop_cut_zero_cuts() {
-        let cube = box_mesh();
+        let cube = Cuboid::default().apply();
         let hemesh = HalfEdgeMesh::from_mesh(&cube);
         let result = loop_cut(&hemesh, HalfEdgeId(0), 0);
         assert_eq!(result.vertex_count(), hemesh.vertex_count());

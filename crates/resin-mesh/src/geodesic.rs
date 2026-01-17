@@ -5,10 +5,10 @@
 //! # Example
 //!
 //! ```
-//! use rhizome_resin_mesh::{Mesh, geodesic::{compute_geodesic_distance, GeodesicConfig}};
+//! use rhizome_resin_mesh::{Mesh, UvSphere, geodesic::{compute_geodesic_distance, GeodesicConfig}};
 //!
 //! // Create a simple mesh
-//! let mesh = rhizome_resin_mesh::uv_sphere(16, 8);
+//! let mesh = UvSphere::new(1.0, 16, 8).apply();
 //!
 //! // Compute geodesic distance from vertex 0
 //! let distances = compute_geodesic_distance(&mesh, &[0], GeodesicConfig::default());
