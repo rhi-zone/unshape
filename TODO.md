@@ -2,7 +2,20 @@
 
 ## Next Up
 
-### Mesh Primitives (2025-01-17)
+### Selection System (2025-01-17) ✅
+
+> **Goal:** Implement mesh selection for constructive modeling workflow.
+
+- [x] MeshSelection struct - store selected vertices/edges/faces as index sets
+- [x] Selection modes - vertex, edge, face selection
+- [x] Selection operations - select_all, deselect_all, invert_selection
+- [x] Selection expansion - grow_selection, shrink_selection, select_linked
+- [x] Selection by trait - select_by_normal, select_by_area, select_random
+- [x] Soft selection / proportional editing - falloff weights for smooth transforms
+
+Implemented in `selection.rs`. Key types: `MeshSelection`, `Edge`, `SelectionMode`, `SoftSelection`, `Falloff`.
+
+### Mesh Primitives (2025-01-17) ✅
 
 > **Goal:** Complete the basic primitive set for constructive modeling.
 
@@ -72,13 +85,7 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 
 **Primitives:** *(Moved to Next Up)*
 
-**Selection System:**
-- [ ] MeshSelection struct - store selected vertices/edges/faces as index sets
-- [ ] Selection modes - vertex, edge, face selection
-- [ ] Selection operations - select_all, deselect_all, invert_selection
-- [ ] Selection expansion - grow_selection, shrink_selection, select_linked
-- [ ] Selection by trait - select_by_normal, select_by_area, select_random
-- [ ] Soft selection / proportional editing - falloff weights for smooth transforms
+**Selection System:** *(Moved to Next Up)*
 
 **Face Operations:**
 - [ ] Extrude faces - `extrude_faces(selection, amount)` with new side faces
