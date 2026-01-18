@@ -1,8 +1,11 @@
-//! Raw byte reinterpretation utilities for glitch-art style domain crossing.
+//! Raw byte reinterpretation and buffer operation utilities.
 //!
-//! This crate provides safe byte casting between different numeric representations,
-//! enabling creative reinterpretation of data across domains. Load any file as audio
-//! samples, interpret audio as vertex positions, etc.
+//! This crate provides:
+//! - Safe byte casting between different numeric representations
+//! - Generic buffer operations (`map_buffer`, `zip_buffers`, `fold_buffer`)
+//!
+//! These enable creative reinterpretation of data across domains and unified
+//! buffer processing for audio, image, mesh data, etc.
 //!
 //! # Example
 //!
@@ -16,6 +19,10 @@
 //!
 //! // Normalize arbitrary float values to [-1, 1]
 //! let normalized = normalize_f32(samples);
+//!
+//! // Generic buffer operations
+//! let doubled = map_buffer(&[1.0, 2.0, 3.0], |x| x * 2.0);
+//! let sum = fold_buffer(&[1.0, 2.0, 3.0], 0.0, |acc, x| acc + x);
 //! ```
 
 /// Reinterprets raw bytes as f32 values.
@@ -216,6 +223,160 @@ pub fn normalize_f32_unsigned(samples: &[f32]) -> Vec<f32> {
         .collect()
 }
 
+// ============================================================================
+// Generic buffer operations
+// ============================================================================
+
+/// Applies a function to each element of a buffer.
+///
+/// This is the fundamental primitive for per-element buffer transforms.
+/// Works with audio samples, vertex coordinates, pixel values, etc.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_bytes::map_buffer;
+///
+/// let samples = [0.5, 1.0, -0.5];
+/// let doubled = map_buffer(&samples, |x| x * 2.0);
+/// assert_eq!(doubled, vec![1.0, 2.0, -1.0]);
+///
+/// // Apply gain
+/// let gained = map_buffer(&samples, |x| (x * 1.5).clamp(-1.0, 1.0));
+/// ```
+pub fn map_buffer(buffer: &[f32], f: impl Fn(f32) -> f32) -> Vec<f32> {
+    buffer.iter().map(|&x| f(x)).collect()
+}
+
+/// Applies a function to each element in-place.
+///
+/// More efficient than `map_buffer` when you can modify the buffer.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_bytes::map_buffer_in_place;
+///
+/// let mut samples = vec![0.5, 1.0, -0.5];
+/// map_buffer_in_place(&mut samples, |x| x * 2.0);
+/// assert_eq!(samples, vec![1.0, 2.0, -1.0]);
+/// ```
+pub fn map_buffer_in_place(buffer: &mut [f32], f: impl Fn(f32) -> f32) {
+    for x in buffer.iter_mut() {
+        *x = f(*x);
+    }
+}
+
+/// Combines two buffers element-wise using a function.
+///
+/// The output length is the minimum of the two input lengths.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_bytes::zip_buffers;
+///
+/// let a = [1.0, 2.0, 3.0];
+/// let b = [0.5, 0.5, 0.5];
+///
+/// // Add
+/// let sum = zip_buffers(&a, &b, |x, y| x + y);
+/// assert_eq!(sum, vec![1.5, 2.5, 3.5]);
+///
+/// // Multiply (modulation)
+/// let modulated = zip_buffers(&a, &b, |x, y| x * y);
+/// assert_eq!(modulated, vec![0.5, 1.0, 1.5]);
+///
+/// // Max
+/// let max = zip_buffers(&a, &b, |x, y| x.max(y));
+/// ```
+pub fn zip_buffers(a: &[f32], b: &[f32], f: impl Fn(f32, f32) -> f32) -> Vec<f32> {
+    a.iter().zip(b.iter()).map(|(&x, &y)| f(x, y)).collect()
+}
+
+/// Reduces a buffer to a single value.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_bytes::fold_buffer;
+///
+/// let samples = [1.0, 2.0, 3.0, 4.0];
+///
+/// // Sum
+/// let sum = fold_buffer(&samples, 0.0, |acc, x| acc + x);
+/// assert_eq!(sum, 10.0);
+///
+/// // Max
+/// let max = fold_buffer(&samples, f32::NEG_INFINITY, |acc, x| acc.max(x));
+/// assert_eq!(max, 4.0);
+///
+/// // RMS (root mean square)
+/// let rms = fold_buffer(&samples, 0.0, |acc, x| acc + x * x);
+/// let rms = (rms / samples.len() as f32).sqrt();
+/// ```
+pub fn fold_buffer<T>(buffer: &[f32], init: T, f: impl Fn(T, f32) -> T) -> T {
+    buffer.iter().fold(init, |acc, &x| f(acc, x))
+}
+
+/// Applies a windowed operation to a buffer.
+///
+/// For each position, calls `f` with a window of `size` samples centered on that position.
+/// Handles boundaries by clamping indices.
+///
+/// # Arguments
+///
+/// * `buffer` - Input buffer
+/// * `size` - Window size (must be odd for symmetric windows)
+/// * `f` - Function that reduces a window to a single value
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_bytes::windowed_buffer;
+///
+/// let samples = [0.0, 1.0, 2.0, 1.0, 0.0];
+///
+/// // Moving average with window size 3
+/// let smoothed = windowed_buffer(&samples, 3, |window| {
+///     window.iter().sum::<f32>() / window.len() as f32
+/// });
+///
+/// // Local max with window size 3
+/// let local_max = windowed_buffer(&samples, 3, |window| {
+///     window.iter().cloned().fold(f32::NEG_INFINITY, f32::max)
+/// });
+/// ```
+pub fn windowed_buffer(buffer: &[f32], size: usize, f: impl Fn(&[f32]) -> f32) -> Vec<f32> {
+    if buffer.is_empty() || size == 0 {
+        return Vec::new();
+    }
+
+    let half = size / 2;
+    let mut result = Vec::with_capacity(buffer.len());
+    let mut window = vec![0.0; size];
+
+    for i in 0..buffer.len() {
+        // Fill window with samples, clamping at boundaries
+        for (j, w) in window.iter_mut().enumerate() {
+            let idx = (i + j).saturating_sub(half).min(buffer.len() - 1);
+            *w = buffer[idx];
+        }
+        result.push(f(&window));
+    }
+
+    result
+}
+
+/// Applies a windowed operation in-place.
+///
+/// More efficient than `windowed_buffer` when you can modify the buffer,
+/// but requires a temporary buffer internally.
+pub fn windowed_buffer_in_place(buffer: &mut [f32], size: usize, f: impl Fn(&[f32]) -> f32) {
+    let result = windowed_buffer(buffer, size, f);
+    buffer.copy_from_slice(&result);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -340,5 +501,81 @@ mod tests {
         for (a, b) in original.iter().zip(back.iter()) {
             assert!((a - b).abs() < 0.001);
         }
+    }
+
+    // Buffer operation tests
+
+    #[test]
+    fn test_map_buffer() {
+        let buffer = [1.0, 2.0, 3.0];
+        let doubled = map_buffer(&buffer, |x| x * 2.0);
+        assert_eq!(doubled, vec![2.0, 4.0, 6.0]);
+    }
+
+    #[test]
+    fn test_map_buffer_empty() {
+        let buffer: [f32; 0] = [];
+        let result = map_buffer(&buffer, |x| x * 2.0);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_map_buffer_in_place() {
+        let mut buffer = vec![1.0, 2.0, 3.0];
+        map_buffer_in_place(&mut buffer, |x| x + 1.0);
+        assert_eq!(buffer, vec![2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn test_zip_buffers() {
+        let a = [1.0, 2.0, 3.0];
+        let b = [0.5, 0.5, 0.5];
+        let sum = zip_buffers(&a, &b, |x, y| x + y);
+        assert_eq!(sum, vec![1.5, 2.5, 3.5]);
+    }
+
+    #[test]
+    fn test_zip_buffers_different_lengths() {
+        let a = [1.0, 2.0, 3.0, 4.0];
+        let b = [10.0, 20.0];
+        let result = zip_buffers(&a, &b, |x, y| x + y);
+        assert_eq!(result, vec![11.0, 22.0]); // Length is min of both
+    }
+
+    #[test]
+    fn test_fold_buffer_sum() {
+        let buffer = [1.0, 2.0, 3.0, 4.0];
+        let sum = fold_buffer(&buffer, 0.0, |acc, x| acc + x);
+        assert!((sum - 10.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_fold_buffer_max() {
+        let buffer = [1.0, 5.0, 3.0, 2.0];
+        let max = fold_buffer(&buffer, f32::NEG_INFINITY, |acc, x| acc.max(x));
+        assert!((max - 5.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_windowed_buffer_average() {
+        let buffer = [0.0, 1.0, 2.0, 1.0, 0.0];
+        let smoothed = windowed_buffer(&buffer, 3, |w| w.iter().sum::<f32>() / w.len() as f32);
+
+        // Middle element: (1 + 2 + 1) / 3 = 1.333...
+        assert!((smoothed[2] - 4.0 / 3.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_windowed_buffer_empty() {
+        let buffer: [f32; 0] = [];
+        let result = windowed_buffer(&buffer, 3, |w| w.iter().sum::<f32>());
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_windowed_buffer_preserves_length() {
+        let buffer = [1.0, 2.0, 3.0, 4.0, 5.0];
+        let result = windowed_buffer(&buffer, 3, |w| w.iter().sum::<f32>());
+        assert_eq!(result.len(), buffer.len());
     }
 }

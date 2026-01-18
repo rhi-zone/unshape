@@ -1205,6 +1205,46 @@ pub fn set_channel(image: &ImageField, channel: Channel, source: &ImageField) ->
         .with_filter_mode(image.filter_mode)
 }
 
+/// Applies a function to a single channel of an image.
+///
+/// This primitive extracts a channel as a grayscale image, transforms it,
+/// and puts it back. Useful for per-channel effects like independent blur,
+/// noise, or distortion.
+///
+/// # Arguments
+///
+/// * `image` - Source image
+/// * `channel` - Channel to transform
+/// * `f` - Function that transforms a grayscale `ImageField` and returns a new one
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, Channel, map_channel, convolve, Kernel};
+///
+/// let img = ImageField::from_raw(vec![[0.5, 0.3, 0.7, 1.0]; 64], 8, 8);
+///
+/// // Blur only the red channel
+/// let result = map_channel(&img, Channel::Red, |ch| {
+///     convolve(&ch, &Kernel::box_blur())
+/// });
+///
+/// // Apply noise only to the blue channel
+/// let result = map_channel(&img, Channel::Blue, |ch| {
+///     // ch is a grayscale image of the blue channel
+///     ch // return transformed channel
+/// });
+/// ```
+pub fn map_channel(
+    image: &ImageField,
+    channel: Channel,
+    f: impl FnOnce(ImageField) -> ImageField,
+) -> ImageField {
+    let extracted = extract_channel(image, channel);
+    let transformed = f(extracted);
+    set_channel(image, channel, &transformed)
+}
+
 /// Swaps two channels in an image.
 ///
 /// # Example
@@ -1959,93 +1999,52 @@ pub fn adjust_hsl(image: &ImageField, adjustment: &HslAdjustment) -> ImageField 
 
 /// Converts an image to grayscale using luminance.
 ///
+/// This function is sugar over [`map_pixels_fn`] with the grayscale transform.
+///
 /// Uses ITU-R BT.709 coefficients: 0.2126 R + 0.7152 G + 0.0722 B
 pub fn grayscale(image: &ImageField) -> ImageField {
-    let (width, height) = image.dimensions();
-    let mut data = Vec::with_capacity((width * height) as usize);
-
-    for y in 0..height {
-        for x in 0..width {
-            let pixel = image.get_pixel(x, y);
-            let lum = 0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2];
-            data.push([lum, lum, lum, pixel[3]]);
-        }
-    }
-
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
+    map_pixels_fn(image, |[r, g, b, a]| {
+        let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        [lum, lum, lum, a]
+    })
 }
 
 /// Inverts the colors of an image.
 ///
+/// This function is sugar over [`map_pixels_fn`] with the invert transform.
+///
 /// Each RGB channel is inverted (1 - value). Alpha is preserved.
 pub fn invert(image: &ImageField) -> ImageField {
-    let (width, height) = image.dimensions();
-    let mut data = Vec::with_capacity((width * height) as usize);
-
-    for y in 0..height {
-        for x in 0..width {
-            let pixel = image.get_pixel(x, y);
-            data.push([1.0 - pixel[0], 1.0 - pixel[1], 1.0 - pixel[2], pixel[3]]);
-        }
-    }
-
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
+    map_pixels_fn(image, |[r, g, b, a]| [1.0 - r, 1.0 - g, 1.0 - b, a])
 }
 
 /// Applies a posterization effect, reducing the number of color levels.
 ///
+/// This function is sugar over [`map_pixels_fn`] with the posterize transform.
+///
 /// # Arguments
 /// * `levels` - Number of levels per channel (2-256, typically 2-8 for visible effect)
 pub fn posterize(image: &ImageField, levels: u32) -> ImageField {
-    let (width, height) = image.dimensions();
-    let mut data = Vec::with_capacity((width * height) as usize);
-
     let levels = levels.clamp(2, 256) as f32;
     let factor = levels - 1.0;
 
-    for y in 0..height {
-        for x in 0..width {
-            let pixel = image.get_pixel(x, y);
-
-            let quantize = |v: f32| ((v * factor).round() / factor).clamp(0.0, 1.0);
-
-            data.push([
-                quantize(pixel[0]),
-                quantize(pixel[1]),
-                quantize(pixel[2]),
-                pixel[3],
-            ]);
-        }
-    }
-
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
+    map_pixels_fn(image, move |[r, g, b, a]| {
+        let quantize = |v: f32| ((v * factor).round() / factor).clamp(0.0, 1.0);
+        [quantize(r), quantize(g), quantize(b), a]
+    })
 }
 
 /// Applies a threshold effect, converting to black and white.
 ///
+/// This function is sugar over [`map_pixels_fn`] with the threshold transform.
+///
 /// Pixels with luminance above the threshold become white, below become black.
-pub fn threshold(image: &ImageField, threshold: f32) -> ImageField {
-    let (width, height) = image.dimensions();
-    let mut data = Vec::with_capacity((width * height) as usize);
-
-    for y in 0..height {
-        for x in 0..width {
-            let pixel = image.get_pixel(x, y);
-            let lum = 0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2];
-            let v = if lum > threshold { 1.0 } else { 0.0 };
-            data.push([v, v, v, pixel[3]]);
-        }
-    }
-
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
+pub fn threshold(image: &ImageField, thresh: f32) -> ImageField {
+    map_pixels_fn(image, move |[r, g, b, a]| {
+        let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        let v = if lum > thresh { 1.0 } else { 0.0 };
+        [v, v, v, a]
+    })
 }
 
 // ============================================================================
@@ -2804,29 +2803,64 @@ pub fn displace(image: &ImageField, displacement_map: &ImageField, strength: f32
         .with_filter_mode(image.filter_mode)
 }
 
-/// Applies a swirl/twist distortion around a center point.
-///
-/// # Arguments
-/// * `angle` - Maximum rotation in radians at center
-/// * `radius` - Radius of effect (normalized, 1.0 = half image size)
-/// * `center` - Center point (normalized coordinates)
-pub fn swirl(image: &ImageField, angle: f32, radius: f32, center: (f32, f32)) -> ImageField {
-    let (width, height) = image.dimensions();
-    let mut data = Vec::with_capacity((width * height) as usize);
+/// Configuration for swirl/twist distortion.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(rhizome_resin_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = ImageField, output = ImageField))]
+pub struct Swirl {
+    /// Maximum rotation in radians at center.
+    pub angle: f32,
+    /// Radius of effect (normalized, 1.0 = half image size).
+    pub radius: f32,
+    /// Center point (normalized coordinates).
+    pub center: (f32, f32),
+}
 
-    let radius_sq = radius * radius;
+impl Default for Swirl {
+    fn default() -> Self {
+        Self {
+            angle: 1.0,
+            radius: 0.5,
+            center: (0.5, 0.5),
+        }
+    }
+}
 
-    for y in 0..height {
-        for x in 0..width {
-            let u = (x as f32 + 0.5) / width as f32;
-            let v = (y as f32 + 0.5) / height as f32;
+impl Swirl {
+    /// Creates a new swirl distortion centered on the image.
+    pub fn new(angle: f32, radius: f32) -> Self {
+        Self {
+            angle,
+            radius,
+            center: (0.5, 0.5),
+        }
+    }
 
+    /// Creates a swirl with custom center.
+    pub fn with_center(mut self, center: (f32, f32)) -> Self {
+        self.center = center;
+        self
+    }
+
+    /// Applies this operation to an image.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        swirl(image, self.angle, self.radius, self.center)
+    }
+
+    /// Returns the UV remapping function for this distortion.
+    pub fn uv_fn(&self) -> impl Fn(f32, f32) -> (f32, f32) {
+        let angle = self.angle;
+        let radius = self.radius;
+        let radius_sq = radius * radius;
+        let center = self.center;
+
+        move |u, v| {
             let dx = u - center.0;
             let dy = v - center.1;
             let dist_sq = dx * dx + dy * dy;
 
-            let (src_u, src_v) = if dist_sq < radius_sq {
-                // Inside swirl radius
+            if dist_sq < radius_sq {
                 let dist = dist_sq.sqrt();
                 let factor = 1.0 - dist / radius;
                 let rotation = angle * factor * factor;
@@ -2840,56 +2874,112 @@ pub fn swirl(image: &ImageField, angle: f32, radius: f32, center: (f32, f32)) ->
                 (center.0 + new_dx, center.1 + new_dy)
             } else {
                 (u, v)
-            };
+            }
+        }
+    }
+}
 
-            let color = image.sample_uv(src_u, src_v);
-            data.push([color.r, color.g, color.b, color.a]);
+/// Applies a swirl/twist distortion around a center point.
+///
+/// This function is sugar over [`remap_uv_fn`] with the swirl transformation.
+///
+/// # Arguments
+/// * `angle` - Maximum rotation in radians at center
+/// * `radius` - Radius of effect (normalized, 1.0 = half image size)
+/// * `center` - Center point (normalized coordinates)
+pub fn swirl(image: &ImageField, angle: f32, radius: f32, center: (f32, f32)) -> ImageField {
+    let config = Swirl {
+        angle,
+        radius,
+        center,
+    };
+    remap_uv_fn(image, config.uv_fn())
+}
+
+/// Configuration for spherize/bulge effect.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(rhizome_resin_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = ImageField, output = ImageField))]
+pub struct Spherize {
+    /// Bulge strength (positive = bulge out, negative = pinch in).
+    pub strength: f32,
+    /// Center point (normalized coordinates).
+    pub center: (f32, f32),
+}
+
+impl Default for Spherize {
+    fn default() -> Self {
+        Self {
+            strength: 0.5,
+            center: (0.5, 0.5),
+        }
+    }
+}
+
+impl Spherize {
+    /// Creates a new spherize effect centered on the image.
+    pub fn new(strength: f32) -> Self {
+        Self {
+            strength,
+            center: (0.5, 0.5),
         }
     }
 
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
-}
+    /// Creates a bulge effect (positive strength).
+    pub fn bulge(strength: f32) -> Self {
+        Self::new(strength.abs())
+    }
 
-/// Applies a spherize/bulge effect.
-///
-/// # Arguments
-/// * `strength` - Bulge strength (positive = bulge out, negative = pinch in)
-/// * `center` - Center point (normalized coordinates)
-pub fn spherize(image: &ImageField, strength: f32, center: (f32, f32)) -> ImageField {
-    let (width, height) = image.dimensions();
-    let mut data = Vec::with_capacity((width * height) as usize);
+    /// Creates a pinch effect (negative strength).
+    pub fn pinch(strength: f32) -> Self {
+        Self::new(-strength.abs())
+    }
 
-    for y in 0..height {
-        for x in 0..width {
-            let u = (x as f32 + 0.5) / width as f32;
-            let v = (y as f32 + 0.5) / height as f32;
+    /// Sets the center point.
+    pub fn with_center(mut self, center: (f32, f32)) -> Self {
+        self.center = center;
+        self
+    }
 
+    /// Applies this operation to an image.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        spherize(image, self.strength, self.center)
+    }
+
+    /// Returns the UV remapping function for this distortion.
+    pub fn uv_fn(&self) -> impl Fn(f32, f32) -> (f32, f32) {
+        let strength = self.strength;
+        let center = self.center;
+
+        move |u, v| {
             let dx = u - center.0;
             let dy = v - center.1;
             let dist = (dx * dx + dy * dy).sqrt();
 
-            // Apply spherical transformation
             let factor = if dist > 0.0001 {
-                let t = dist.min(0.5) / 0.5; // Normalize to [0, 1] within radius
-                let spherize_factor = (1.0 - t * t).sqrt(); // Spherical curve
+                let t = dist.min(0.5) / 0.5;
+                let spherize_factor = (1.0 - t * t).sqrt();
                 1.0 + (spherize_factor - 1.0) * strength
             } else {
                 1.0
             };
 
-            let src_u = center.0 + dx * factor;
-            let src_v = center.1 + dy * factor;
-
-            let color = image.sample_uv(src_u, src_v);
-            data.push([color.r, color.g, color.b, color.a]);
+            (center.0 + dx * factor, center.1 + dy * factor)
         }
     }
+}
 
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
+/// Applies a spherize/bulge effect.
+///
+/// This function is sugar over [`remap_uv_fn`] with the spherize transformation.
+///
+/// # Arguments
+/// * `strength` - Bulge strength (positive = bulge out, negative = pinch in)
+/// * `center` - Center point (normalized coordinates)
+pub fn spherize(image: &ImageField, strength: f32, center: (f32, f32)) -> ImageField {
+    let config = Spherize { strength, center };
+    remap_uv_fn(image, config.uv_fn())
 }
 
 // ============================================================================
@@ -4600,6 +4690,8 @@ impl BitManip {
 
 /// Applies bit manipulation to image pixel data.
 ///
+/// This function is sugar over [`map_pixels_fn`] with the bit manipulation transform.
+///
 /// Treats pixel values as 8-bit integers and applies bitwise operations,
 /// creating digital glitch effects.
 ///
@@ -4617,36 +4709,32 @@ impl BitManip {
 /// let banded = bit_manip(&image, &BitManip::new(BitOperation::And, 0xF0));
 /// ```
 pub fn bit_manip(image: &ImageField, config: &BitManip) -> ImageField {
-    let apply_op = |v: f32, op: BitOperation, value: u8| -> f32 {
-        let byte = (v.clamp(0.0, 1.0) * 255.0) as u8;
-        let result = match op {
-            BitOperation::Xor => byte ^ value,
-            BitOperation::And => byte & value,
-            BitOperation::Or => byte | value,
-            BitOperation::Not => !byte,
-            BitOperation::ShiftLeft => byte.wrapping_shl(value as u32),
-            BitOperation::ShiftRight => byte.wrapping_shr(value as u32),
+    let operation = config.operation;
+    let value = config.value;
+    let channels = config.channels;
+
+    map_pixels_fn(image, move |pixel| {
+        let apply_op = |v: f32| -> f32 {
+            let byte = (v.clamp(0.0, 1.0) * 255.0) as u8;
+            let result = match operation {
+                BitOperation::Xor => byte ^ value,
+                BitOperation::And => byte & value,
+                BitOperation::Or => byte | value,
+                BitOperation::Not => !byte,
+                BitOperation::ShiftLeft => byte.wrapping_shl(value as u32),
+                BitOperation::ShiftRight => byte.wrapping_shr(value as u32),
+            };
+            result as f32 / 255.0
         };
-        result as f32 / 255.0
-    };
 
-    let data: Vec<[f32; 4]> = image
-        .data
-        .iter()
-        .map(|pixel| {
-            let mut result = *pixel;
-            for (i, &should_apply) in config.channels.iter().enumerate() {
-                if should_apply {
-                    result[i] = apply_op(pixel[i], config.operation, config.value);
-                }
+        let mut result = pixel;
+        for (i, &should_apply) in channels.iter().enumerate() {
+            if should_apply {
+                result[i] = apply_op(pixel[i]);
             }
-            result
-        })
-        .collect();
-
-    ImageField::from_raw(data, image.width, image.height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
+        }
+        result
+    })
 }
 
 /// Corrupts random bytes in the image data.
@@ -4874,9 +4962,28 @@ impl TransformConfig {
     pub fn to_mat3(&self) -> Mat3 {
         Mat3::from_cols_array_2d(&self.matrix)
     }
+
+    /// Applies this operation to an image.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        transform_image(image, self)
+    }
+
+    /// Returns the UV remapping function for this transformation.
+    ///
+    /// Uses the inverse matrix to map output UV → source UV.
+    pub fn uv_fn(&self) -> impl Fn(f32, f32) -> (f32, f32) {
+        let inv = self.to_mat3().inverse();
+
+        move |u, v| {
+            let src = inv * Vec3::new(u, v, 1.0);
+            (src.x / src.z, src.y / src.z)
+        }
+    }
 }
 
 /// Apply a 2D affine transformation to image pixel positions.
+///
+/// This function is sugar over [`remap_uv_fn`] with the inverse transform matrix.
 ///
 /// The transformation is applied to UV coordinates, effectively warping the image.
 /// Uses inverse mapping: for each output pixel, find the corresponding input position.
@@ -4893,13 +5000,6 @@ impl TransformConfig {
 /// let rotated = transform_image(&image, &config);
 /// ```
 pub fn transform_image(image: &ImageField, config: &TransformConfig) -> ImageField {
-    let width = image.width;
-    let height = image.height;
-
-    // Use inverse of the transform matrix for inverse mapping
-    let mat = config.to_mat3();
-    let inv = mat.inverse();
-
     // Prepare source image with desired filter mode
     let source = if config.filter && image.filter_mode != FilterMode::Bilinear {
         image.clone().with_filter_mode(FilterMode::Bilinear)
@@ -4907,32 +5007,11 @@ pub fn transform_image(image: &ImageField, config: &TransformConfig) -> ImageFie
         image.clone()
     };
 
-    let mut data = Vec::with_capacity((width * height) as usize);
+    let mut result = remap_uv_fn(&source, config.uv_fn());
 
-    for y in 0..height {
-        for x in 0..width {
-            // Convert pixel coord to UV (center of pixel)
-            let u = (x as f32 + 0.5) / width as f32;
-            let v = (y as f32 + 0.5) / height as f32;
-
-            // Apply inverse transform to find source UV
-            let src = inv * Vec3::new(u, v, 1.0);
-            let src_u = src.x / src.z;
-            let src_v = src.y / src.z;
-
-            // Sample the source image
-            let color = source.sample_uv(src_u, src_v);
-            data.push([color.r, color.g, color.b, color.a]);
-        }
-    }
-
-    ImageField {
-        data,
-        width,
-        height,
-        wrap_mode: image.wrap_mode,
-        filter_mode: image.filter_mode,
-    }
+    // Restore original filter mode in result
+    result.filter_mode = image.filter_mode;
+    result
 }
 
 /// 1D lookup table for color grading.
@@ -6310,6 +6389,107 @@ pub fn map_pixels(image: &ImageField, expr: &ColorExpr) -> ImageField {
             let pixel = image.get_pixel(x, y);
             let [r, g, b, a] = expr.eval(pixel[0], pixel[1], pixel[2], pixel[3]);
             data.push([r, g, b, a]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Applies a UV coordinate remapping using a closure.
+///
+/// This is the runtime closure variant of [`remap_uv`]. Use this when:
+/// - The transformation doesn't need to be serialized
+/// - The transformation is a one-off custom effect
+/// - The transformation references external state (like another image in [`displace`])
+///
+/// For serializable/compilable transforms, use [`remap_uv`] with [`UvExpr`] instead.
+///
+/// # Arguments
+///
+/// * `image` - The source image to transform
+/// * `f` - A function that maps output UV → source UV coordinates
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, remap_uv_fn};
+///
+/// let image = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
+///
+/// // Custom swirl effect
+/// let swirled = remap_uv_fn(&image, |u, v| {
+///     let dx = u - 0.5;
+///     let dy = v - 0.5;
+///     let dist = (dx * dx + dy * dy).sqrt();
+///     let angle = dist * 3.0;
+///     let cos_a = angle.cos();
+///     let sin_a = angle.sin();
+///     (0.5 + dx * cos_a - dy * sin_a, 0.5 + dx * sin_a + dy * cos_a)
+/// });
+/// ```
+pub fn remap_uv_fn(image: &ImageField, f: impl Fn(f32, f32) -> (f32, f32)) -> ImageField {
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let u = (x as f32 + 0.5) / width as f32;
+            let v = (y as f32 + 0.5) / height as f32;
+
+            let (src_u, src_v) = f(u, v);
+            let color = image.sample_uv(src_u, src_v);
+            data.push([color.r, color.g, color.b, color.a]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Applies a per-pixel color transform using a closure.
+///
+/// This is the runtime closure variant of [`map_pixels`]. Use this when:
+/// - The transformation doesn't need to be serialized
+/// - The transformation is a one-off custom effect
+/// - The transformation references external state
+///
+/// For serializable/compilable transforms, use [`map_pixels`] with [`ColorExpr`] instead.
+///
+/// # Arguments
+///
+/// * `image` - The source image to transform
+/// * `f` - A function that maps `[r, g, b, a]` → `[r', g', b', a']`
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, map_pixels_fn};
+///
+/// let image = ImageField::from_raw(vec![[0.5, 0.3, 0.7, 1.0]; 16], 4, 4);
+///
+/// // Custom sepia effect
+/// let sepia = map_pixels_fn(&image, |[r, g, b, a]| {
+///     let gray = r * 0.299 + g * 0.587 + b * 0.114;
+///     [gray * 1.2, gray * 1.0, gray * 0.8, a]
+/// });
+///
+/// // Threshold with custom logic
+/// let binary = map_pixels_fn(&image, |[r, g, b, a]| {
+///     let lum = r * 0.2126 + g * 0.7152 + b * 0.0722;
+///     if lum > 0.5 { [1.0, 1.0, 1.0, a] } else { [0.0, 0.0, 0.0, a] }
+/// });
+/// ```
+pub fn map_pixels_fn(image: &ImageField, f: impl Fn([f32; 4]) -> [f32; 4]) -> ImageField {
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = image.get_pixel(x, y);
+            data.push(f(pixel));
         }
     }
 
@@ -7805,5 +7985,130 @@ mod tests {
                 assert!((p1[0] - p2[0]).abs() < 1e-6, "Mismatch at ({}, {})", x, y);
             }
         }
+    }
+
+    #[test]
+    fn test_remap_uv_fn_identity() {
+        let img = create_test_image();
+
+        // Identity transform should preserve pixels
+        let result = remap_uv_fn(&img, |u, v| (u, v));
+
+        for y in 0..2 {
+            for x in 0..2 {
+                let orig = img.get_pixel(x, y);
+                let new = result.get_pixel(x, y);
+                assert!((orig[0] - new[0]).abs() < 1e-6);
+                assert!((orig[1] - new[1]).abs() < 1e-6);
+                assert!((orig[2] - new[2]).abs() < 1e-6);
+            }
+        }
+    }
+
+    #[test]
+    fn test_remap_uv_fn_flip_horizontal() {
+        let img = create_test_image().with_filter_mode(FilterMode::Nearest);
+
+        // Flip horizontally: sample from (1-u, v)
+        let result = remap_uv_fn(&img, |u, v| (1.0 - u, v));
+
+        // Top-left becomes top-right, etc.
+        let tl = result.sample_uv(0.25, 0.25); // Should get what was at (0.75, 0.25)
+        let tr = result.sample_uv(0.75, 0.25); // Should get what was at (0.25, 0.25)
+
+        // Original: TL=red, TR=green
+        // Flipped: TL=green, TR=red
+        assert!(tl.g > 0.5, "Top-left should be green after flip");
+        assert!(tr.r > 0.5, "Top-right should be red after flip");
+    }
+
+    #[test]
+    fn test_map_pixels_fn_identity() {
+        let img = create_test_image();
+
+        let result = map_pixels_fn(&img, |pixel| pixel);
+
+        for y in 0..2 {
+            for x in 0..2 {
+                let orig = img.get_pixel(x, y);
+                let new = result.get_pixel(x, y);
+                assert_eq!(orig, new);
+            }
+        }
+    }
+
+    #[test]
+    fn test_map_pixels_fn_invert() {
+        let img = create_test_image();
+
+        let result = map_pixels_fn(&img, |[r, g, b, a]| [1.0 - r, 1.0 - g, 1.0 - b, a]);
+
+        // Red pixel (1, 0, 0) -> Cyan (0, 1, 1)
+        let inverted_red = result.get_pixel(0, 0);
+        assert!((inverted_red[0] - 0.0).abs() < 1e-6);
+        assert!((inverted_red[1] - 1.0).abs() < 1e-6);
+        assert!((inverted_red[2] - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_map_pixels_fn_grayscale() {
+        let img = create_test_image();
+
+        let result = map_pixels_fn(&img, |[r, g, b, a]| {
+            let lum = r * 0.299 + g * 0.587 + b * 0.114;
+            [lum, lum, lum, a]
+        });
+
+        // All channels should be equal for each pixel
+        for y in 0..2 {
+            for x in 0..2 {
+                let pixel = result.get_pixel(x, y);
+                assert!((pixel[0] - pixel[1]).abs() < 1e-6);
+                assert!((pixel[1] - pixel[2]).abs() < 1e-6);
+            }
+        }
+    }
+
+    #[test]
+    fn test_map_channel_identity() {
+        let img = create_test_image();
+
+        // Identity transform on red channel
+        let result = map_channel(&img, Channel::Red, |ch| ch);
+
+        for y in 0..2 {
+            for x in 0..2 {
+                let orig = img.get_pixel(x, y);
+                let new = result.get_pixel(x, y);
+                assert_eq!(orig, new);
+            }
+        }
+    }
+
+    #[test]
+    fn test_map_channel_invert_red() {
+        // Create an image with known red values
+        let data = vec![
+            [1.0, 0.5, 0.3, 1.0],
+            [0.0, 0.5, 0.3, 1.0],
+            [0.5, 0.5, 0.3, 1.0],
+            [0.25, 0.5, 0.3, 1.0],
+        ];
+        let img = ImageField::from_raw(data, 2, 2);
+
+        // Invert only the red channel
+        let result = map_channel(&img, Channel::Red, |ch| {
+            // Invert the channel (which appears in R, G, B of the grayscale)
+            map_pixels_fn(&ch, |[r, _, _, a]| [1.0 - r, 1.0 - r, 1.0 - r, a])
+        });
+
+        // Red channel should be inverted
+        assert!((result.get_pixel(0, 0)[0] - 0.0).abs() < 1e-6); // 1.0 -> 0.0
+        assert!((result.get_pixel(1, 0)[0] - 1.0).abs() < 1e-6); // 0.0 -> 1.0
+        assert!((result.get_pixel(0, 1)[0] - 0.5).abs() < 1e-6); // 0.5 -> 0.5
+
+        // Green and blue should be unchanged
+        assert!((result.get_pixel(0, 0)[1] - 0.5).abs() < 1e-6);
+        assert!((result.get_pixel(0, 0)[2] - 0.3).abs() < 1e-6);
     }
 }

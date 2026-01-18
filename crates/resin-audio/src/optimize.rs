@@ -33,6 +33,203 @@ use std::any::TypeId;
 use std::collections::HashMap;
 
 // ============================================================================
+// GraphOptimizer Trait
+// ============================================================================
+
+/// Trait for graph optimization passes.
+///
+/// Implement this trait to create custom optimization passes that can be
+/// composed into optimization pipelines.
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_resin_audio::optimize::{GraphOptimizer, AffineChainFuser, IdentityEliminator};
+///
+/// // Run individual passes
+/// let mut graph = AudioGraph::new();
+/// let fused = AffineChainFuser.apply(&mut graph);
+/// let removed = IdentityEliminator.apply(&mut graph);
+///
+/// // Or compose into a pipeline
+/// let optimizers: Vec<Box<dyn GraphOptimizer>> = vec![
+///     Box::new(AffineChainFuser),
+///     Box::new(ConstantFolder),
+///     Box::new(IdentityEliminator),
+///     Box::new(DeadNodeEliminator),
+/// ];
+///
+/// for opt in &optimizers {
+///     opt.apply(&mut graph);
+/// }
+/// ```
+pub trait GraphOptimizer {
+    /// Applies this optimization pass to the graph.
+    ///
+    /// Returns the number of nodes affected (removed, merged, or transformed).
+    fn apply(&self, graph: &mut AudioGraph) -> usize;
+
+    /// Returns the name of this optimization pass for debugging/logging.
+    fn name(&self) -> &'static str;
+}
+
+/// Fuses chains of affine (multiply-add) operations into single nodes.
+///
+/// Example: `Gain(0.5) → Offset(1.0) → Gain(2.0)` becomes `Affine(gain=1.0, offset=2.0)`
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AffineChainFuser;
+
+impl GraphOptimizer for AffineChainFuser {
+    fn apply(&self, graph: &mut AudioGraph) -> usize {
+        fuse_affine_chains(graph)
+    }
+
+    fn name(&self) -> &'static str {
+        "AffineChainFuser"
+    }
+}
+
+/// Removes identity operations that have no effect.
+///
+/// Removes: `Gain(1.0)`, `Offset(0.0)`, `PassThrough`
+#[derive(Debug, Clone, Copy, Default)]
+pub struct IdentityEliminator;
+
+impl GraphOptimizer for IdentityEliminator {
+    fn apply(&self, graph: &mut AudioGraph) -> usize {
+        eliminate_identities(graph)
+    }
+
+    fn name(&self) -> &'static str {
+        "IdentityEliminator"
+    }
+}
+
+/// Removes nodes not connected to the output.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DeadNodeEliminator;
+
+impl GraphOptimizer for DeadNodeEliminator {
+    fn apply(&self, graph: &mut AudioGraph) -> usize {
+        eliminate_dead_nodes(graph)
+    }
+
+    fn name(&self) -> &'static str {
+        "DeadNodeEliminator"
+    }
+}
+
+/// Folds constant values through affine operations.
+///
+/// Example: `Constant(2.0) → Gain(3.0)` becomes `Constant(6.0)`
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ConstantFolder;
+
+impl GraphOptimizer for ConstantFolder {
+    fn apply(&self, graph: &mut AudioGraph) -> usize {
+        fold_constants(graph)
+    }
+
+    fn name(&self) -> &'static str {
+        "ConstantFolder"
+    }
+}
+
+/// Merges consecutive delay nodes.
+///
+/// Example: `Delay(100) → Delay(50)` becomes `Delay(150)`
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DelayMerger;
+
+impl GraphOptimizer for DelayMerger {
+    fn apply(&self, graph: &mut AudioGraph) -> usize {
+        merge_delays(graph)
+    }
+
+    fn name(&self) -> &'static str {
+        "DelayMerger"
+    }
+}
+
+/// Aggressively propagates constants through the graph.
+///
+/// Combines constant folding with affine fusion in a loop.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ConstantPropagator;
+
+impl GraphOptimizer for ConstantPropagator {
+    fn apply(&self, graph: &mut AudioGraph) -> usize {
+        propagate_constants(graph)
+    }
+
+    fn name(&self) -> &'static str {
+        "ConstantPropagator"
+    }
+}
+
+/// Runs a sequence of optimizers until no more changes occur.
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_resin_audio::optimize::*;
+///
+/// let pipeline = OptimizerPipeline::default(); // Standard passes
+/// pipeline.run(&mut graph);
+/// ```
+pub struct OptimizerPipeline {
+    passes: Vec<Box<dyn GraphOptimizer>>,
+}
+
+impl Default for OptimizerPipeline {
+    fn default() -> Self {
+        Self {
+            passes: vec![
+                Box::new(AffineChainFuser),
+                Box::new(ConstantFolder),
+                Box::new(DelayMerger),
+                Box::new(IdentityEliminator),
+                Box::new(DeadNodeEliminator),
+            ],
+        }
+    }
+}
+
+impl OptimizerPipeline {
+    /// Creates an empty pipeline.
+    pub fn new() -> Self {
+        Self { passes: Vec::new() }
+    }
+
+    /// Adds an optimizer to the pipeline.
+    pub fn add<O: GraphOptimizer + 'static>(mut self, optimizer: O) -> Self {
+        self.passes.push(Box::new(optimizer));
+        self
+    }
+
+    /// Runs all passes until no more changes occur.
+    ///
+    /// Returns the total number of nodes affected.
+    pub fn run(&self, graph: &mut AudioGraph) -> usize {
+        let mut total = 0;
+
+        loop {
+            let mut changed = 0;
+            for pass in &self.passes {
+                changed += pass.apply(graph);
+            }
+
+            if changed == 0 {
+                break;
+            }
+            total += changed;
+        }
+
+        total
+    }
+}
+
+// ============================================================================
 // Node Type Registry
 // ============================================================================
 
@@ -2211,5 +2408,63 @@ mod tests {
             "expected 100.0, got {}",
             merged_time
         );
+    }
+
+    #[test]
+    fn test_optimizer_pipeline() {
+        use crate::graph::{AffineNode, AudioGraph};
+
+        // Build: Input -> PassThrough -> Gain(0.5) -> Offset(0.0) -> Gain(2.0) -> Output
+        let mut graph = AudioGraph::new();
+        let p = graph.add(AffineNode::identity());
+        let g1 = graph.add(AffineNode::gain(0.5));
+        let o = graph.add(AffineNode::offset(0.0));
+        let g2 = graph.add(AffineNode::gain(2.0));
+
+        graph.connect_input(p);
+        graph.connect(p, g1);
+        graph.connect(g1, o);
+        graph.connect(o, g2);
+        graph.set_output(g2);
+
+        let ctx = AudioContext::new(44100.0);
+        let original_output = graph.process(2.0, &ctx);
+
+        // Use OptimizerPipeline instead of run_optimization_passes
+        let pipeline = OptimizerPipeline::default();
+        let total = pipeline.run(&mut graph);
+        assert!(total > 0, "expected some optimizations");
+
+        // Verify same output
+        if graph.node_count() > 0 {
+            let optimized_output = graph.process(2.0, &ctx);
+            assert!(
+                (optimized_output - original_output).abs() < 1e-6,
+                "expected {}, got {}",
+                original_output,
+                optimized_output
+            );
+        }
+    }
+
+    #[test]
+    fn test_optimizer_trait_individual() {
+        use crate::graph::{AffineNode, AudioGraph};
+
+        // Test individual optimizers via trait
+        let mut graph = AudioGraph::new();
+        let g1 = graph.add(AffineNode::gain(0.5));
+        let g2 = graph.add(AffineNode::gain(2.0));
+
+        graph.connect_input(g1);
+        graph.connect(g1, g2);
+        graph.set_output(g2);
+
+        let fuser = AffineChainFuser;
+        assert_eq!(fuser.name(), "AffineChainFuser");
+
+        let fused = fuser.apply(&mut graph);
+        assert_eq!(fused, 1);
+        assert_eq!(graph.node_count(), 1);
     }
 }

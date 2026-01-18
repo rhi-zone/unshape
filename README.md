@@ -25,13 +25,13 @@ rhizome-resin-rig = "0.1"
 ```
 
 ```rust
-use rhizome_resin_mesh::{box_mesh, sphere};
+use rhizome_resin_mesh::{Cuboid, Icosphere};
 use rhizome_resin_core::{Field, Perlin2D, EvalContext};
 use glam::Vec2;
 
 // Mesh primitives
-let cube = box_mesh();
-let ball = sphere();
+let cube = Cuboid::unit().apply();
+let ball = Icosphere::new(1.0, 3).apply();
 
 // Lazy noise field
 let noise = Perlin2D::new().scale(4.0);

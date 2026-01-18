@@ -10,9 +10,9 @@
 //!
 //! ```
 //! use rhizome_resin_pointcloud::{PointCloud, sample_mesh_uniform};
-//! use rhizome_resin_mesh::box_mesh;
+//! use rhizome_resin_mesh::Cuboid;
 //!
-//! let mesh = box_mesh();
+//! let mesh = Cuboid::unit().apply();
 //! let cloud = sample_mesh_uniform(&mesh, 1000);
 //!
 //! assert!(cloud.len() >= 100); // Some points generated
@@ -794,7 +794,7 @@ pub fn transform(cloud: &PointCloud, matrix: glam::Mat4) -> PointCloud {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rhizome_resin_mesh::box_mesh;
+    use rhizome_resin_mesh::Cuboid;
 
     #[test]
     fn test_point_cloud_basic() {
@@ -836,7 +836,7 @@ mod tests {
 
     #[test]
     fn test_sample_mesh_uniform() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::unit().apply();
         let cloud = sample_mesh_uniform(&mesh, 100);
 
         assert!(cloud.len() >= 50); // Should get most of the requested points
@@ -895,7 +895,7 @@ mod tests {
 
     #[test]
     fn test_estimate_normals() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::unit().apply();
         let cloud = sample_mesh_uniform(&mesh, 100);
 
         // Remove existing normals to test estimation
@@ -908,7 +908,7 @@ mod tests {
 
     #[test]
     fn test_sample_mesh_poisson() {
-        let mesh = box_mesh();
+        let mesh = Cuboid::unit().apply();
         let config = PoissonConfig {
             min_distance: 0.2,
             max_attempts: 30,

@@ -403,6 +403,189 @@ pub fn degrade<T: Clone + Send + Sync + 'static>(
     })
 }
 
+// Helper: deterministic hash from onset + seed (used by rand, choose)
+fn onset_hash(onset: f64, seed: u64) -> u64 {
+    let onset_bits = onset.to_bits();
+    // Combine onset and seed through multiple mixing stages
+    let h = onset_bits.wrapping_add(seed);
+    let h = h ^ (h >> 33);
+    let h = h.wrapping_mul(0xff51afd7ed558ccd);
+    let h = h ^ (h >> 33);
+    let h = h.wrapping_mul(0xc4ceb9fe1a85ec53);
+    let h = h ^ (h >> 33);
+    h
+}
+
+// Helper: deterministic hash from cycle, index, and seed (used by shuffle)
+fn shuffle_hash(cycle: i64, index: usize, seed: u64) -> u64 {
+    // Combine all inputs into a single u64
+    let h = (cycle as u64)
+        .wrapping_mul(0x9e3779b97f4a7c15)
+        .wrapping_add(index as u64)
+        .wrapping_mul(0xff51afd7ed558ccd)
+        .wrapping_add(seed);
+    // Mix bits thoroughly
+    let h = h ^ (h >> 33);
+    let h = h.wrapping_mul(0xff51afd7ed558ccd);
+    let h = h ^ (h >> 33);
+    let h = h.wrapping_mul(0xc4ceb9fe1a85ec53);
+    let h = h ^ (h >> 33);
+    h
+}
+
+// Helper: convert hash to f64 in [0, 1)
+fn hash_to_f64(hash: u64) -> f64 {
+    (hash as f64) / (u64::MAX as f64)
+}
+
+/// Generates random f64 values for each event.
+///
+/// Each event gets a deterministic random value in [0, 1) based on its onset
+/// and the provided seed. Querying the same pattern twice with the same seed
+/// produces identical results.
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_resin_audio::pattern::{rand, Pattern, pure};
+///
+/// let random_values = rand(42); // Pattern of random f64 values
+/// ```
+pub fn rand(seed: u64) -> Pattern<f64> {
+    Pattern::from_query(move |arc| {
+        // Generate one event per integer cycle in the arc
+        let start_cycle = arc.start.floor() as i64;
+        let end_cycle = arc.end.ceil() as i64;
+
+        (start_cycle..end_cycle)
+            .filter_map(|cycle| {
+                let onset = cycle as f64;
+                if onset >= arc.start && onset < arc.end {
+                    let hash = onset_hash(onset, seed);
+                    Some(Event {
+                        onset,
+                        duration: 1.0,
+                        value: hash_to_f64(hash),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect()
+    })
+}
+
+/// Randomly chooses from multiple patterns per cycle.
+///
+/// For each cycle, deterministically selects one of the input patterns
+/// based on the seed. This allows random pattern variations while
+/// maintaining reproducibility.
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_resin_audio::pattern::{choose, pure, Pattern};
+///
+/// let kick = pure("kick");
+/// let snare = pure("snare");
+/// let hihat = pure("hihat");
+///
+/// // Randomly picks kick, snare, or hihat each cycle
+/// let drums = choose(&[kick, snare, hihat], 42);
+/// ```
+pub fn choose<T: Clone + Send + Sync + 'static>(patterns: &[Pattern<T>], seed: u64) -> Pattern<T> {
+    if patterns.is_empty() {
+        return Pattern::silence();
+    }
+
+    let patterns: Vec<_> = patterns.iter().map(|p| p.query.clone()).collect();
+    let count = patterns.len();
+
+    Pattern::from_query(move |arc| {
+        let mut result = Vec::new();
+        let start_cycle = arc.start.floor() as i64;
+        let end_cycle = arc.end.ceil() as i64;
+
+        for cycle in start_cycle..end_cycle {
+            let cycle_f = cycle as f64;
+            let cycle_arc = TimeArc::new(cycle_f, cycle_f + 1.0);
+
+            if let Some(intersection) = arc.intersect(&cycle_arc) {
+                // Pick pattern based on cycle number
+                let hash = onset_hash(cycle_f, seed);
+                let index = (hash as usize) % count;
+
+                let events = patterns[index](intersection);
+                result.extend(events);
+            }
+        }
+        result
+    })
+}
+
+/// Shuffles event order within each cycle.
+///
+/// Events within each cycle get their onsets permuted based on the seed,
+/// while preserving the set of onset positions and durations.
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_resin_audio::pattern::{shuffle, cat, pure, Pattern};
+///
+/// let sequence = cat(vec![Pattern::pure("a"), Pattern::pure("b"), Pattern::pure("c"), Pattern::pure("d")]);
+/// let shuffled = shuffle(42, sequence); // Random permutation each cycle
+/// ```
+pub fn shuffle<T: Clone + Send + Sync + 'static>(seed: u64, pattern: Pattern<T>) -> Pattern<T> {
+    let query = pattern.query;
+
+    Pattern::from_query(move |arc| {
+        let start_cycle = arc.start.floor() as i64;
+        let end_cycle = arc.end.ceil() as i64;
+        let mut result = Vec::new();
+
+        for cycle in start_cycle..end_cycle {
+            let cycle_f = cycle as f64;
+            let cycle_arc = TimeArc::new(cycle_f, cycle_f + 1.0);
+
+            // Get all events for this cycle
+            let events = query(cycle_arc.clone());
+            if events.is_empty() {
+                continue;
+            }
+
+            // Extract onsets and values
+            let mut onsets: Vec<f64> = events.iter().map(|e| e.onset).collect();
+            let values: Vec<_> = events
+                .iter()
+                .map(|e| (e.duration, e.value.clone()))
+                .collect();
+
+            // Fisher-Yates shuffle on onsets using seeded hash
+            let n = onsets.len();
+            for i in (1..n).rev() {
+                let hash = shuffle_hash(cycle, i, seed);
+                let j = (hash as usize) % (i + 1);
+                onsets.swap(i, j);
+            }
+
+            // Reassign values to shuffled onsets
+            for (onset, (duration, value)) in onsets.into_iter().zip(values) {
+                if let Some(intersection) = arc.intersect(&TimeArc::new(onset, onset + duration)) {
+                    if intersection.start >= arc.start && intersection.start < arc.end {
+                        result.push(Event {
+                            onset,
+                            duration,
+                            value,
+                        });
+                    }
+                }
+            }
+        }
+        result
+    })
+}
+
 /// Repeats a pattern a number of times within each cycle.
 pub fn ply<T: Clone + Send + Sync + 'static>(times: usize, pattern: Pattern<T>) -> Pattern<T> {
     if times == 0 {
@@ -821,5 +1004,182 @@ mod tests {
         assert!((events[0].onset - 0.05).abs() < 0.001);
         assert!((events[1].onset - 0.30).abs() < 0.001);
         assert!((events[2].onset - 0.55).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_rand_produces_values() {
+        let pattern = rand(42);
+        let events = pattern.query_cycle(0);
+
+        assert_eq!(events.len(), 1);
+        assert!(events[0].value >= 0.0 && events[0].value < 1.0);
+    }
+
+    #[test]
+    fn test_rand_reproducible() {
+        let pattern1 = rand(42);
+        let pattern2 = rand(42);
+
+        let events1 = pattern1.query_cycle(0);
+        let events2 = pattern2.query_cycle(0);
+
+        assert_eq!(events1.len(), events2.len());
+        assert!((events1[0].value - events2[0].value).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_rand_different_seeds() {
+        let pattern1 = rand(42);
+        let pattern2 = rand(999);
+
+        // Check multiple cycles - at least one should differ
+        let mut any_different = false;
+        for cycle in 0..10 {
+            let events1 = pattern1.query_cycle(cycle);
+            let events2 = pattern2.query_cycle(cycle);
+            if (events1[0].value - events2[0].value).abs() > 0.001 {
+                any_different = true;
+                break;
+            }
+        }
+        assert!(
+            any_different,
+            "Different seeds should produce different values across cycles"
+        );
+    }
+
+    #[test]
+    fn test_choose_picks_patterns() {
+        let a = Pattern::pure("a");
+        let b = Pattern::pure("b");
+        let c = Pattern::pure("c");
+
+        let chosen = choose(&[a, b, c], 42);
+
+        // Query multiple cycles
+        let events0 = chosen.query_cycle(0);
+        let events1 = chosen.query_cycle(1);
+        let events2 = chosen.query_cycle(2);
+
+        // Each should have one event
+        assert_eq!(events0.len(), 1);
+        assert_eq!(events1.len(), 1);
+        assert_eq!(events2.len(), 1);
+
+        // Values should be from the input patterns
+        for e in [&events0[0], &events1[0], &events2[0]] {
+            assert!(e.value == "a" || e.value == "b" || e.value == "c");
+        }
+    }
+
+    #[test]
+    fn test_choose_reproducible() {
+        let a = Pattern::pure("a");
+        let b = Pattern::pure("b");
+
+        let chosen1 = choose(&[a.clone(), b.clone()], 42);
+        let chosen2 = choose(&[a, b], 42);
+
+        for cycle in 0..5 {
+            let events1 = chosen1.query_cycle(cycle);
+            let events2 = chosen2.query_cycle(cycle);
+            assert_eq!(events1[0].value, events2[0].value);
+        }
+    }
+
+    #[test]
+    fn test_choose_empty() {
+        let chosen: Pattern<&str> = choose(&[], 42);
+        let events = chosen.query_cycle(0);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn test_shuffle_preserves_values() {
+        // Use fast to create 4 events per cycle (shuffle requires multiple events)
+        let pattern = fast(
+            4.0,
+            cat(vec![
+                Pattern::pure("a"),
+                Pattern::pure("b"),
+                Pattern::pure("c"),
+                Pattern::pure("d"),
+            ]),
+        );
+        let shuffled = shuffle(42, pattern.clone());
+
+        let original = pattern.query_cycle(0);
+        let shuffled_events = shuffled.query_cycle(0);
+
+        // Same number of events
+        assert_eq!(original.len(), shuffled_events.len());
+
+        // Same set of values (possibly different order)
+        let mut orig_values: Vec<_> = original.iter().map(|e| e.value).collect();
+        let mut shuf_values: Vec<_> = shuffled_events.iter().map(|e| e.value).collect();
+        orig_values.sort();
+        shuf_values.sort();
+        assert_eq!(orig_values, shuf_values);
+    }
+
+    #[test]
+    fn test_shuffle_reproducible() {
+        // Use fast to create 4 events per cycle
+        let pattern = fast(
+            4.0,
+            cat(vec![
+                Pattern::pure("a"),
+                Pattern::pure("b"),
+                Pattern::pure("c"),
+                Pattern::pure("d"),
+            ]),
+        );
+        let shuffled1 = shuffle(42, pattern.clone());
+        let shuffled2 = shuffle(42, pattern);
+
+        let events1 = shuffled1.query_cycle(0);
+        let events2 = shuffled2.query_cycle(0);
+
+        for (e1, e2) in events1.iter().zip(events2.iter()) {
+            assert_eq!(e1.value, e2.value);
+            assert!((e1.onset - e2.onset).abs() < 1e-10);
+        }
+    }
+
+    #[test]
+    fn test_shuffle_different_seeds() {
+        // Use fast to create 4 events per cycle
+        let pattern = fast(
+            4.0,
+            cat(vec![
+                Pattern::pure("a"),
+                Pattern::pure("b"),
+                Pattern::pure("c"),
+                Pattern::pure("d"),
+            ]),
+        );
+
+        let shuffled1 = shuffle(42, pattern.clone());
+        let shuffled2 = shuffle(999, pattern);
+
+        // Check multiple cycles - at least one should have different orderings
+        let mut any_different = false;
+        for cycle in 0..10 {
+            let events1 = shuffled1.query_cycle(cycle);
+            let events2 = shuffled2.query_cycle(cycle);
+
+            let different = events1
+                .iter()
+                .zip(events2.iter())
+                .any(|(e1, e2)| (e1.onset - e2.onset).abs() > 0.001);
+            if different {
+                any_different = true;
+                break;
+            }
+        }
+        assert!(
+            any_different,
+            "Different seeds should produce different shuffles across cycles"
+        );
     }
 }

@@ -9,7 +9,7 @@ use bevy::{
     prelude::*,
     render::mesh::{Indices, PrimitiveTopology},
 };
-use rhizome_resin_mesh::{box_mesh, subdivide_loop_n, uv_sphere};
+use rhizome_resin_mesh::{Cuboid, UvSphere, subdivide_loop_n};
 
 fn main() {
     App::new()
@@ -31,7 +31,7 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // Create a basic unit box mesh from resin
-    let resin_box = box_mesh();
+    let resin_box = Cuboid::unit().apply();
     let bevy_box = resin_mesh_to_bevy(&resin_box);
 
     commands.spawn((
@@ -45,7 +45,7 @@ fn setup(
     ));
 
     // Create a UV sphere with custom resolution
-    let resin_sphere = uv_sphere(32, 16);
+    let resin_sphere = UvSphere::new(1.0, 32, 16).apply();
     let bevy_sphere = resin_mesh_to_bevy(&resin_sphere);
 
     commands.spawn((
@@ -59,7 +59,7 @@ fn setup(
     ));
 
     // Create a subdivided box (smooth) using Loop subdivision
-    let subdivided = box_mesh();
+    let subdivided = Cuboid::unit().apply();
     let subdivided = subdivide_loop_n(&subdivided, 2);
     let bevy_subdivided = resin_mesh_to_bevy(&subdivided);
 

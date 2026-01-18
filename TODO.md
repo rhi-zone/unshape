@@ -215,7 +215,7 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 **Implementation:**
 - [x] Composable passes - `run_optimization_passes()` runs all passes until no changes
 - [x] Preserve semantics - tests verify output unchanged after optimization
-- [ ] `GraphOptimizer` trait - `fn optimize(&self, graph: &mut Graph)` (for extensibility)
+- [x] `GraphOptimizer` trait - `fn apply(&self, graph: &mut AudioGraph) -> usize` with `OptimizerPipeline` for composing
 - [ ] Generic over graph type - works on `AudioGraph`, `FieldGraph`, etc.
 
 **JIT Compilation:** ✅
@@ -267,16 +267,16 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 > Sugar functions remain for ergonomics but delegate to primitives.
 
 **True Primitives:**
-- [ ] `remap_uv(image, Fn(Vec2) -> Vec2)` - UV coordinate remapping (runtime, not serializable)
-- [ ] `map_pixels(image, Fn([f32;4]) -> [f32;4])` - per-pixel color transform
+- [x] `remap_uv_fn(image, Fn(f32, f32) -> (f32, f32))` - UV coordinate remapping (runtime, closure-based)
+- [x] `map_pixels_fn(image, Fn([f32;4]) -> [f32;4])` - per-pixel color transform (runtime, closure-based)
 - [x] `convolve(image, Kernel)` - neighborhood operation (already exists)
 - [x] `composite(image, image, BlendMode, opacity)` - blending (already exists)
 - [x] `sample_uv` - texture sampling (already exists on ImageField)
 
 **Refactor to use primitives:**
-- [ ] `lens_distortion`, `wave_distortion`, `swirl`, `spherize`, `transform_image` → use `remap_uv`
-- [ ] `grayscale`, `invert`, `threshold`, `posterize`, `bit_manip` → use `map_pixels`
-- [ ] `blur`, `sharpen`, `emboss`, `edge_detect` → already use `convolve`
+- [x] `swirl`, `spherize`, `transform_image` → use `remap_uv_fn`
+- [x] `grayscale`, `invert`, `threshold`, `posterize`, `bit_manip` → use `map_pixels_fn`
+- [x] `blur`, `sharpen`, `emboss`, `edge_detect` → already use `convolve`
 
 **Serialization & compilation:**
 - Use Dew expressions for UV remapping and pixel transforms
@@ -289,13 +289,13 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 
 ### Buffer / Channel Operations
 
-- [ ] Per-channel transform - `map_channel(image, channel, Fn(ImageField) -> ImageField)`
+- [x] Per-channel transform - `map_channel(image, channel, Fn(ImageField) -> ImageField)`
 - [x] Colorspace decomposition - decompose/reconstruct in HSL/HSV/LAB/YCbCr (decompose_colorspace, reconstruct_colorspace, Colorspace)
 - [ ] Arbitrary channel reorder - swap/permute channels across colorspaces
-- [ ] Buffer map - `map_buffer(&[f32], Fn(f32) -> f32)` for audio/image/mesh
-- [ ] Buffer zip - `zip_buffers(&[f32], &[f32], Fn(f32, f32) -> f32)`
-- [ ] Buffer fold - `fold_buffer(&[f32], init, Fn(acc, f32) -> acc)`
-- [ ] Windowed operations - sliding window with arbitrary kernel function
+- [x] Buffer map - `map_buffer(&[f32], Fn(f32) -> f32)` in resin-bytes
+- [x] Buffer zip - `zip_buffers(&[f32], &[f32], Fn(f32, f32) -> f32)` in resin-bytes
+- [x] Buffer fold - `fold_buffer(&[f32], init, Fn(acc, f32) -> acc)` in resin-bytes
+- [x] Windowed operations - `windowed_buffer(&[f32], size, Fn(&[f32]) -> f32)` in resin-bytes
 
 ### 2D Vector
 
@@ -483,8 +483,8 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 **Feature parity targets (from Strudel/Tidal):**
 - [x] Pattern combinators - `fast()`, `slow()`, `rev()`, `jux()` (already implemented)
 - [ ] Polymetric patterns - patterns of different lengths running in parallel
-- [ ] Pattern randomness - `rand`, `choose`, `shuffle` with reproducible seeds
-- [ ] Euclidean rhythms - `euclid(k, n)` pattern generator
+- [x] Pattern randomness - `rand`, `choose`, `shuffle` with reproducible seeds
+- [x] Euclidean rhythms - `euclid(k, n)` pattern generator
 - [ ] Continuous patterns - patterns that evaluate at any point in time (not just events)
 
 ## Done

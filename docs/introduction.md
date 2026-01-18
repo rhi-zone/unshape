@@ -24,13 +24,13 @@ Resin is a Rust library for procedural generation and manipulation of media asse
 ### Mesh Generation
 
 ```rust
-use rhizome_resin_mesh::{box_mesh, sphere};
+use rhizome_resin_mesh::{Cuboid, UvSphere};
 
 // Unit box centered at origin
-let cube = box_mesh();
+let cube = Cuboid::unit().apply();
 
 // UV sphere with 32 segments, 16 rings
-let ball = sphere();
+let ball = UvSphere::new(1.0, 32, 16).apply();
 ```
 
 ### Noise Fields

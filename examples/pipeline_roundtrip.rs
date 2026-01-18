@@ -5,14 +5,14 @@
 //!
 //! Run with: `cargo run --example pipeline_roundtrip --features dynop`
 
-use rhizome_resin_mesh::{Mesh, box_mesh};
+use rhizome_resin_mesh::{Cuboid, Mesh};
 use rhizome_resin_op::{DynOp, OpRegistry, OpValue};
 
 fn main() {
     println!("=== Pipeline Serialization Round-Trip ===\n");
 
     // Step 1: Create a mesh to process
-    let cube = box_mesh();
+    let cube = Cuboid::unit().apply();
     println!(
         "Original cube: {} vertices, {} triangles",
         cube.positions.len(),
