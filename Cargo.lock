@@ -4015,7 +4015,7 @@ checksum = "0c6a884d2998352bb4daf0183589aec883f16a6da1f4dde84d8e2e9a5409a1ce"
 [[package]]
 name = "rhizome-dew-cond"
 version = "0.1.0"
-source = "git+https://github.com/rhizome-lab/dew#7e8b83696b5df73740414d14582d07d490417954"
+source = "git+https://github.com/rhizome-lab/dew#a450fe71269e5e1caa0ab4590da8849ccdaaef9d"
 dependencies = [
  "cranelift-codegen 0.116.1",
  "cranelift-frontend 0.116.1",
@@ -4027,12 +4027,15 @@ dependencies = [
 [[package]]
 name = "rhizome-dew-core"
 version = "0.1.0"
-source = "git+https://github.com/rhizome-lab/dew#7e8b83696b5df73740414d14582d07d490417954"
+source = "git+https://github.com/rhizome-lab/dew#a450fe71269e5e1caa0ab4590da8849ccdaaef9d"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "rhizome-dew-linalg"
 version = "0.1.0"
-source = "git+https://github.com/rhizome-lab/dew#7e8b83696b5df73740414d14582d07d490417954"
+source = "git+https://github.com/rhizome-lab/dew#a450fe71269e5e1caa0ab4590da8849ccdaaef9d"
 dependencies = [
  "cranelift-codegen 0.116.1",
  "cranelift-frontend 0.116.1",
@@ -4046,7 +4049,7 @@ dependencies = [
 [[package]]
 name = "rhizome-dew-scalar"
 version = "0.1.0"
-source = "git+https://github.com/rhizome-lab/dew#7e8b83696b5df73740414d14582d07d490417954"
+source = "git+https://github.com/rhizome-lab/dew#a450fe71269e5e1caa0ab4590da8849ccdaaef9d"
 dependencies = [
  "num-traits",
  "rhizome-dew-cond",
@@ -4272,6 +4275,7 @@ version = "0.1.0"
 dependencies = [
  "glam",
  "image",
+ "num-traits",
  "rhizome-dew-core",
  "rhizome-dew-linalg",
  "rhizome-resin-color",

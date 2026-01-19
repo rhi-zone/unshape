@@ -1296,14 +1296,24 @@ pub fn swap_channels(image: &ImageField, a: Channel, b: Channel) -> ImageField {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Colorspace {
+    /// RGB (Red, Green, Blue) - the native colorspace.
+    Rgb,
     /// HSL (Hue, Saturation, Lightness).
     Hsl,
     /// HSV (Hue, Saturation, Value).
     Hsv,
+    /// HWB (Hue, Whiteness, Blackness) - CSS Color Level 4.
+    Hwb,
     /// YCbCr (Luma, Blue-difference, Red-difference chroma).
     YCbCr,
     /// LAB (CIE L*a*b* perceptual colorspace).
     Lab,
+    /// LCH (Lightness, Chroma, Hue) - cylindrical LAB.
+    Lch,
+    /// OkLab (perceptually uniform colorspace).
+    OkLab,
+    /// OkLCH (cylindrical OkLab) - CSS Color Level 4.
+    OkLch,
 }
 
 /// Decomposed colorspace channels.
@@ -1359,10 +1369,15 @@ pub fn decompose_colorspace(image: &ImageField, colorspace: Colorspace) -> Color
         let a = pixel[3];
 
         let (v0, v1, v2) = match colorspace {
+            Colorspace::Rgb => (r, g, b),
             Colorspace::Hsl => rgb_to_hsl(r, g, b),
             Colorspace::Hsv => rgb_to_hsv(r, g, b),
+            Colorspace::Hwb => rgb_to_hwb(r, g, b),
             Colorspace::YCbCr => rgb_to_ycbcr(r, g, b),
             Colorspace::Lab => rgb_to_lab(r, g, b),
+            Colorspace::Lch => rgb_to_lch(r, g, b),
+            Colorspace::OkLab => rgb_to_oklab(r, g, b),
+            Colorspace::OkLch => rgb_to_oklch(r, g, b),
         };
 
         c0_data.push([v0, v0, v0, 1.0]);
@@ -1394,10 +1409,15 @@ pub fn reconstruct_colorspace(channels: &ColorspaceChannels) -> ImageField {
         let a = channels.alpha.data[i][0];
 
         let (r, g, b) = match channels.colorspace {
+            Colorspace::Rgb => (v0, v1, v2),
             Colorspace::Hsl => hsl_to_rgb(v0, v1, v2),
             Colorspace::Hsv => hsv_to_rgb(v0, v1, v2),
+            Colorspace::Hwb => hwb_to_rgb(v0, v1, v2),
             Colorspace::YCbCr => ycbcr_to_rgb(v0, v1, v2),
             Colorspace::Lab => lab_to_rgb(v0, v1, v2),
+            Colorspace::Lch => lch_to_rgb(v0, v1, v2),
+            Colorspace::OkLab => oklab_to_rgb(v0, v1, v2),
+            Colorspace::OkLch => oklch_to_rgb(v0, v1, v2),
         };
 
         data.push([r, g, b, a]);
@@ -1617,6 +1637,151 @@ fn lab_to_rgb(l: f32, a: f32, lab_b: f32) -> (f32, f32, f32) {
         from_linear(g).clamp(0.0, 1.0),
         from_linear(b).clamp(0.0, 1.0),
     )
+}
+
+fn rgb_to_hwb(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+    let (h, _, _) = rgb_to_hsl(r, g, b);
+    let w = r.min(g).min(b);
+    let b_val = 1.0 - r.max(g).max(b);
+    (h, w, b_val)
+}
+
+fn hwb_to_rgb(h: f32, w: f32, b: f32) -> (f32, f32, f32) {
+    // If w + b >= 1, result is gray
+    if w + b >= 1.0 {
+        let gray = w / (w + b);
+        return (gray, gray, gray);
+    }
+
+    // Convert via HSV: HWB(h, w, b) = HSV(h, 1 - w/(1-b), 1-b)
+    let v = 1.0 - b;
+    let s = 1.0 - w / v;
+    hsv_to_rgb(h, s, v)
+}
+
+fn rgb_to_lch(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+    let (l, a, b_val) = rgb_to_lab(r, g, b);
+    // Denormalize a and b from [0,1] to [-128, 127] range for math
+    let a_real = a * 255.0 - 128.0;
+    let b_real = b_val * 255.0 - 128.0;
+
+    let c = (a_real * a_real + b_real * b_real).sqrt();
+    let h = b_real.atan2(a_real);
+    // Normalize: L is already [0,1], C to [0,1] (max ~181), H to [0,1]
+    let c_norm = (c / 181.0).clamp(0.0, 1.0);
+    let h_norm = (h / std::f32::consts::TAU).rem_euclid(1.0);
+    (l, c_norm, h_norm)
+}
+
+fn lch_to_rgb(l: f32, c: f32, h: f32) -> (f32, f32, f32) {
+    // Denormalize
+    let c_real = c * 181.0;
+    let h_real = h * std::f32::consts::TAU;
+
+    let a_real = c_real * h_real.cos();
+    let b_real = c_real * h_real.sin();
+
+    // Normalize back to [0,1] for lab_to_rgb
+    let a = (a_real + 128.0) / 255.0;
+    let b_val = (b_real + 128.0) / 255.0;
+
+    lab_to_rgb(l, a, b_val)
+}
+
+fn rgb_to_oklab(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+    // sRGB to linear
+    let to_linear = |v: f32| -> f32 {
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+
+    let r = to_linear(r);
+    let g = to_linear(g);
+    let b = to_linear(b);
+
+    // Linear RGB to OkLab via LMS
+    let l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
+    let m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b;
+    let s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b;
+
+    let l_ = l.cbrt();
+    let m_ = m.cbrt();
+    let s_ = s.cbrt();
+
+    let lab_l = 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_;
+    let lab_a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_;
+    let lab_b = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_;
+
+    // Normalize: L is [0,1], a/b are roughly [-0.4, 0.4], normalize to [0,1]
+    (
+        lab_l.clamp(0.0, 1.0),
+        ((lab_a + 0.4) / 0.8).clamp(0.0, 1.0),
+        ((lab_b + 0.4) / 0.8).clamp(0.0, 1.0),
+    )
+}
+
+fn oklab_to_rgb(l: f32, a: f32, b_val: f32) -> (f32, f32, f32) {
+    // Denormalize a and b
+    let lab_a = a * 0.8 - 0.4;
+    let lab_b = b_val * 0.8 - 0.4;
+
+    let l_ = l + 0.3963377774 * lab_a + 0.2158037573 * lab_b;
+    let m_ = l - 0.1055613458 * lab_a - 0.0638541728 * lab_b;
+    let s_ = l - 0.0894841775 * lab_a - 1.2914855480 * lab_b;
+
+    let l_cubed = l_ * l_ * l_;
+    let m_cubed = m_ * m_ * m_;
+    let s_cubed = s_ * s_ * s_;
+
+    let r = 4.0767416621 * l_cubed - 3.3077115913 * m_cubed + 0.2309699292 * s_cubed;
+    let g = -1.2684380046 * l_cubed + 2.6097574011 * m_cubed - 0.3413193965 * s_cubed;
+    let b = -0.0041960863 * l_cubed - 0.7034186147 * m_cubed + 1.7076147010 * s_cubed;
+
+    // Linear to sRGB
+    let from_linear = |v: f32| -> f32 {
+        if v <= 0.0031308 {
+            v * 12.92
+        } else {
+            1.055 * v.powf(1.0 / 2.4) - 0.055
+        }
+    };
+
+    (
+        from_linear(r).clamp(0.0, 1.0),
+        from_linear(g).clamp(0.0, 1.0),
+        from_linear(b).clamp(0.0, 1.0),
+    )
+}
+
+fn rgb_to_oklch(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+    let (l, a, b_val) = rgb_to_oklab(r, g, b);
+    // Denormalize a and b
+    let a_real = a * 0.8 - 0.4;
+    let b_real = b_val * 0.8 - 0.4;
+
+    let c = (a_real * a_real + b_real * b_real).sqrt();
+    let h = b_real.atan2(a_real);
+    // Normalize: C max is about 0.4, H to [0,1]
+    let c_norm = (c / 0.4).clamp(0.0, 1.0);
+    let h_norm = (h / std::f32::consts::TAU).rem_euclid(1.0);
+    (l, c_norm, h_norm)
+}
+
+fn oklch_to_rgb(l: f32, c: f32, h: f32) -> (f32, f32, f32) {
+    let c_real = c * 0.4;
+    let h_real = h * std::f32::consts::TAU;
+
+    let a_real = c_real * h_real.cos();
+    let b_real = c_real * h_real.sin();
+
+    // Normalize back to [0,1] for oklab_to_rgb
+    let a = (a_real + 0.4) / 0.8;
+    let b_val = (b_real + 0.4) / 0.8;
+
+    oklab_to_rgb(l, a, b_val)
 }
 
 // ============================================================================
@@ -5591,8 +5756,11 @@ impl UvExpr {
             Self::Vec2 { x, y } => Ast::Call("vec2".into(), vec![x.to_dew_ast(), y.to_dew_ast()]),
 
             // Literals
-            Self::Constant(c) => Ast::Num(*c),
-            Self::Constant2(x, y) => Ast::Call("vec2".into(), vec![Ast::Num(*x), Ast::Num(*y)]),
+            Self::Constant(c) => Ast::Num(*c as f64),
+            Self::Constant2(x, y) => Ast::Call(
+                "vec2".into(),
+                vec![Ast::Num(*x as f64), Ast::Num(*y as f64)],
+            ),
 
             // Binary operations
             Self::Add(a, b) => Ast::BinOp(
@@ -5804,6 +5972,42 @@ pub enum ColorExpr {
     Gt(Box<ColorExpr>, Box<ColorExpr>),
     /// Less than (returns 1.0 or 0.0).
     Lt(Box<ColorExpr>, Box<ColorExpr>),
+
+    // === Colorspace conversions ===
+    // These operate on RGB channels, preserving alpha.
+    // Input: vec4 RGBA, Output: vec4 where RGB is converted, A is preserved.
+    /// Convert RGB to HSL (Hue, Saturation, Lightness).
+    RgbToHsl(Box<ColorExpr>),
+    /// Convert HSL to RGB.
+    HslToRgb(Box<ColorExpr>),
+    /// Convert RGB to HSV (Hue, Saturation, Value).
+    RgbToHsv(Box<ColorExpr>),
+    /// Convert HSV to RGB.
+    HsvToRgb(Box<ColorExpr>),
+    /// Convert RGB to HWB (Hue, Whiteness, Blackness).
+    RgbToHwb(Box<ColorExpr>),
+    /// Convert HWB to RGB.
+    HwbToRgb(Box<ColorExpr>),
+    /// Convert RGB to CIE LAB (Lightness, a*, b*).
+    RgbToLab(Box<ColorExpr>),
+    /// Convert CIE LAB to RGB.
+    LabToRgb(Box<ColorExpr>),
+    /// Convert RGB to LCH (Lightness, Chroma, Hue) - cylindrical LAB.
+    RgbToLch(Box<ColorExpr>),
+    /// Convert LCH to RGB.
+    LchToRgb(Box<ColorExpr>),
+    /// Convert RGB to OkLab (perceptually uniform).
+    RgbToOklab(Box<ColorExpr>),
+    /// Convert OkLab to RGB.
+    OklabToRgb(Box<ColorExpr>),
+    /// Convert RGB to OkLCH (cylindrical OkLab).
+    RgbToOklch(Box<ColorExpr>),
+    /// Convert OkLCH to RGB.
+    OklchToRgb(Box<ColorExpr>),
+    /// Convert RGB to YCbCr (luma, chroma).
+    RgbToYcbcr(Box<ColorExpr>),
+    /// Convert YCbCr to RGB.
+    YcbcrToRgb(Box<ColorExpr>),
 }
 
 impl ColorExpr {
@@ -6000,6 +6204,88 @@ impl ColorExpr {
                     if ab < bb { 1.0 } else { 0.0 },
                     if aa < ba { 1.0 } else { 0.0 },
                 ]
+            }
+
+            // Colorspace conversions
+            Self::RgbToHsl(e) => {
+                let [er, eg, eb, ea] = e.eval(r, g, b, a);
+                let (h, s, l) = rgb_to_hsl(er, eg, eb);
+                [h, s, l, ea]
+            }
+            Self::HslToRgb(e) => {
+                let [eh, es, el, ea] = e.eval(r, g, b, a);
+                let (r, g, b) = hsl_to_rgb(eh, es, el);
+                [r, g, b, ea]
+            }
+            Self::RgbToHsv(e) => {
+                let [er, eg, eb, ea] = e.eval(r, g, b, a);
+                let (h, s, v) = rgb_to_hsv(er, eg, eb);
+                [h, s, v, ea]
+            }
+            Self::HsvToRgb(e) => {
+                let [eh, es, ev, ea] = e.eval(r, g, b, a);
+                let (r, g, b) = hsv_to_rgb(eh, es, ev);
+                [r, g, b, ea]
+            }
+            Self::RgbToHwb(e) => {
+                let [er, eg, eb, ea] = e.eval(r, g, b, a);
+                let (h, w, b_val) = rgb_to_hwb(er, eg, eb);
+                [h, w, b_val, ea]
+            }
+            Self::HwbToRgb(e) => {
+                let [eh, ew, eb_val, ea] = e.eval(r, g, b, a);
+                let (r, g, b) = hwb_to_rgb(eh, ew, eb_val);
+                [r, g, b, ea]
+            }
+            Self::RgbToLab(e) => {
+                let [er, eg, eb, ea] = e.eval(r, g, b, a);
+                let (l, a_val, b_val) = rgb_to_lab(er, eg, eb);
+                [l, a_val, b_val, ea]
+            }
+            Self::LabToRgb(e) => {
+                let [el, ea_val, eb_val, ea] = e.eval(r, g, b, a);
+                let (r, g, b) = lab_to_rgb(el, ea_val, eb_val);
+                [r, g, b, ea]
+            }
+            Self::RgbToLch(e) => {
+                let [er, eg, eb, ea] = e.eval(r, g, b, a);
+                let (l, c, h) = rgb_to_lch(er, eg, eb);
+                [l, c, h, ea]
+            }
+            Self::LchToRgb(e) => {
+                let [el, ec, eh, ea] = e.eval(r, g, b, a);
+                let (r, g, b) = lch_to_rgb(el, ec, eh);
+                [r, g, b, ea]
+            }
+            Self::RgbToOklab(e) => {
+                let [er, eg, eb, ea] = e.eval(r, g, b, a);
+                let (l, a_val, b_val) = rgb_to_oklab(er, eg, eb);
+                [l, a_val, b_val, ea]
+            }
+            Self::OklabToRgb(e) => {
+                let [el, ea_val, eb_val, ea] = e.eval(r, g, b, a);
+                let (r, g, b) = oklab_to_rgb(el, ea_val, eb_val);
+                [r, g, b, ea]
+            }
+            Self::RgbToOklch(e) => {
+                let [er, eg, eb, ea] = e.eval(r, g, b, a);
+                let (l, c, h) = rgb_to_oklch(er, eg, eb);
+                [l, c, h, ea]
+            }
+            Self::OklchToRgb(e) => {
+                let [el, ec, eh, ea] = e.eval(r, g, b, a);
+                let (r, g, b) = oklch_to_rgb(el, ec, eh);
+                [r, g, b, ea]
+            }
+            Self::RgbToYcbcr(e) => {
+                let [er, eg, eb, ea] = e.eval(r, g, b, a);
+                let (y, cb, cr) = rgb_to_ycbcr(er, eg, eb);
+                [y, cb, cr, ea]
+            }
+            Self::YcbcrToRgb(e) => {
+                let [ey, ecb, ecr, ea] = e.eval(r, g, b, a);
+                let (r, g, b) = ycbcr_to_rgb(ey, ecb, ecr);
+                [r, g, b, ea]
             }
         }
     }
@@ -6211,10 +6497,15 @@ impl ColorExpr {
             }
 
             // Literals
-            Self::Constant(c) => Ast::Num(*c),
+            Self::Constant(c) => Ast::Num(*c as f64),
             Self::Constant4(r, g, b, a) => Ast::Call(
                 "vec4".into(),
-                vec![Ast::Num(*r), Ast::Num(*g), Ast::Num(*b), Ast::Num(*a)],
+                vec![
+                    Ast::Num(*r as f64),
+                    Ast::Num(*g as f64),
+                    Ast::Num(*b as f64),
+                    Ast::Num(*a as f64),
+                ],
             ),
 
             // Binary operations
@@ -6292,9 +6583,141 @@ impl ColorExpr {
                 // step(a, b) returns 1.0 if b >= a, i.e., a <= b
                 Ast::Call("step".into(), vec![a.to_dew_ast(), b.to_dew_ast()])
             }
+
+            // Colorspace conversions - emit function calls that must be registered
+            Self::RgbToHsl(e) => Ast::Call("rgb_to_hsl".into(), vec![e.to_dew_ast()]),
+            Self::HslToRgb(e) => Ast::Call("hsl_to_rgb".into(), vec![e.to_dew_ast()]),
+            Self::RgbToHsv(e) => Ast::Call("rgb_to_hsv".into(), vec![e.to_dew_ast()]),
+            Self::HsvToRgb(e) => Ast::Call("hsv_to_rgb".into(), vec![e.to_dew_ast()]),
+            Self::RgbToHwb(e) => Ast::Call("rgb_to_hwb".into(), vec![e.to_dew_ast()]),
+            Self::HwbToRgb(e) => Ast::Call("hwb_to_rgb".into(), vec![e.to_dew_ast()]),
+            Self::RgbToLab(e) => Ast::Call("rgb_to_lab".into(), vec![e.to_dew_ast()]),
+            Self::LabToRgb(e) => Ast::Call("lab_to_rgb".into(), vec![e.to_dew_ast()]),
+            Self::RgbToLch(e) => Ast::Call("rgb_to_lch".into(), vec![e.to_dew_ast()]),
+            Self::LchToRgb(e) => Ast::Call("lch_to_rgb".into(), vec![e.to_dew_ast()]),
+            Self::RgbToOklab(e) => Ast::Call("rgb_to_oklab".into(), vec![e.to_dew_ast()]),
+            Self::OklabToRgb(e) => Ast::Call("oklab_to_rgb".into(), vec![e.to_dew_ast()]),
+            Self::RgbToOklch(e) => Ast::Call("rgb_to_oklch".into(), vec![e.to_dew_ast()]),
+            Self::OklchToRgb(e) => Ast::Call("oklch_to_rgb".into(), vec![e.to_dew_ast()]),
+            Self::RgbToYcbcr(e) => Ast::Call("rgb_to_ycbcr".into(), vec![e.to_dew_ast()]),
+            Self::YcbcrToRgb(e) => Ast::Call("ycbcr_to_rgb".into(), vec![e.to_dew_ast()]),
         }
     }
 }
+
+// ============================================================================
+// Colorspace dew function registration
+// ============================================================================
+
+/// Colorspace conversion functions for dew expression evaluation.
+///
+/// These functions allow colorspace conversions to be used in dew expressions
+/// when evaluated via `rhizome_dew_linalg`.
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_dew_linalg::{linalg_registry, eval, Value};
+/// use rhizome_resin_image::register_colorspace;
+///
+/// let mut registry = linalg_registry();
+/// register_colorspace(&mut registry);
+///
+/// // Now you can use rgb_to_hsl, hsl_to_rgb, etc. in expressions
+/// ```
+#[cfg(feature = "dew")]
+pub mod colorspace_dew {
+    use num_traits::NumCast;
+    use rhizome_dew_core::Numeric;
+    use rhizome_dew_linalg::{FunctionRegistry, LinalgFn, LinalgValue, Signature, Type};
+
+    macro_rules! colorspace_fn {
+        ($name:ident, $fn_name:literal, $convert:expr) => {
+            /// Colorspace conversion function for dew.
+            pub struct $name;
+
+            impl<T, V> LinalgFn<T, V> for $name
+            where
+                T: Numeric,
+                V: LinalgValue<T>,
+            {
+                fn name(&self) -> &str {
+                    $fn_name
+                }
+
+                fn signatures(&self) -> Vec<Signature> {
+                    // Takes vec4 (RGBA), returns vec4 (converted RGB + preserved A)
+                    vec![Signature {
+                        args: vec![Type::Vec4],
+                        ret: Type::Vec4,
+                    }]
+                }
+
+                fn call(&self, args: &[V]) -> V {
+                    let rgba = args[0].as_vec4().unwrap();
+                    let r: f32 = NumCast::from(rgba[0]).unwrap_or(0.0);
+                    let g: f32 = NumCast::from(rgba[1]).unwrap_or(0.0);
+                    let b: f32 = NumCast::from(rgba[2]).unwrap_or(0.0);
+                    let a: f32 = NumCast::from(rgba[3]).unwrap_or(1.0);
+
+                    let convert: fn(f32, f32, f32) -> (f32, f32, f32) = $convert;
+                    let (c0, c1, c2) = convert(r, g, b);
+
+                    V::from_vec4([
+                        NumCast::from(c0).unwrap_or_else(T::zero),
+                        NumCast::from(c1).unwrap_or_else(T::zero),
+                        NumCast::from(c2).unwrap_or_else(T::zero),
+                        NumCast::from(a).unwrap_or_else(T::one),
+                    ])
+                }
+            }
+        };
+    }
+
+    colorspace_fn!(RgbToHsl, "rgb_to_hsl", super::rgb_to_hsl);
+    colorspace_fn!(HslToRgb, "hsl_to_rgb", super::hsl_to_rgb);
+    colorspace_fn!(RgbToHsv, "rgb_to_hsv", super::rgb_to_hsv);
+    colorspace_fn!(HsvToRgb, "hsv_to_rgb", super::hsv_to_rgb);
+    colorspace_fn!(RgbToHwb, "rgb_to_hwb", super::rgb_to_hwb);
+    colorspace_fn!(HwbToRgb, "hwb_to_rgb", super::hwb_to_rgb);
+    colorspace_fn!(RgbToLab, "rgb_to_lab", super::rgb_to_lab);
+    colorspace_fn!(LabToRgb, "lab_to_rgb", super::lab_to_rgb);
+    colorspace_fn!(RgbToLch, "rgb_to_lch", super::rgb_to_lch);
+    colorspace_fn!(LchToRgb, "lch_to_rgb", super::lch_to_rgb);
+    colorspace_fn!(RgbToOklab, "rgb_to_oklab", super::rgb_to_oklab);
+    colorspace_fn!(OklabToRgb, "oklab_to_rgb", super::oklab_to_rgb);
+    colorspace_fn!(RgbToOklch, "rgb_to_oklch", super::rgb_to_oklch);
+    colorspace_fn!(OklchToRgb, "oklch_to_rgb", super::oklch_to_rgb);
+    colorspace_fn!(RgbToYcbcr, "rgb_to_ycbcr", super::rgb_to_ycbcr);
+    colorspace_fn!(YcbcrToRgb, "ycbcr_to_rgb", super::ycbcr_to_rgb);
+
+    /// Registers all colorspace conversion functions into a dew-linalg registry.
+    pub fn register_colorspace<T, V>(registry: &mut FunctionRegistry<T, V>)
+    where
+        T: Numeric,
+        V: LinalgValue<T>,
+    {
+        registry.register(RgbToHsl);
+        registry.register(HslToRgb);
+        registry.register(RgbToHsv);
+        registry.register(HsvToRgb);
+        registry.register(RgbToHwb);
+        registry.register(HwbToRgb);
+        registry.register(RgbToLab);
+        registry.register(LabToRgb);
+        registry.register(RgbToLch);
+        registry.register(LchToRgb);
+        registry.register(RgbToOklab);
+        registry.register(OklabToRgb);
+        registry.register(RgbToOklch);
+        registry.register(OklchToRgb);
+        registry.register(RgbToYcbcr);
+        registry.register(YcbcrToRgb);
+    }
+}
+
+#[cfg(feature = "dew")]
+pub use colorspace_dew::register_colorspace;
 
 /// Remaps UV coordinates using an expression.
 ///
@@ -8110,5 +8533,242 @@ mod tests {
         // Green and blue should be unchanged
         assert!((result.get_pixel(0, 0)[1] - 0.5).abs() < 1e-6);
         assert!((result.get_pixel(0, 0)[2] - 0.3).abs() < 1e-6);
+    }
+
+    // ========================================================================
+    // Colorspace conversion tests
+    // ========================================================================
+
+    fn assert_rgb_close(a: (f32, f32, f32), b: (f32, f32, f32), epsilon: f32) {
+        assert!(
+            (a.0 - b.0).abs() < epsilon
+                && (a.1 - b.1).abs() < epsilon
+                && (a.2 - b.2).abs() < epsilon,
+            "RGB values differ: {:?} vs {:?}",
+            a,
+            b
+        );
+    }
+
+    #[test]
+    fn test_hwb_roundtrip() {
+        let test_colors = [
+            (1.0, 0.0, 0.0), // Red
+            (0.0, 1.0, 0.0), // Green
+            (0.0, 0.0, 1.0), // Blue
+            (1.0, 1.0, 1.0), // White
+            (0.0, 0.0, 0.0), // Black
+            (0.5, 0.5, 0.5), // Gray
+            (0.8, 0.4, 0.2), // Orange-ish
+        ];
+
+        for (r, g, b) in test_colors {
+            let (h, w, b_val) = rgb_to_hwb(r, g, b);
+            let (r2, g2, b2) = hwb_to_rgb(h, w, b_val);
+            assert_rgb_close((r, g, b), (r2, g2, b2), 0.01);
+        }
+    }
+
+    #[test]
+    fn test_lch_roundtrip() {
+        let test_colors = [
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (0.0, 0.0, 1.0),
+            (1.0, 1.0, 1.0),
+            (0.5, 0.5, 0.5),
+            (0.8, 0.4, 0.2),
+        ];
+
+        for (r, g, b) in test_colors {
+            let (l, c, h) = rgb_to_lch(r, g, b);
+            let (r2, g2, b2) = lch_to_rgb(l, c, h);
+            assert_rgb_close((r, g, b), (r2, g2, b2), 0.02);
+        }
+    }
+
+    #[test]
+    fn test_oklab_roundtrip() {
+        let test_colors = [
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (0.0, 0.0, 1.0),
+            (1.0, 1.0, 1.0),
+            (0.0, 0.0, 0.0),
+            (0.5, 0.5, 0.5),
+            (0.8, 0.4, 0.2),
+        ];
+
+        for (r, g, b) in test_colors {
+            let (l, a, b_val) = rgb_to_oklab(r, g, b);
+            let (r2, g2, b2) = oklab_to_rgb(l, a, b_val);
+            assert_rgb_close((r, g, b), (r2, g2, b2), 0.01);
+        }
+    }
+
+    #[test]
+    fn test_oklch_roundtrip() {
+        let test_colors = [
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (0.0, 0.0, 1.0),
+            (1.0, 1.0, 1.0),
+            (0.5, 0.5, 0.5),
+            (0.8, 0.4, 0.2),
+        ];
+
+        for (r, g, b) in test_colors {
+            let (l, c, h) = rgb_to_oklch(r, g, b);
+            let (r2, g2, b2) = oklch_to_rgb(l, c, h);
+            assert_rgb_close((r, g, b), (r2, g2, b2), 0.02);
+        }
+    }
+
+    #[test]
+    fn test_decompose_reconstruct_all_colorspaces() {
+        let img = ImageField::solid_sized(4, 4, [0.8, 0.4, 0.2, 0.9]);
+
+        for colorspace in [
+            Colorspace::Rgb,
+            Colorspace::Hsl,
+            Colorspace::Hsv,
+            Colorspace::Hwb,
+            Colorspace::YCbCr,
+            Colorspace::Lab,
+            Colorspace::Lch,
+            Colorspace::OkLab,
+            Colorspace::OkLch,
+        ] {
+            let channels = decompose_colorspace(&img, colorspace);
+            let reconstructed = reconstruct_colorspace(&channels);
+
+            // Check that roundtrip preserves the image
+            let orig = img.get_pixel(0, 0);
+            let result = reconstructed.get_pixel(0, 0);
+
+            assert!(
+                (orig[0] - result[0]).abs() < 0.02
+                    && (orig[1] - result[1]).abs() < 0.02
+                    && (orig[2] - result[2]).abs() < 0.02
+                    && (orig[3] - result[3]).abs() < 0.001,
+                "Colorspace {:?} roundtrip failed: {:?} vs {:?}",
+                colorspace,
+                orig,
+                result
+            );
+        }
+    }
+
+    #[test]
+    fn test_decompose_rgb_is_identity() {
+        let img = create_test_image();
+        let channels = decompose_colorspace(&img, Colorspace::Rgb);
+
+        // c0 should be red channel, c1 green, c2 blue
+        let red_pixel = channels.c0.get_pixel(0, 0);
+        assert!((red_pixel[0] - 1.0).abs() < 0.001); // First pixel is red
+
+        let green_pixel = channels.c1.get_pixel(1, 0);
+        assert!((green_pixel[0] - 1.0).abs() < 0.001); // Second pixel is green
+    }
+
+    #[test]
+    fn test_color_expr_colorspace_roundtrip() {
+        // Test that ColorExpr::RgbToHsl followed by HslToRgb is identity
+        let expr = ColorExpr::HslToRgb(Box::new(ColorExpr::RgbToHsl(Box::new(ColorExpr::Rgba))));
+
+        let test_colors = [
+            (1.0, 0.0, 0.0, 1.0),
+            (0.0, 1.0, 0.0, 1.0),
+            (0.8, 0.4, 0.2, 0.9),
+        ];
+
+        for (r, g, b, a) in test_colors {
+            let [r2, g2, b2, a2] = expr.eval(r, g, b, a);
+            assert!(
+                (r - r2).abs() < 0.01
+                    && (g - g2).abs() < 0.01
+                    && (b - b2).abs() < 0.01
+                    && (a - a2).abs() < 0.001,
+                "ColorExpr HSL roundtrip failed: ({}, {}, {}, {}) vs ({}, {}, {}, {})",
+                r,
+                g,
+                b,
+                a,
+                r2,
+                g2,
+                b2,
+                a2
+            );
+        }
+    }
+
+    #[test]
+    fn test_color_expr_oklab_roundtrip() {
+        let expr =
+            ColorExpr::OklabToRgb(Box::new(ColorExpr::RgbToOklab(Box::new(ColorExpr::Rgba))));
+
+        let [r, g, b, a] = expr.eval(0.8, 0.4, 0.2, 1.0);
+        assert!((r - 0.8).abs() < 0.01);
+        assert!((g - 0.4).abs() < 0.01);
+        assert!((b - 0.2).abs() < 0.01);
+        assert!((a - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_color_expr_preserves_alpha() {
+        // Alpha should be preserved through colorspace conversions
+        let expr = ColorExpr::RgbToHsl(Box::new(ColorExpr::Rgba));
+
+        let [_, _, _, a] = expr.eval(0.5, 0.5, 0.5, 0.7);
+        assert!((a - 0.7).abs() < 0.001, "Alpha not preserved: {}", a);
+    }
+
+    #[cfg(feature = "dew")]
+    #[test]
+    fn test_colorspace_dew_registration() {
+        use rhizome_dew_linalg::{Value, linalg_registry};
+
+        let mut registry = linalg_registry::<f32>();
+        register_colorspace(&mut registry);
+
+        // Check that functions are registered
+        assert!(registry.get("rgb_to_hsl").is_some());
+        assert!(registry.get("hsl_to_rgb").is_some());
+        assert!(registry.get("rgb_to_oklab").is_some());
+        assert!(registry.get("oklab_to_rgb").is_some());
+        assert!(registry.get("rgb_to_hwb").is_some());
+        assert!(registry.get("hwb_to_rgb").is_some());
+    }
+
+    #[cfg(feature = "dew")]
+    #[test]
+    fn test_colorspace_dew_eval() {
+        use rhizome_dew_linalg::{LinalgFn, Value, linalg_registry};
+
+        let mut registry = linalg_registry::<f32>();
+        register_colorspace(&mut registry);
+
+        // Test rgb_to_hsl function directly
+        let rgb_to_hsl_fn = registry.get("rgb_to_hsl").unwrap();
+        let result = rgb_to_hsl_fn.call(&[Value::Vec4([1.0, 0.0, 0.0, 1.0])]);
+
+        if let Value::Vec4([h, s, l, a]) = result {
+            // Pure red: H=0, S=1, L=0.5
+            assert!(h.abs() < 0.01, "Hue should be ~0 for red, got {}", h);
+            assert!(
+                (s - 1.0).abs() < 0.01,
+                "Saturation should be ~1 for red, got {}",
+                s
+            );
+            assert!(
+                (l - 0.5).abs() < 0.01,
+                "Lightness should be ~0.5 for red, got {}",
+                l
+            );
+            assert!((a - 1.0).abs() < 0.001, "Alpha should be preserved");
+        } else {
+            panic!("Expected Vec4 result");
+        }
     }
 }

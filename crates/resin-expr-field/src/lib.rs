@@ -934,7 +934,7 @@ impl FieldExpr {
             Self::T => Ast::Var("t".into()),
 
             // Literals
-            Self::Constant(v) => Ast::Num(*v),
+            Self::Constant(v) => Ast::Num(*v as f64),
             Self::Var(name) => Ast::Var(name.clone()),
 
             // Binary ops
@@ -984,7 +984,7 @@ impl FieldExpr {
             ),
             Self::Fbm2 { x, y, octaves } => Ast::Call(
                 "fbm".into(),
-                vec![x.to_dew_ast(), y.to_dew_ast(), Ast::Num(*octaves as f32)],
+                vec![x.to_dew_ast(), y.to_dew_ast(), Ast::Num(*octaves as f64)],
             ),
             Self::Fbm3 { x, y, z, octaves } => Ast::Call(
                 "fbm3".into(),
@@ -992,14 +992,19 @@ impl FieldExpr {
                     x.to_dew_ast(),
                     y.to_dew_ast(),
                     z.to_dew_ast(),
-                    Ast::Num(*octaves as f32),
+                    Ast::Num(*octaves as f64),
                 ],
             ),
 
             // Distance functions
             Self::Distance2 { x, y, px, py } => Ast::Call(
                 "distance2".into(),
-                vec![x.to_dew_ast(), y.to_dew_ast(), Ast::Num(*px), Ast::Num(*py)],
+                vec![
+                    x.to_dew_ast(),
+                    y.to_dew_ast(),
+                    Ast::Num(*px as f64),
+                    Ast::Num(*py as f64),
+                ],
             ),
             Self::Distance3 {
                 x,
@@ -1014,9 +1019,9 @@ impl FieldExpr {
                     x.to_dew_ast(),
                     y.to_dew_ast(),
                     z.to_dew_ast(),
-                    Ast::Num(*px),
-                    Ast::Num(*py),
-                    Ast::Num(*pz),
+                    Ast::Num(*px as f64),
+                    Ast::Num(*py as f64),
+                    Ast::Num(*pz as f64),
                 ],
             ),
             Self::Length2 { x, y } => {
@@ -1030,7 +1035,7 @@ impl FieldExpr {
             // SDF operations
             Self::SdfCircle { x, y, radius } => Ast::Call(
                 "sdf_circle".into(),
-                vec![x.to_dew_ast(), y.to_dew_ast(), Ast::Num(*radius)],
+                vec![x.to_dew_ast(), y.to_dew_ast(), Ast::Num(*radius as f64)],
             ),
             Self::SdfSphere { x, y, z, radius } => Ast::Call(
                 "sdf_sphere".into(),
@@ -1038,7 +1043,7 @@ impl FieldExpr {
                     x.to_dew_ast(),
                     y.to_dew_ast(),
                     z.to_dew_ast(),
-                    Ast::Num(*radius),
+                    Ast::Num(*radius as f64),
                 ],
             ),
             Self::SdfBox2 {
@@ -1051,8 +1056,8 @@ impl FieldExpr {
                 vec![
                     x.to_dew_ast(),
                     y.to_dew_ast(),
-                    Ast::Num(*half_width),
-                    Ast::Num(*half_height),
+                    Ast::Num(*half_width as f64),
+                    Ast::Num(*half_height as f64),
                 ],
             ),
             Self::SdfBox3 {
@@ -1068,22 +1073,22 @@ impl FieldExpr {
                     x.to_dew_ast(),
                     y.to_dew_ast(),
                     z.to_dew_ast(),
-                    Ast::Num(*half_x),
-                    Ast::Num(*half_y),
-                    Ast::Num(*half_z),
+                    Ast::Num(*half_x as f64),
+                    Ast::Num(*half_y as f64),
+                    Ast::Num(*half_z as f64),
                 ],
             ),
             Self::SdfSmoothUnion { a, b, k } => Ast::Call(
                 "sdf_smooth_union".into(),
-                vec![a.to_dew_ast(), b.to_dew_ast(), Ast::Num(*k)],
+                vec![a.to_dew_ast(), b.to_dew_ast(), Ast::Num(*k as f64)],
             ),
             Self::SdfSmoothIntersection { a, b, k } => Ast::Call(
                 "sdf_smooth_intersection".into(),
-                vec![a.to_dew_ast(), b.to_dew_ast(), Ast::Num(*k)],
+                vec![a.to_dew_ast(), b.to_dew_ast(), Ast::Num(*k as f64)],
             ),
             Self::SdfSmoothSubtraction { a, b, k } => Ast::Call(
                 "sdf_smooth_subtraction".into(),
-                vec![a.to_dew_ast(), b.to_dew_ast(), Ast::Num(*k)],
+                vec![a.to_dew_ast(), b.to_dew_ast(), Ast::Num(*k as f64)],
             ),
 
             // Math functions
