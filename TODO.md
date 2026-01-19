@@ -161,6 +161,12 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 - [x] Color matrix - linear RGBA transforms (grayscale, sepia, channel mixing) (color_matrix)
 - [x] Position transform - 2D affine transforms on pixel positions (rotate, scale, translate) (transform_image, TransformConfig)
 - [x] LUT support - 1D per-channel curves and 3D trilinear color grading (Lut1D, Lut3D, apply_lut_1d, apply_lut_3d)
+- [x] Dithering - quantization with various dithering patterns (dither, DitherConfig, DitherMethod)
+  - [x] Ordered (Bayer 2x2, 4x4, 8x8) - fast threshold-based dithering
+  - [x] Error diffusion (Floyd-Steinberg, Atkinson, Sierra, SierraTwoRow, SierraLite, JarvisJudiceNinke, Stucki, Burkes)
+  - [x] Blue noise dithering - perceptually optimal, no banding artifacts
+  - [x] Void-and-cluster - generates blue noise patterns (generate_blue_noise)
+  - [ ] Temporal dithering - for animation/video (interleaved patterns across frames)
 
 ### Audio
 
@@ -424,6 +430,7 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 
 - [ ] Scene graph generalization - evaluate if resin-motion's scene graph should be extracted to resin-scene for general use (2D/3D hierarchy, transforms, parent-child relationships)
 - [ ] Expression AST extensibility - figure out how users can add custom functions to MotionExpr/FieldExpr without forking
+- [ ] End-to-end shader compilation - compile dew expressions / ColorExpr / UvExpr to standalone WGSL/GLSL shaders (not just kernel fragments). Could enable exporting effects as reusable shader files.
 
 ### Extensibility / User-Defined Processing
 
