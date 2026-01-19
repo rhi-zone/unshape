@@ -2213,6 +2213,670 @@ pub fn threshold(image: &ImageField, thresh: f32) -> ImageField {
 }
 
 // ============================================================================
+// Dithering
+// ============================================================================
+
+/// Dithering algorithm to use for quantization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum DitherMethod {
+    /// No dithering - simple quantization (same as posterize).
+    None,
+    /// Ordered dithering using a Bayer threshold matrix.
+    /// The size parameter determines matrix size (2, 4, or 8).
+    #[default]
+    Bayer4x4,
+    /// 2x2 Bayer matrix - coarser pattern, faster.
+    Bayer2x2,
+    /// 8x8 Bayer matrix - finer pattern, smoother gradients.
+    Bayer8x8,
+    /// Floyd-Steinberg error diffusion - high quality, serpentine scan.
+    FloydSteinberg,
+    /// Atkinson dithering - lighter, preserves more detail (Mac classic look).
+    Atkinson,
+    /// Sierra dithering - balance between Floyd-Steinberg and Atkinson.
+    Sierra,
+    /// Sierra Two-Row - faster variant of Sierra.
+    SierraTwoRow,
+    /// Sierra Lite - fastest Sierra variant.
+    SierraLite,
+    /// Jarvis-Judice-Ninke - smoother gradients, larger kernel.
+    JarvisJudiceNinke,
+    /// Stucki dithering - similar to JJN but sharper.
+    Stucki,
+    /// Burkes dithering - simplified version of Stucki.
+    Burkes,
+    /// Blue noise dithering using the provided texture.
+    /// Requires a blue noise texture to be provided separately.
+    BlueNoise,
+}
+
+/// Configuration for dithering operations.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(rhizome_resin_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = ImageField, output = ImageField))]
+pub struct DitherConfig {
+    /// Number of quantization levels per channel (2-256).
+    pub levels: u32,
+    /// Dithering method to use.
+    pub method: DitherMethod,
+    /// Whether to apply dithering per-channel (true) or to luminance only (false).
+    pub per_channel: bool,
+}
+
+impl Default for DitherConfig {
+    fn default() -> Self {
+        Self {
+            levels: 2,
+            method: DitherMethod::Bayer4x4,
+            per_channel: true,
+        }
+    }
+}
+
+impl DitherConfig {
+    /// Creates a new dither config with the given number of levels.
+    pub fn new(levels: u32) -> Self {
+        Self {
+            levels: levels.clamp(2, 256),
+            ..Default::default()
+        }
+    }
+
+    /// Sets the dithering method.
+    pub fn with_method(mut self, method: DitherMethod) -> Self {
+        self.method = method;
+        self
+    }
+
+    /// Sets whether to dither per-channel or luminance only.
+    pub fn with_per_channel(mut self, per_channel: bool) -> Self {
+        self.per_channel = per_channel;
+        self
+    }
+
+    /// Applies dithering to an image.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        dither(image, self, None)
+    }
+}
+
+/// 2x2 Bayer threshold matrix (normalized to 0-1).
+const BAYER_2X2: [[f32; 2]; 2] = [[0.0 / 4.0, 2.0 / 4.0], [3.0 / 4.0, 1.0 / 4.0]];
+
+/// 4x4 Bayer threshold matrix (normalized to 0-1).
+const BAYER_4X4: [[f32; 4]; 4] = [
+    [0.0 / 16.0, 8.0 / 16.0, 2.0 / 16.0, 10.0 / 16.0],
+    [12.0 / 16.0, 4.0 / 16.0, 14.0 / 16.0, 6.0 / 16.0],
+    [3.0 / 16.0, 11.0 / 16.0, 1.0 / 16.0, 9.0 / 16.0],
+    [15.0 / 16.0, 7.0 / 16.0, 13.0 / 16.0, 5.0 / 16.0],
+];
+
+/// 8x8 Bayer threshold matrix (normalized to 0-1).
+const BAYER_8X8: [[f32; 8]; 8] = [
+    [
+        0.0 / 64.0,
+        32.0 / 64.0,
+        8.0 / 64.0,
+        40.0 / 64.0,
+        2.0 / 64.0,
+        34.0 / 64.0,
+        10.0 / 64.0,
+        42.0 / 64.0,
+    ],
+    [
+        48.0 / 64.0,
+        16.0 / 64.0,
+        56.0 / 64.0,
+        24.0 / 64.0,
+        50.0 / 64.0,
+        18.0 / 64.0,
+        58.0 / 64.0,
+        26.0 / 64.0,
+    ],
+    [
+        12.0 / 64.0,
+        44.0 / 64.0,
+        4.0 / 64.0,
+        36.0 / 64.0,
+        14.0 / 64.0,
+        46.0 / 64.0,
+        6.0 / 64.0,
+        38.0 / 64.0,
+    ],
+    [
+        60.0 / 64.0,
+        28.0 / 64.0,
+        52.0 / 64.0,
+        20.0 / 64.0,
+        62.0 / 64.0,
+        30.0 / 64.0,
+        54.0 / 64.0,
+        22.0 / 64.0,
+    ],
+    [
+        3.0 / 64.0,
+        35.0 / 64.0,
+        11.0 / 64.0,
+        43.0 / 64.0,
+        1.0 / 64.0,
+        33.0 / 64.0,
+        9.0 / 64.0,
+        41.0 / 64.0,
+    ],
+    [
+        51.0 / 64.0,
+        19.0 / 64.0,
+        59.0 / 64.0,
+        27.0 / 64.0,
+        49.0 / 64.0,
+        17.0 / 64.0,
+        57.0 / 64.0,
+        25.0 / 64.0,
+    ],
+    [
+        15.0 / 64.0,
+        47.0 / 64.0,
+        7.0 / 64.0,
+        39.0 / 64.0,
+        13.0 / 64.0,
+        45.0 / 64.0,
+        5.0 / 64.0,
+        37.0 / 64.0,
+    ],
+    [
+        63.0 / 64.0,
+        31.0 / 64.0,
+        55.0 / 64.0,
+        23.0 / 64.0,
+        61.0 / 64.0,
+        29.0 / 64.0,
+        53.0 / 64.0,
+        21.0 / 64.0,
+    ],
+];
+
+/// Applies dithering to quantize an image to fewer color levels.
+///
+/// Dithering adds controlled noise to create the illusion of more colors
+/// when displaying images with limited color palettes.
+///
+/// # Arguments
+/// * `image` - The input image
+/// * `config` - Dithering configuration (levels, method, etc.)
+/// * `blue_noise` - Optional blue noise texture for BlueNoise method
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, dither, DitherConfig, DitherMethod};
+///
+/// let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
+/// let img = ImageField::from_raw(data, 4, 4);
+///
+/// // Floyd-Steinberg dithering to 2 levels (black and white)
+/// let dithered = dither(&img, &DitherConfig::new(2).with_method(DitherMethod::FloydSteinberg), None);
+/// ```
+pub fn dither(
+    image: &ImageField,
+    config: &DitherConfig,
+    blue_noise: Option<&ImageField>,
+) -> ImageField {
+    match config.method {
+        DitherMethod::None => posterize(image, config.levels),
+        DitherMethod::Bayer2x2 => dither_ordered(image, config.levels, &BAYER_2X2),
+        DitherMethod::Bayer4x4 => dither_ordered(image, config.levels, &BAYER_4X4),
+        DitherMethod::Bayer8x8 => dither_ordered(image, config.levels, &BAYER_8X8),
+        DitherMethod::FloydSteinberg => {
+            dither_error_diffusion(image, config, ErrorDiffusionKernel::FloydSteinberg)
+        }
+        DitherMethod::Atkinson => {
+            dither_error_diffusion(image, config, ErrorDiffusionKernel::Atkinson)
+        }
+        DitherMethod::Sierra => dither_error_diffusion(image, config, ErrorDiffusionKernel::Sierra),
+        DitherMethod::SierraTwoRow => {
+            dither_error_diffusion(image, config, ErrorDiffusionKernel::SierraTwoRow)
+        }
+        DitherMethod::SierraLite => {
+            dither_error_diffusion(image, config, ErrorDiffusionKernel::SierraLite)
+        }
+        DitherMethod::JarvisJudiceNinke => {
+            dither_error_diffusion(image, config, ErrorDiffusionKernel::JarvisJudiceNinke)
+        }
+        DitherMethod::Stucki => dither_error_diffusion(image, config, ErrorDiffusionKernel::Stucki),
+        DitherMethod::Burkes => dither_error_diffusion(image, config, ErrorDiffusionKernel::Burkes),
+        DitherMethod::BlueNoise => {
+            if let Some(noise) = blue_noise {
+                dither_blue_noise(image, config.levels, noise)
+            } else {
+                // Fall back to Bayer if no blue noise texture provided
+                dither_ordered(image, config.levels, &BAYER_8X8)
+            }
+        }
+    }
+}
+
+/// Ordered dithering using a threshold matrix.
+fn dither_ordered<const N: usize>(
+    image: &ImageField,
+    levels: u32,
+    matrix: &[[f32; N]; N],
+) -> ImageField {
+    let (width, height) = image.dimensions();
+    let levels_f = levels.clamp(2, 256) as f32;
+    let factor = levels_f - 1.0;
+    // Threshold spread for dithering
+    let spread = 1.0 / levels_f;
+
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = image.get_pixel(x, y);
+            let threshold = matrix[(y as usize) % N][(x as usize) % N];
+            // Center threshold around 0 (-0.5 to 0.5)
+            let threshold_offset = (threshold - 0.5) * spread;
+
+            let quantize = |v: f32| {
+                let adjusted = v + threshold_offset;
+                ((adjusted * factor).round() / factor).clamp(0.0, 1.0)
+            };
+
+            data.push([
+                quantize(pixel[0]),
+                quantize(pixel[1]),
+                quantize(pixel[2]),
+                pixel[3],
+            ]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Error diffusion kernel type.
+#[derive(Debug, Clone, Copy)]
+enum ErrorDiffusionKernel {
+    FloydSteinberg,
+    Atkinson,
+    Sierra,
+    SierraTwoRow,
+    SierraLite,
+    JarvisJudiceNinke,
+    Stucki,
+    Burkes,
+}
+
+/// Error diffusion kernel entry: (dx, dy, weight).
+/// dy is always >= 0 (we only diffuse forward).
+type DiffusionEntry = (i32, i32, f32);
+
+impl ErrorDiffusionKernel {
+    /// Returns the diffusion coefficients for this kernel.
+    /// Each entry is (dx, dy, weight) where the weights should sum to 1.
+    fn coefficients(&self) -> &'static [DiffusionEntry] {
+        match self {
+            // Floyd-Steinberg: classic, good quality
+            //     * 7
+            // 3 5 1  (divided by 16)
+            Self::FloydSteinberg => &[
+                (1, 0, 7.0 / 16.0),
+                (-1, 1, 3.0 / 16.0),
+                (0, 1, 5.0 / 16.0),
+                (1, 1, 1.0 / 16.0),
+            ],
+
+            // Atkinson: lighter dithering, only diffuses 6/8 of error
+            //     * 1 1
+            // 1 1 1
+            //   1      (divided by 8)
+            Self::Atkinson => &[
+                (1, 0, 1.0 / 8.0),
+                (2, 0, 1.0 / 8.0),
+                (-1, 1, 1.0 / 8.0),
+                (0, 1, 1.0 / 8.0),
+                (1, 1, 1.0 / 8.0),
+                (0, 2, 1.0 / 8.0),
+            ],
+
+            // Sierra (full): smooth gradients
+            //       * 5 3
+            // 2 4 5 4 2
+            //   2 3 2    (divided by 32)
+            Self::Sierra => &[
+                (1, 0, 5.0 / 32.0),
+                (2, 0, 3.0 / 32.0),
+                (-2, 1, 2.0 / 32.0),
+                (-1, 1, 4.0 / 32.0),
+                (0, 1, 5.0 / 32.0),
+                (1, 1, 4.0 / 32.0),
+                (2, 1, 2.0 / 32.0),
+                (-1, 2, 2.0 / 32.0),
+                (0, 2, 3.0 / 32.0),
+                (1, 2, 2.0 / 32.0),
+            ],
+
+            // Sierra Two-Row: faster variant
+            //       * 4 3
+            // 1 2 3 2 1   (divided by 16)
+            Self::SierraTwoRow => &[
+                (1, 0, 4.0 / 16.0),
+                (2, 0, 3.0 / 16.0),
+                (-2, 1, 1.0 / 16.0),
+                (-1, 1, 2.0 / 16.0),
+                (0, 1, 3.0 / 16.0),
+                (1, 1, 2.0 / 16.0),
+                (2, 1, 1.0 / 16.0),
+            ],
+
+            // Sierra Lite: fastest, still good quality
+            //     * 2
+            // 1 1     (divided by 4)
+            Self::SierraLite => &[(1, 0, 2.0 / 4.0), (-1, 1, 1.0 / 4.0), (0, 1, 1.0 / 4.0)],
+
+            // Jarvis-Judice-Ninke: very smooth, large kernel
+            //         * 7 5
+            // 3 5 7 5 3
+            // 1 3 5 3 1   (divided by 48)
+            Self::JarvisJudiceNinke => &[
+                (1, 0, 7.0 / 48.0),
+                (2, 0, 5.0 / 48.0),
+                (-2, 1, 3.0 / 48.0),
+                (-1, 1, 5.0 / 48.0),
+                (0, 1, 7.0 / 48.0),
+                (1, 1, 5.0 / 48.0),
+                (2, 1, 3.0 / 48.0),
+                (-2, 2, 1.0 / 48.0),
+                (-1, 2, 3.0 / 48.0),
+                (0, 2, 5.0 / 48.0),
+                (1, 2, 3.0 / 48.0),
+                (2, 2, 1.0 / 48.0),
+            ],
+
+            // Stucki: similar to JJN but sharper
+            //         * 8 4
+            // 2 4 8 4 2
+            // 1 2 4 2 1   (divided by 42)
+            Self::Stucki => &[
+                (1, 0, 8.0 / 42.0),
+                (2, 0, 4.0 / 42.0),
+                (-2, 1, 2.0 / 42.0),
+                (-1, 1, 4.0 / 42.0),
+                (0, 1, 8.0 / 42.0),
+                (1, 1, 4.0 / 42.0),
+                (2, 1, 2.0 / 42.0),
+                (-2, 2, 1.0 / 42.0),
+                (-1, 2, 2.0 / 42.0),
+                (0, 2, 4.0 / 42.0),
+                (1, 2, 2.0 / 42.0),
+                (2, 2, 1.0 / 42.0),
+            ],
+
+            // Burkes: simplified Stucki
+            //       * 8 4
+            // 2 4 8 4 2   (divided by 32)
+            Self::Burkes => &[
+                (1, 0, 8.0 / 32.0),
+                (2, 0, 4.0 / 32.0),
+                (-2, 1, 2.0 / 32.0),
+                (-1, 1, 4.0 / 32.0),
+                (0, 1, 8.0 / 32.0),
+                (1, 1, 4.0 / 32.0),
+                (2, 1, 2.0 / 32.0),
+            ],
+        }
+    }
+}
+
+/// Error diffusion dithering.
+fn dither_error_diffusion(
+    image: &ImageField,
+    config: &DitherConfig,
+    kernel: ErrorDiffusionKernel,
+) -> ImageField {
+    let (width, height) = image.dimensions();
+    let levels_f = config.levels.clamp(2, 256) as f32;
+    let factor = levels_f - 1.0;
+    let coeffs = kernel.coefficients();
+
+    // Work buffer with error accumulation
+    let mut buffer: Vec<[f32; 3]> = Vec::with_capacity((width * height) as usize);
+    let mut alphas: Vec<f32> = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let p = image.get_pixel(x, y);
+            buffer.push([p[0], p[1], p[2]]);
+            alphas.push(p[3]);
+        }
+    }
+
+    let mut output = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let idx = (y * width + x) as usize;
+            let old_pixel = buffer[idx];
+
+            // Quantize
+            let new_pixel = [
+                ((old_pixel[0] * factor).round() / factor).clamp(0.0, 1.0),
+                ((old_pixel[1] * factor).round() / factor).clamp(0.0, 1.0),
+                ((old_pixel[2] * factor).round() / factor).clamp(0.0, 1.0),
+            ];
+
+            // Calculate error
+            let error = [
+                old_pixel[0] - new_pixel[0],
+                old_pixel[1] - new_pixel[1],
+                old_pixel[2] - new_pixel[2],
+            ];
+
+            // Diffuse error to neighbors
+            for &(dx, dy, weight) in coeffs {
+                let nx = x as i32 + dx;
+                let ny = y as i32 + dy;
+
+                if nx >= 0 && nx < width as i32 && ny < height as i32 {
+                    let nidx = (ny as u32 * width + nx as u32) as usize;
+                    if config.per_channel {
+                        buffer[nidx][0] += error[0] * weight;
+                        buffer[nidx][1] += error[1] * weight;
+                        buffer[nidx][2] += error[2] * weight;
+                    } else {
+                        // Luminance-based error
+                        let lum_error = 0.2126 * error[0] + 0.7152 * error[1] + 0.0722 * error[2];
+                        buffer[nidx][0] += lum_error * weight;
+                        buffer[nidx][1] += lum_error * weight;
+                        buffer[nidx][2] += lum_error * weight;
+                    }
+                }
+            }
+
+            output.push([new_pixel[0], new_pixel[1], new_pixel[2], alphas[idx]]);
+        }
+    }
+
+    ImageField::from_raw(output, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Blue noise dithering using a precomputed noise texture.
+fn dither_blue_noise(image: &ImageField, levels: u32, noise: &ImageField) -> ImageField {
+    let (width, height) = image.dimensions();
+    let (noise_w, noise_h) = noise.dimensions();
+    let levels_f = levels.clamp(2, 256) as f32;
+    let factor = levels_f - 1.0;
+    let spread = 1.0 / levels_f;
+
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = image.get_pixel(x, y);
+
+            // Sample blue noise (tiled)
+            let noise_pixel = noise.get_pixel(x % noise_w, y % noise_h);
+            // Use R channel of noise texture, centered around 0
+            let threshold_offset = (noise_pixel[0] - 0.5) * spread;
+
+            let quantize = |v: f32| {
+                let adjusted = v + threshold_offset;
+                ((adjusted * factor).round() / factor).clamp(0.0, 1.0)
+            };
+
+            data.push([
+                quantize(pixel[0]),
+                quantize(pixel[1]),
+                quantize(pixel[2]),
+                pixel[3],
+            ]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Generates a blue noise texture using the void-and-cluster algorithm.
+///
+/// Blue noise has optimal spectral properties for dithering - it minimizes
+/// low-frequency content while maintaining uniform energy distribution.
+///
+/// # Arguments
+/// * `size` - Width and height of the texture (should be power of 2)
+///
+/// # Note
+/// This is a simplified implementation. For production use, consider
+/// precomputed blue noise textures which have better quality.
+pub fn generate_blue_noise(size: u32) -> ImageField {
+    let size = size.max(4).min(256);
+    let total = (size * size) as usize;
+
+    // Initialize with random binary pattern
+    let mut pattern: Vec<bool> = (0..total)
+        .map(|i| (i * 7919 + i * i * 104729) % total < total / 2)
+        .collect();
+
+    // Void-and-cluster iterations to improve blue noise quality
+    let iterations = 10;
+    for _ in 0..iterations {
+        // Find tightest cluster (densest area of 1s)
+        let cluster_idx = find_tightest_cluster(&pattern, size);
+        pattern[cluster_idx] = false;
+
+        // Find largest void (sparsest area of 1s)
+        let void_idx = find_largest_void(&pattern, size);
+        pattern[void_idx] = true;
+    }
+
+    // Convert binary pattern to ranking
+    let mut ranking = vec![0usize; total];
+
+    // Remove pixels one by one, recording removal order
+    let mut temp_pattern = pattern.clone();
+    for i in 0..total / 2 {
+        let idx = find_tightest_cluster(&temp_pattern, size);
+        temp_pattern[idx] = false;
+        ranking[idx] = total / 2 - 1 - i;
+    }
+
+    // Add pixels one by one, recording addition order
+    temp_pattern = pattern;
+    for p in &mut temp_pattern {
+        *p = !*p;
+    }
+    for i in 0..total / 2 {
+        let idx = find_largest_void(&temp_pattern, size);
+        temp_pattern[idx] = true;
+        ranking[idx] = total / 2 + i;
+    }
+
+    // Convert ranking to grayscale image
+    let data: Vec<[f32; 4]> = ranking
+        .iter()
+        .map(|&r| {
+            let v = r as f32 / total as f32;
+            [v, v, v, 1.0]
+        })
+        .collect();
+
+    ImageField::from_raw(data, size, size)
+}
+
+/// Find the index of the tightest cluster (highest local density of 1s).
+fn find_tightest_cluster(pattern: &[bool], size: u32) -> usize {
+    let mut max_density = f32::NEG_INFINITY;
+    let mut max_idx = 0;
+
+    for (i, &is_set) in pattern.iter().enumerate() {
+        if is_set {
+            let density = calculate_density(pattern, i, size, true);
+            if density > max_density {
+                max_density = density;
+                max_idx = i;
+            }
+        }
+    }
+    max_idx
+}
+
+/// Find the index of the largest void (lowest local density of 1s).
+fn find_largest_void(pattern: &[bool], size: u32) -> usize {
+    let mut min_density = f32::INFINITY;
+    let mut min_idx = 0;
+
+    for (i, &is_set) in pattern.iter().enumerate() {
+        if !is_set {
+            let density = calculate_density(pattern, i, size, false);
+            if density < min_density {
+                min_density = density;
+                min_idx = i;
+            }
+        }
+    }
+    min_idx
+}
+
+/// Calculate local density around a pixel using Gaussian weighting.
+fn calculate_density(pattern: &[bool], center_idx: usize, size: u32, include_self: bool) -> f32 {
+    let cx = (center_idx % size as usize) as i32;
+    let cy = (center_idx / size as usize) as i32;
+    let size_i = size as i32;
+
+    let sigma = 1.5f32;
+    let sigma_sq_2 = 2.0 * sigma * sigma;
+    let mut density = 0.0f32;
+
+    // Sample neighborhood
+    let radius = 3i32;
+    for dy in -radius..=radius {
+        for dx in -radius..=radius {
+            if !include_self && dx == 0 && dy == 0 {
+                continue;
+            }
+
+            // Toroidal wrapping
+            let nx = ((cx + dx) % size_i + size_i) % size_i;
+            let ny = ((cy + dy) % size_i + size_i) % size_i;
+            let idx = (ny * size_i + nx) as usize;
+
+            if pattern[idx] {
+                let dist_sq = (dx * dx + dy * dy) as f32;
+                density += (-dist_sq / sigma_sq_2).exp();
+            }
+        }
+    }
+
+    density
+}
+
+// ============================================================================
 // Compositing
 // ============================================================================
 
@@ -7667,6 +8331,220 @@ mod tests {
         assert!(result.get_pixel(0, 0)[0] < 0.01);
         // 0.7 luminance > 0.5 -> white
         assert!(result.get_pixel(1, 0)[0] > 0.99);
+    }
+
+    // Dithering tests
+
+    #[test]
+    fn test_dither_bayer_output_quantized() {
+        // Create a gradient image
+        let data: Vec<_> = (0..64)
+            .map(|i| {
+                let v = i as f32 / 63.0;
+                [v, v, v, 1.0]
+            })
+            .collect();
+        let img = ImageField::from_raw(data, 8, 8);
+
+        // Dither to 2 levels
+        let result = dither(
+            &img,
+            &DitherConfig::new(2).with_method(DitherMethod::Bayer4x4),
+            None,
+        );
+
+        // All pixels should be either 0 or 1
+        for y in 0..8 {
+            for x in 0..8 {
+                let pixel = result.get_pixel(x, y);
+                assert!(
+                    pixel[0] == 0.0 || pixel[0] == 1.0,
+                    "Pixel ({}, {}) should be 0 or 1, got {}",
+                    x,
+                    y,
+                    pixel[0]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_dither_floyd_steinberg() {
+        // Create a mid-gray image
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 64];
+        let img = ImageField::from_raw(data, 8, 8);
+
+        let result = dither(
+            &img,
+            &DitherConfig::new(2).with_method(DitherMethod::FloydSteinberg),
+            None,
+        );
+
+        // Should have mix of black and white pixels (dithered)
+        let mut black_count = 0;
+        let mut white_count = 0;
+        for y in 0..8 {
+            for x in 0..8 {
+                let v = result.get_pixel(x, y)[0];
+                if v < 0.5 {
+                    black_count += 1;
+                } else {
+                    white_count += 1;
+                }
+            }
+        }
+        // For 50% gray, expect roughly equal black and white
+        assert!(black_count > 20, "Expected more black pixels for 50% gray");
+        assert!(white_count > 20, "Expected more white pixels for 50% gray");
+    }
+
+    #[test]
+    fn test_dither_preserves_alpha() {
+        let data = vec![[0.5, 0.5, 0.5, 0.7]; 16];
+        let img = ImageField::from_raw(data, 4, 4);
+
+        let result = dither(
+            &img,
+            &DitherConfig::new(2).with_method(DitherMethod::Atkinson),
+            None,
+        );
+
+        for y in 0..4 {
+            for x in 0..4 {
+                assert!(
+                    (result.get_pixel(x, y)[3] - 0.7).abs() < 0.001,
+                    "Alpha should be preserved"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_dither_config_builder() {
+        let config = DitherConfig::new(4)
+            .with_method(DitherMethod::Sierra)
+            .with_per_channel(false);
+
+        assert_eq!(config.levels, 4);
+        assert_eq!(config.method, DitherMethod::Sierra);
+        assert!(!config.per_channel);
+    }
+
+    #[test]
+    fn test_dither_none_same_as_posterize() {
+        let data = vec![[0.33, 0.66, 0.99, 1.0]; 4];
+        let img = ImageField::from_raw(data, 2, 2);
+
+        let dithered = dither(
+            &img,
+            &DitherConfig::new(2).with_method(DitherMethod::None),
+            None,
+        );
+        let posterized = posterize(&img, 2);
+
+        for y in 0..2 {
+            for x in 0..2 {
+                let d = dithered.get_pixel(x, y);
+                let p = posterized.get_pixel(x, y);
+                assert!(
+                    (d[0] - p[0]).abs() < 0.001,
+                    "DitherMethod::None should equal posterize"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_dither_multiple_levels() {
+        let data: Vec<_> = (0..64)
+            .map(|i| {
+                let v = i as f32 / 63.0;
+                [v, v, v, 1.0]
+            })
+            .collect();
+        let img = ImageField::from_raw(data, 8, 8);
+
+        // 4 levels = 0, 0.333, 0.667, 1.0
+        let result = dither(
+            &img,
+            &DitherConfig::new(4).with_method(DitherMethod::Bayer8x8),
+            None,
+        );
+
+        for y in 0..8 {
+            for x in 0..8 {
+                let v = result.get_pixel(x, y)[0];
+                // Should be one of the 4 levels (with small tolerance)
+                let is_valid_level = (v - 0.0).abs() < 0.01
+                    || (v - 1.0 / 3.0).abs() < 0.02
+                    || (v - 2.0 / 3.0).abs() < 0.02
+                    || (v - 1.0).abs() < 0.01;
+                assert!(is_valid_level, "Value {} is not a valid 4-level output", v);
+            }
+        }
+    }
+
+    #[test]
+    fn test_generate_blue_noise() {
+        let noise = generate_blue_noise(16);
+        assert_eq!(noise.dimensions(), (16, 16));
+
+        // Check that values are in valid range
+        for y in 0..16 {
+            for x in 0..16 {
+                let v = noise.get_pixel(x, y)[0];
+                assert!(v >= 0.0 && v <= 1.0, "Blue noise value out of range: {}", v);
+            }
+        }
+
+        // Check that we have variety in values (not constant or degenerate)
+        let mut values: Vec<f32> = Vec::with_capacity(256);
+        for y in 0..16 {
+            for x in 0..16 {
+                values.push(noise.get_pixel(x, y)[0]);
+            }
+        }
+        let min = values.iter().cloned().fold(f32::INFINITY, f32::min);
+        let max = values.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+
+        // Should have a reasonable range of values
+        assert!(
+            max - min > 0.5,
+            "Blue noise should have good range, got min={}, max={}",
+            min,
+            max
+        );
+    }
+
+    #[test]
+    fn test_dither_blue_noise() {
+        let data = vec![[0.5, 0.5, 0.5, 1.0]; 64];
+        let img = ImageField::from_raw(data, 8, 8);
+
+        let noise = generate_blue_noise(8);
+        let result = dither(
+            &img,
+            &DitherConfig::new(2).with_method(DitherMethod::BlueNoise),
+            Some(&noise),
+        );
+
+        // Should have mix of black and white
+        let mut has_black = false;
+        let mut has_white = false;
+        for y in 0..8 {
+            for x in 0..8 {
+                let v = result.get_pixel(x, y)[0];
+                if v < 0.5 {
+                    has_black = true;
+                } else {
+                    has_white = true;
+                }
+            }
+        }
+        assert!(
+            has_black && has_white,
+            "Blue noise dithering should produce mix of values"
+        );
     }
 
     // Distortion tests
