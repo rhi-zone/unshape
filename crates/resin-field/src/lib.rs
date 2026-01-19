@@ -597,6 +597,434 @@ fn hash_to_float_3d(p: Vec3, seed: u32) -> f32 {
     (h & 0x00ffffff) as f32 / 0x01000000 as f32
 }
 
+/// Perlin noise field (1D).
+///
+/// Gradient noise for audio modulation, 1D patterns, etc.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Perlin1D {
+    /// Random seed.
+    pub seed: i32,
+}
+
+impl Perlin1D {
+    /// Create a new Perlin noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<f32, f32> for Perlin1D {
+    fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
+        rhizome_resin_noise::perlin1(input + self.seed as f32 * 17.0)
+    }
+}
+
+/// Simplex noise field (1D).
+///
+/// In 1D, equivalent to Perlin noise.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Simplex1D {
+    /// Random seed.
+    pub seed: i32,
+}
+
+impl Simplex1D {
+    /// Create a new Simplex noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<f32, f32> for Simplex1D {
+    fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
+        rhizome_resin_noise::simplex1(input + self.seed as f32 * 17.0)
+    }
+}
+
+/// Value noise field (1D).
+///
+/// Simpler than Perlin: random values at integers, interpolated.
+/// Faster but more grid-aligned artifacts.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Value1D {
+    /// Random seed.
+    pub seed: i32,
+}
+
+impl Value1D {
+    /// Create a new Value noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<f32, f32> for Value1D {
+    fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
+        rhizome_resin_noise::value1(input + self.seed as f32 * 17.0)
+    }
+}
+
+/// Value noise field (2D).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Value2D {
+    /// Random seed.
+    pub seed: i32,
+}
+
+impl Value2D {
+    /// Create a new Value noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<Vec2, f32> for Value2D {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
+        rhizome_resin_noise::value2(p.x, p.y)
+    }
+}
+
+/// Value noise field (3D).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Value3D {
+    /// Random seed.
+    pub seed: i32,
+}
+
+impl Value3D {
+    /// Create a new Value noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<Vec3, f32> for Value3D {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        let p = input
+            + Vec3::new(
+                self.seed as f32 * 17.0,
+                self.seed as f32 * 31.0,
+                self.seed as f32 * 47.0,
+            );
+        rhizome_resin_noise::value3(p.x, p.y, p.z)
+    }
+}
+
+/// Worley (cellular) noise field (2D).
+///
+/// Distance to nearest feature point. Creates organic cell patterns.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Worley2D {
+    /// Random seed.
+    pub seed: i32,
+}
+
+impl Worley2D {
+    /// Create a new Worley noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<Vec2, f32> for Worley2D {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
+        rhizome_resin_noise::worley2(p.x, p.y)
+    }
+}
+
+/// Worley (cellular) noise field (3D).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Worley3D {
+    /// Random seed.
+    pub seed: i32,
+}
+
+impl Worley3D {
+    /// Create a new Worley noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<Vec3, f32> for Worley3D {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        let p = input
+            + Vec3::new(
+                self.seed as f32 * 17.0,
+                self.seed as f32 * 31.0,
+                self.seed as f32 * 47.0,
+            );
+        rhizome_resin_noise::worley3(p.x, p.y, p.z)
+    }
+}
+
+/// Worley noise returning F2 (second nearest distance).
+///
+/// More complex cell patterns with visible boundaries.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct WorleyF2_2D {
+    /// Random seed.
+    pub seed: i32,
+}
+
+impl WorleyF2_2D {
+    /// Create a new Worley F2 noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<Vec2, f32> for WorleyF2_2D {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
+        rhizome_resin_noise::worley2_f2(p.x, p.y)
+    }
+}
+
+/// Worley edge detection (F2 - F1).
+///
+/// Highlights cell boundaries. Good for cracked earth, scales, etc.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct WorleyEdge2D {
+    /// Random seed.
+    pub seed: i32,
+}
+
+impl WorleyEdge2D {
+    /// Create a new Worley edge noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<Vec2, f32> for WorleyEdge2D {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
+        rhizome_resin_noise::worley2_edge(p.x, p.y)
+    }
+}
+
+/// Pink noise field (1D).
+///
+/// Equal energy per octave (1/f spectrum). Natural-sounding variation.
+/// Useful for audio modulation and organic parameter drift.
+#[derive(Debug, Clone, Copy)]
+pub struct PinkNoise1D {
+    /// Random seed (applied via coordinate offset).
+    pub seed: i32,
+    /// Number of octaves (more = smoother, default 8).
+    pub octaves: u32,
+}
+
+impl Default for PinkNoise1D {
+    fn default() -> Self {
+        Self {
+            seed: 0,
+            octaves: 8,
+        }
+    }
+}
+
+impl PinkNoise1D {
+    /// Create a new pink noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed, octaves: 8 }
+    }
+
+    /// Set the number of octaves.
+    pub fn octaves(mut self, octaves: u32) -> Self {
+        self.octaves = octaves;
+        self
+    }
+}
+
+impl Field<f32, f32> for PinkNoise1D {
+    fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
+        rhizome_resin_noise::pink1(input + self.seed as f32 * 17.0, self.octaves)
+    }
+}
+
+/// Pink noise field (2D).
+///
+/// Equal energy per octave. Creates natural-looking textures.
+#[derive(Debug, Clone, Copy)]
+pub struct PinkNoise2D {
+    /// Random seed.
+    pub seed: i32,
+    /// Number of octaves.
+    pub octaves: u32,
+}
+
+impl Default for PinkNoise2D {
+    fn default() -> Self {
+        Self {
+            seed: 0,
+            octaves: 8,
+        }
+    }
+}
+
+impl PinkNoise2D {
+    /// Create a new pink noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed, octaves: 8 }
+    }
+
+    /// Set the number of octaves.
+    pub fn octaves(mut self, octaves: u32) -> Self {
+        self.octaves = octaves;
+        self
+    }
+}
+
+impl Field<Vec2, f32> for PinkNoise2D {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
+        rhizome_resin_noise::pink2(p.x, p.y, self.octaves)
+    }
+}
+
+/// Brown (Brownian/Red) noise field (1D).
+///
+/// Strong low-frequency bias (1/f² spectrum). Random walk character.
+/// Creates slow drifts - good for parameter modulation, deep rumble.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BrownNoise1D {
+    /// Random seed.
+    pub seed: i32,
+}
+
+impl BrownNoise1D {
+    /// Create a new brown noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<f32, f32> for BrownNoise1D {
+    fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
+        rhizome_resin_noise::brown1(input + self.seed as f32 * 17.0)
+    }
+}
+
+/// Brown noise field (2D).
+///
+/// Very smooth, low-frequency noise. Good for terrain bases.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BrownNoise2D {
+    /// Random seed.
+    pub seed: i32,
+}
+
+impl BrownNoise2D {
+    /// Create a new brown noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<Vec2, f32> for BrownNoise2D {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let p = input + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
+        rhizome_resin_noise::brown2(p.x, p.y)
+    }
+}
+
+/// Violet noise field (1D).
+///
+/// Very high frequency (f² spectrum). Differentiated white noise.
+/// Primarily useful for audio dithering of high-frequency content.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct VioletNoise1D {
+    /// Random seed.
+    pub seed: i32,
+}
+
+impl VioletNoise1D {
+    /// Create a new violet noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<f32, f32> for VioletNoise1D {
+    fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
+        rhizome_resin_noise::violet1(input + self.seed as f32 * 17.0)
+    }
+}
+
 /// Fractal Brownian Motion field (2D).
 #[derive(Debug, Clone, Copy)]
 pub struct Fbm2D<F> {
