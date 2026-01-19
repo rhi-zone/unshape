@@ -169,6 +169,17 @@ Key insight: **self-similarity enables LOD**. Fractal properties of Bayer matric
 
 Note: This is a rendering/shader technique, not 2D image processing - out of scope for resin-image but interesting for 3D applications.
 
+#### Ditherpunk (Surma)
+
+[Article](https://surma.dev/things/ditherpunk/)
+
+Comprehensive exploration of monochrome dithering techniques:
+- **Riemersma dithering**: error diffusion along a Hilbert curve instead of scanlines
+- **Blue noise comparison**: analysis of threshold vs diffusion approaches
+- **Quantization theory**: explains why dithering works perceptually
+
+Riemersma key insight: **curve traversal eliminates directional artifacts**. By following a space-filling curve, errors diffuse in all directions equally - no horizontal banding from scanline order.
+
 ## Animation & Motion
 
 ### Motion Canvas
