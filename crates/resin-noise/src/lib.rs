@@ -782,6 +782,53 @@ pub fn violet1(x: f32) -> f32 {
     ((h2 - h1).abs() * 2.0).clamp(0.0, 1.0)
 }
 
+/// 1D Grey noise (approximation).
+///
+/// Grey noise is psychoacoustically flat - it sounds equally loud at all
+/// frequencies to human ears, unlike white noise which sounds "bright".
+///
+/// True grey noise requires equal-loudness contour weighting (ISO 226).
+/// This is an approximation that boosts lows and highs relative to pink noise.
+/// Returns a value in [0, 1].
+pub fn grey1(x: f32) -> f32 {
+    // Approximate grey noise by mixing pink (natural) with some white (brightness)
+    // and a touch of brown (low-end weight)
+    let p = pink1(x, 6);
+    let w = perm(x.floor() as i32) as f32 / 255.0;
+    let b = brown1(x);
+    // Mix: mostly pink, some white for highs, some brown for lows
+    (p * 0.5 + w * 0.3 + b * 0.2).clamp(0.0, 1.0)
+}
+
+/// 1D Velvet noise.
+///
+/// Sparse impulse noise - most samples are ~0.5 (neutral), with occasional
+/// impulses toward 0 or 1. Used in audio for efficient convolution reverb
+/// and decorrelation.
+///
+/// # Arguments
+/// * `x` - Position
+/// * `density` - Probability of non-neutral value (0.0 to 1.0, typically 0.01-0.2)
+///
+/// Returns a value in [0, 1] where 0.5 is neutral, 0 and 1 are impulses.
+pub fn velvet1(x: f32, density: f32) -> f32 {
+    let xi = x.floor() as i32;
+    let h = perm(xi);
+    let threshold = (density * 255.0) as u8;
+
+    if h < threshold {
+        // Impulse - decide polarity with another hash
+        let polarity = perm(xi.wrapping_add(127));
+        if polarity < 128 {
+            0.0 // Negative impulse
+        } else {
+            1.0 // Positive impulse
+        }
+    } else {
+        0.5 // Neutral (silence in audio terms)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1170,5 +1217,43 @@ mod tests {
                 v
             );
         }
+
+        // Grey 1D
+        for i in 0..100 {
+            let x = i as f32 * 0.1;
+            let v = grey1(x);
+            assert!(
+                (0.0..=1.0).contains(&v),
+                "grey1({}) = {} out of range",
+                x,
+                v
+            );
+        }
+
+        // Velvet 1D
+        for i in 0..100 {
+            let x = i as f32 * 0.1;
+            let v = velvet1(x, 0.1);
+            assert!(
+                (0.0..=1.0).contains(&v),
+                "velvet1({}) = {} out of range",
+                x,
+                v
+            );
+        }
+
+        // Velvet should produce mostly 0.5 with low density
+        let mut neutral_count = 0;
+        for i in 0..1000 {
+            let v = velvet1(i as f32, 0.05);
+            if (v - 0.5).abs() < 0.01 {
+                neutral_count += 1;
+            }
+        }
+        assert!(
+            neutral_count > 900,
+            "Velvet with 5% density should be mostly neutral, got {} neutral out of 1000",
+            neutral_count
+        );
     }
 }
