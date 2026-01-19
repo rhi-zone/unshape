@@ -2304,12 +2304,15 @@ impl Field<Vec2, f32> for BayerField {
 /// Blue noise has optimal spectral properties for dithering - it minimizes
 /// low-frequency content while maintaining uniform energy distribution.
 #[derive(Clone)]
-pub struct BlueNoiseField {
+pub struct BlueNoise2D {
     /// The blue noise texture (grayscale values 0-1).
     pub texture: ImageField,
 }
 
-impl BlueNoiseField {
+/// Alias for backward compatibility.
+pub type BlueNoiseField = BlueNoise2D;
+
+impl BlueNoise2D {
     /// Creates a blue noise field from an existing texture.
     pub fn from_texture(texture: ImageField) -> Self {
         Self { texture }
@@ -2318,18 +2321,97 @@ impl BlueNoiseField {
     /// Generates a new blue noise field of the given size.
     pub fn generate(size: u32) -> Self {
         Self {
-            texture: generate_blue_noise(size),
+            texture: generate_blue_noise_2d(size),
         }
     }
 }
 
-impl Field<Vec2, f32> for BlueNoiseField {
+impl Field<Vec2, f32> for BlueNoise2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
         let (w, h) = self.texture.dimensions();
         // Tile the texture
         let x = ((input.x.abs() * w as f32) as u32) % w;
         let y = ((input.y.abs() * h as f32) as u32) % h;
         self.texture.get_pixel(x, y)[0]
+    }
+}
+
+/// 1D blue noise field.
+///
+/// Well-distributed noise without clumping. Optimal for audio dithering and sampling.
+#[derive(Debug, Clone)]
+pub struct BlueNoise1D {
+    /// The blue noise samples (values 0-1).
+    pub data: Vec<f32>,
+}
+
+impl BlueNoise1D {
+    /// Creates a blue noise field from existing data.
+    pub fn from_data(data: Vec<f32>) -> Self {
+        Self { data }
+    }
+
+    /// Generates a new blue noise field of the given size.
+    pub fn generate(size: u32) -> Self {
+        Self {
+            data: generate_blue_noise_1d(size),
+        }
+    }
+}
+
+impl Field<f32, f32> for BlueNoise1D {
+    fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
+        if self.data.is_empty() {
+            return 0.5;
+        }
+        let size = self.data.len();
+        let idx = ((input.abs() * size as f32) as usize) % size;
+        self.data[idx]
+    }
+}
+
+/// 3D blue noise field.
+///
+/// Well-distributed noise in 3D. Useful for temporally stable animation dithering.
+///
+/// **Note**: Generation is expensive (O(n³)). Pre-generate and reuse.
+#[derive(Debug, Clone)]
+pub struct BlueNoise3D {
+    /// The blue noise samples (flattened x + y*size + z*size*size).
+    pub data: Vec<f32>,
+    /// Size of each dimension.
+    pub size: u32,
+}
+
+impl BlueNoise3D {
+    /// Creates a blue noise field from existing data.
+    pub fn from_data(data: Vec<f32>, size: u32) -> Self {
+        Self { data, size }
+    }
+
+    /// Generates a new blue noise field of the given size.
+    ///
+    /// **Warning**: This is expensive! O(n³) complexity. Size is clamped to 4..=32.
+    pub fn generate(size: u32) -> Self {
+        let size = size.max(4).min(32);
+        Self {
+            data: generate_blue_noise_3d(size),
+            size,
+        }
+    }
+}
+
+impl Field<Vec3, f32> for BlueNoise3D {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        if self.data.is_empty() || self.size == 0 {
+            return 0.5;
+        }
+        let size = self.size as usize;
+        let x = ((input.x.abs() * size as f32) as usize) % size;
+        let y = ((input.y.abs() * size as f32) as usize) % size;
+        let z = ((input.z.abs() * size as f32) as usize) % size;
+        let idx = x + y * size + z * size * size;
+        self.data.get(idx).copied().unwrap_or(0.5)
     }
 }
 
@@ -3004,7 +3086,7 @@ fn fract(x: f32) -> f32 {
 // Blue Noise Generation
 // -----------------------------------------------------------------------------
 
-/// Generates a blue noise texture using the void-and-cluster algorithm.
+/// Generates a 2D blue noise texture using the void-and-cluster algorithm.
 ///
 /// Blue noise has optimal spectral properties for dithering - it minimizes
 /// low-frequency content while maintaining uniform energy distribution.
@@ -3015,7 +3097,7 @@ fn fract(x: f32) -> f32 {
 /// # Note
 /// This is a simplified implementation. For production use, consider
 /// precomputed blue noise textures which have better quality.
-pub fn generate_blue_noise(size: u32) -> ImageField {
+pub fn generate_blue_noise_2d(size: u32) -> ImageField {
     let size = size.max(4).min(256);
     let total = (size * size) as usize;
 
@@ -3068,6 +3150,12 @@ pub fn generate_blue_noise(size: u32) -> ImageField {
         .collect();
 
     ImageField::from_raw(data, size, size)
+}
+
+/// Alias for backward compatibility.
+#[inline]
+pub fn generate_blue_noise(size: u32) -> ImageField {
+    generate_blue_noise_2d(size)
 }
 
 /// Find the index of the tightest cluster (highest local density of 1s).
