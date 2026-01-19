@@ -29,6 +29,11 @@ fn perm(x: i32) -> u8 {
 }
 
 #[inline]
+fn grad1(hash: u8, x: f32) -> f32 {
+    if hash & 1 != 0 { -x } else { x }
+}
+
+#[inline]
 fn grad2(hash: u8, x: f32, y: f32) -> f32 {
     let h = hash & 7;
     let u = if h < 4 { x } else { y };
@@ -58,6 +63,20 @@ fn fade(t: f32) -> f32 {
 #[inline]
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + t * (b - a)
+}
+
+/// 1D Perlin noise.
+///
+/// Returns a value in [0, 1]. Useful for audio modulation and 1D patterns.
+pub fn perlin1(x: f32) -> f32 {
+    let xi = x.floor() as i32;
+    let xf = x - x.floor();
+    let u = fade(xf);
+
+    let a = perm(xi);
+    let b = perm(xi + 1);
+
+    (lerp(grad1(a, xf), grad1(b, xf - 1.0), u) * 0.5 + 0.5).clamp(0.0, 1.0)
 }
 
 /// 2D Perlin noise.
@@ -147,6 +166,14 @@ const F2: f32 = 0.5 * (1.732_050_8 - 1.0); // (sqrt(3) - 1) / 2
 const G2: f32 = (3.0 - 1.732_050_8) / 6.0; // (3 - sqrt(3)) / 6
 const F3: f32 = 1.0 / 3.0;
 const G3: f32 = 1.0 / 6.0;
+
+/// 1D Simplex noise.
+///
+/// In 1D, simplex noise is equivalent to Perlin noise (no skewing needed).
+/// Returns a value in [0, 1].
+pub fn simplex1(x: f32) -> f32 {
+    perlin1(x)
+}
 
 /// 2D Simplex noise.
 ///
@@ -284,6 +311,32 @@ pub fn simplex3v(p: Vec3) -> f32 {
     simplex3(p.x, p.y, p.z)
 }
 
+/// Fractal Brownian Motion (fBm) using 1D noise.
+///
+/// Layers multiple octaves of noise for natural-looking detail.
+/// Useful for audio modulation, terrain profiles, etc.
+pub fn fbm1<F: Fn(f32) -> f32>(
+    noise_fn: F,
+    x: f32,
+    octaves: u32,
+    lacunarity: f32,
+    persistence: f32,
+) -> f32 {
+    let mut value = 0.0;
+    let mut amplitude = 1.0;
+    let mut frequency = 1.0;
+    let mut max_value = 0.0;
+
+    for _ in 0..octaves {
+        value += noise_fn(x * frequency) * amplitude;
+        max_value += amplitude;
+        amplitude *= persistence;
+        frequency *= lacunarity;
+    }
+
+    value / max_value
+}
+
 /// Fractal Brownian Motion (fBm) using 2D noise.
 ///
 /// Layers multiple octaves of noise for natural-looking detail.
@@ -342,6 +395,11 @@ pub fn fbm3<F: Fn(f32, f32, f32) -> f32>(
     value / max_value
 }
 
+/// Convenience function for 1D fBm with Perlin noise.
+pub fn fbm_perlin1(x: f32, octaves: u32) -> f32 {
+    fbm1(perlin1, x, octaves, 2.0, 0.5)
+}
+
 /// Convenience function for 2D fBm with Perlin noise.
 pub fn fbm_perlin2(x: f32, y: f32, octaves: u32) -> f32 {
     fbm2(perlin2, x, y, octaves, 2.0, 0.5)
@@ -352,6 +410,11 @@ pub fn fbm_perlin3(x: f32, y: f32, z: f32, octaves: u32) -> f32 {
     fbm3(perlin3, x, y, z, octaves, 2.0, 0.5)
 }
 
+/// Convenience function for 1D fBm with Simplex noise.
+pub fn fbm_simplex1(x: f32, octaves: u32) -> f32 {
+    fbm1(simplex1, x, octaves, 2.0, 0.5)
+}
+
 /// Convenience function for 2D fBm with Simplex noise.
 pub fn fbm_simplex2(x: f32, y: f32, octaves: u32) -> f32 {
     fbm2(simplex2, x, y, octaves, 2.0, 0.5)
@@ -360,6 +423,338 @@ pub fn fbm_simplex2(x: f32, y: f32, octaves: u32) -> f32 {
 /// Convenience function for 3D fBm with Simplex noise.
 pub fn fbm_simplex3(x: f32, y: f32, z: f32, octaves: u32) -> f32 {
     fbm3(simplex3, x, y, z, octaves, 2.0, 0.5)
+}
+
+// =============================================================================
+// Value Noise
+// =============================================================================
+// Simpler than Perlin/Simplex: random values at grid points, interpolated.
+// Faster but has more visible grid artifacts.
+
+/// 1D Value noise.
+///
+/// Random values at integer points, smoothly interpolated.
+/// Simpler and faster than Perlin, but with more visible artifacts.
+/// Returns a value in [0, 1].
+pub fn value1(x: f32) -> f32 {
+    let xi = x.floor() as i32;
+    let xf = x - x.floor();
+    let u = fade(xf);
+
+    let a = perm(xi) as f32 / 255.0;
+    let b = perm(xi + 1) as f32 / 255.0;
+
+    lerp(a, b, u)
+}
+
+/// 2D Value noise.
+///
+/// Random values at grid points, smoothly interpolated.
+/// Returns a value in [0, 1].
+pub fn value2(x: f32, y: f32) -> f32 {
+    let xi = x.floor() as i32;
+    let yi = y.floor() as i32;
+
+    let xf = x - x.floor();
+    let yf = y - y.floor();
+
+    let u = fade(xf);
+    let v = fade(yf);
+
+    let aa = perm(perm(xi) as i32 + yi) as f32 / 255.0;
+    let ab = perm(perm(xi) as i32 + yi + 1) as f32 / 255.0;
+    let ba = perm(perm(xi + 1) as i32 + yi) as f32 / 255.0;
+    let bb = perm(perm(xi + 1) as i32 + yi + 1) as f32 / 255.0;
+
+    let x1 = lerp(aa, ba, u);
+    let x2 = lerp(ab, bb, u);
+
+    lerp(x1, x2, v)
+}
+
+/// 3D Value noise.
+///
+/// Random values at grid points, smoothly interpolated.
+/// Returns a value in [0, 1].
+pub fn value3(x: f32, y: f32, z: f32) -> f32 {
+    let xi = x.floor() as i32;
+    let yi = y.floor() as i32;
+    let zi = z.floor() as i32;
+
+    let xf = x - x.floor();
+    let yf = y - y.floor();
+    let zf = z - z.floor();
+
+    let u = fade(xf);
+    let v = fade(yf);
+    let w = fade(zf);
+
+    let aaa = perm(perm(perm(xi) as i32 + yi) as i32 + zi) as f32 / 255.0;
+    let aba = perm(perm(perm(xi) as i32 + yi + 1) as i32 + zi) as f32 / 255.0;
+    let aab = perm(perm(perm(xi) as i32 + yi) as i32 + zi + 1) as f32 / 255.0;
+    let abb = perm(perm(perm(xi) as i32 + yi + 1) as i32 + zi + 1) as f32 / 255.0;
+    let baa = perm(perm(perm(xi + 1) as i32 + yi) as i32 + zi) as f32 / 255.0;
+    let bba = perm(perm(perm(xi + 1) as i32 + yi + 1) as i32 + zi) as f32 / 255.0;
+    let bab = perm(perm(perm(xi + 1) as i32 + yi) as i32 + zi + 1) as f32 / 255.0;
+    let bbb = perm(perm(perm(xi + 1) as i32 + yi + 1) as i32 + zi + 1) as f32 / 255.0;
+
+    let x1 = lerp(aaa, baa, u);
+    let x2 = lerp(aba, bba, u);
+    let y1 = lerp(x1, x2, v);
+
+    let x1 = lerp(aab, bab, u);
+    let x2 = lerp(abb, bbb, u);
+    let y2 = lerp(x1, x2, v);
+
+    lerp(y1, y2, w)
+}
+
+/// 2D Value noise with Vec2 input.
+pub fn value2v(p: Vec2) -> f32 {
+    value2(p.x, p.y)
+}
+
+/// 3D Value noise with Vec3 input.
+pub fn value3v(p: Vec3) -> f32 {
+    value3(p.x, p.y, p.z)
+}
+
+/// Convenience function for 1D fBm with Value noise.
+pub fn fbm_value1(x: f32, octaves: u32) -> f32 {
+    fbm1(value1, x, octaves, 2.0, 0.5)
+}
+
+/// Convenience function for 2D fBm with Value noise.
+pub fn fbm_value2(x: f32, y: f32, octaves: u32) -> f32 {
+    fbm2(value2, x, y, octaves, 2.0, 0.5)
+}
+
+/// Convenience function for 3D fBm with Value noise.
+pub fn fbm_value3(x: f32, y: f32, z: f32, octaves: u32) -> f32 {
+    fbm3(value3, x, y, z, octaves, 2.0, 0.5)
+}
+
+// =============================================================================
+// Worley (Cellular) Noise
+// =============================================================================
+// Distance to randomly placed feature points. Creates cell-like patterns.
+
+/// 2D Worley (cellular) noise.
+///
+/// Returns the distance to the nearest feature point, normalized to [0, 1].
+/// Creates organic, cell-like patterns useful for textures, caustics, etc.
+pub fn worley2(x: f32, y: f32) -> f32 {
+    let xi = x.floor() as i32;
+    let yi = y.floor() as i32;
+
+    let mut min_dist = f32::MAX;
+
+    // Check 3x3 neighborhood of cells
+    for dy in -1..=1 {
+        for dx in -1..=1 {
+            let cx = xi + dx;
+            let cy = yi + dy;
+
+            // Deterministic random point within this cell
+            let h = perm(perm(cx) as i32 + cy);
+            let px = cx as f32 + (h as f32 / 255.0);
+            let h2 = perm(h as i32 + 1);
+            let py = cy as f32 + (h2 as f32 / 255.0);
+
+            let dist = ((x - px).powi(2) + (y - py).powi(2)).sqrt();
+            min_dist = min_dist.min(dist);
+        }
+    }
+
+    // Normalize: max possible distance in a cell is sqrt(2) ≈ 1.414
+    (min_dist / 1.5).clamp(0.0, 1.0)
+}
+
+/// 3D Worley (cellular) noise.
+///
+/// Returns the distance to the nearest feature point, normalized to [0, 1].
+pub fn worley3(x: f32, y: f32, z: f32) -> f32 {
+    let xi = x.floor() as i32;
+    let yi = y.floor() as i32;
+    let zi = z.floor() as i32;
+
+    let mut min_dist = f32::MAX;
+
+    // Check 3x3x3 neighborhood of cells
+    for dz in -1..=1 {
+        for dy in -1..=1 {
+            for dx in -1..=1 {
+                let cx = xi + dx;
+                let cy = yi + dy;
+                let cz = zi + dz;
+
+                // Deterministic random point within this cell
+                let h = perm(perm(perm(cx) as i32 + cy) as i32 + cz);
+                let px = cx as f32 + (h as f32 / 255.0);
+                let h2 = perm(h as i32 + 1);
+                let py = cy as f32 + (h2 as f32 / 255.0);
+                let h3 = perm(h2 as i32 + 1);
+                let pz = cz as f32 + (h3 as f32 / 255.0);
+
+                let dist = ((x - px).powi(2) + (y - py).powi(2) + (z - pz).powi(2)).sqrt();
+                min_dist = min_dist.min(dist);
+            }
+        }
+    }
+
+    // Normalize: max possible distance in a cell is sqrt(3) ≈ 1.732
+    (min_dist / 1.8).clamp(0.0, 1.0)
+}
+
+/// 2D Worley noise with Vec2 input.
+pub fn worley2v(p: Vec2) -> f32 {
+    worley2(p.x, p.y)
+}
+
+/// 3D Worley noise with Vec3 input.
+pub fn worley3v(p: Vec3) -> f32 {
+    worley3(p.x, p.y, p.z)
+}
+
+/// 2D Worley noise returning distance to second-nearest point.
+///
+/// Creates more complex cellular patterns with visible cell boundaries.
+pub fn worley2_f2(x: f32, y: f32) -> f32 {
+    let xi = x.floor() as i32;
+    let yi = y.floor() as i32;
+
+    let mut min_dist1 = f32::MAX;
+    let mut min_dist2 = f32::MAX;
+
+    for dy in -1..=1 {
+        for dx in -1..=1 {
+            let cx = xi + dx;
+            let cy = yi + dy;
+
+            let h = perm(perm(cx) as i32 + cy);
+            let px = cx as f32 + (h as f32 / 255.0);
+            let h2 = perm(h as i32 + 1);
+            let py = cy as f32 + (h2 as f32 / 255.0);
+
+            let dist = ((x - px).powi(2) + (y - py).powi(2)).sqrt();
+            if dist < min_dist1 {
+                min_dist2 = min_dist1;
+                min_dist1 = dist;
+            } else if dist < min_dist2 {
+                min_dist2 = dist;
+            }
+        }
+    }
+
+    (min_dist2 / 1.5).clamp(0.0, 1.0)
+}
+
+/// 2D Worley noise returning F2 - F1 (cell edges).
+///
+/// Highlights the boundaries between cells. Useful for cracked earth,
+/// giraffe patterns, etc.
+pub fn worley2_edge(x: f32, y: f32) -> f32 {
+    let xi = x.floor() as i32;
+    let yi = y.floor() as i32;
+
+    let mut min_dist1 = f32::MAX;
+    let mut min_dist2 = f32::MAX;
+
+    for dy in -1..=1 {
+        for dx in -1..=1 {
+            let cx = xi + dx;
+            let cy = yi + dy;
+
+            let h = perm(perm(cx) as i32 + cy);
+            let px = cx as f32 + (h as f32 / 255.0);
+            let h2 = perm(h as i32 + 1);
+            let py = cy as f32 + (h2 as f32 / 255.0);
+
+            let dist = ((x - px).powi(2) + (y - py).powi(2)).sqrt();
+            if dist < min_dist1 {
+                min_dist2 = min_dist1;
+                min_dist1 = dist;
+            } else if dist < min_dist2 {
+                min_dist2 = dist;
+            }
+        }
+    }
+
+    ((min_dist2 - min_dist1) * 2.0).clamp(0.0, 1.0)
+}
+
+// =============================================================================
+// Colored Noise (Spectral)
+// =============================================================================
+// These noise types are defined by their spectral properties.
+// They're typically used for audio and time-series, but can be applied spatially.
+
+/// 1D Pink noise approximation using octave stacking.
+///
+/// Pink noise has equal energy per octave (1/f spectrum).
+/// This uses the Voss algorithm: sum of multiple octaves of value noise.
+/// Returns a value in [0, 1].
+pub fn pink1(x: f32, octaves: u32) -> f32 {
+    let mut sum = 0.0;
+    let mut max = 0.0;
+
+    for i in 0..octaves {
+        let freq = 1.0 / (1 << i) as f32;
+        sum += value1(x * freq);
+        max += 1.0;
+    }
+
+    sum / max
+}
+
+/// 2D Pink noise approximation.
+///
+/// Layered value noise with 1/f amplitude scaling.
+pub fn pink2(x: f32, y: f32, octaves: u32) -> f32 {
+    let mut sum = 0.0;
+    let mut max = 0.0;
+
+    for i in 0..octaves {
+        let freq = 1.0 / (1 << i) as f32;
+        sum += value2(x * freq, y * freq);
+        max += 1.0;
+    }
+
+    sum / max
+}
+
+/// 1D Brown (Brownian/Red) noise.
+///
+/// Brown noise has a 1/f² spectrum - strong low-frequency bias.
+/// This is essentially very smooth interpolated noise.
+/// Returns a value in [0, 1].
+pub fn brown1(x: f32) -> f32 {
+    // Use very low frequency value noise with extra smoothing
+    let base = value1(x * 0.1);
+    let detail = value1(x * 0.2) * 0.5;
+    ((base + detail) / 1.5).clamp(0.0, 1.0)
+}
+
+/// 2D Brown noise.
+///
+/// Very smooth, low-frequency noise.
+pub fn brown2(x: f32, y: f32) -> f32 {
+    let base = value2(x * 0.1, y * 0.1);
+    let detail = value2(x * 0.2, y * 0.2) * 0.5;
+    ((base + detail) / 1.5).clamp(0.0, 1.0)
+}
+
+/// 1D Violet noise.
+///
+/// Violet noise has an f² spectrum - very high frequency.
+/// This is approximated as the difference between adjacent white noise samples.
+/// Returns a value in [0, 1].
+pub fn violet1(x: f32) -> f32 {
+    let xi = x.floor() as i32;
+    let h1 = perm(xi) as f32 / 255.0;
+    let h2 = perm(xi + 1) as f32 / 255.0;
+    // Differentiated: high values where there's rapid change
+    ((h2 - h1).abs() * 2.0).clamp(0.0, 1.0)
 }
 
 #[cfg(test)]
@@ -561,5 +956,182 @@ mod tests {
         assert!((0.0..=1.0).contains(&v1));
         assert!((0.0..=1.0).contains(&v2));
         assert!((0.0..=1.0).contains(&v3));
+    }
+
+    #[test]
+    fn test_perlin1_range() {
+        for i in 0..100 {
+            let x = i as f32 * 0.1;
+            let v = perlin1(x);
+            assert!(
+                (0.0..=1.0).contains(&v),
+                "perlin1({}) = {} out of range",
+                x,
+                v
+            );
+        }
+    }
+
+    #[test]
+    fn test_value_noise_range() {
+        // 1D
+        for i in 0..100 {
+            let x = i as f32 * 0.1;
+            let v = value1(x);
+            assert!(
+                (0.0..=1.0).contains(&v),
+                "value1({}) = {} out of range",
+                x,
+                v
+            );
+        }
+
+        // 2D
+        for i in 0..50 {
+            for j in 0..50 {
+                let x = i as f32 * 0.1;
+                let y = j as f32 * 0.1;
+                let v = value2(x, y);
+                assert!(
+                    (0.0..=1.0).contains(&v),
+                    "value2({}, {}) = {} out of range",
+                    x,
+                    y,
+                    v
+                );
+            }
+        }
+
+        // 3D
+        for i in 0..20 {
+            for j in 0..20 {
+                let x = i as f32 * 0.2;
+                let y = j as f32 * 0.2;
+                let v = value3(x, y, 0.5);
+                assert!((0.0..=1.0).contains(&v), "value3 out of range: {}", v);
+            }
+        }
+    }
+
+    #[test]
+    fn test_worley_noise_range() {
+        // 2D
+        for i in 0..50 {
+            for j in 0..50 {
+                let x = i as f32 * 0.1;
+                let y = j as f32 * 0.1;
+                let v = worley2(x, y);
+                assert!(
+                    (0.0..=1.0).contains(&v),
+                    "worley2({}, {}) = {} out of range",
+                    x,
+                    y,
+                    v
+                );
+            }
+        }
+
+        // 3D
+        for i in 0..20 {
+            for j in 0..20 {
+                let x = i as f32 * 0.2;
+                let y = j as f32 * 0.2;
+                let v = worley3(x, y, 0.5);
+                assert!((0.0..=1.0).contains(&v), "worley3 out of range: {}", v);
+            }
+        }
+
+        // F2 and edge
+        for i in 0..30 {
+            for j in 0..30 {
+                let x = i as f32 * 0.15;
+                let y = j as f32 * 0.15;
+                let v_f2 = worley2_f2(x, y);
+                let v_edge = worley2_edge(x, y);
+                assert!(
+                    (0.0..=1.0).contains(&v_f2),
+                    "worley2_f2 out of range: {}",
+                    v_f2
+                );
+                assert!(
+                    (0.0..=1.0).contains(&v_edge),
+                    "worley2_edge out of range: {}",
+                    v_edge
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_fbm1_range() {
+        for i in 0..100 {
+            let x = i as f32 * 0.1;
+            let v = fbm_perlin1(x, 4);
+            assert!(
+                (0.0..=1.0).contains(&v),
+                "fbm_perlin1({}) = {} out of range",
+                x,
+                v
+            );
+        }
+    }
+
+    #[test]
+    fn test_colored_noise_range() {
+        // Pink 1D
+        for i in 0..100 {
+            let x = i as f32 * 0.1;
+            let v = pink1(x, 8);
+            assert!(
+                (0.0..=1.0).contains(&v),
+                "pink1({}) = {} out of range",
+                x,
+                v
+            );
+        }
+
+        // Pink 2D
+        for i in 0..30 {
+            for j in 0..30 {
+                let x = i as f32 * 0.15;
+                let y = j as f32 * 0.15;
+                let v = pink2(x, y, 8);
+                assert!((0.0..=1.0).contains(&v), "pink2 out of range: {}", v);
+            }
+        }
+
+        // Brown 1D
+        for i in 0..100 {
+            let x = i as f32 * 0.1;
+            let v = brown1(x);
+            assert!(
+                (0.0..=1.0).contains(&v),
+                "brown1({}) = {} out of range",
+                x,
+                v
+            );
+        }
+
+        // Brown 2D
+        for i in 0..30 {
+            for j in 0..30 {
+                let x = i as f32 * 0.15;
+                let y = j as f32 * 0.15;
+                let v = brown2(x, y);
+                assert!((0.0..=1.0).contains(&v), "brown2 out of range: {}", v);
+            }
+        }
+
+        // Violet 1D
+        for i in 0..100 {
+            let x = i as f32 * 0.1;
+            let v = violet1(x);
+            assert!(
+                (0.0..=1.0).contains(&v),
+                "violet1({}) = {} out of range",
+                x,
+                v
+            );
+        }
     }
 }

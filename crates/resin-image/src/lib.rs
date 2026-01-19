@@ -3137,6 +3137,254 @@ fn calculate_density(pattern: &[bool], center_idx: usize, size: u32, include_sel
     density
 }
 
+/// Generate 1D blue noise as a Vec<f32>.
+///
+/// Blue noise in 1D produces well-distributed random values without clumping.
+/// Useful for audio dithering and 1D sampling patterns.
+///
+/// # Arguments
+///
+/// * `size` - Number of samples (clamped to 4..=4096)
+///
+/// # Returns
+///
+/// Vector of f32 values in [0, 1] with blue noise distribution.
+pub fn generate_blue_noise_1d(size: u32) -> Vec<f32> {
+    let size = size.max(4).min(4096) as usize;
+
+    // Initialize with random binary pattern
+    let mut pattern: Vec<bool> = (0..size)
+        .map(|i| (i * 7919 + i * i * 104729) % size < size / 2)
+        .collect();
+
+    // Void-and-cluster iterations
+    let iterations = 10;
+    for _ in 0..iterations {
+        // Find tightest cluster
+        let cluster_idx = find_tightest_cluster_1d(&pattern);
+        pattern[cluster_idx] = false;
+
+        // Find largest void
+        let void_idx = find_largest_void_1d(&pattern);
+        pattern[void_idx] = true;
+    }
+
+    // Convert to ranking
+    let mut ranking = vec![0usize; size];
+    let mut temp_pattern = pattern.clone();
+
+    for i in 0..size / 2 {
+        let idx = find_tightest_cluster_1d(&temp_pattern);
+        temp_pattern[idx] = false;
+        ranking[idx] = size / 2 - 1 - i;
+    }
+
+    temp_pattern = pattern;
+    for i in 0..size - size / 2 {
+        let idx = find_largest_void_1d(&temp_pattern);
+        temp_pattern[idx] = true;
+        ranking[idx] = size / 2 + i;
+    }
+
+    ranking.iter().map(|&r| r as f32 / size as f32).collect()
+}
+
+fn find_tightest_cluster_1d(pattern: &[bool]) -> usize {
+    let mut max_density = f32::NEG_INFINITY;
+    let mut max_idx = 0;
+
+    for (i, &is_set) in pattern.iter().enumerate() {
+        if is_set {
+            let density = calculate_density_1d(pattern, i, true);
+            if density > max_density {
+                max_density = density;
+                max_idx = i;
+            }
+        }
+    }
+    if max_idx == 0 && max_density == f32::NEG_INFINITY {
+        // Fallback: find any set bit
+        pattern.iter().position(|&b| b).unwrap_or(0)
+    } else {
+        max_idx
+    }
+}
+
+fn find_largest_void_1d(pattern: &[bool]) -> usize {
+    let mut min_density = f32::INFINITY;
+    let mut min_idx = 0;
+
+    for (i, &is_set) in pattern.iter().enumerate() {
+        if !is_set {
+            let density = calculate_density_1d(pattern, i, false);
+            if density < min_density {
+                min_density = density;
+                min_idx = i;
+            }
+        }
+    }
+    if min_idx == 0 && min_density == f32::INFINITY {
+        // Fallback: find any unset bit
+        pattern.iter().position(|&b| !b).unwrap_or(0)
+    } else {
+        min_idx
+    }
+}
+
+fn calculate_density_1d(pattern: &[bool], center: usize, include_self: bool) -> f32 {
+    let size = pattern.len() as i32;
+    let sigma = 1.5f32;
+    let sigma_sq_2 = 2.0 * sigma * sigma;
+    let mut density = 0.0f32;
+
+    let radius = 5i32;
+    for d in -radius..=radius {
+        if !include_self && d == 0 {
+            continue;
+        }
+        // Toroidal wrapping
+        let idx = ((center as i32 + d) % size + size) % size;
+        if pattern[idx as usize] {
+            let dist_sq = (d * d) as f32;
+            density += (-dist_sq / sigma_sq_2).exp();
+        }
+    }
+    density
+}
+
+/// Generate 3D blue noise.
+///
+/// **WARNING**: This is computationally expensive! O(n³) complexity.
+/// For a 32x32x32 volume, this processes 32,768 voxels.
+/// Consider using pre-computed blue noise textures for production.
+///
+/// # Arguments
+///
+/// * `size` - Size of each dimension (clamped to 4..=32 due to cost)
+///
+/// # Returns
+///
+/// 3D array of f32 values in [0, 1] as a flattened Vec (x + y*size + z*size*size).
+pub fn generate_blue_noise_3d(size: u32) -> Vec<f32> {
+    // Clamp to reasonable sizes - 3D is very expensive
+    let size = size.max(4).min(32) as usize;
+    let total = size * size * size;
+
+    // Initialize with random binary pattern
+    let mut pattern: Vec<bool> = (0..total)
+        .map(|i| (i * 7919 + i * i * 104729) % total < total / 2)
+        .collect();
+
+    // Fewer iterations for 3D due to cost
+    let iterations = 5;
+    for _ in 0..iterations {
+        let cluster_idx = find_tightest_cluster_3d(&pattern, size);
+        pattern[cluster_idx] = false;
+
+        let void_idx = find_largest_void_3d(&pattern, size);
+        pattern[void_idx] = true;
+    }
+
+    // Convert to ranking
+    let mut ranking = vec![0usize; total];
+    let mut temp_pattern = pattern.clone();
+
+    for i in 0..total / 2 {
+        let idx = find_tightest_cluster_3d(&temp_pattern, size);
+        temp_pattern[idx] = false;
+        ranking[idx] = total / 2 - 1 - i;
+    }
+
+    temp_pattern = pattern;
+    for i in 0..total - total / 2 {
+        let idx = find_largest_void_3d(&temp_pattern, size);
+        temp_pattern[idx] = true;
+        ranking[idx] = total / 2 + i;
+    }
+
+    ranking.iter().map(|&r| r as f32 / total as f32).collect()
+}
+
+fn find_tightest_cluster_3d(pattern: &[bool], size: usize) -> usize {
+    let mut max_density = f32::NEG_INFINITY;
+    let mut max_idx = 0;
+
+    for (i, &is_set) in pattern.iter().enumerate() {
+        if is_set {
+            let density = calculate_density_3d(pattern, i, size, true);
+            if density > max_density {
+                max_density = density;
+                max_idx = i;
+            }
+        }
+    }
+    if max_idx == 0 && max_density == f32::NEG_INFINITY {
+        pattern.iter().position(|&b| b).unwrap_or(0)
+    } else {
+        max_idx
+    }
+}
+
+fn find_largest_void_3d(pattern: &[bool], size: usize) -> usize {
+    let mut min_density = f32::INFINITY;
+    let mut min_idx = 0;
+
+    for (i, &is_set) in pattern.iter().enumerate() {
+        if !is_set {
+            let density = calculate_density_3d(pattern, i, size, false);
+            if density < min_density {
+                min_density = density;
+                min_idx = i;
+            }
+        }
+    }
+    if min_idx == 0 && min_density == f32::INFINITY {
+        pattern.iter().position(|&b| !b).unwrap_or(0)
+    } else {
+        min_idx
+    }
+}
+
+fn calculate_density_3d(
+    pattern: &[bool],
+    center_idx: usize,
+    size: usize,
+    include_self: bool,
+) -> f32 {
+    let size_i = size as i32;
+    let cx = (center_idx % size) as i32;
+    let cy = ((center_idx / size) % size) as i32;
+    let cz = (center_idx / (size * size)) as i32;
+
+    let sigma = 1.5f32;
+    let sigma_sq_2 = 2.0 * sigma * sigma;
+    let mut density = 0.0f32;
+
+    // Smaller radius for 3D to keep it tractable
+    let radius = 2i32;
+    for dz in -radius..=radius {
+        for dy in -radius..=radius {
+            for dx in -radius..=radius {
+                if !include_self && dx == 0 && dy == 0 && dz == 0 {
+                    continue;
+                }
+
+                // Toroidal wrapping
+                let nx = ((cx + dx) % size_i + size_i) % size_i;
+                let ny = ((cy + dy) % size_i + size_i) % size_i;
+                let nz = ((cz + dz) % size_i + size_i) % size_i;
+                let idx = (nz * size_i * size_i + ny * size_i + nx) as usize;
+
+                if pattern[idx] {
+                    let dist_sq = (dx * dx + dy * dy + dz * dz) as f32;
+                    density += (-dist_sq / sigma_sq_2).exp();
+                }
+            }
+        }
+    }
+    density
+}
+
 // ============================================================================
 // Compositing
 // ============================================================================
@@ -8799,6 +9047,47 @@ mod tests {
                 assert!(v >= 0.0 && v <= 1.0, "Blue noise value out of range: {}", v);
             }
         }
+    }
+
+    #[test]
+    fn test_generate_blue_noise_1d() {
+        let noise = generate_blue_noise_1d(64);
+        assert_eq!(noise.len(), 64);
+
+        // Check range
+        for &v in &noise {
+            assert!(
+                v >= 0.0 && v <= 1.0,
+                "Blue noise 1D value out of range: {}",
+                v
+            );
+        }
+
+        // Check variety
+        let min = noise.iter().cloned().fold(f32::INFINITY, f32::min);
+        let max = noise.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        assert!(max - min > 0.5, "Blue noise 1D should have good range");
+    }
+
+    #[test]
+    fn test_generate_blue_noise_3d() {
+        // Small size due to cost
+        let noise = generate_blue_noise_3d(8);
+        assert_eq!(noise.len(), 8 * 8 * 8);
+
+        // Check range
+        for &v in &noise {
+            assert!(
+                v >= 0.0 && v <= 1.0,
+                "Blue noise 3D value out of range: {}",
+                v
+            );
+        }
+
+        // Check variety
+        let min = noise.iter().cloned().fold(f32::INFINITY, f32::min);
+        let max = noise.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        assert!(max - min > 0.3, "Blue noise 3D should have good range");
     }
 
     #[test]
