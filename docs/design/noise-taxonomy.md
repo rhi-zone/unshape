@@ -22,12 +22,12 @@ No single noise type serves all needs, so we provide a comprehensive toolkit.
 | **Simplex** | `Simplex1D` | `Simplex2D` | `Simplex3D` | Smooth, less artifacts | Same as Perlin, better quality |
 | **Value** | `Value1D` | `Value2D` | `Value3D` | Grid-aligned smooth | Fast approximation of Perlin |
 | **Worley** | `Worley1D` | `Worley2D` | `Worley3D` | Cellular/distance | Event timing, cells, caustics |
-| **Blue** | generate | `generate_blue_noise` | generate* | Well-distributed | Optimal dithering, sampling |
+| **Blue** | `generate_blue_noise_1d` | `generate_blue_noise` | `generate_blue_noise_3d`* | Well-distributed | Optimal dithering, sampling |
 | **Pink** | `PinkNoise1D` | `PinkNoise2D` | - | Natural 1/f | Audio, natural phenomena |
 | **Brown** | `BrownNoise1D` | `BrownNoise2D` | - | Random walk | Deep rumble, terrain, drift |
 | **Violet** | `VioletNoise1D` | - | - | High-frequency | Audio enhancement |
 
-*Blue noise 3D is expensive (O(n³)) - use with caution.
+*Blue noise 3D is expensive (O(n³), clamped to max 32³) - use with caution or pre-generate.
 
 ## Spectral "Colors"
 
