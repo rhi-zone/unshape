@@ -22,7 +22,7 @@ No single noise type serves all needs, so we provide a comprehensive toolkit.
 | **Simplex** | `Simplex1D` | `Simplex2D` | `Simplex3D` | Smooth, less artifacts | Same as Perlin, better quality |
 | **Value** | `Value1D` | `Value2D` | `Value3D` | Grid-aligned smooth | Fast approximation of Perlin |
 | **Worley** | `Worley1D` | `Worley2D` | `Worley3D` | Cellular/distance | Event timing, cells, caustics |
-| **Blue** | `generate_blue_noise_1d` | `generate_blue_noise` | `generate_blue_noise_3d`* | Well-distributed | Optimal dithering, sampling |
+| **Blue** | `BlueNoise1D` | `BlueNoise2D` | `BlueNoise3D`* | Well-distributed | Optimal dithering, sampling |
 | **Pink** | `PinkNoise1D` | `PinkNoise2D` | - | Natural 1/f | Audio, natural phenomena |
 | **Brown** | `BrownNoise1D` | `BrownNoise2D` | - | Random walk | Deep rumble, terrain, drift |
 | **Violet** | `VioletNoise1D` | - | - | High-frequency | Audio enhancement |
@@ -97,9 +97,8 @@ Power
 
 | Missing | Reason |
 |---------|--------|
-| Blue 3D | O(n³) generation - possible but expensive (we have it with warning) |
 | Pink/Brown 3D | Use 2D + time dimension instead |
-| Violet 2D/3D | High-frequency in 2D/3D is just noise |
+| Violet 2D/3D | High-frequency in 2D/3D is just visual noise |
 
 ## Dimension Semantics
 
