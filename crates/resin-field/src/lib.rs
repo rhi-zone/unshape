@@ -476,6 +476,127 @@ impl Field<Vec3, f32> for Simplex3D {
     }
 }
 
+/// White noise field (1D).
+///
+/// Returns uniformly distributed random values in [0, 1] with no spatial correlation.
+/// Useful for scanline-based dithering effects.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct WhiteNoise1D {
+    /// Random seed.
+    pub seed: u32,
+}
+
+impl WhiteNoise1D {
+    /// Create a new white noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: u32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<f32, f32> for WhiteNoise1D {
+    fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
+        hash_to_float_1d(input, self.seed)
+    }
+}
+
+/// White noise field (2D).
+///
+/// Returns uniformly distributed random values in [0, 1] with no spatial correlation.
+/// Simple dithering threshold - produces grainy results compared to blue noise.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct WhiteNoise2D {
+    /// Random seed.
+    pub seed: u32,
+}
+
+impl WhiteNoise2D {
+    /// Create a new white noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: u32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<Vec2, f32> for WhiteNoise2D {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        hash_to_float_2d(input, self.seed)
+    }
+}
+
+/// White noise field (3D).
+///
+/// Returns uniformly distributed random values in [0, 1] with no spatial correlation.
+/// Useful for temporally stable dithering in animations (z = time).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct WhiteNoise3D {
+    /// Random seed.
+    pub seed: u32,
+}
+
+impl WhiteNoise3D {
+    /// Create a new white noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: u32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<Vec3, f32> for WhiteNoise3D {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        hash_to_float_3d(input, self.seed)
+    }
+}
+
+// Hash functions for white noise - based on xxHash-style mixing
+fn hash_to_float_1d(x: f32, seed: u32) -> f32 {
+    let mut h = seed;
+    h ^= x.to_bits();
+    h = h.wrapping_mul(0x85ebca6b);
+    h ^= h >> 13;
+    h = h.wrapping_mul(0xc2b2ae35);
+    h ^= h >> 16;
+    (h & 0x00ffffff) as f32 / 0x01000000 as f32
+}
+
+fn hash_to_float_2d(p: Vec2, seed: u32) -> f32 {
+    let mut h = seed;
+    h ^= p.x.to_bits();
+    h = h.wrapping_mul(0x85ebca6b);
+    h ^= p.y.to_bits();
+    h = h.wrapping_mul(0xc2b2ae35);
+    h ^= h >> 13;
+    h = h.wrapping_mul(0x85ebca6b);
+    h ^= h >> 16;
+    (h & 0x00ffffff) as f32 / 0x01000000 as f32
+}
+
+fn hash_to_float_3d(p: Vec3, seed: u32) -> f32 {
+    let mut h = seed;
+    h ^= p.x.to_bits();
+    h = h.wrapping_mul(0x85ebca6b);
+    h ^= p.y.to_bits();
+    h = h.wrapping_mul(0xc2b2ae35);
+    h ^= p.z.to_bits();
+    h = h.wrapping_mul(0x9e3779b9);
+    h ^= h >> 13;
+    h = h.wrapping_mul(0x85ebca6b);
+    h ^= h >> 16;
+    (h & 0x00ffffff) as f32 / 0x01000000 as f32
+}
+
 /// Fractal Brownian Motion field (2D).
 #[derive(Debug, Clone, Copy)]
 pub struct Fbm2D<F> {
@@ -3687,6 +3808,75 @@ mod tests {
 
         assert!((0.0..=1.0).contains(&v1));
         assert!((0.0..=1.0).contains(&v2));
+    }
+
+    #[test]
+    fn test_white_noise_1d() {
+        let field = WhiteNoise1D::with_seed(42);
+        let ctx = EvalContext::new();
+
+        // Values should be in [0, 1]
+        for i in 0..100 {
+            let v = field.sample(i as f32 * 0.1, &ctx);
+            assert!((0.0..=1.0).contains(&v), "Value {} out of range", v);
+        }
+
+        // Same input = same output (deterministic)
+        let v1 = field.sample(0.5, &ctx);
+        let v2 = field.sample(0.5, &ctx);
+        assert_eq!(v1, v2);
+
+        // Different seeds = different output
+        let field2 = WhiteNoise1D::with_seed(123);
+        let v3 = field2.sample(0.5, &ctx);
+        assert_ne!(v1, v3);
+    }
+
+    #[test]
+    fn test_white_noise_2d() {
+        let field = WhiteNoise2D::with_seed(42);
+        let ctx = EvalContext::new();
+
+        // Values should be in [0, 1]
+        for y in 0..10 {
+            for x in 0..10 {
+                let v = field.sample(Vec2::new(x as f32 * 0.1, y as f32 * 0.1), &ctx);
+                assert!((0.0..=1.0).contains(&v), "Value {} out of range", v);
+            }
+        }
+
+        // Deterministic
+        let v1 = field.sample(Vec2::new(0.5, 0.5), &ctx);
+        let v2 = field.sample(Vec2::new(0.5, 0.5), &ctx);
+        assert_eq!(v1, v2);
+    }
+
+    #[test]
+    fn test_white_noise_3d() {
+        let field = WhiteNoise3D::with_seed(42);
+        let ctx = EvalContext::new();
+
+        // Values should be in [0, 1]
+        for z in 0..5 {
+            for y in 0..5 {
+                for x in 0..5 {
+                    let v = field.sample(
+                        Vec3::new(x as f32 * 0.1, y as f32 * 0.1, z as f32 * 0.1),
+                        &ctx,
+                    );
+                    assert!((0.0..=1.0).contains(&v), "Value {} out of range", v);
+                }
+            }
+        }
+
+        // Useful for temporal dithering: same (x,y,t) = same value
+        let v1 = field.sample(Vec3::new(0.5, 0.5, 0.0), &ctx);
+        let v2 = field.sample(Vec3::new(0.5, 0.5, 0.0), &ctx);
+        assert_eq!(v1, v2);
+
+        // Different time = different value (for animation)
+        let v3 = field.sample(Vec3::new(0.5, 0.5, 1.0), &ctx);
+        assert_ne!(v1, v3);
     }
 
     #[test]
