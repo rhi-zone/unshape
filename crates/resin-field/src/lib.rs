@@ -736,6 +736,35 @@ impl Field<Vec3, f32> for Value3D {
     }
 }
 
+/// Worley noise field (1D).
+///
+/// Distance to nearest random point on a line. Creates sawtooth patterns
+/// with valleys at random intervals. Useful for random event timing,
+/// tension/release in audio, non-uniform spacing.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Worley1D {
+    /// Random seed.
+    pub seed: i32,
+}
+
+impl Worley1D {
+    /// Create a new Worley noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<f32, f32> for Worley1D {
+    fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
+        rhizome_resin_noise::worley1(input + self.seed as f32 * 17.0)
+    }
+}
+
 /// Worley (cellular) noise field (2D).
 ///
 /// Distance to nearest feature point. Creates organic cell patterns.

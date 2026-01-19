@@ -539,6 +539,31 @@ pub fn fbm_value3(x: f32, y: f32, z: f32, octaves: u32) -> f32 {
 // =============================================================================
 // Distance to randomly placed feature points. Creates cell-like patterns.
 
+/// 1D Worley noise.
+///
+/// Distance to nearest random point on a line.
+/// Creates sawtooth-like patterns with valleys at random intervals.
+/// Useful for: random event timing, tension/release in audio, non-uniform spacing.
+/// Returns a value in [0, 1].
+pub fn worley1(x: f32) -> f32 {
+    let xi = x.floor() as i32;
+
+    let mut min_dist = f32::MAX;
+
+    // Check 3 neighboring cells
+    for d in -1..=1 {
+        let cx = xi + d;
+        // Deterministic random point within this cell
+        let h = perm(cx);
+        let px = cx as f32 + (h as f32 / 255.0);
+        let dist = (x - px).abs();
+        min_dist = min_dist.min(dist);
+    }
+
+    // Normalize: max distance in a cell is ~1.0
+    min_dist.clamp(0.0, 1.0)
+}
+
 /// 2D Worley (cellular) noise.
 ///
 /// Returns the distance to the nearest feature point, normalized to [0, 1].
@@ -1015,6 +1040,18 @@ mod tests {
 
     #[test]
     fn test_worley_noise_range() {
+        // 1D
+        for i in 0..100 {
+            let x = i as f32 * 0.1;
+            let v = worley1(x);
+            assert!(
+                (0.0..=1.0).contains(&v),
+                "worley1({}) = {} out of range",
+                x,
+                v
+            );
+        }
+
         // 2D
         for i in 0..50 {
             for j in 0..50 {
