@@ -2253,6 +2253,9 @@ pub enum DitherMethod {
     /// Each pixel absorbs weighted errors from neighbors across multiple phases.
     /// Excellent for preserving edges and detail.
     Werness,
+    /// Riemersma dithering - error diffusion along a Hilbert curve.
+    /// Produces organic results with fewer directional artifacts than scanline methods.
+    Riemersma,
 }
 
 /// Configuration for dithering operations.
@@ -2459,6 +2462,7 @@ pub fn dither(
             }
         }
         DitherMethod::Werness => dither_werness(image, config),
+        DitherMethod::Riemersma => dither_riemersma(image, config),
     }
 }
 
@@ -2914,6 +2918,127 @@ fn dither_werness(image: &ImageField, config: &DitherConfig) -> ImageField {
 #[inline]
 fn fract(x: f32) -> f32 {
     x - x.floor()
+}
+
+/// Riemersma dithering - error diffusion along a Hilbert curve.
+///
+/// Unlike standard error diffusion which processes pixels in scanline order,
+/// Riemersma follows a space-filling Hilbert curve. This produces more organic
+/// results with fewer directional artifacts.
+///
+/// The algorithm maintains a history of recent quantization errors with
+/// exponentially decaying weights.
+fn dither_riemersma(image: &ImageField, config: &DitherConfig) -> ImageField {
+    let (width, height) = image.dimensions();
+    let levels_f = config.levels.clamp(2, 256) as f32;
+    let factor = levels_f - 1.0;
+
+    // Copy image data
+    let mut data: Vec<[f32; 4]> = Vec::with_capacity((width * height) as usize);
+    for y in 0..height {
+        for x in 0..width {
+            data.push(image.get_pixel(x, y));
+        }
+    }
+
+    // Riemersma parameters (from ditherpunk article)
+    let history_size = 16usize;
+    let ratio = 1.0f32 / 8.0; // Decay ratio
+
+    // Precompute weights with exponential falloff
+    let weights: Vec<f32> = (0..history_size)
+        .map(|i| ratio.powf(i as f32 / (history_size - 1) as f32))
+        .collect();
+    let weight_sum: f32 = weights.iter().sum();
+
+    // Error history buffer (ring buffer)
+    let mut error_history_r: Vec<f32> = vec![0.0; history_size];
+    let mut error_history_g: Vec<f32> = vec![0.0; history_size];
+    let mut error_history_b: Vec<f32> = vec![0.0; history_size];
+    let mut history_idx = 0usize;
+
+    // Generate Hilbert curve path
+    let curve_order = (width.max(height) as f32).log2().ceil() as u32;
+    let curve_size = 1u32 << curve_order;
+
+    // Process pixels along Hilbert curve
+    let total_points = curve_size * curve_size;
+    for d in 0..total_points {
+        let (hx, hy) = hilbert_d2xy(curve_order, d);
+
+        // Skip if outside image bounds
+        if hx >= width || hy >= height {
+            continue;
+        }
+
+        let idx = (hy * width + hx) as usize;
+        let pixel = data[idx];
+
+        // Calculate weighted error sum from history
+        let mut error_sum_r = 0.0f32;
+        let mut error_sum_g = 0.0f32;
+        let mut error_sum_b = 0.0f32;
+
+        for i in 0..history_size {
+            let hist_i = (history_idx + history_size - 1 - i) % history_size;
+            error_sum_r += error_history_r[hist_i] * weights[i];
+            error_sum_g += error_history_g[hist_i] * weights[i];
+            error_sum_b += error_history_b[hist_i] * weights[i];
+        }
+
+        // Apply error and quantize
+        let adjusted_r = pixel[0] + error_sum_r / weight_sum;
+        let adjusted_g = pixel[1] + error_sum_g / weight_sum;
+        let adjusted_b = pixel[2] + error_sum_b / weight_sum;
+
+        let quantized_r = ((adjusted_r * factor).round() / factor).clamp(0.0, 1.0);
+        let quantized_g = ((adjusted_g * factor).round() / factor).clamp(0.0, 1.0);
+        let quantized_b = ((adjusted_b * factor).round() / factor).clamp(0.0, 1.0);
+
+        // Store quantized result
+        data[idx] = [quantized_r, quantized_g, quantized_b, pixel[3]];
+
+        // Calculate and store new errors in history
+        error_history_r[history_idx] = pixel[0] - quantized_r;
+        error_history_g[history_idx] = pixel[1] - quantized_g;
+        error_history_b[history_idx] = pixel[2] - quantized_b;
+        history_idx = (history_idx + 1) % history_size;
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Convert Hilbert curve index to (x, y) coordinates.
+///
+/// Based on the algorithm from "Hacker's Delight" by Henry S. Warren Jr.
+fn hilbert_d2xy(order: u32, d: u32) -> (u32, u32) {
+    let mut x = 0u32;
+    let mut y = 0u32;
+    let mut d = d;
+    let mut s = 1u32;
+
+    while s < (1 << order) {
+        let rx = (d / 2) & 1;
+        let ry = (d ^ rx) & 1;
+
+        // Rotate
+        if ry == 0 {
+            if rx == 1 {
+                x = s - 1 - x;
+                y = s - 1 - y;
+            }
+            std::mem::swap(&mut x, &mut y);
+        }
+
+        x += s * rx;
+        y += s * ry;
+        d /= 4;
+        s *= 2;
+    }
+
+    (x, y)
 }
 
 /// Generates a blue noise texture using the void-and-cluster algorithm.
@@ -8795,6 +8920,84 @@ mod tests {
                 assert!(
                     (result.get_pixel(x, y)[3] - 0.7).abs() < 0.001,
                     "Alpha should be preserved"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_dither_riemersma() {
+        // Create a gradient image
+        let data: Vec<_> = (0..64)
+            .map(|i| {
+                let v = i as f32 / 63.0;
+                [v, v, v, 1.0]
+            })
+            .collect();
+        let img = ImageField::from_raw(data, 8, 8);
+
+        let result = dither(
+            &img,
+            &DitherConfig::new(2).with_method(DitherMethod::Riemersma),
+            None,
+        );
+
+        // All pixels should be quantized to 0 or 1
+        for y in 0..8 {
+            for x in 0..8 {
+                let v = result.get_pixel(x, y)[0];
+                assert!(
+                    v == 0.0 || v == 1.0,
+                    "Riemersma dither should produce binary output, got {} at ({}, {})",
+                    v,
+                    x,
+                    y
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_dither_riemersma_preserves_alpha() {
+        let data = vec![[0.5, 0.5, 0.5, 0.7]; 16];
+        let img = ImageField::from_raw(data, 4, 4);
+
+        let result = dither(
+            &img,
+            &DitherConfig::new(2).with_method(DitherMethod::Riemersma),
+            None,
+        );
+
+        for y in 0..4 {
+            for x in 0..4 {
+                assert!(
+                    (result.get_pixel(x, y)[3] - 0.7).abs() < 0.001,
+                    "Alpha should be preserved"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_hilbert_curve_coverage() {
+        // Verify Hilbert curve covers all points in a 4x4 grid
+        let order = 2u32; // 2^2 = 4x4
+        let size = 1u32 << order;
+        let mut visited = vec![vec![false; size as usize]; size as usize];
+
+        for d in 0..(size * size) {
+            let (x, y) = hilbert_d2xy(order, d);
+            assert!(x < size && y < size, "Hilbert point out of bounds");
+            visited[y as usize][x as usize] = true;
+        }
+
+        // All points should be visited
+        for y in 0..size as usize {
+            for x in 0..size as usize {
+                assert!(
+                    visited[y][x],
+                    "Point ({}, {}) not visited by Hilbert curve",
+                    x, y
                 );
             }
         }

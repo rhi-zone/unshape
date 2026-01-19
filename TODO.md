@@ -168,6 +168,8 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
   - [x] Void-and-cluster - generates blue noise patterns (generate_blue_noise)
   - [x] Werness dithering - hybrid noise-threshold + error-absorption, preserves edges (Obra Dinn style)
     - Prior art: https://github.com/akavel/WernessDithering, https://dukope.com/devlogs/obra-dinn/tig-18/
+  - [x] Riemersma dithering - error diffusion along Hilbert curve, eliminates directional artifacts
+    - Prior art: https://surma.dev/things/ditherpunk/
   - [ ] Temporal dithering - for animation/video (interleaved patterns across frames)
 
 ### Audio
