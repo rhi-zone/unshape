@@ -2309,9 +2309,6 @@ pub struct BlueNoise2D {
     pub texture: ImageField,
 }
 
-/// Alias for backward compatibility.
-pub type BlueNoiseField = BlueNoise2D;
-
 impl BlueNoise2D {
     /// Creates a blue noise field from an existing texture.
     pub fn from_texture(texture: ImageField) -> Self {
@@ -3150,12 +3147,6 @@ pub fn generate_blue_noise_2d(size: u32) -> ImageField {
         .collect();
 
     ImageField::from_raw(data, size, size)
-}
-
-/// Alias for backward compatibility.
-#[inline]
-pub fn generate_blue_noise(size: u32) -> ImageField {
-    generate_blue_noise_2d(size)
 }
 
 /// Find the index of the tightest cluster (highest local density of 1s).
@@ -9090,8 +9081,8 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_blue_noise() {
-        let noise = generate_blue_noise(16);
+    fn test_generate_blue_noise_2d() {
+        let noise = generate_blue_noise_2d(16);
         assert_eq!(noise.dimensions(), (16, 16));
 
         // Check that values are in valid range
@@ -9123,8 +9114,8 @@ mod tests {
 
     #[test]
     fn test_blue_noise_field() {
-        let noise = generate_blue_noise(16);
-        let field = BlueNoiseField::from_texture(noise);
+        let noise = generate_blue_noise_2d(16);
+        let field = BlueNoise2D::from_texture(noise);
         let ctx = EvalContext::new();
 
         // Check that it returns values in [0, 1]
@@ -9182,10 +9173,10 @@ mod tests {
     fn test_threshold_dither_with_blue_noise() {
         let data = vec![[0.5, 0.5, 0.5, 1.0]; 64];
         let img = ImageField::from_raw(data, 8, 8);
-        let noise = generate_blue_noise(8);
+        let noise = generate_blue_noise_2d(8);
         let ctx = EvalContext::new();
 
-        let dithered = QuantizeWithThreshold::new(img, BlueNoiseField::from_texture(noise), 2);
+        let dithered = QuantizeWithThreshold::new(img, BlueNoise2D::from_texture(noise), 2);
 
         // Check for mix of black and white
         let mut has_black = false;
