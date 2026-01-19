@@ -166,6 +166,8 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
   - [x] Error diffusion (Floyd-Steinberg, Atkinson, Sierra, SierraTwoRow, SierraLite, JarvisJudiceNinke, Stucki, Burkes)
   - [x] Blue noise dithering - perceptually optimal, no banding artifacts
   - [x] Void-and-cluster - generates blue noise patterns (generate_blue_noise)
+  - [ ] Werness dithering - hybrid noise-threshold + error-diffusion, preserves edges (Obra Dinn style)
+    - Prior art: https://github.com/akavel/WernessDithering, https://dukope.com/devlogs/obra-dinn/tig-18/
   - [ ] Temporal dithering - for animation/video (interleaved patterns across frames)
 
 ### Audio

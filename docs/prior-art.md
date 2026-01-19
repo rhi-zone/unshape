@@ -136,6 +136,39 @@ s("bd sd [~ bd] sd").speed("1 2 1.5")
 
 Key insight: **patterns as composable values**. The mini-notation is TidalCycles-specific; the real insight is that pattern transformations (`fast`, `slow`, `rev`) are composable ops - same model as resin.
 
+## Image Processing
+
+### Dithering Techniques
+
+Classic dithering for quantization (Floyd-Steinberg, Atkinson, Sierra, etc.) is well-documented. More interesting prior art:
+
+#### Werness/Koloth Dithering (Obra Dinn)
+
+[GitHub](https://github.com/akavel/WernessDithering) · [Lucas Pope devlog](https://dukope.com/devlogs/obra-dinn/tig-18/)
+
+Hybrid noise-threshold + error-diffusion invented by Brent Werness for Return of the Obra Dinn:
+- **Inverted approach**: each pixel absorbs neighbors' errors rather than spreading its own
+- **Blue noise seeding**: thresholds seeded with blue noise for better distribution
+- **Edge preservation**: maintains detail where pattern dithering sacrifices it
+- **GPU-friendly**: works as shader despite error diffusion being inherently serial
+
+Limitations: poor at gradient extremes (light/dark ends), works best with detailed content.
+
+Key insight: **algorithm inversion**. Flipping who "owns" the error (absorb vs spread) enables GPU parallelism while keeping diffusion benefits.
+
+#### Surface-Stable Fractal Dithering
+
+[GitHub](https://github.com/runevision/Dither3D) · [Playdate port](https://github.com/aras-p/playdate-dither3d)
+
+3D rendering technique by Rune Skovbo Johansen:
+- **Surface adhesion**: dither dots stick to 3D surfaces
+- **Scale-invariant density**: dots add/remove with zoom, never pop
+- **Fractal Bayer matrices**: exploits self-similarity for smooth transitions
+
+Key insight: **self-similarity enables LOD**. Fractal properties of Bayer matrices allow seamless density transitions - dots only appear when zooming in, only vanish when zooming out.
+
+Note: This is a rendering/shader technique, not 2D image processing - out of scope for resin-image but interesting for 3D applications.
+
 ## Animation & Motion
 
 ### Motion Canvas
