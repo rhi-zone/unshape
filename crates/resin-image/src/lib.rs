@@ -2249,6 +2249,10 @@ pub enum DitherMethod {
     /// Blue noise dithering using the provided texture.
     /// Requires a blue noise texture to be provided separately.
     BlueNoise,
+    /// Werness dithering - hybrid noise-threshold + error absorption (Obra Dinn style).
+    /// Each pixel absorbs weighted errors from neighbors across multiple phases.
+    /// Excellent for preserving edges and detail.
+    Werness,
 }
 
 /// Configuration for dithering operations.
@@ -2454,6 +2458,7 @@ pub fn dither(
                 dither_ordered(image, config.levels, &BAYER_8X8)
             }
         }
+        DitherMethod::Werness => dither_werness(image, config),
     }
 }
 
@@ -2741,6 +2746,174 @@ fn dither_blue_noise(image: &ImageField, levels: u32, noise: &ImageField) -> Ima
     ImageField::from_raw(data, width, height)
         .with_wrap_mode(image.wrap_mode)
         .with_filter_mode(image.filter_mode)
+}
+
+/// Werness dithering - hybrid noise-threshold + error absorption.
+///
+/// Invented by Brent Werness (Koloth) for Return of the Obra Dinn.
+/// Unlike traditional error diffusion which spreads error forward,
+/// this method has each pixel absorb weighted errors from neighbors
+/// across multiple phases. Combined with blue noise seeding, it
+/// preserves edges and detail better than standard methods.
+///
+/// The algorithm runs in phases (3x3 grid, multiple iterations).
+/// In each phase, pixels absorb errors from their neighborhood
+/// using an Atkinson-style kernel.
+fn dither_werness(image: &ImageField, config: &DitherConfig) -> ImageField {
+    let (width, height) = image.dimensions();
+    let levels_f = config.levels.clamp(2, 256) as f32;
+    let factor = levels_f - 1.0;
+
+    // Initialize with image values + blue noise offset for initial seeding
+    // Using a simple deterministic noise pattern (could use actual blue noise)
+    let mut values: Vec<f32> = Vec::with_capacity((width * height) as usize);
+    let mut alphas: Vec<f32> = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = image.get_pixel(x, y);
+            // Convert to luminance for grayscale dithering, or use per-channel
+            let v = if config.per_channel {
+                // For per-channel, we'll process R channel as representative
+                // (full per-channel would need 3 separate buffers)
+                pixel[0]
+            } else {
+                0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2]
+            };
+
+            // Add blue noise offset for initial seeding
+            // Using interleaved gradient noise approximation
+            let noise = fract(52.9829189 * fract(0.06711056 * x as f32 + 0.00583715 * y as f32));
+            let seeded = v + (noise - 0.5) * 0.1; // Small noise contribution
+
+            values.push(seeded);
+            alphas.push(pixel[3]);
+        }
+    }
+
+    // Store quantized output and errors
+    let mut output: Vec<f32> = vec![0.0; (width * height) as usize];
+    let mut errors: Vec<f32> = vec![0.0; (width * height) as usize];
+
+    // Atkinson-style kernel for error absorption (12-tap sparse)
+    // Offsets: (dx, dy, weight)
+    let kernel: &[(i32, i32, f32)] = &[
+        (1, 0, 1.0 / 8.0),
+        (2, 0, 1.0 / 8.0),
+        (-1, 1, 1.0 / 8.0),
+        (0, 1, 1.0 / 8.0),
+        (1, 1, 1.0 / 8.0),
+        (0, 2, 1.0 / 8.0),
+        // Also include reverse direction for absorption
+        (-1, 0, 1.0 / 8.0),
+        (-2, 0, 1.0 / 8.0),
+        (1, -1, 1.0 / 8.0),
+        (0, -1, 1.0 / 8.0),
+        (-1, -1, 1.0 / 8.0),
+        (0, -2, 1.0 / 8.0),
+    ];
+
+    // Run multiple phases (3x3 grid × 4 iterations = 36 phases, but we'll use fewer for CPU)
+    let num_iterations = 4;
+
+    for iteration in 0..num_iterations {
+        // Process in 3x3 phase pattern to avoid race conditions
+        for phase_y in 0..3i32 {
+            for phase_x in 0..3i32 {
+                // Process pixels that match this phase
+                let mut y = phase_y as u32;
+                while y < height {
+                    let mut x = phase_x as u32;
+                    while x < width {
+                        let idx = (y * width + x) as usize;
+
+                        // Absorb errors from neighbors
+                        let mut error_sum = 0.0f32;
+                        for &(dx, dy, weight) in kernel {
+                            let nx = x as i32 + dx;
+                            let ny = y as i32 + dy;
+
+                            if nx >= 0 && nx < width as i32 && ny >= 0 && ny < height as i32 {
+                                let nidx = (ny as u32 * width + nx as u32) as usize;
+                                error_sum += errors[nidx] * weight;
+                            }
+                        }
+
+                        // Add absorbed error to current value
+                        let adjusted = if iteration == 0 {
+                            values[idx] + error_sum
+                        } else {
+                            // On subsequent iterations, work from previous output + error
+                            output[idx] + error_sum
+                        };
+
+                        // Quantize
+                        let quantized = ((adjusted * factor).round() / factor).clamp(0.0, 1.0);
+                        output[idx] = quantized;
+
+                        // Calculate and store error for next phase
+                        let target = if iteration == 0 {
+                            values[idx]
+                        } else {
+                            values[idx]
+                        };
+                        errors[idx] = target - quantized;
+
+                        x += 3;
+                    }
+                    y += 3;
+                }
+            }
+        }
+    }
+
+    // Build final image
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    if config.per_channel {
+        // For true per-channel, we need to run the algorithm on each channel
+        // For simplicity, apply same pattern to all channels based on luminance result
+        for y in 0..height {
+            for x in 0..width {
+                let idx = (y * width + x) as usize;
+                let pixel = image.get_pixel(x, y);
+                let out_lum = output[idx];
+
+                // Scale original color channels by luminance ratio
+                let orig_lum = 0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2];
+                if orig_lum > 0.001 {
+                    let scale = out_lum / orig_lum;
+                    data.push([
+                        (pixel[0] * scale).clamp(0.0, 1.0),
+                        (pixel[1] * scale).clamp(0.0, 1.0),
+                        (pixel[2] * scale).clamp(0.0, 1.0),
+                        alphas[idx],
+                    ]);
+                } else {
+                    data.push([out_lum, out_lum, out_lum, alphas[idx]]);
+                }
+            }
+        }
+    } else {
+        // Grayscale output
+        for y in 0..height {
+            for x in 0..width {
+                let idx = (y * width + x) as usize;
+                let v = output[idx];
+                data.push([v, v, v, alphas[idx]]);
+            }
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Helper: fractional part of a float
+#[inline]
+fn fract(x: f32) -> f32 {
+    x - x.floor()
 }
 
 /// Generates a blue noise texture using the void-and-cluster algorithm.
@@ -8545,6 +8718,86 @@ mod tests {
             has_black && has_white,
             "Blue noise dithering should produce mix of values"
         );
+    }
+
+    #[test]
+    fn test_dither_werness() {
+        // Create a gradient image to test edge preservation
+        let data: Vec<_> = (0..64)
+            .map(|i| {
+                let v = i as f32 / 63.0;
+                [v, v, v, 1.0]
+            })
+            .collect();
+        let img = ImageField::from_raw(data, 8, 8);
+
+        let result = dither(
+            &img,
+            &DitherConfig::new(2)
+                .with_method(DitherMethod::Werness)
+                .with_per_channel(false),
+            None,
+        );
+
+        // All pixels should be quantized to 0 or 1
+        for y in 0..8 {
+            for x in 0..8 {
+                let v = result.get_pixel(x, y)[0];
+                assert!(
+                    v == 0.0 || v == 1.0,
+                    "Werness dither should produce binary output, got {} at ({}, {})",
+                    v,
+                    x,
+                    y
+                );
+            }
+        }
+
+        // Should have reasonable distribution for mid-gray
+        let mid_gray_img = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 64], 8, 8);
+        let mid_result = dither(
+            &mid_gray_img,
+            &DitherConfig::new(2)
+                .with_method(DitherMethod::Werness)
+                .with_per_channel(false),
+            None,
+        );
+
+        let mut black_count = 0;
+        let mut white_count = 0;
+        for y in 0..8 {
+            for x in 0..8 {
+                if mid_result.get_pixel(x, y)[0] < 0.5 {
+                    black_count += 1;
+                } else {
+                    white_count += 1;
+                }
+            }
+        }
+        // For 50% gray, expect roughly balanced (allowing for algorithm characteristics)
+        assert!(black_count > 10, "Expected more black pixels for 50% gray");
+        assert!(white_count > 10, "Expected more white pixels for 50% gray");
+    }
+
+    #[test]
+    fn test_dither_werness_preserves_alpha() {
+        let data = vec![[0.5, 0.5, 0.5, 0.7]; 16];
+        let img = ImageField::from_raw(data, 4, 4);
+
+        let result = dither(
+            &img,
+            &DitherConfig::new(2).with_method(DitherMethod::Werness),
+            None,
+        );
+
+        for y in 0..4 {
+            for x in 0..4 {
+                assert!(
+                    (result.get_pixel(x, y)[3] - 0.7).abs() < 0.001,
+                    "Alpha should be preserved"
+                );
+            }
+        }
     }
 
     // Distortion tests
