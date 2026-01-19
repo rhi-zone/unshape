@@ -25,7 +25,9 @@ No single noise type serves all needs, so we provide a comprehensive toolkit.
 | **Blue** | `BlueNoise1D` | `BlueNoise2D` | `BlueNoise3D`* | Well-distributed | Optimal dithering, sampling |
 | **Pink** | `PinkNoise1D` | `PinkNoise2D` | - | Natural 1/f | Audio, natural phenomena |
 | **Brown** | `BrownNoise1D` | `BrownNoise2D` | - | Random walk | Deep rumble, terrain, drift |
-| **Violet** | `VioletNoise1D` | - | - | High-frequency | Audio enhancement |
+| **Violet** | `VioletNoise1D` | - | - | High-frequency | Audio dithering |
+| **Grey** | `GreyNoise1D` | - | - | Perceptually flat | Tinnitus masking, audio testing |
+| **Velvet** | `VelvetNoise1D` | - | - | Sparse impulses | Efficient reverb, decorrelation |
 
 *Blue noise 3D is expensive (O(n³), clamped to max 32³) - use with caution or pre-generate.
 
@@ -80,6 +82,20 @@ Power
 - **Character**: Differentiated white noise
 - **1D**: Audio dither for high-freq content
 - **2D/3D**: Rarely useful (too high-frequency)
+
+### Grey Noise
+- **Spectrum**: Psychoacoustically flat (weighted by human hearing)
+- **Character**: Sounds equally loud at all frequencies (unlike white which sounds bright)
+- **Note**: True grey noise requires ISO 226 equal-loudness weighting; we use an approximation
+- **1D**: Tinnitus masking, audio testing, perceptually neutral randomness
+- **2D/3D**: Not typically needed (it's about human hearing)
+
+### Velvet Noise
+- **Spectrum**: Sparse impulses (not really a "color")
+- **Character**: Mostly silence/neutral, occasional +1/-1 impulses
+- **Density**: Controllable probability of impulse (typically 1-20%)
+- **1D**: Efficient convolution reverb, decorrelation, click textures
+- **2D/3D**: Not applicable (it's about sparse events in time)
 
 ## Coherent vs Uncorrelated
 

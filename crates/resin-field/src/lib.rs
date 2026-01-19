@@ -1054,6 +1054,86 @@ impl Field<f32, f32> for VioletNoise1D {
     }
 }
 
+/// Grey noise field (1D).
+///
+/// Psychoacoustically flat - sounds equally loud at all frequencies to human
+/// ears, unlike white noise which sounds "bright". Useful for audio testing,
+/// tinnitus masking, and perceptually neutral randomness.
+///
+/// Note: This is an approximation. True grey noise requires equal-loudness
+/// contour weighting (ISO 226).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct GreyNoise1D {
+    /// Random seed.
+    pub seed: i32,
+}
+
+impl GreyNoise1D {
+    /// Create a new grey noise field.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed }
+    }
+}
+
+impl Field<f32, f32> for GreyNoise1D {
+    fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
+        rhizome_resin_noise::grey1(input + self.seed as f32 * 17.0)
+    }
+}
+
+/// Velvet noise field (1D).
+///
+/// Sparse impulse noise - most samples are neutral (0.5), with occasional
+/// impulses toward 0 or 1. Used in audio for:
+/// - Efficient convolution reverb (sparse = fast)
+/// - Decorrelation
+/// - Click/impulse textures
+#[derive(Debug, Clone, Copy)]
+pub struct VelvetNoise1D {
+    /// Random seed.
+    pub seed: i32,
+    /// Probability of impulse (0.0 to 1.0, typically 0.01-0.2).
+    pub density: f32,
+}
+
+impl Default for VelvetNoise1D {
+    fn default() -> Self {
+        Self {
+            seed: 0,
+            density: 0.1,
+        }
+    }
+}
+
+impl VelvetNoise1D {
+    /// Create a new velvet noise field with default 10% density.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with a specific seed.
+    pub fn with_seed(seed: i32) -> Self {
+        Self { seed, density: 0.1 }
+    }
+
+    /// Set the impulse density (probability of non-neutral value).
+    pub fn density(mut self, density: f32) -> Self {
+        self.density = density.clamp(0.0, 1.0);
+        self
+    }
+}
+
+impl Field<f32, f32> for VelvetNoise1D {
+    fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
+        rhizome_resin_noise::velvet1(input + self.seed as f32 * 17.0, self.density)
+    }
+}
+
 /// Fractal Brownian Motion field (2D).
 #[derive(Debug, Clone, Copy)]
 pub struct Fbm2D<F> {
