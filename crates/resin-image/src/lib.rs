@@ -2213,100 +2213,204 @@ pub fn threshold(image: &ImageField, thresh: f32) -> ImageField {
 }
 
 // ============================================================================
-// Dithering
+// Dithering - Decomposed Primitives
 // ============================================================================
 
-/// Dithering algorithm to use for quantization.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum DitherMethod {
-    /// No dithering - simple quantization (same as posterize).
-    None,
-    /// Ordered dithering using a Bayer threshold matrix.
-    /// The size parameter determines matrix size (2, 4, or 8).
-    #[default]
-    Bayer4x4,
-    /// 2x2 Bayer matrix - coarser pattern, faster.
-    Bayer2x2,
-    /// 8x8 Bayer matrix - finer pattern, smoother gradients.
-    Bayer8x8,
-    /// Floyd-Steinberg error diffusion - high quality, serpentine scan.
-    FloydSteinberg,
-    /// Atkinson dithering - lighter, preserves more detail (Mac classic look).
-    Atkinson,
-    /// Sierra dithering - balance between Floyd-Steinberg and Atkinson.
-    Sierra,
-    /// Sierra Two-Row - faster variant of Sierra.
-    SierraTwoRow,
-    /// Sierra Lite - fastest Sierra variant.
-    SierraLite,
-    /// Jarvis-Judice-Ninke - smoother gradients, larger kernel.
-    JarvisJudiceNinke,
-    /// Stucki dithering - similar to JJN but sharper.
-    Stucki,
-    /// Burkes dithering - simplified version of Stucki.
-    Burkes,
-    /// Blue noise dithering using the provided texture.
-    /// Requires a blue noise texture to be provided separately.
-    BlueNoise,
-    /// Werness dithering - hybrid noise-threshold + error absorption (Obra Dinn style).
-    /// Each pixel absorbs weighted errors from neighbors across multiple phases.
-    /// Excellent for preserving edges and detail.
-    Werness,
-    /// Riemersma dithering - error diffusion along a Hilbert curve.
-    /// Produces organic results with fewer directional artifacts than scanline methods.
-    Riemersma,
-}
+// -----------------------------------------------------------------------------
+// Quantize - primitive operation
+// -----------------------------------------------------------------------------
 
-/// Configuration for dithering operations.
-#[derive(Debug, Clone)]
+/// Quantize a value to discrete levels.
+///
+/// This is the fundamental primitive for dithering - it rounds a continuous
+/// value to the nearest level in a discrete set.
+#[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhizome_resin_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = ImageField, output = ImageField))]
-pub struct DitherConfig {
-    /// Number of quantization levels per channel (2-256).
+pub struct Quantize {
+    /// Number of discrete levels (2-256).
     pub levels: u32,
-    /// Dithering method to use.
-    pub method: DitherMethod,
-    /// Whether to apply dithering per-channel (true) or to luminance only (false).
-    pub per_channel: bool,
 }
 
-impl Default for DitherConfig {
-    fn default() -> Self {
-        Self {
-            levels: 2,
-            method: DitherMethod::Bayer4x4,
-            per_channel: true,
-        }
-    }
-}
-
-impl DitherConfig {
-    /// Creates a new dither config with the given number of levels.
+impl Quantize {
+    /// Creates a new quantizer with the given number of levels.
     pub fn new(levels: u32) -> Self {
         Self {
             levels: levels.clamp(2, 256),
-            ..Default::default()
         }
     }
 
-    /// Sets the dithering method.
-    pub fn with_method(mut self, method: DitherMethod) -> Self {
-        self.method = method;
-        self
+    /// Quantizes a single value to the nearest level.
+    #[inline]
+    pub fn apply(&self, value: f32) -> f32 {
+        let factor = (self.levels - 1) as f32;
+        ((value * factor).round() / factor).clamp(0.0, 1.0)
     }
 
-    /// Sets whether to dither per-channel or luminance only.
-    pub fn with_per_channel(mut self, per_channel: bool) -> Self {
-        self.per_channel = per_channel;
-        self
+    /// Returns the spread (step size between levels).
+    #[inline]
+    pub fn spread(&self) -> f32 {
+        1.0 / self.levels as f32
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Threshold Fields - Field<Vec2, f32> implementations
+// -----------------------------------------------------------------------------
+
+/// Bayer ordered dithering pattern as a field.
+///
+/// Produces a repeating threshold pattern based on a Bayer matrix.
+/// When combined with quantization, creates characteristic crosshatch dithering.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct BayerField {
+    /// Matrix size (2, 4, or 8).
+    pub size: u32,
+}
+
+impl BayerField {
+    /// Creates a 2x2 Bayer field.
+    pub fn bayer2x2() -> Self {
+        Self { size: 2 }
     }
 
-    /// Applies dithering to an image.
-    pub fn apply(&self, image: &ImageField) -> ImageField {
-        dither(image, self, None)
+    /// Creates a 4x4 Bayer field (default).
+    pub fn bayer4x4() -> Self {
+        Self { size: 4 }
     }
+
+    /// Creates an 8x8 Bayer field.
+    pub fn bayer8x8() -> Self {
+        Self { size: 8 }
+    }
+}
+
+impl Field<Vec2, f32> for BayerField {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        // Convert UV to pixel coordinates (assume tiling)
+        let x = (input.x.abs() * 1000.0) as usize;
+        let y = (input.y.abs() * 1000.0) as usize;
+
+        match self.size {
+            2 => BAYER_2X2[y % 2][x % 2],
+            4 => BAYER_4X4[y % 4][x % 4],
+            _ => BAYER_8X8[y % 8][x % 8],
+        }
+    }
+}
+
+/// Blue noise threshold field from a texture.
+///
+/// Blue noise has optimal spectral properties for dithering - it minimizes
+/// low-frequency content while maintaining uniform energy distribution.
+#[derive(Clone)]
+pub struct BlueNoiseField {
+    /// The blue noise texture (grayscale values 0-1).
+    pub texture: ImageField,
+}
+
+impl BlueNoiseField {
+    /// Creates a blue noise field from an existing texture.
+    pub fn from_texture(texture: ImageField) -> Self {
+        Self { texture }
+    }
+
+    /// Generates a new blue noise field of the given size.
+    pub fn generate(size: u32) -> Self {
+        Self {
+            texture: generate_blue_noise(size),
+        }
+    }
+}
+
+impl Field<Vec2, f32> for BlueNoiseField {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let (w, h) = self.texture.dimensions();
+        // Tile the texture
+        let x = ((input.x.abs() * w as f32) as u32) % w;
+        let y = ((input.y.abs() * h as f32) as u32) % h;
+        self.texture.get_pixel(x, y)[0]
+    }
+}
+
+// -----------------------------------------------------------------------------
+// QuantizeWithThreshold - composed field operation
+// -----------------------------------------------------------------------------
+
+/// Quantizes a color field using a threshold field for dithering.
+///
+/// This is the core dithering composition: for each position, it samples
+/// both the input color and threshold, then quantizes the adjusted value.
+///
+/// The formula is: `quantize(color + (threshold - 0.5) * spread, levels)`
+#[derive(Clone)]
+pub struct QuantizeWithThreshold<F, T> {
+    /// The input color field.
+    pub input: F,
+    /// The threshold field (values 0-1).
+    pub threshold: T,
+    /// Number of quantization levels.
+    pub levels: u32,
+}
+
+impl<F, T> QuantizeWithThreshold<F, T> {
+    /// Creates a new quantize-with-threshold field.
+    pub fn new(input: F, threshold: T, levels: u32) -> Self {
+        Self {
+            input,
+            threshold,
+            levels: levels.clamp(2, 256),
+        }
+    }
+}
+
+impl<F, T> Field<Vec2, Rgba> for QuantizeWithThreshold<F, T>
+where
+    F: Field<Vec2, Rgba>,
+    T: Field<Vec2, f32>,
+{
+    fn sample(&self, pos: Vec2, ctx: &EvalContext) -> Rgba {
+        let color = self.input.sample(pos, ctx);
+        let thresh = self.threshold.sample(pos, ctx);
+        let quantize = Quantize::new(self.levels);
+        let offset = (thresh - 0.5) * quantize.spread();
+
+        Rgba::new(
+            quantize.apply(color.r + offset),
+            quantize.apply(color.g + offset),
+            quantize.apply(color.b + offset),
+            color.a,
+        )
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Error Diffusion - sequential operations (not fields)
+// -----------------------------------------------------------------------------
+
+/// Error diffusion kernel for dithering.
+///
+/// Each kernel defines how quantization error is distributed to neighboring pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum DiffusionKernel {
+    /// Floyd-Steinberg - classic, high quality.
+    #[default]
+    FloydSteinberg,
+    /// Atkinson - lighter, preserves detail (Mac classic look).
+    Atkinson,
+    /// Sierra - smooth gradients.
+    Sierra,
+    /// Sierra Two-Row - faster variant.
+    SierraTwoRow,
+    /// Sierra Lite - fastest variant.
+    SierraLite,
+    /// Jarvis-Judice-Ninke - very smooth, large kernel.
+    JarvisJudiceNinke,
+    /// Stucki - sharper than JJN.
+    Stucki,
+    /// Burkes - simplified Stucki.
+    Burkes,
 }
 
 /// 2x2 Bayer threshold matrix (normalized to 0-1).
@@ -2404,144 +2508,19 @@ const BAYER_8X8: [[f32; 8]; 8] = [
     ],
 ];
 
-/// Applies dithering to quantize an image to fewer color levels.
-///
-/// Dithering adds controlled noise to create the illusion of more colors
-/// when displaying images with limited color palettes.
-///
-/// # Arguments
-/// * `image` - The input image
-/// * `config` - Dithering configuration (levels, method, etc.)
-/// * `blue_noise` - Optional blue noise texture for BlueNoise method
-///
-/// # Example
-///
-/// ```
-/// use rhizome_resin_image::{ImageField, dither, DitherConfig, DitherMethod};
-///
-/// let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
-/// let img = ImageField::from_raw(data, 4, 4);
-///
-/// // Floyd-Steinberg dithering to 2 levels (black and white)
-/// let dithered = dither(&img, &DitherConfig::new(2).with_method(DitherMethod::FloydSteinberg), None);
-/// ```
-pub fn dither(
-    image: &ImageField,
-    config: &DitherConfig,
-    blue_noise: Option<&ImageField>,
-) -> ImageField {
-    match config.method {
-        DitherMethod::None => posterize(image, config.levels),
-        DitherMethod::Bayer2x2 => dither_ordered(image, config.levels, &BAYER_2X2),
-        DitherMethod::Bayer4x4 => dither_ordered(image, config.levels, &BAYER_4X4),
-        DitherMethod::Bayer8x8 => dither_ordered(image, config.levels, &BAYER_8X8),
-        DitherMethod::FloydSteinberg => {
-            dither_error_diffusion(image, config, ErrorDiffusionKernel::FloydSteinberg)
-        }
-        DitherMethod::Atkinson => {
-            dither_error_diffusion(image, config, ErrorDiffusionKernel::Atkinson)
-        }
-        DitherMethod::Sierra => dither_error_diffusion(image, config, ErrorDiffusionKernel::Sierra),
-        DitherMethod::SierraTwoRow => {
-            dither_error_diffusion(image, config, ErrorDiffusionKernel::SierraTwoRow)
-        }
-        DitherMethod::SierraLite => {
-            dither_error_diffusion(image, config, ErrorDiffusionKernel::SierraLite)
-        }
-        DitherMethod::JarvisJudiceNinke => {
-            dither_error_diffusion(image, config, ErrorDiffusionKernel::JarvisJudiceNinke)
-        }
-        DitherMethod::Stucki => dither_error_diffusion(image, config, ErrorDiffusionKernel::Stucki),
-        DitherMethod::Burkes => dither_error_diffusion(image, config, ErrorDiffusionKernel::Burkes),
-        DitherMethod::BlueNoise => {
-            if let Some(noise) = blue_noise {
-                dither_blue_noise(image, config.levels, noise)
-            } else {
-                // Fall back to Bayer if no blue noise texture provided
-                dither_ordered(image, config.levels, &BAYER_8X8)
-            }
-        }
-        DitherMethod::Werness => dither_werness(image, config),
-        DitherMethod::Riemersma => dither_riemersma(image, config),
-    }
-}
-
-/// Ordered dithering using a threshold matrix.
-fn dither_ordered<const N: usize>(
-    image: &ImageField,
-    levels: u32,
-    matrix: &[[f32; N]; N],
-) -> ImageField {
-    let (width, height) = image.dimensions();
-    let levels_f = levels.clamp(2, 256) as f32;
-    let factor = levels_f - 1.0;
-    // Threshold spread for dithering
-    let spread = 1.0 / levels_f;
-
-    let mut data = Vec::with_capacity((width * height) as usize);
-
-    for y in 0..height {
-        for x in 0..width {
-            let pixel = image.get_pixel(x, y);
-            let threshold = matrix[(y as usize) % N][(x as usize) % N];
-            // Center threshold around 0 (-0.5 to 0.5)
-            let threshold_offset = (threshold - 0.5) * spread;
-
-            let quantize = |v: f32| {
-                let adjusted = v + threshold_offset;
-                ((adjusted * factor).round() / factor).clamp(0.0, 1.0)
-            };
-
-            data.push([
-                quantize(pixel[0]),
-                quantize(pixel[1]),
-                quantize(pixel[2]),
-                pixel[3],
-            ]);
-        }
-    }
-
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
-}
-
-/// Error diffusion kernel type.
-#[derive(Debug, Clone, Copy)]
-enum ErrorDiffusionKernel {
-    FloydSteinberg,
-    Atkinson,
-    Sierra,
-    SierraTwoRow,
-    SierraLite,
-    JarvisJudiceNinke,
-    Stucki,
-    Burkes,
-}
-
 /// Error diffusion kernel entry: (dx, dy, weight).
-/// dy is always >= 0 (we only diffuse forward).
 type DiffusionEntry = (i32, i32, f32);
 
-impl ErrorDiffusionKernel {
+impl DiffusionKernel {
     /// Returns the diffusion coefficients for this kernel.
-    /// Each entry is (dx, dy, weight) where the weights should sum to 1.
     fn coefficients(&self) -> &'static [DiffusionEntry] {
         match self {
-            // Floyd-Steinberg: classic, good quality
-            //     * 7
-            // 3 5 1  (divided by 16)
             Self::FloydSteinberg => &[
                 (1, 0, 7.0 / 16.0),
                 (-1, 1, 3.0 / 16.0),
                 (0, 1, 5.0 / 16.0),
                 (1, 1, 1.0 / 16.0),
             ],
-
-            // Atkinson: lighter dithering, only diffuses 6/8 of error
-            //     * 1 1
-            // 1 1 1
-            //   1      (divided by 8)
             Self::Atkinson => &[
                 (1, 0, 1.0 / 8.0),
                 (2, 0, 1.0 / 8.0),
@@ -2550,11 +2529,6 @@ impl ErrorDiffusionKernel {
                 (1, 1, 1.0 / 8.0),
                 (0, 2, 1.0 / 8.0),
             ],
-
-            // Sierra (full): smooth gradients
-            //       * 5 3
-            // 2 4 5 4 2
-            //   2 3 2    (divided by 32)
             Self::Sierra => &[
                 (1, 0, 5.0 / 32.0),
                 (2, 0, 3.0 / 32.0),
@@ -2567,10 +2541,6 @@ impl ErrorDiffusionKernel {
                 (0, 2, 3.0 / 32.0),
                 (1, 2, 2.0 / 32.0),
             ],
-
-            // Sierra Two-Row: faster variant
-            //       * 4 3
-            // 1 2 3 2 1   (divided by 16)
             Self::SierraTwoRow => &[
                 (1, 0, 4.0 / 16.0),
                 (2, 0, 3.0 / 16.0),
@@ -2580,16 +2550,7 @@ impl ErrorDiffusionKernel {
                 (1, 1, 2.0 / 16.0),
                 (2, 1, 1.0 / 16.0),
             ],
-
-            // Sierra Lite: fastest, still good quality
-            //     * 2
-            // 1 1     (divided by 4)
             Self::SierraLite => &[(1, 0, 2.0 / 4.0), (-1, 1, 1.0 / 4.0), (0, 1, 1.0 / 4.0)],
-
-            // Jarvis-Judice-Ninke: very smooth, large kernel
-            //         * 7 5
-            // 3 5 7 5 3
-            // 1 3 5 3 1   (divided by 48)
             Self::JarvisJudiceNinke => &[
                 (1, 0, 7.0 / 48.0),
                 (2, 0, 5.0 / 48.0),
@@ -2604,11 +2565,6 @@ impl ErrorDiffusionKernel {
                 (1, 2, 3.0 / 48.0),
                 (2, 2, 1.0 / 48.0),
             ],
-
-            // Stucki: similar to JJN but sharper
-            //         * 8 4
-            // 2 4 8 4 2
-            // 1 2 4 2 1   (divided by 42)
             Self::Stucki => &[
                 (1, 0, 8.0 / 42.0),
                 (2, 0, 4.0 / 42.0),
@@ -2623,10 +2579,6 @@ impl ErrorDiffusionKernel {
                 (1, 2, 2.0 / 42.0),
                 (2, 2, 1.0 / 42.0),
             ],
-
-            // Burkes: simplified Stucki
-            //       * 8 4
-            // 2 4 8 4 2   (divided by 32)
             Self::Burkes => &[
                 (1, 0, 8.0 / 32.0),
                 (2, 0, 4.0 / 32.0),
@@ -2640,18 +2592,50 @@ impl ErrorDiffusionKernel {
     }
 }
 
-/// Error diffusion dithering.
-fn dither_error_diffusion(
-    image: &ImageField,
-    config: &DitherConfig,
-    kernel: ErrorDiffusionKernel,
-) -> ImageField {
+/// Error diffusion dithering operation.
+///
+/// This is a sequential operation (not a field) because each pixel's output
+/// depends on previously processed pixels.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ErrorDiffuse {
+    /// The diffusion kernel to use.
+    pub kernel: DiffusionKernel,
+    /// Number of quantization levels.
+    pub levels: u32,
+}
+
+impl ErrorDiffuse {
+    /// Creates a new error diffusion operation.
+    pub fn new(kernel: DiffusionKernel, levels: u32) -> Self {
+        Self {
+            kernel,
+            levels: levels.clamp(2, 256),
+        }
+    }
+
+    /// Floyd-Steinberg error diffusion.
+    pub fn floyd_steinberg(levels: u32) -> Self {
+        Self::new(DiffusionKernel::FloydSteinberg, levels)
+    }
+
+    /// Atkinson error diffusion.
+    pub fn atkinson(levels: u32) -> Self {
+        Self::new(DiffusionKernel::Atkinson, levels)
+    }
+
+    /// Applies error diffusion to an image.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        error_diffuse_impl(image, self.kernel, self.levels)
+    }
+}
+
+/// Internal implementation of error diffusion.
+fn error_diffuse_impl(image: &ImageField, kernel: DiffusionKernel, levels: u32) -> ImageField {
     let (width, height) = image.dimensions();
-    let levels_f = config.levels.clamp(2, 256) as f32;
-    let factor = levels_f - 1.0;
+    let quantize = Quantize::new(levels);
     let coeffs = kernel.coefficients();
 
-    // Work buffer with error accumulation
     let mut buffer: Vec<[f32; 3]> = Vec::with_capacity((width * height) as usize);
     let mut alphas: Vec<f32> = Vec::with_capacity((width * height) as usize);
 
@@ -2670,38 +2654,27 @@ fn dither_error_diffusion(
             let idx = (y * width + x) as usize;
             let old_pixel = buffer[idx];
 
-            // Quantize
             let new_pixel = [
-                ((old_pixel[0] * factor).round() / factor).clamp(0.0, 1.0),
-                ((old_pixel[1] * factor).round() / factor).clamp(0.0, 1.0),
-                ((old_pixel[2] * factor).round() / factor).clamp(0.0, 1.0),
+                quantize.apply(old_pixel[0]),
+                quantize.apply(old_pixel[1]),
+                quantize.apply(old_pixel[2]),
             ];
 
-            // Calculate error
             let error = [
                 old_pixel[0] - new_pixel[0],
                 old_pixel[1] - new_pixel[1],
                 old_pixel[2] - new_pixel[2],
             ];
 
-            // Diffuse error to neighbors
             for &(dx, dy, weight) in coeffs {
                 let nx = x as i32 + dx;
                 let ny = y as i32 + dy;
 
                 if nx >= 0 && nx < width as i32 && ny < height as i32 {
                     let nidx = (ny as u32 * width + nx as u32) as usize;
-                    if config.per_channel {
-                        buffer[nidx][0] += error[0] * weight;
-                        buffer[nidx][1] += error[1] * weight;
-                        buffer[nidx][2] += error[2] * weight;
-                    } else {
-                        // Luminance-based error
-                        let lum_error = 0.2126 * error[0] + 0.7152 * error[1] + 0.0722 * error[2];
-                        buffer[nidx][0] += lum_error * weight;
-                        buffer[nidx][1] += lum_error * weight;
-                        buffer[nidx][2] += lum_error * weight;
-                    }
+                    buffer[nidx][0] += error[0] * weight;
+                    buffer[nidx][1] += error[1] * weight;
+                    buffer[nidx][2] += error[2] * weight;
                 }
             }
 
@@ -2714,226 +2687,79 @@ fn dither_error_diffusion(
         .with_filter_mode(image.filter_mode)
 }
 
-/// Blue noise dithering using a precomputed noise texture.
-fn dither_blue_noise(image: &ImageField, levels: u32, noise: &ImageField) -> ImageField {
-    let (width, height) = image.dimensions();
-    let (noise_w, noise_h) = noise.dimensions();
-    let levels_f = levels.clamp(2, 256) as f32;
-    let factor = levels_f - 1.0;
-    let spread = 1.0 / levels_f;
+// -----------------------------------------------------------------------------
+// Curve-based Diffusion (Riemersma)
+// -----------------------------------------------------------------------------
 
-    let mut data = Vec::with_capacity((width * height) as usize);
-
-    for y in 0..height {
-        for x in 0..width {
-            let pixel = image.get_pixel(x, y);
-
-            // Sample blue noise (tiled)
-            let noise_pixel = noise.get_pixel(x % noise_w, y % noise_h);
-            // Use R channel of noise texture, centered around 0
-            let threshold_offset = (noise_pixel[0] - 0.5) * spread;
-
-            let quantize = |v: f32| {
-                let adjusted = v + threshold_offset;
-                ((adjusted * factor).round() / factor).clamp(0.0, 1.0)
-            };
-
-            data.push([
-                quantize(pixel[0]),
-                quantize(pixel[1]),
-                quantize(pixel[2]),
-                pixel[3],
-            ]);
-        }
-    }
-
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
+/// Traversal curve for curve-based dithering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum TraversalCurve {
+    /// Hilbert space-filling curve.
+    #[default]
+    Hilbert,
 }
 
-/// Werness dithering - hybrid noise-threshold + error absorption.
+/// Curve-based error diffusion (Riemersma dithering).
 ///
-/// Invented by Brent Werness (Koloth) for Return of the Obra Dinn.
-/// Unlike traditional error diffusion which spreads error forward,
-/// this method has each pixel absorb weighted errors from neighbors
-/// across multiple phases. Combined with blue noise seeding, it
-/// preserves edges and detail better than standard methods.
-///
-/// The algorithm runs in phases (3x3 grid, multiple iterations).
-/// In each phase, pixels absorb errors from their neighborhood
-/// using an Atkinson-style kernel.
-fn dither_werness(image: &ImageField, config: &DitherConfig) -> ImageField {
-    let (width, height) = image.dimensions();
-    let levels_f = config.levels.clamp(2, 256) as f32;
-    let factor = levels_f - 1.0;
-
-    // Initialize with image values + blue noise offset for initial seeding
-    // Using a simple deterministic noise pattern (could use actual blue noise)
-    let mut values: Vec<f32> = Vec::with_capacity((width * height) as usize);
-    let mut alphas: Vec<f32> = Vec::with_capacity((width * height) as usize);
-
-    for y in 0..height {
-        for x in 0..width {
-            let pixel = image.get_pixel(x, y);
-            // Convert to luminance for grayscale dithering, or use per-channel
-            let v = if config.per_channel {
-                // For per-channel, we'll process R channel as representative
-                // (full per-channel would need 3 separate buffers)
-                pixel[0]
-            } else {
-                0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2]
-            };
-
-            // Add blue noise offset for initial seeding
-            // Using interleaved gradient noise approximation
-            let noise = fract(52.9829189 * fract(0.06711056 * x as f32 + 0.00583715 * y as f32));
-            let seeded = v + (noise - 0.5) * 0.1; // Small noise contribution
-
-            values.push(seeded);
-            alphas.push(pixel[3]);
-        }
-    }
-
-    // Store quantized output and errors
-    let mut output: Vec<f32> = vec![0.0; (width * height) as usize];
-    let mut errors: Vec<f32> = vec![0.0; (width * height) as usize];
-
-    // Atkinson-style kernel for error absorption (12-tap sparse)
-    // Offsets: (dx, dy, weight)
-    let kernel: &[(i32, i32, f32)] = &[
-        (1, 0, 1.0 / 8.0),
-        (2, 0, 1.0 / 8.0),
-        (-1, 1, 1.0 / 8.0),
-        (0, 1, 1.0 / 8.0),
-        (1, 1, 1.0 / 8.0),
-        (0, 2, 1.0 / 8.0),
-        // Also include reverse direction for absorption
-        (-1, 0, 1.0 / 8.0),
-        (-2, 0, 1.0 / 8.0),
-        (1, -1, 1.0 / 8.0),
-        (0, -1, 1.0 / 8.0),
-        (-1, -1, 1.0 / 8.0),
-        (0, -2, 1.0 / 8.0),
-    ];
-
-    // Run multiple phases (3x3 grid × 4 iterations = 36 phases, but we'll use fewer for CPU)
-    let num_iterations = 4;
-
-    for iteration in 0..num_iterations {
-        // Process in 3x3 phase pattern to avoid race conditions
-        for phase_y in 0..3i32 {
-            for phase_x in 0..3i32 {
-                // Process pixels that match this phase
-                let mut y = phase_y as u32;
-                while y < height {
-                    let mut x = phase_x as u32;
-                    while x < width {
-                        let idx = (y * width + x) as usize;
-
-                        // Absorb errors from neighbors
-                        let mut error_sum = 0.0f32;
-                        for &(dx, dy, weight) in kernel {
-                            let nx = x as i32 + dx;
-                            let ny = y as i32 + dy;
-
-                            if nx >= 0 && nx < width as i32 && ny >= 0 && ny < height as i32 {
-                                let nidx = (ny as u32 * width + nx as u32) as usize;
-                                error_sum += errors[nidx] * weight;
-                            }
-                        }
-
-                        // Add absorbed error to current value
-                        let adjusted = if iteration == 0 {
-                            values[idx] + error_sum
-                        } else {
-                            // On subsequent iterations, work from previous output + error
-                            output[idx] + error_sum
-                        };
-
-                        // Quantize
-                        let quantized = ((adjusted * factor).round() / factor).clamp(0.0, 1.0);
-                        output[idx] = quantized;
-
-                        // Calculate and store error for next phase
-                        let target = if iteration == 0 {
-                            values[idx]
-                        } else {
-                            values[idx]
-                        };
-                        errors[idx] = target - quantized;
-
-                        x += 3;
-                    }
-                    y += 3;
-                }
-            }
-        }
-    }
-
-    // Build final image
-    let mut data = Vec::with_capacity((width * height) as usize);
-
-    if config.per_channel {
-        // For true per-channel, we need to run the algorithm on each channel
-        // For simplicity, apply same pattern to all channels based on luminance result
-        for y in 0..height {
-            for x in 0..width {
-                let idx = (y * width + x) as usize;
-                let pixel = image.get_pixel(x, y);
-                let out_lum = output[idx];
-
-                // Scale original color channels by luminance ratio
-                let orig_lum = 0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2];
-                if orig_lum > 0.001 {
-                    let scale = out_lum / orig_lum;
-                    data.push([
-                        (pixel[0] * scale).clamp(0.0, 1.0),
-                        (pixel[1] * scale).clamp(0.0, 1.0),
-                        (pixel[2] * scale).clamp(0.0, 1.0),
-                        alphas[idx],
-                    ]);
-                } else {
-                    data.push([out_lum, out_lum, out_lum, alphas[idx]]);
-                }
-            }
-        }
-    } else {
-        // Grayscale output
-        for y in 0..height {
-            for x in 0..width {
-                let idx = (y * width + x) as usize;
-                let v = output[idx];
-                data.push([v, v, v, alphas[idx]]);
-            }
-        }
-    }
-
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
+/// Uses a space-filling curve instead of scanline order, eliminating
+/// directional artifacts common in traditional error diffusion.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct CurveDiffuse {
+    /// The traversal curve to use.
+    pub curve: TraversalCurve,
+    /// Size of the error history buffer.
+    pub history_size: usize,
+    /// Decay ratio for error weights (0-1, smaller = faster decay).
+    pub decay: f32,
+    /// Number of quantization levels.
+    pub levels: u32,
 }
 
-/// Helper: fractional part of a float
-#[inline]
-fn fract(x: f32) -> f32 {
-    x - x.floor()
+impl Default for CurveDiffuse {
+    fn default() -> Self {
+        Self {
+            curve: TraversalCurve::Hilbert,
+            history_size: 16,
+            decay: 1.0 / 8.0,
+            levels: 2,
+        }
+    }
 }
 
-/// Riemersma dithering - error diffusion along a Hilbert curve.
-///
-/// Unlike standard error diffusion which processes pixels in scanline order,
-/// Riemersma follows a space-filling Hilbert curve. This produces more organic
-/// results with fewer directional artifacts.
-///
-/// The algorithm maintains a history of recent quantization errors with
-/// exponentially decaying weights.
-fn dither_riemersma(image: &ImageField, config: &DitherConfig) -> ImageField {
-    let (width, height) = image.dimensions();
-    let levels_f = config.levels.clamp(2, 256) as f32;
-    let factor = levels_f - 1.0;
+impl CurveDiffuse {
+    /// Creates a new curve diffusion operation (Riemersma dithering).
+    pub fn new(levels: u32) -> Self {
+        Self {
+            levels: levels.clamp(2, 256),
+            ..Default::default()
+        }
+    }
 
-    // Copy image data
+    /// Sets the history size.
+    pub fn with_history_size(mut self, size: usize) -> Self {
+        self.history_size = size.max(1);
+        self
+    }
+
+    /// Sets the decay ratio.
+    pub fn with_decay(mut self, decay: f32) -> Self {
+        self.decay = decay.clamp(0.001, 1.0);
+        self
+    }
+
+    /// Applies curve-based diffusion to an image.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        curve_diffuse_impl(image, self)
+    }
+}
+
+/// Internal implementation of curve-based diffusion.
+fn curve_diffuse_impl(image: &ImageField, config: &CurveDiffuse) -> ImageField {
+    let (width, height) = image.dimensions();
+    let quantize = Quantize::new(config.levels);
+
     let mut data: Vec<[f32; 4]> = Vec::with_capacity((width * height) as usize);
     for y in 0..height {
         for x in 0..width {
@@ -2941,32 +2767,30 @@ fn dither_riemersma(image: &ImageField, config: &DitherConfig) -> ImageField {
         }
     }
 
-    // Riemersma parameters (from ditherpunk article)
-    let history_size = 16usize;
-    let ratio = 1.0f32 / 8.0; // Decay ratio
-
     // Precompute weights with exponential falloff
-    let weights: Vec<f32> = (0..history_size)
-        .map(|i| ratio.powf(i as f32 / (history_size - 1) as f32))
+    let weights: Vec<f32> = (0..config.history_size)
+        .map(|i| {
+            config
+                .decay
+                .powf(i as f32 / (config.history_size - 1).max(1) as f32)
+        })
         .collect();
     let weight_sum: f32 = weights.iter().sum();
 
     // Error history buffer (ring buffer)
-    let mut error_history_r: Vec<f32> = vec![0.0; history_size];
-    let mut error_history_g: Vec<f32> = vec![0.0; history_size];
-    let mut error_history_b: Vec<f32> = vec![0.0; history_size];
+    let mut error_history_r: Vec<f32> = vec![0.0; config.history_size];
+    let mut error_history_g: Vec<f32> = vec![0.0; config.history_size];
+    let mut error_history_b: Vec<f32> = vec![0.0; config.history_size];
     let mut history_idx = 0usize;
 
-    // Generate Hilbert curve path
+    // Generate curve path
     let curve_order = (width.max(height) as f32).log2().ceil() as u32;
     let curve_size = 1u32 << curve_order;
 
-    // Process pixels along Hilbert curve
     let total_points = curve_size * curve_size;
     for d in 0..total_points {
         let (hx, hy) = hilbert_d2xy(curve_order, d);
 
-        // Skip if outside image bounds
         if hx >= width || hy >= height {
             continue;
         }
@@ -2979,8 +2803,8 @@ fn dither_riemersma(image: &ImageField, config: &DitherConfig) -> ImageField {
         let mut error_sum_g = 0.0f32;
         let mut error_sum_b = 0.0f32;
 
-        for i in 0..history_size {
-            let hist_i = (history_idx + history_size - 1 - i) % history_size;
+        for i in 0..config.history_size {
+            let hist_i = (history_idx + config.history_size - 1 - i) % config.history_size;
             error_sum_r += error_history_r[hist_i] * weights[i];
             error_sum_g += error_history_g[hist_i] * weights[i];
             error_sum_b += error_history_b[hist_i] * weights[i];
@@ -2991,18 +2815,17 @@ fn dither_riemersma(image: &ImageField, config: &DitherConfig) -> ImageField {
         let adjusted_g = pixel[1] + error_sum_g / weight_sum;
         let adjusted_b = pixel[2] + error_sum_b / weight_sum;
 
-        let quantized_r = ((adjusted_r * factor).round() / factor).clamp(0.0, 1.0);
-        let quantized_g = ((adjusted_g * factor).round() / factor).clamp(0.0, 1.0);
-        let quantized_b = ((adjusted_b * factor).round() / factor).clamp(0.0, 1.0);
+        let quantized_r = quantize.apply(adjusted_r);
+        let quantized_g = quantize.apply(adjusted_g);
+        let quantized_b = quantize.apply(adjusted_b);
 
-        // Store quantized result
         data[idx] = [quantized_r, quantized_g, quantized_b, pixel[3]];
 
-        // Calculate and store new errors in history
+        // Store new errors in history
         error_history_r[history_idx] = pixel[0] - quantized_r;
         error_history_g[history_idx] = pixel[1] - quantized_g;
         error_history_b[history_idx] = pixel[2] - quantized_b;
-        history_idx = (history_idx + 1) % history_size;
+        history_idx = (history_idx + 1) % config.history_size;
     }
 
     ImageField::from_raw(data, width, height)
@@ -3011,8 +2834,6 @@ fn dither_riemersma(image: &ImageField, config: &DitherConfig) -> ImageField {
 }
 
 /// Convert Hilbert curve index to (x, y) coordinates.
-///
-/// Based on the algorithm from "Hacker's Delight" by Henry S. Warren Jr.
 fn hilbert_d2xy(order: u32, d: u32) -> (u32, u32) {
     let mut x = 0u32;
     let mut y = 0u32;
@@ -3023,7 +2844,6 @@ fn hilbert_d2xy(order: u32, d: u32) -> (u32, u32) {
         let rx = (d / 2) & 1;
         let ry = (d ^ rx) & 1;
 
-        // Rotate
         if ry == 0 {
             if rx == 1 {
                 x = s - 1 - x;
@@ -3040,6 +2860,149 @@ fn hilbert_d2xy(order: u32, d: u32) -> (u32, u32) {
 
     (x, y)
 }
+
+// -----------------------------------------------------------------------------
+// Werness Dithering (Obra Dinn style)
+// -----------------------------------------------------------------------------
+
+/// Werness dithering - hybrid noise-threshold + error absorption.
+///
+/// Invented by Brent Werness for Return of the Obra Dinn.
+/// Each pixel absorbs weighted errors from neighbors across multiple phases.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct WernessDither {
+    /// Number of quantization levels.
+    pub levels: u32,
+    /// Number of iterations.
+    pub iterations: u32,
+}
+
+impl WernessDither {
+    /// Creates a new Werness dither operation.
+    pub fn new(levels: u32) -> Self {
+        Self {
+            levels: levels.clamp(2, 256),
+            iterations: 4,
+        }
+    }
+
+    /// Sets the number of iterations.
+    pub fn with_iterations(mut self, iterations: u32) -> Self {
+        self.iterations = iterations.max(1);
+        self
+    }
+
+    /// Applies Werness dithering to an image.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        werness_impl(image, self)
+    }
+}
+
+/// Internal implementation of Werness dithering.
+fn werness_impl(image: &ImageField, config: &WernessDither) -> ImageField {
+    let (width, height) = image.dimensions();
+    let quantize = Quantize::new(config.levels);
+
+    // Initialize with image luminance + noise seeding
+    let mut values: Vec<f32> = Vec::with_capacity((width * height) as usize);
+    let mut alphas: Vec<f32> = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = image.get_pixel(x, y);
+            let v = 0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2];
+
+            // Add noise seeding
+            let noise = fract(52.9829189 * fract(0.06711056 * x as f32 + 0.00583715 * y as f32));
+            let seeded = v + (noise - 0.5) * 0.1;
+
+            values.push(seeded);
+            alphas.push(pixel[3]);
+        }
+    }
+
+    let mut output: Vec<f32> = vec![0.0; (width * height) as usize];
+    let mut errors: Vec<f32> = vec![0.0; (width * height) as usize];
+
+    // Absorption kernel
+    let kernel: &[(i32, i32, f32)] = &[
+        (1, 0, 1.0 / 8.0),
+        (2, 0, 1.0 / 8.0),
+        (-1, 1, 1.0 / 8.0),
+        (0, 1, 1.0 / 8.0),
+        (1, 1, 1.0 / 8.0),
+        (0, 2, 1.0 / 8.0),
+        (-1, 0, 1.0 / 8.0),
+        (-2, 0, 1.0 / 8.0),
+        (1, -1, 1.0 / 8.0),
+        (0, -1, 1.0 / 8.0),
+        (-1, -1, 1.0 / 8.0),
+        (0, -2, 1.0 / 8.0),
+    ];
+
+    for iteration in 0..config.iterations {
+        for phase_y in 0..3i32 {
+            for phase_x in 0..3i32 {
+                let mut y = phase_y as u32;
+                while y < height {
+                    let mut x = phase_x as u32;
+                    while x < width {
+                        let idx = (y * width + x) as usize;
+
+                        let mut error_sum = 0.0f32;
+                        for &(dx, dy, weight) in kernel {
+                            let nx = x as i32 + dx;
+                            let ny = y as i32 + dy;
+
+                            if nx >= 0 && nx < width as i32 && ny >= 0 && ny < height as i32 {
+                                let nidx = (ny as u32 * width + nx as u32) as usize;
+                                error_sum += errors[nidx] * weight;
+                            }
+                        }
+
+                        let adjusted = if iteration == 0 {
+                            values[idx] + error_sum
+                        } else {
+                            output[idx] + error_sum
+                        };
+
+                        let quantized = quantize.apply(adjusted);
+                        output[idx] = quantized;
+                        errors[idx] = values[idx] - quantized;
+
+                        x += 3;
+                    }
+                    y += 3;
+                }
+            }
+        }
+    }
+
+    // Build final image (grayscale)
+    let mut data = Vec::with_capacity((width * height) as usize);
+    for y in 0..height {
+        for x in 0..width {
+            let idx = (y * width + x) as usize;
+            let v = output[idx];
+            data.push([v, v, v, alphas[idx]]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Helper: fractional part of a float.
+#[inline]
+fn fract(x: f32) -> f32 {
+    x - x.floor()
+}
+
+// -----------------------------------------------------------------------------
+// Blue Noise Generation
+// -----------------------------------------------------------------------------
 
 /// Generates a blue noise texture using the void-and-cluster algorithm.
 ///
@@ -8631,81 +8594,87 @@ mod tests {
         assert!(result.get_pixel(1, 0)[0] > 0.99);
     }
 
-    // Dithering tests
+    // Dithering tests - decomposed primitives
 
     #[test]
-    fn test_dither_bayer_output_quantized() {
-        // Create a gradient image
-        let data: Vec<_> = (0..64)
-            .map(|i| {
-                let v = i as f32 / 63.0;
-                [v, v, v, 1.0]
-            })
-            .collect();
-        let img = ImageField::from_raw(data, 8, 8);
+    fn test_quantize_primitive() {
+        let q = Quantize::new(2);
+        assert_eq!(q.apply(0.0), 0.0);
+        assert_eq!(q.apply(1.0), 1.0);
+        assert_eq!(q.apply(0.3), 0.0);
+        assert_eq!(q.apply(0.7), 1.0);
+        assert_eq!(q.apply(0.5), 1.0); // rounds to nearest
 
-        // Dither to 2 levels
-        let result = dither(
-            &img,
-            &DitherConfig::new(2).with_method(DitherMethod::Bayer4x4),
-            None,
-        );
+        let q4 = Quantize::new(4);
+        assert!((q4.apply(0.4) - 1.0 / 3.0).abs() < 0.01);
+        assert!((q4.apply(0.6) - 2.0 / 3.0).abs() < 0.01);
+    }
 
-        // All pixels should be either 0 or 1
-        for y in 0..8 {
-            for x in 0..8 {
-                let pixel = result.get_pixel(x, y);
-                assert!(
-                    pixel[0] == 0.0 || pixel[0] == 1.0,
-                    "Pixel ({}, {}) should be 0 or 1, got {}",
-                    x,
-                    y,
-                    pixel[0]
-                );
-            }
+    #[test]
+    fn test_bayer_field() {
+        let bayer = BayerField::bayer4x4();
+        let ctx = EvalContext::new();
+
+        // Sample at different positions - should get values in 0-1 range
+        for i in 0..16 {
+            let x = (i % 4) as f32 / 1000.0;
+            let y = (i / 4) as f32 / 1000.0;
+            let v = bayer.sample(Vec2::new(x, y), &ctx);
+            assert!(v >= 0.0 && v <= 1.0, "Bayer value out of range: {}", v);
         }
     }
 
     #[test]
-    fn test_dither_floyd_steinberg() {
-        // Create a mid-gray image
+    fn test_quantize_with_threshold_field() {
+        // Create simple solid color field
+        let img = ImageField::solid(Rgba::new(0.5, 0.5, 0.5, 1.0));
+        let bayer = BayerField::bayer4x4();
+        let ctx = EvalContext::new();
+
+        let dithered = QuantizeWithThreshold::new(img, bayer, 2);
+
+        // Sample at various positions - should get 0 or 1
+        for i in 0..16 {
+            let x = (i % 4) as f32 * 0.001;
+            let y = (i / 4) as f32 * 0.001;
+            let color = dithered.sample(Vec2::new(x, y), &ctx);
+            assert!(
+                color.r == 0.0 || color.r == 1.0,
+                "Expected binary output, got {}",
+                color.r
+            );
+        }
+    }
+
+    #[test]
+    fn test_error_diffuse_floyd_steinberg() {
         let data = vec![[0.5, 0.5, 0.5, 1.0]; 64];
         let img = ImageField::from_raw(data, 8, 8);
 
-        let result = dither(
-            &img,
-            &DitherConfig::new(2).with_method(DitherMethod::FloydSteinberg),
-            None,
-        );
+        let result = ErrorDiffuse::floyd_steinberg(2).apply(&img);
 
-        // Should have mix of black and white pixels (dithered)
+        // Should have mix of black and white
         let mut black_count = 0;
         let mut white_count = 0;
         for y in 0..8 {
             for x in 0..8 {
-                let v = result.get_pixel(x, y)[0];
-                if v < 0.5 {
+                if result.get_pixel(x, y)[0] < 0.5 {
                     black_count += 1;
                 } else {
                     white_count += 1;
                 }
             }
         }
-        // For 50% gray, expect roughly equal black and white
         assert!(black_count > 20, "Expected more black pixels for 50% gray");
         assert!(white_count > 20, "Expected more white pixels for 50% gray");
     }
 
     #[test]
-    fn test_dither_preserves_alpha() {
+    fn test_error_diffuse_preserves_alpha() {
         let data = vec![[0.5, 0.5, 0.5, 0.7]; 16];
         let img = ImageField::from_raw(data, 4, 4);
 
-        let result = dither(
-            &img,
-            &DitherConfig::new(2).with_method(DitherMethod::Atkinson),
-            None,
-        );
+        let result = ErrorDiffuse::atkinson(2).apply(&img);
 
         for y in 0..4 {
             for x in 0..4 {
@@ -8718,42 +8687,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dither_config_builder() {
-        let config = DitherConfig::new(4)
-            .with_method(DitherMethod::Sierra)
-            .with_per_channel(false);
-
-        assert_eq!(config.levels, 4);
-        assert_eq!(config.method, DitherMethod::Sierra);
-        assert!(!config.per_channel);
-    }
-
-    #[test]
-    fn test_dither_none_same_as_posterize() {
-        let data = vec![[0.33, 0.66, 0.99, 1.0]; 4];
-        let img = ImageField::from_raw(data, 2, 2);
-
-        let dithered = dither(
-            &img,
-            &DitherConfig::new(2).with_method(DitherMethod::None),
-            None,
-        );
-        let posterized = posterize(&img, 2);
-
-        for y in 0..2 {
-            for x in 0..2 {
-                let d = dithered.get_pixel(x, y);
-                let p = posterized.get_pixel(x, y);
-                assert!(
-                    (d[0] - p[0]).abs() < 0.001,
-                    "DitherMethod::None should equal posterize"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn test_dither_multiple_levels() {
+    fn test_curve_diffuse_riemersma() {
         let data: Vec<_> = (0..64)
             .map(|i| {
                 let v = i as f32 / 63.0;
@@ -8762,22 +8696,59 @@ mod tests {
             .collect();
         let img = ImageField::from_raw(data, 8, 8);
 
-        // 4 levels = 0, 0.333, 0.667, 1.0
-        let result = dither(
-            &img,
-            &DitherConfig::new(4).with_method(DitherMethod::Bayer8x8),
-            None,
-        );
+        let result = CurveDiffuse::new(2).apply(&img);
 
+        // All pixels should be quantized to 0 or 1
         for y in 0..8 {
             for x in 0..8 {
                 let v = result.get_pixel(x, y)[0];
-                // Should be one of the 4 levels (with small tolerance)
-                let is_valid_level = (v - 0.0).abs() < 0.01
-                    || (v - 1.0 / 3.0).abs() < 0.02
-                    || (v - 2.0 / 3.0).abs() < 0.02
-                    || (v - 1.0).abs() < 0.01;
-                assert!(is_valid_level, "Value {} is not a valid 4-level output", v);
+                assert!(
+                    v == 0.0 || v == 1.0,
+                    "CurveDiffuse should produce binary output, got {}",
+                    v
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_werness_dither() {
+        let data: Vec<_> = (0..64)
+            .map(|i| {
+                let v = i as f32 / 63.0;
+                [v, v, v, 1.0]
+            })
+            .collect();
+        let img = ImageField::from_raw(data, 8, 8);
+
+        let result = WernessDither::new(2).apply(&img);
+
+        // All pixels should be quantized to 0 or 1
+        for y in 0..8 {
+            for x in 0..8 {
+                let v = result.get_pixel(x, y)[0];
+                assert!(
+                    v == 0.0 || v == 1.0,
+                    "Werness dither should produce binary output, got {}",
+                    v
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_werness_preserves_alpha() {
+        let data = vec![[0.5, 0.5, 0.5, 0.7]; 16];
+        let img = ImageField::from_raw(data, 4, 4);
+
+        let result = WernessDither::new(2).apply(&img);
+
+        for y in 0..4 {
+            for x in 0..4 {
+                assert!(
+                    (result.get_pixel(x, y)[3] - 0.7).abs() < 0.001,
+                    "Alpha should be preserved"
+                );
             }
         }
     }
@@ -8815,23 +8786,37 @@ mod tests {
     }
 
     #[test]
-    fn test_dither_blue_noise() {
+    fn test_blue_noise_field() {
+        let noise = generate_blue_noise(16);
+        let field = BlueNoiseField::from_texture(noise);
+        let ctx = EvalContext::new();
+
+        // Check that it returns values in [0, 1]
+        for y in 0..16 {
+            for x in 0..16 {
+                let uv = Vec2::new(x as f32 / 16.0, y as f32 / 16.0);
+                let v = field.sample(uv, &ctx);
+                assert!(v >= 0.0 && v <= 1.0, "Blue noise value out of range: {}", v);
+            }
+        }
+    }
+
+    #[test]
+    fn test_threshold_dither_with_blue_noise() {
         let data = vec![[0.5, 0.5, 0.5, 1.0]; 64];
         let img = ImageField::from_raw(data, 8, 8);
-
         let noise = generate_blue_noise(8);
-        let result = dither(
-            &img,
-            &DitherConfig::new(2).with_method(DitherMethod::BlueNoise),
-            Some(&noise),
-        );
+        let ctx = EvalContext::new();
 
-        // Should have mix of black and white
+        let dithered = QuantizeWithThreshold::new(img, BlueNoiseField::from_texture(noise), 2);
+
+        // Check for mix of black and white
         let mut has_black = false;
         let mut has_white = false;
         for y in 0..8 {
             for x in 0..8 {
-                let v = result.get_pixel(x, y)[0];
+                let uv = Vec2::new(x as f32 / 8.0, y as f32 / 8.0);
+                let v = dithered.sample(uv, &ctx).r;
                 if v < 0.5 {
                     has_black = true;
                 } else {
@@ -8843,139 +8828,6 @@ mod tests {
             has_black && has_white,
             "Blue noise dithering should produce mix of values"
         );
-    }
-
-    #[test]
-    fn test_dither_werness() {
-        // Create a gradient image to test edge preservation
-        let data: Vec<_> = (0..64)
-            .map(|i| {
-                let v = i as f32 / 63.0;
-                [v, v, v, 1.0]
-            })
-            .collect();
-        let img = ImageField::from_raw(data, 8, 8);
-
-        let result = dither(
-            &img,
-            &DitherConfig::new(2)
-                .with_method(DitherMethod::Werness)
-                .with_per_channel(false),
-            None,
-        );
-
-        // All pixels should be quantized to 0 or 1
-        for y in 0..8 {
-            for x in 0..8 {
-                let v = result.get_pixel(x, y)[0];
-                assert!(
-                    v == 0.0 || v == 1.0,
-                    "Werness dither should produce binary output, got {} at ({}, {})",
-                    v,
-                    x,
-                    y
-                );
-            }
-        }
-
-        // Should have reasonable distribution for mid-gray
-        let mid_gray_img = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 64], 8, 8);
-        let mid_result = dither(
-            &mid_gray_img,
-            &DitherConfig::new(2)
-                .with_method(DitherMethod::Werness)
-                .with_per_channel(false),
-            None,
-        );
-
-        let mut black_count = 0;
-        let mut white_count = 0;
-        for y in 0..8 {
-            for x in 0..8 {
-                if mid_result.get_pixel(x, y)[0] < 0.5 {
-                    black_count += 1;
-                } else {
-                    white_count += 1;
-                }
-            }
-        }
-        // For 50% gray, expect roughly balanced (allowing for algorithm characteristics)
-        assert!(black_count > 10, "Expected more black pixels for 50% gray");
-        assert!(white_count > 10, "Expected more white pixels for 50% gray");
-    }
-
-    #[test]
-    fn test_dither_werness_preserves_alpha() {
-        let data = vec![[0.5, 0.5, 0.5, 0.7]; 16];
-        let img = ImageField::from_raw(data, 4, 4);
-
-        let result = dither(
-            &img,
-            &DitherConfig::new(2).with_method(DitherMethod::Werness),
-            None,
-        );
-
-        for y in 0..4 {
-            for x in 0..4 {
-                assert!(
-                    (result.get_pixel(x, y)[3] - 0.7).abs() < 0.001,
-                    "Alpha should be preserved"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn test_dither_riemersma() {
-        // Create a gradient image
-        let data: Vec<_> = (0..64)
-            .map(|i| {
-                let v = i as f32 / 63.0;
-                [v, v, v, 1.0]
-            })
-            .collect();
-        let img = ImageField::from_raw(data, 8, 8);
-
-        let result = dither(
-            &img,
-            &DitherConfig::new(2).with_method(DitherMethod::Riemersma),
-            None,
-        );
-
-        // All pixels should be quantized to 0 or 1
-        for y in 0..8 {
-            for x in 0..8 {
-                let v = result.get_pixel(x, y)[0];
-                assert!(
-                    v == 0.0 || v == 1.0,
-                    "Riemersma dither should produce binary output, got {} at ({}, {})",
-                    v,
-                    x,
-                    y
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn test_dither_riemersma_preserves_alpha() {
-        let data = vec![[0.5, 0.5, 0.5, 0.7]; 16];
-        let img = ImageField::from_raw(data, 4, 4);
-
-        let result = dither(
-            &img,
-            &DitherConfig::new(2).with_method(DitherMethod::Riemersma),
-            None,
-        );
-
-        for y in 0..4 {
-            for x in 0..4 {
-                assert!(
-                    (result.get_pixel(x, y)[3] - 0.7).abs() < 0.001,
-                    "Alpha should be preserved"
-                );
-            }
-        }
     }
 
     #[test]
