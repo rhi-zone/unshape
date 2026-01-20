@@ -28,6 +28,8 @@
 //! ```
 
 use glam::{Vec2, Vec3};
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 
 // ============================================================================
 // AABB Types
@@ -211,6 +213,72 @@ impl Aabb3 {
     /// Returns the union of two AABBs.
     pub fn union(&self, other: &Aabb3) -> Aabb3 {
         Aabb3::new(self.min.min(other.min), self.max.max(other.max))
+    }
+}
+
+// ============================================================================
+// K-Nearest Helper Types
+// ============================================================================
+
+/// Candidate for k-nearest neighbor search in 2D.
+/// Uses max-heap ordering (largest distance at top) for efficient pruning.
+struct KNearestCandidate2D<'a, T> {
+    position: Vec2,
+    data: &'a T,
+    distance: f32,
+}
+
+impl<T> PartialEq for KNearestCandidate2D<'_, T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.distance == other.distance
+    }
+}
+
+impl<T> Eq for KNearestCandidate2D<'_, T> {}
+
+impl<T> PartialOrd for KNearestCandidate2D<'_, T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T> Ord for KNearestCandidate2D<'_, T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Max-heap: larger distance = higher priority
+        self.distance
+            .partial_cmp(&other.distance)
+            .unwrap_or(Ordering::Equal)
+    }
+}
+
+/// Candidate for k-nearest neighbor search in 3D.
+/// Uses max-heap ordering (largest distance at top) for efficient pruning.
+struct KNearestCandidate3D<'a, T> {
+    position: Vec3,
+    data: &'a T,
+    distance: f32,
+}
+
+impl<T> PartialEq for KNearestCandidate3D<'_, T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.distance == other.distance
+    }
+}
+
+impl<T> Eq for KNearestCandidate3D<'_, T> {}
+
+impl<T> PartialOrd for KNearestCandidate3D<'_, T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T> Ord for KNearestCandidate3D<'_, T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Max-heap: larger distance = higher priority
+        self.distance
+            .partial_cmp(&other.distance)
+            .unwrap_or(Ordering::Equal)
     }
 }
 
@@ -468,6 +536,104 @@ impl<T> Quadtree<T> {
 
                 for i in indices {
                     Self::nearest_recursive(&children[i], quadrants[i], position, best);
+                }
+            }
+        }
+    }
+
+    /// Finds the k nearest points to the given position.
+    ///
+    /// Returns up to k points, sorted by distance (closest first).
+    /// Returns fewer than k if the tree contains fewer points.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use rhizome_resin_spatial::{Quadtree, Aabb2};
+    /// use glam::Vec2;
+    ///
+    /// let bounds = Aabb2::new(Vec2::ZERO, Vec2::splat(100.0));
+    /// let mut tree = Quadtree::new(bounds, 8, 4);
+    ///
+    /// tree.insert(Vec2::new(10.0, 10.0), "A");
+    /// tree.insert(Vec2::new(20.0, 20.0), "B");
+    /// tree.insert(Vec2::new(50.0, 50.0), "C");
+    ///
+    /// let nearest = tree.k_nearest(Vec2::ZERO, 2);
+    /// assert_eq!(nearest.len(), 2);
+    /// assert_eq!(nearest[0].1, &"A"); // Closest
+    /// assert_eq!(nearest[1].1, &"B"); // Second closest
+    /// ```
+    pub fn k_nearest(&self, position: Vec2, k: usize) -> Vec<(Vec2, &T, f32)> {
+        if k == 0 {
+            return Vec::new();
+        }
+
+        let mut heap: BinaryHeap<KNearestCandidate2D<T>> = BinaryHeap::new();
+        Self::k_nearest_recursive(&self.root, self.bounds, position, k, &mut heap);
+
+        // Convert heap to sorted vec (closest first)
+        let mut results: Vec<_> = heap
+            .into_iter()
+            .map(|c| (c.position, c.data, c.distance))
+            .collect();
+        results.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
+        results
+    }
+
+    fn k_nearest_recursive<'a>(
+        node: &'a QuadtreeNode<T>,
+        bounds: Aabb2,
+        position: Vec2,
+        k: usize,
+        heap: &mut BinaryHeap<KNearestCandidate2D<'a, T>>,
+    ) {
+        // Early exit if this node can't possibly contain a closer point
+        if heap.len() >= k {
+            let worst_dist = heap.peek().unwrap().distance;
+            let closest_in_bounds = Vec2::new(
+                position.x.clamp(bounds.min.x, bounds.max.x),
+                position.y.clamp(bounds.min.y, bounds.max.y),
+            );
+            if closest_in_bounds.distance(position) >= worst_dist {
+                return;
+            }
+        }
+
+        match node {
+            QuadtreeNode::Leaf { entries } => {
+                for entry in entries {
+                    let dist = entry.position.distance(position);
+
+                    if heap.len() < k {
+                        heap.push(KNearestCandidate2D {
+                            position: entry.position,
+                            data: &entry.data,
+                            distance: dist,
+                        });
+                    } else if dist < heap.peek().unwrap().distance {
+                        heap.pop();
+                        heap.push(KNearestCandidate2D {
+                            position: entry.position,
+                            data: &entry.data,
+                            distance: dist,
+                        });
+                    }
+                }
+            }
+            QuadtreeNode::Internal { children } => {
+                let quadrants = bounds.quadrants();
+
+                // Sort children by distance to query point for better pruning
+                let mut indices: Vec<usize> = (0..4).collect();
+                indices.sort_by(|&a, &b| {
+                    let dist_a = quadrants[a].center().distance(position);
+                    let dist_b = quadrants[b].center().distance(position);
+                    dist_a.partial_cmp(&dist_b).unwrap()
+                });
+
+                for i in indices {
+                    Self::k_nearest_recursive(&children[i], quadrants[i], position, k, heap);
                 }
             }
         }
@@ -765,6 +931,105 @@ impl<T> Octree<T> {
 
                 for i in indices {
                     Self::nearest_recursive(&children[i], octants[i], position, best);
+                }
+            }
+        }
+    }
+
+    /// Finds the k nearest points to the given position.
+    ///
+    /// Returns up to k points, sorted by distance (closest first).
+    /// Returns fewer than k if the tree contains fewer points.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use rhizome_resin_spatial::{Octree, Aabb3};
+    /// use glam::Vec3;
+    ///
+    /// let bounds = Aabb3::new(Vec3::ZERO, Vec3::splat(100.0));
+    /// let mut tree = Octree::new(bounds, 8, 4);
+    ///
+    /// tree.insert(Vec3::new(10.0, 10.0, 10.0), "A");
+    /// tree.insert(Vec3::new(20.0, 20.0, 20.0), "B");
+    /// tree.insert(Vec3::new(50.0, 50.0, 50.0), "C");
+    ///
+    /// let nearest = tree.k_nearest(Vec3::ZERO, 2);
+    /// assert_eq!(nearest.len(), 2);
+    /// assert_eq!(nearest[0].1, &"A"); // Closest
+    /// assert_eq!(nearest[1].1, &"B"); // Second closest
+    /// ```
+    pub fn k_nearest(&self, position: Vec3, k: usize) -> Vec<(Vec3, &T, f32)> {
+        if k == 0 {
+            return Vec::new();
+        }
+
+        let mut heap: BinaryHeap<KNearestCandidate3D<T>> = BinaryHeap::new();
+        Self::k_nearest_recursive(&self.root, self.bounds, position, k, &mut heap);
+
+        // Convert heap to sorted vec (closest first)
+        let mut results: Vec<_> = heap
+            .into_iter()
+            .map(|c| (c.position, c.data, c.distance))
+            .collect();
+        results.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
+        results
+    }
+
+    fn k_nearest_recursive<'a>(
+        node: &'a OctreeNode<T>,
+        bounds: Aabb3,
+        position: Vec3,
+        k: usize,
+        heap: &mut BinaryHeap<KNearestCandidate3D<'a, T>>,
+    ) {
+        // Early exit if this node can't possibly contain a closer point
+        if heap.len() >= k {
+            let worst_dist = heap.peek().unwrap().distance;
+            let closest_in_bounds = Vec3::new(
+                position.x.clamp(bounds.min.x, bounds.max.x),
+                position.y.clamp(bounds.min.y, bounds.max.y),
+                position.z.clamp(bounds.min.z, bounds.max.z),
+            );
+            if closest_in_bounds.distance(position) >= worst_dist {
+                return;
+            }
+        }
+
+        match node {
+            OctreeNode::Leaf { entries } => {
+                for entry in entries {
+                    let dist = entry.position.distance(position);
+
+                    if heap.len() < k {
+                        heap.push(KNearestCandidate3D {
+                            position: entry.position,
+                            data: &entry.data,
+                            distance: dist,
+                        });
+                    } else if dist < heap.peek().unwrap().distance {
+                        heap.pop();
+                        heap.push(KNearestCandidate3D {
+                            position: entry.position,
+                            data: &entry.data,
+                            distance: dist,
+                        });
+                    }
+                }
+            }
+            OctreeNode::Internal { children } => {
+                let octants = bounds.octants();
+
+                // Sort children by distance to query point for better pruning
+                let mut indices: Vec<usize> = (0..8).collect();
+                indices.sort_by(|&a, &b| {
+                    let dist_a = octants[a].center().distance(position);
+                    let dist_b = octants[b].center().distance(position);
+                    dist_a.partial_cmp(&dist_b).unwrap()
+                });
+
+                for i in indices {
+                    Self::k_nearest_recursive(&children[i], octants[i], position, k, heap);
                 }
             }
         }
@@ -1798,6 +2063,37 @@ mod tests {
     }
 
     #[test]
+    fn test_quadtree_k_nearest() {
+        let bounds = Aabb2::new(Vec2::ZERO, Vec2::splat(100.0));
+        let mut tree = Quadtree::new(bounds, 8, 4);
+
+        tree.insert(Vec2::new(10.0, 10.0), "A");
+        tree.insert(Vec2::new(20.0, 20.0), "B");
+        tree.insert(Vec2::new(30.0, 30.0), "C");
+        tree.insert(Vec2::new(90.0, 90.0), "D");
+
+        // Query from origin - should get A, B, C in order
+        let results = tree.k_nearest(Vec2::ZERO, 3);
+        assert_eq!(results.len(), 3);
+        assert_eq!(*results[0].1, "A"); // Closest
+        assert_eq!(*results[1].1, "B");
+        assert_eq!(*results[2].1, "C");
+
+        // k=0 returns empty
+        let results = tree.k_nearest(Vec2::ZERO, 0);
+        assert!(results.is_empty());
+
+        // k > len returns all
+        let results = tree.k_nearest(Vec2::ZERO, 10);
+        assert_eq!(results.len(), 4);
+
+        // k=1 should match nearest()
+        let k1 = tree.k_nearest(Vec2::new(12.0, 12.0), 1);
+        let nearest = tree.nearest(Vec2::new(12.0, 12.0)).unwrap();
+        assert_eq!(*k1[0].1, *nearest.1);
+    }
+
+    #[test]
     fn test_quadtree_out_of_bounds() {
         let bounds = Aabb2::new(Vec2::ZERO, Vec2::splat(100.0));
         let mut tree = Quadtree::new(bounds, 8, 4);
@@ -1864,6 +2160,37 @@ mod tests {
 
         let result = tree.nearest(Vec3::new(48.0, 52.0, 50.0)).unwrap();
         assert_eq!(*result.1, "B");
+    }
+
+    #[test]
+    fn test_octree_k_nearest() {
+        let bounds = Aabb3::new(Vec3::ZERO, Vec3::splat(100.0));
+        let mut tree = Octree::new(bounds, 8, 4);
+
+        tree.insert(Vec3::new(10.0, 10.0, 10.0), "A");
+        tree.insert(Vec3::new(20.0, 20.0, 20.0), "B");
+        tree.insert(Vec3::new(30.0, 30.0, 30.0), "C");
+        tree.insert(Vec3::new(90.0, 90.0, 90.0), "D");
+
+        // Query from origin - should get A, B, C in order
+        let results = tree.k_nearest(Vec3::ZERO, 3);
+        assert_eq!(results.len(), 3);
+        assert_eq!(*results[0].1, "A"); // Closest
+        assert_eq!(*results[1].1, "B");
+        assert_eq!(*results[2].1, "C");
+
+        // k=0 returns empty
+        let results = tree.k_nearest(Vec3::ZERO, 0);
+        assert!(results.is_empty());
+
+        // k > len returns all
+        let results = tree.k_nearest(Vec3::ZERO, 10);
+        assert_eq!(results.len(), 4);
+
+        // k=1 should match nearest()
+        let k1 = tree.k_nearest(Vec3::new(12.0, 12.0, 12.0), 1);
+        let nearest = tree.nearest(Vec3::new(12.0, 12.0, 12.0)).unwrap();
+        assert_eq!(*k1[0].1, *nearest.1);
     }
 
     #[test]
@@ -2434,6 +2761,63 @@ mod invariant_tests {
         }
     }
 
+    /// k-nearest returns exactly k closest points, correctly ordered.
+    #[test]
+    fn test_quadtree_k_nearest_correctness() {
+        let bounds = Aabb2::new(Vec2::ZERO, Vec2::splat(100.0));
+        let mut tree = Quadtree::new(bounds, 8, 4);
+
+        let mut points = Vec::new();
+        for i in 0..50 {
+            let point = Vec2::new(rand_f32(0.0, 100.0), rand_f32(0.0, 100.0));
+            points.push(point);
+            tree.insert(point, i);
+        }
+
+        // Test several k values and query points
+        for k in [1, 3, 5, 10, 20] {
+            for _ in 0..5 {
+                let query = Vec2::new(rand_f32(0.0, 100.0), rand_f32(0.0, 100.0));
+
+                // Find k-nearest via tree
+                let tree_results = tree.k_nearest(query, k);
+
+                // Find k-nearest via brute force
+                let mut brute_results: Vec<_> =
+                    points.iter().map(|p| (*p, p.distance(query))).collect();
+                brute_results.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+                let brute_k: Vec<_> = brute_results.into_iter().take(k).collect();
+
+                // Should return same count
+                assert_eq!(
+                    tree_results.len(),
+                    brute_k.len(),
+                    "k={k}: tree returned {} points, brute force {}",
+                    tree_results.len(),
+                    brute_k.len()
+                );
+
+                // Should be sorted by distance (closest first)
+                for i in 1..tree_results.len() {
+                    assert!(
+                        tree_results[i].2 >= tree_results[i - 1].2,
+                        "k={k}: results not sorted at index {i}"
+                    );
+                }
+
+                // Distances should match brute force
+                for (i, ((_, _, tree_dist), (_, brute_dist))) in
+                    tree_results.iter().zip(brute_k.iter()).enumerate()
+                {
+                    assert!(
+                        (tree_dist - brute_dist).abs() < 1e-5,
+                        "k={k}: distance mismatch at index {i}: tree={tree_dist}, brute={brute_dist}"
+                    );
+                }
+            }
+        }
+    }
+
     // ========================================================================
     // Octree invariants
     // ========================================================================
@@ -2500,6 +2884,71 @@ mod invariant_tests {
                 (tree_dist - brute_dist).abs() < 1e-5,
                 "Tree nearest ({tree_dist}) != brute force ({brute_dist})"
             );
+        }
+    }
+
+    /// k-nearest returns exactly k closest points, correctly ordered.
+    #[test]
+    fn test_octree_k_nearest_correctness() {
+        let bounds = Aabb3::new(Vec3::ZERO, Vec3::splat(100.0));
+        let mut tree = Octree::new(bounds, 8, 4);
+
+        let mut points = Vec::new();
+        for i in 0..50 {
+            let point = Vec3::new(
+                rand_f32(0.0, 100.0),
+                rand_f32(0.0, 100.0),
+                rand_f32(0.0, 100.0),
+            );
+            points.push(point);
+            tree.insert(point, i);
+        }
+
+        // Test several k values and query points
+        for k in [1, 3, 5, 10, 20] {
+            for _ in 0..5 {
+                let query = Vec3::new(
+                    rand_f32(0.0, 100.0),
+                    rand_f32(0.0, 100.0),
+                    rand_f32(0.0, 100.0),
+                );
+
+                // Find k-nearest via tree
+                let tree_results = tree.k_nearest(query, k);
+
+                // Find k-nearest via brute force
+                let mut brute_results: Vec<_> =
+                    points.iter().map(|p| (*p, p.distance(query))).collect();
+                brute_results.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+                let brute_k: Vec<_> = brute_results.into_iter().take(k).collect();
+
+                // Should return same count
+                assert_eq!(
+                    tree_results.len(),
+                    brute_k.len(),
+                    "k={k}: tree returned {} points, brute force {}",
+                    tree_results.len(),
+                    brute_k.len()
+                );
+
+                // Should be sorted by distance (closest first)
+                for i in 1..tree_results.len() {
+                    assert!(
+                        tree_results[i].2 >= tree_results[i - 1].2,
+                        "k={k}: results not sorted at index {i}"
+                    );
+                }
+
+                // Distances should match brute force
+                for (i, ((_, _, tree_dist), (_, brute_dist))) in
+                    tree_results.iter().zip(brute_k.iter()).enumerate()
+                {
+                    assert!(
+                        (tree_dist - brute_dist).abs() < 1e-5,
+                        "k={k}: distance mismatch at index {i}: tree={tree_dist}, brute={brute_dist}"
+                    );
+                }
+            }
         }
     }
 
