@@ -143,3 +143,31 @@ Agentic by default - continue through tasks unless:
 - User explicitly asked to be consulted
 
 Commit consistently. Each commit = one logical change.
+
+### Invariant Tests
+
+For modules with statistical or mathematical properties, add feature-gated invariant tests that verify correctness beyond simple unit tests. Gate behind `invariant-tests` feature to keep normal test runs fast.
+
+**Good candidates for invariant tests:**
+- **Noise**: spectral slopes (white=0, pink=-1, brown=-2, violet=+2), autocorrelation, distribution uniformity
+- **Image**: blue noise distribution (negative autocorrelation, even spacing), blur kernel sums to 1, dithering preserves average brightness
+- **Audio**: filter frequency response via FFT, oscillator frequency accuracy, envelope smoothness
+- **Mesh**: Euler characteristic preservation (V - E + F), subdivision count relationships, normal unit length
+- **Spatial**: range queries return all/only points in bounds, k-nearest returns exactly k correctly ordered
+- **Easing**: ease(0)≈0, ease(1)≈1, monotonicity where expected
+- **Curve**: arc length accuracy, continuity at knots
+
+**Pattern:**
+```rust
+// In Cargo.toml
+[features]
+invariant-tests = []
+
+// In lib.rs
+#[cfg(all(test, feature = "invariant-tests"))]
+mod invariant_tests {
+    // Statistical/mathematical property tests here
+}
+```
+
+Run with: `cargo test -p crate-name --features invariant-tests`

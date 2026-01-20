@@ -430,6 +430,61 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 - [ ] `DataLocation` tracking in `Value` - know where data lives
 - [ ] Integration with `EvalContext` - backends + policy fields
 
+### Invariant Tests
+
+> **Goal:** Feature-gated statistical/mathematical property tests for modules where simple unit tests are insufficient.
+> Run with `cargo test -p crate --features invariant-tests`. Keep normal test runs fast.
+
+**resin-noise:** ✅ Implemented
+- [x] Spectral slope tests via FFT (white≈0, pink≈-1, brown<-1, violet>1)
+- [x] Spectral ordering test (brown < pink < white < violet)
+- [x] Autocorrelation tests (white≈0, perlin/value>0.5, brown>0.8)
+- [x] Distribution tests (mean, variance for white/perlin/value)
+- [x] Histogram uniformity (chi-squared)
+- [x] Worley properties (has zeros, F2 >= F1)
+- [x] Determinism tests
+
+**resin-image:**
+- [ ] Blue noise distribution - negative autocorrelation, even spacing (no clumping)
+- [ ] Gaussian blur - kernel sums to 1, output variance < input variance
+- [ ] Dithering - average brightness preserved after quantization
+- [ ] Color transforms - invertibility where applicable
+
+**resin-audio:**
+- [ ] Filter frequency response via FFT - verify cutoff, rolloff slope
+- [ ] Oscillator frequency accuracy - FFT peak at expected frequency
+- [ ] Envelope smoothness - no discontinuities in ADSR output
+- [ ] Noise generators - spectral properties match expected colors
+
+**resin-mesh:**
+- [ ] Euler characteristic preserved (V - E + F = 2 for closed meshes)
+- [ ] Subdivision vertex/face count relationships
+- [ ] Normals are unit length after operations
+- [ ] Decimation doesn't create non-manifold geometry
+- [ ] Winding consistency after boolean operations
+
+**resin-spatial:**
+- [ ] Range queries return all and only points in bounds
+- [ ] k-nearest returns exactly k points, correctly ordered by distance
+- [ ] BVH ray intersection matches brute-force for random rays
+- [ ] Spatial hash query_radius returns all points within radius
+
+**resin-easing:**
+- [ ] All functions satisfy ease(0) ≈ 0, ease(1) ≈ 1
+- [ ] ease_in_out symmetric around t=0.5
+- [ ] Monotonicity for non-elastic/bounce functions
+
+**resin-curve:**
+- [ ] Arc length parameterization accuracy
+- [ ] Continuity at spline knots (C0/C1/C2 as documented)
+- [ ] Interpolating splines pass through control points
+
+### Spatial Additions
+
+- [ ] k-nearest neighbor queries - Quadtree/Octree currently only have `nearest()`, add `k_nearest(k)`
+- [ ] KD-tree - common alternative to octree, often faster for point queries
+- [ ] Ball tree - good for high-dimensional nearest neighbor
+
 ### Architecture / Future Extraction
 
 - [ ] Scene graph generalization - evaluate if resin-motion's scene graph should be extracted to resin-scene for general use (2D/3D hierarchy, transforms, parent-child relationships)
