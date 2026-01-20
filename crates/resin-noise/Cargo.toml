@@ -6,11 +6,17 @@ description = "Noise functions (Perlin, Simplex, FBM)"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rhizome-lab/resin"
 
+[features]
+default = []
+# Enable thorough statistical/invariant tests (slower, for CI)
+invariant-tests = []
+
 [dependencies]
 glam.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
+rustfft.workspace = true
 
 [[bench]]
 name = "noise_benches"
