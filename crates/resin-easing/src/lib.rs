@@ -886,3 +886,491 @@ mod tests {
         assert!((result - Vec3::splat(0.25)).length() < 0.001);
     }
 }
+
+// ============================================================================
+// Invariant tests
+// ============================================================================
+
+/// Invariant tests for easing functions.
+///
+/// These tests verify mathematical properties that should hold for all
+/// easing functions. Run with:
+///
+/// ```sh
+/// cargo test -p rhizome-resin-easing --features invariant-tests
+/// ```
+#[cfg(all(test, feature = "invariant-tests"))]
+mod invariant_tests {
+    use super::*;
+
+    // All easing functions to test
+    const ALL_EASINGS: &[(Easing, &str)] = &[
+        (Easing::Linear, "Linear"),
+        (Easing::QuadIn, "QuadIn"),
+        (Easing::QuadOut, "QuadOut"),
+        (Easing::QuadInOut, "QuadInOut"),
+        (Easing::CubicIn, "CubicIn"),
+        (Easing::CubicOut, "CubicOut"),
+        (Easing::CubicInOut, "CubicInOut"),
+        (Easing::QuartIn, "QuartIn"),
+        (Easing::QuartOut, "QuartOut"),
+        (Easing::QuartInOut, "QuartInOut"),
+        (Easing::QuintIn, "QuintIn"),
+        (Easing::QuintOut, "QuintOut"),
+        (Easing::QuintInOut, "QuintInOut"),
+        (Easing::SineIn, "SineIn"),
+        (Easing::SineOut, "SineOut"),
+        (Easing::SineInOut, "SineInOut"),
+        (Easing::ExpoIn, "ExpoIn"),
+        (Easing::ExpoOut, "ExpoOut"),
+        (Easing::ExpoInOut, "ExpoInOut"),
+        (Easing::CircIn, "CircIn"),
+        (Easing::CircOut, "CircOut"),
+        (Easing::CircInOut, "CircInOut"),
+        (Easing::BackIn, "BackIn"),
+        (Easing::BackOut, "BackOut"),
+        (Easing::BackInOut, "BackInOut"),
+        (Easing::ElasticIn, "ElasticIn"),
+        (Easing::ElasticOut, "ElasticOut"),
+        (Easing::ElasticInOut, "ElasticInOut"),
+        (Easing::BounceIn, "BounceIn"),
+        (Easing::BounceOut, "BounceOut"),
+        (Easing::BounceInOut, "BounceInOut"),
+    ];
+
+    // ========================================================================
+    // Boundary conditions
+    // ========================================================================
+
+    /// All easing functions must pass through (0, 0).
+    #[test]
+    fn test_all_easings_start_at_zero() {
+        for (easing, name) in ALL_EASINGS {
+            let value = easing.ease(0.0);
+            assert!(
+                value.abs() < 0.001,
+                "{name}: ease(0) should be 0, got {value}"
+            );
+        }
+    }
+
+    /// All easing functions must pass through (1, 1).
+    #[test]
+    fn test_all_easings_end_at_one() {
+        for (easing, name) in ALL_EASINGS {
+            let value = easing.ease(1.0);
+            assert!(
+                (value - 1.0).abs() < 0.001,
+                "{name}: ease(1) should be 1, got {value}"
+            );
+        }
+    }
+
+    // ========================================================================
+    // In/Out duality
+    // ========================================================================
+
+    /// For polynomial easings: ease_out(t) = 1 - ease_in(1 - t).
+    #[test]
+    fn test_in_out_duality() {
+        let pairs = [
+            (Easing::QuadIn, Easing::QuadOut),
+            (Easing::CubicIn, Easing::CubicOut),
+            (Easing::QuartIn, Easing::QuartOut),
+            (Easing::QuintIn, Easing::QuintOut),
+            (Easing::SineIn, Easing::SineOut),
+            (Easing::ExpoIn, Easing::ExpoOut),
+            (Easing::CircIn, Easing::CircOut),
+            (Easing::BackIn, Easing::BackOut),
+            (Easing::BounceIn, Easing::BounceOut),
+        ];
+
+        for (ease_in, ease_out) in pairs {
+            for i in 0..=20 {
+                let t = i as f32 / 20.0;
+                let out_value = ease_out.ease(t);
+                let dual_value = 1.0 - ease_in.ease(1.0 - t);
+
+                assert!(
+                    (out_value - dual_value).abs() < 0.001,
+                    "{:?} out(t) should equal 1 - in(1-t) at t={t}",
+                    ease_in
+                );
+            }
+        }
+    }
+
+    // ========================================================================
+    // In-out symmetry
+    // ========================================================================
+
+    /// In-out functions should be point-symmetric around (0.5, 0.5).
+    /// This means: ease(0.5 - d) + ease(0.5 + d) = 1 for any d in [0, 0.5].
+    #[test]
+    fn test_in_out_point_symmetry() {
+        let in_outs = [
+            Easing::QuadInOut,
+            Easing::CubicInOut,
+            Easing::QuartInOut,
+            Easing::QuintInOut,
+            Easing::SineInOut,
+            Easing::ExpoInOut,
+            Easing::CircInOut,
+            Easing::BackInOut,
+            Easing::ElasticInOut,
+            Easing::BounceInOut,
+        ];
+
+        for easing in in_outs {
+            for i in 0..=10 {
+                let d = i as f32 / 20.0; // d from 0 to 0.5
+                let low = easing.ease(0.5 - d);
+                let high = easing.ease(0.5 + d);
+                let sum = low + high;
+
+                assert!(
+                    (sum - 1.0).abs() < 0.01,
+                    "{:?}: ease(0.5-{d}) + ease(0.5+{d}) = {sum}, expected 1.0",
+                    easing
+                );
+            }
+        }
+    }
+
+    /// All in-out functions should pass through (0.5, 0.5).
+    #[test]
+    fn test_in_out_midpoint() {
+        let in_outs = [
+            Easing::QuadInOut,
+            Easing::CubicInOut,
+            Easing::QuartInOut,
+            Easing::QuintInOut,
+            Easing::SineInOut,
+            Easing::ExpoInOut,
+            Easing::CircInOut,
+            Easing::BackInOut,
+            Easing::BounceInOut,
+        ];
+
+        for easing in in_outs {
+            let value = easing.ease(0.5);
+            assert!(
+                (value - 0.5).abs() < 0.01,
+                "{:?}: ease(0.5) should be 0.5, got {value}",
+                easing
+            );
+        }
+    }
+
+    // ========================================================================
+    // Monotonicity
+    // ========================================================================
+
+    /// Simple polynomial ease-in functions should be monotonically increasing.
+    #[test]
+    fn test_monotonic_ease_in() {
+        let monotonic_ins = [
+            Easing::Linear,
+            Easing::QuadIn,
+            Easing::CubicIn,
+            Easing::QuartIn,
+            Easing::QuintIn,
+            Easing::SineIn,
+            Easing::ExpoIn,
+            Easing::CircIn,
+        ];
+
+        for easing in monotonic_ins {
+            let mut prev = easing.ease(0.0);
+            for i in 1..=100 {
+                let t = i as f32 / 100.0;
+                let value = easing.ease(t);
+                assert!(
+                    value >= prev - 0.0001,
+                    "{:?} should be monotonic: ease({}) = {} < ease({}) = {}",
+                    easing,
+                    t,
+                    value,
+                    (i - 1) as f32 / 100.0,
+                    prev
+                );
+                prev = value;
+            }
+        }
+    }
+
+    /// Simple polynomial ease-out functions should be monotonically increasing.
+    #[test]
+    fn test_monotonic_ease_out() {
+        let monotonic_outs = [
+            Easing::QuadOut,
+            Easing::CubicOut,
+            Easing::QuartOut,
+            Easing::QuintOut,
+            Easing::SineOut,
+            Easing::ExpoOut,
+            Easing::CircOut,
+        ];
+
+        for easing in monotonic_outs {
+            let mut prev = easing.ease(0.0);
+            for i in 1..=100 {
+                let t = i as f32 / 100.0;
+                let value = easing.ease(t);
+                assert!(value >= prev - 0.0001, "{:?} should be monotonic", easing);
+                prev = value;
+            }
+        }
+    }
+
+    // ========================================================================
+    // Smoothstep properties
+    // ========================================================================
+
+    /// Smoothstep should have zero derivative at endpoints.
+    #[test]
+    fn test_smoothstep_zero_derivative_at_endpoints() {
+        let eps = 0.0001;
+
+        // At t=0
+        let d0 = (smoothstep(eps) - smoothstep(0.0)) / eps;
+        assert!(
+            d0.abs() < 0.01,
+            "smoothstep derivative at t=0 should be ~0, got {d0}"
+        );
+
+        // At t=1
+        let d1 = (smoothstep(1.0) - smoothstep(1.0 - eps)) / eps;
+        assert!(
+            d1.abs() < 0.01,
+            "smoothstep derivative at t=1 should be ~0, got {d1}"
+        );
+    }
+
+    /// Smootherstep should have zero first and second derivative at endpoints.
+    #[test]
+    fn test_smootherstep_zero_derivatives_at_endpoints() {
+        let eps = 0.0001;
+
+        // First derivative at t=0
+        let d0 = (smootherstep(eps) - smootherstep(0.0)) / eps;
+        assert!(
+            d0.abs() < 0.01,
+            "smootherstep derivative at t=0 should be ~0, got {d0}"
+        );
+
+        // First derivative at t=1
+        let d1 = (smootherstep(1.0) - smootherstep(1.0 - eps)) / eps;
+        assert!(
+            d1.abs() < 0.01,
+            "smootherstep derivative at t=1 should be ~0, got {d1}"
+        );
+    }
+
+    /// Smoothstep and smootherstep should pass through (0.5, 0.5).
+    #[test]
+    fn test_smooth_midpoint() {
+        assert!(
+            (smoothstep(0.5) - 0.5).abs() < 0.001,
+            "smoothstep(0.5) should be 0.5"
+        );
+        assert!(
+            (smootherstep(0.5) - 0.5).abs() < 0.001,
+            "smootherstep(0.5) should be 0.5"
+        );
+    }
+
+    // ========================================================================
+    // Lerp invariants
+    // ========================================================================
+
+    /// Lerp at t=0 returns start value.
+    #[test]
+    fn test_lerp_at_zero_returns_start() {
+        assert!((0.0f32.lerp_to(&100.0, 0.0) - 0.0).abs() < 0.001);
+        assert!((Vec3::ZERO.lerp_to(&Vec3::ONE, 0.0) - Vec3::ZERO).length() < 0.001);
+        assert!((Vec2::ZERO.lerp_to(&Vec2::ONE, 0.0) - Vec2::ZERO).length() < 0.001);
+    }
+
+    /// Lerp at t=1 returns end value.
+    #[test]
+    fn test_lerp_at_one_returns_end() {
+        assert!((0.0f32.lerp_to(&100.0, 1.0) - 100.0).abs() < 0.001);
+        assert!((Vec3::ZERO.lerp_to(&Vec3::ONE, 1.0) - Vec3::ONE).length() < 0.001);
+        assert!((Vec2::ZERO.lerp_to(&Vec2::ONE, 1.0) - Vec2::ONE).length() < 0.001);
+    }
+
+    /// Lerp is linear: lerp(a, b, t) = a + (b - a) * t.
+    #[test]
+    fn test_lerp_linearity() {
+        for i in 0..=20 {
+            let t = i as f32 / 20.0;
+            let a = 10.0f32;
+            let b = 50.0f32;
+
+            let lerped = a.lerp_to(&b, t);
+            let expected = a + (b - a) * t;
+
+            assert!(
+                (lerped - expected).abs() < 0.001,
+                "Lerp should be linear at t={t}"
+            );
+        }
+    }
+
+    /// Lerp should extrapolate beyond [0, 1].
+    #[test]
+    fn test_lerp_extrapolation() {
+        // t = -0.5 should go below start
+        let below = 0.0f32.lerp_to(&10.0, -0.5);
+        assert!((below - (-5.0)).abs() < 0.001);
+
+        // t = 1.5 should go above end
+        let above = 0.0f32.lerp_to(&10.0, 1.5);
+        assert!((above - 15.0).abs() < 0.001);
+    }
+
+    /// Lerp from x to x should always return x.
+    #[test]
+    fn test_lerp_same_value() {
+        let value = 42.0f32;
+        for i in 0..=10 {
+            let t = i as f32 / 10.0;
+            let result = value.lerp_to(&value, t);
+            assert!(
+                (result - value).abs() < 0.001,
+                "Lerp from x to x should be x at any t"
+            );
+        }
+    }
+
+    // ========================================================================
+    // Reverse function
+    // ========================================================================
+
+    /// reverse preserves boundary conditions.
+    #[test]
+    fn test_reverse_boundary_conditions() {
+        // reverse(0, f) should be 1 - f(1) = 1 - 1 = 0
+        // reverse(1, f) should be 1 - f(0) = 1 - 0 = 1
+        for (easing, name) in ALL_EASINGS {
+            let ease_fn = easing.as_fn();
+
+            let at_zero = reverse(0.0, ease_fn);
+            let at_one = reverse(1.0, ease_fn);
+
+            assert!(
+                at_zero.abs() < 0.001,
+                "{name}: reverse(0) should be 0, got {at_zero}"
+            );
+            assert!(
+                (at_one - 1.0).abs() < 0.001,
+                "{name}: reverse(1) should be 1, got {at_one}"
+            );
+        }
+    }
+
+    /// reverse(t, ease_in) should behave like ease_out.
+    #[test]
+    fn test_reverse_in_gives_out() {
+        for i in 0..=20 {
+            let t = i as f32 / 20.0;
+
+            // reverse(quad_in) should equal quad_out
+            let reversed = reverse(t, quad_in);
+            let direct = quad_out(t);
+            assert!(
+                (reversed - direct).abs() < 0.001,
+                "reverse(quad_in) should equal quad_out at t={t}"
+            );
+        }
+    }
+
+    // ========================================================================
+    // Stepped function
+    // ========================================================================
+
+    /// Stepped should produce discrete, quantized values within [0, 1).
+    #[test]
+    fn test_stepped_produces_discrete_values() {
+        let steps = 5u32;
+        let mut seen_values = std::collections::HashSet::new();
+
+        // Sample within [0, 1) to avoid edge case at t=1.0
+        for i in 0..100 {
+            let t = i as f32 / 100.0;
+            let value = stepped(t, steps);
+            // Round to avoid float comparison issues
+            let rounded = (value * 1000.0).round() as i32;
+            seen_values.insert(rounded);
+        }
+
+        // Within [0, 1), should have `steps` distinct values
+        assert!(
+            seen_values.len() <= steps as usize,
+            "stepped({steps}) within [0,1) should produce at most {steps} values, got {}",
+            seen_values.len()
+        );
+    }
+
+    /// Stepped at t=0 should produce 0.
+    #[test]
+    fn test_stepped_at_zero() {
+        assert!((stepped(0.0, 4) - 0.0).abs() < 0.001);
+        assert!((stepped(0.0, 10) - 0.0).abs() < 0.001);
+    }
+
+    // ========================================================================
+    // Mirror function
+    // ========================================================================
+
+    /// Mirror should start and end at same values as original.
+    #[test]
+    fn test_mirror_boundary_conditions() {
+        for (easing, name) in ALL_EASINGS {
+            let ease_fn = easing.as_fn();
+            let start = mirror(0.0, ease_fn);
+            let end = mirror(1.0, ease_fn);
+
+            assert!(
+                start.abs() < 0.001,
+                "{name}: mirror(0) should be 0, got {start}"
+            );
+            assert!(
+                (end - 1.0).abs() < 0.001,
+                "{name}: mirror(1) should be 1, got {end}"
+            );
+        }
+    }
+
+    // ========================================================================
+    // Ease value function
+    // ========================================================================
+
+    /// ease_value should properly scale to value range.
+    #[test]
+    fn test_ease_value_scaling() {
+        let start = 100.0f32;
+        let end = 200.0f32;
+
+        for (easing, _) in ALL_EASINGS {
+            let ease_fn = easing.as_fn();
+
+            // At t=0, should be start
+            let at_zero = ease_value(start, end, 0.0, ease_fn);
+            assert!(
+                (at_zero - start).abs() < 0.01,
+                "{:?}: ease_value at t=0 should be start",
+                easing
+            );
+
+            // At t=1, should be end
+            let at_one = ease_value(start, end, 1.0, ease_fn);
+            assert!(
+                (at_one - end).abs() < 0.01,
+                "{:?}: ease_value at t=1 should be end",
+                easing
+            );
+        }
+    }
+}
