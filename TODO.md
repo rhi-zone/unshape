@@ -280,7 +280,6 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 - [x] `remap_uv(image, &UvExpr)` - UV coordinate remapping (serializable Dew expression)
 - [x] `remap_uv_fn(image, Fn)` - UV coordinate remapping (internal, closure-based)
 - [x] `map_pixels(image, &ColorExpr)` - per-pixel color transform (serializable Dew expression)
-- [x] `map_pixels_fn` - internal only; `bit_manip` uses this since bit ops aren't in ColorExpr
 - [x] `convolve(image, Kernel)` - neighborhood operation (already exists)
 - [x] `composite(image, image, BlendMode, opacity)` - blending (already exists)
 - [x] `sample_uv` - texture sampling (already exists on ImageField)
@@ -288,7 +287,7 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 **Refactor to use primitives:**
 - [x] `swirl`, `spherize`, `transform_image` → use `remap_uv_fn`
 - [x] `grayscale`, `invert`, `threshold`, `posterize` → use `map_pixels` + `ColorExpr`
-- [x] `bit_manip` → uses `map_pixels_fn` (internal, bit ops not in ColorExpr)
+- [x] `bit_manip` → inlines pixel iteration (bit ops not in ColorExpr, not worth int monomorphization)
 - [x] `blur`, `sharpen`, `emboss`, `edge_detect` → already use `convolve`
 
 **Serialization & compilation:**
