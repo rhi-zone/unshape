@@ -6313,32 +6313,39 @@ impl BitManip {
 /// let banded = bit_manip(&image, &BitManip::new(BitOperation::And, 0xF0));
 /// ```
 pub fn bit_manip(image: &ImageField, config: &BitManip) -> ImageField {
-    let operation = config.operation;
     let value = config.value;
     let channels = config.channels;
 
-    map_pixels_fn(image, move |pixel| {
-        let apply_op = |v: f32| -> f32 {
-            let byte = (v.clamp(0.0, 1.0) * 255.0) as u8;
-            let result = match operation {
-                BitOperation::Xor => byte ^ value,
-                BitOperation::And => byte & value,
-                BitOperation::Or => byte | value,
-                BitOperation::Not => !byte,
-                BitOperation::ShiftLeft => byte.wrapping_shl(value as u32),
-                BitOperation::ShiftRight => byte.wrapping_shr(value as u32),
-            };
-            result as f32 / 255.0
-        };
+    // Hoist match out of inner loop
+    let byte_op: fn(u8, u8) -> u8 = match config.operation {
+        BitOperation::Xor => |b, v| b ^ v,
+        BitOperation::And => |b, v| b & v,
+        BitOperation::Or => |b, v| b | v,
+        BitOperation::Not => |b, _| !b,
+        BitOperation::ShiftLeft => |b, v| b.wrapping_shl(v as u32),
+        BitOperation::ShiftRight => |b, v| b.wrapping_shr(v as u32),
+    };
 
-        let mut result = pixel;
-        for (i, &should_apply) in channels.iter().enumerate() {
-            if should_apply {
-                result[i] = apply_op(pixel[i]);
+    let (width, height) = image.dimensions();
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = image.get_pixel(x, y);
+            let mut result = pixel;
+            for (i, &should_apply) in channels.iter().enumerate() {
+                if should_apply {
+                    let byte = (pixel[i].clamp(0.0, 1.0) * 255.0) as u8;
+                    result[i] = byte_op(byte, value) as f32 / 255.0;
+                }
             }
+            data.push(result);
         }
-        result
-    })
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
 }
 
 /// Corrupts random bytes in the image data.
@@ -8311,26 +8318,6 @@ pub fn remap_uv_fn(image: &ImageField, f: impl Fn(f32, f32) -> (f32, f32)) -> Im
         .with_filter_mode(image.filter_mode)
 }
 
-/// Internal: applies a per-pixel color transform using a closure.
-///
-/// This is for internal use where ColorExpr doesn't support the operation
-/// (e.g., bit manipulation). Public API should use [`map_pixels`] with [`ColorExpr`].
-pub(crate) fn map_pixels_fn(image: &ImageField, f: impl Fn([f32; 4]) -> [f32; 4]) -> ImageField {
-    let (width, height) = image.dimensions();
-    let mut data = Vec::with_capacity((width * height) as usize);
-
-    for y in 0..height {
-        for x in 0..width {
-            let pixel = image.get_pixel(x, y);
-            data.push(f(pixel));
-        }
-    }
-
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -10271,53 +10258,6 @@ mod tests {
     }
 
     #[test]
-    fn test_map_pixels_fn_identity() {
-        let img = create_test_image();
-
-        let result = map_pixels_fn(&img, |pixel| pixel);
-
-        for y in 0..2 {
-            for x in 0..2 {
-                let orig = img.get_pixel(x, y);
-                let new = result.get_pixel(x, y);
-                assert_eq!(orig, new);
-            }
-        }
-    }
-
-    #[test]
-    fn test_map_pixels_fn_invert() {
-        let img = create_test_image();
-
-        let result = map_pixels_fn(&img, |[r, g, b, a]| [1.0 - r, 1.0 - g, 1.0 - b, a]);
-
-        // Red pixel (1, 0, 0) -> Cyan (0, 1, 1)
-        let inverted_red = result.get_pixel(0, 0);
-        assert!((inverted_red[0] - 0.0).abs() < 1e-6);
-        assert!((inverted_red[1] - 1.0).abs() < 1e-6);
-        assert!((inverted_red[2] - 1.0).abs() < 1e-6);
-    }
-
-    #[test]
-    fn test_map_pixels_fn_grayscale() {
-        let img = create_test_image();
-
-        let result = map_pixels_fn(&img, |[r, g, b, a]| {
-            let lum = r * 0.299 + g * 0.587 + b * 0.114;
-            [lum, lum, lum, a]
-        });
-
-        // All channels should be equal for each pixel
-        for y in 0..2 {
-            for x in 0..2 {
-                let pixel = result.get_pixel(x, y);
-                assert!((pixel[0] - pixel[1]).abs() < 1e-6);
-                assert!((pixel[1] - pixel[2]).abs() < 1e-6);
-            }
-        }
-    }
-
-    #[test]
     fn test_map_channel_identity() {
         let img = create_test_image();
 
@@ -10347,7 +10287,7 @@ mod tests {
         // Invert only the red channel
         let result = map_channel(&img, Channel::Red, |ch| {
             // Invert the channel (which appears in R, G, B of the grayscale)
-            map_pixels_fn(&ch, |[r, _, _, a]| [1.0 - r, 1.0 - r, 1.0 - r, a])
+            map_pixels(&ch, &ColorExpr::invert())
         });
 
         // Red channel should be inverted
