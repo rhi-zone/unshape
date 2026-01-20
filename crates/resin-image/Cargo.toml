@@ -8,6 +8,8 @@ repository = "https://github.com/rhizome-lab/resin"
 
 [features]
 default = []
+# Enable thorough statistical/invariant tests (slower, for CI)
+invariant-tests = []
 serde = ["dep:serde"]
 dynop = ["dep:rhizome-resin-op", "dep:serde_json", "serde"]
 dew = ["dep:rhizome-dew-core", "dep:rhizome-dew-linalg", "dep:num-traits"]

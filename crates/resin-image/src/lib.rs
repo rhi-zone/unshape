@@ -10326,3 +10326,512 @@ mod tests {
         }
     }
 }
+
+// ============================================================================
+// Invariant tests - statistical property validation
+// ============================================================================
+
+#[cfg(all(test, feature = "invariant-tests"))]
+mod invariant_tests {
+    use super::*;
+
+    // =========================================================================
+    // Blue noise distribution tests
+    // =========================================================================
+
+    /// Compute autocorrelation at a given lag for 1D data
+    fn autocorrelation_1d(values: &[f32], lag: usize) -> f32 {
+        if lag >= values.len() {
+            return 0.0;
+        }
+        let n = values.len() - lag;
+        let mean: f32 = values.iter().sum::<f32>() / values.len() as f32;
+
+        let mut cov = 0.0f32;
+        let mut var = 0.0f32;
+
+        for i in 0..n {
+            let a = values[i] - mean;
+            let b = values[i + lag] - mean;
+            cov += a * b;
+        }
+
+        for v in values {
+            let d = v - mean;
+            var += d * d;
+        }
+
+        if var < 1e-10 {
+            return 0.0;
+        }
+
+        cov / var
+    }
+
+    /// Compute 2D autocorrelation at a given (dx, dy) pixel offset
+    fn autocorrelation_2d(image: &ImageField, dx: i32, dy: i32) -> f32 {
+        use rhizome_resin_field::Field;
+
+        let (width, height) = image.dimensions();
+        let ctx = rhizome_resin_field::EvalContext::default();
+
+        let mut sum_product = 0.0f32;
+        let mut sum_sq = 0.0f32;
+        let mut mean = 0.0f32;
+        let mut count = 0;
+
+        // First pass: compute mean using normalized UV coordinates
+        for y in 0..height {
+            for x in 0..width {
+                let uv = Vec2::new(
+                    (x as f32 + 0.5) / width as f32,
+                    (y as f32 + 0.5) / height as f32,
+                );
+                let color: Rgba = image.sample(uv, &ctx);
+                mean += color.r;
+                count += 1;
+            }
+        }
+        mean /= count as f32;
+
+        // Second pass: compute autocorrelation
+        for y in 0..height {
+            for x in 0..width {
+                let nx = ((x as i32 + dx) % width as i32 + width as i32) % width as i32;
+                let ny = ((y as i32 + dy) % height as i32 + height as i32) % height as i32;
+
+                let uv1 = Vec2::new(
+                    (x as f32 + 0.5) / width as f32,
+                    (y as f32 + 0.5) / height as f32,
+                );
+                let uv2 = Vec2::new(
+                    (nx as f32 + 0.5) / width as f32,
+                    (ny as f32 + 0.5) / height as f32,
+                );
+
+                let c1: Rgba = image.sample(uv1, &ctx);
+                let c2: Rgba = image.sample(uv2, &ctx);
+                let v1 = c1.r - mean;
+                let v2 = c2.r - mean;
+
+                sum_product += v1 * v2;
+                sum_sq += v1 * v1;
+            }
+        }
+
+        if sum_sq < 1e-10 {
+            return 0.0;
+        }
+
+        sum_product / sum_sq
+    }
+
+    #[test]
+    fn test_blue_noise_1d_negative_autocorrelation() {
+        // Blue noise should have negative autocorrelation at lag 1
+        // (nearby values should be anti-correlated)
+        let noise = generate_blue_noise_1d(256);
+
+        let ac1 = autocorrelation_1d(&noise, 1);
+        let ac2 = autocorrelation_1d(&noise, 2);
+
+        // Blue noise should have negative or near-zero autocorrelation
+        // at small lags (values spread out, not clumped)
+        assert!(
+            ac1 < 0.1,
+            "Blue noise 1D autocorrelation(1) should be negative or near-zero, got {}",
+            ac1
+        );
+        assert!(
+            ac2 < 0.2,
+            "Blue noise 1D autocorrelation(2) should be low, got {}",
+            ac2
+        );
+    }
+
+    #[test]
+    fn test_blue_noise_2d_negative_autocorrelation() {
+        // Blue noise should have negative autocorrelation at small offsets
+        let noise = generate_blue_noise_2d(32);
+
+        let ac_10 = autocorrelation_2d(&noise, 1, 0);
+        let ac_01 = autocorrelation_2d(&noise, 0, 1);
+        let ac_11 = autocorrelation_2d(&noise, 1, 1);
+
+        // Blue noise should have negative or near-zero autocorrelation
+        assert!(
+            ac_10 < 0.1,
+            "Blue noise 2D autocorrelation(1,0) should be low, got {}",
+            ac_10
+        );
+        assert!(
+            ac_01 < 0.1,
+            "Blue noise 2D autocorrelation(0,1) should be low, got {}",
+            ac_01
+        );
+        assert!(
+            ac_11 < 0.2,
+            "Blue noise 2D autocorrelation(1,1) should be low, got {}",
+            ac_11
+        );
+    }
+
+    #[test]
+    fn test_blue_noise_uniform_distribution() {
+        // Blue noise should be uniformly distributed in [0, 1]
+        let noise = generate_blue_noise_1d(1024);
+
+        let mean: f32 = noise.iter().sum::<f32>() / noise.len() as f32;
+        let variance: f32 =
+            noise.iter().map(|&v| (v - mean).powi(2)).sum::<f32>() / noise.len() as f32;
+
+        // Uniform [0,1] has mean=0.5, variance=1/12≈0.0833
+        assert!(
+            (mean - 0.5).abs() < 0.05,
+            "Blue noise mean should be ~0.5, got {}",
+            mean
+        );
+        assert!(
+            (variance - 0.0833).abs() < 0.02,
+            "Blue noise variance should be ~0.083, got {}",
+            variance
+        );
+    }
+
+    #[test]
+    fn test_blue_noise_2d_uniform_distribution() {
+        use rhizome_resin_field::Field;
+
+        let noise = generate_blue_noise_2d(32);
+        let (width, height) = noise.dimensions();
+        let ctx = rhizome_resin_field::EvalContext::default();
+
+        let mut values = Vec::new();
+        for y in 0..height {
+            for x in 0..width {
+                // Use normalized UV coordinates [0, 1]
+                let uv = Vec2::new(
+                    (x as f32 + 0.5) / width as f32,
+                    (y as f32 + 0.5) / height as f32,
+                );
+                let color: Rgba = noise.sample(uv, &ctx);
+                values.push(color.r);
+            }
+        }
+
+        let mean: f32 = values.iter().sum::<f32>() / values.len() as f32;
+        let variance: f32 =
+            values.iter().map(|&v| (v - mean).powi(2)).sum::<f32>() / values.len() as f32;
+
+        // Blue noise from void-and-cluster may not have perfect uniform mean
+        // due to the ranking algorithm, but should be reasonably close
+        assert!(
+            (mean - 0.5).abs() < 0.15,
+            "Blue noise 2D mean should be ~0.5, got {}",
+            mean
+        );
+        // Variance should be moderate (not all same value, not extreme)
+        assert!(
+            variance > 0.01 && variance < 0.20,
+            "Blue noise 2D variance should be moderate, got {}",
+            variance
+        );
+    }
+
+    // =========================================================================
+    // Blur kernel tests
+    // =========================================================================
+
+    #[test]
+    fn test_blur_kernels_sum_to_one() {
+        // All blur kernels should sum to 1 to preserve brightness
+        let kernels = [
+            ("box_blur", Kernel::box_blur()),
+            ("gaussian_3x3", Kernel::gaussian_blur_3x3()),
+            ("gaussian_5x5", Kernel::gaussian_blur_5x5()),
+        ];
+
+        for (name, kernel) in kernels {
+            let sum: f32 = kernel.weights.iter().sum();
+            assert!(
+                (sum - 1.0).abs() < 1e-5,
+                "{} kernel should sum to 1.0, got {}",
+                name,
+                sum
+            );
+        }
+    }
+
+    #[test]
+    fn test_blur_preserves_uniform_image() {
+        use rhizome_resin_field::Field;
+
+        // Blurring a uniform image should not change it
+        let uniform_value = 0.42f32;
+        let data = vec![[uniform_value, uniform_value, uniform_value, 1.0]; 25];
+        let img = ImageField::from_raw(data, 5, 5);
+
+        let blurred = convolve(&img, &Kernel::gaussian_blur_3x3());
+        let ctx = rhizome_resin_field::EvalContext::default();
+
+        // Check center pixel using normalized UV
+        let center: Rgba = blurred.sample(Vec2::new(0.5, 0.5), &ctx);
+        assert!(
+            (center.r - uniform_value).abs() < 0.01,
+            "Blur should preserve uniform image, got {} instead of {}",
+            center.r,
+            uniform_value
+        );
+    }
+
+    #[test]
+    fn test_blur_reduces_variance() {
+        // Blurring should reduce variance (smooth the image)
+        // Create a noisy image with actual variation
+        let data: Vec<[f32; 4]> = (0..64)
+            .map(|i| {
+                let v = ((i * 7919) % 256) as f32 / 255.0;
+                [v, v, v, 1.0]
+            })
+            .collect();
+        let img = ImageField::from_raw(data, 8, 8);
+
+        let blurred = blur(&img, 3);
+        let ctx = rhizome_resin_field::EvalContext::default();
+
+        // Compute variance of original and blurred using normalized UVs
+        fn compute_variance(img: &ImageField, ctx: &rhizome_resin_field::EvalContext) -> f32 {
+            use rhizome_resin_field::Field;
+            let (w, h) = img.dimensions();
+            let mut values = Vec::new();
+            for y in 0..h {
+                for x in 0..w {
+                    let uv = Vec2::new((x as f32 + 0.5) / w as f32, (y as f32 + 0.5) / h as f32);
+                    let color: Rgba = img.sample(uv, ctx);
+                    values.push(color.r);
+                }
+            }
+            let mean: f32 = values.iter().sum::<f32>() / values.len() as f32;
+            values.iter().map(|&v| (v - mean).powi(2)).sum::<f32>() / values.len() as f32
+        }
+
+        let var_original = compute_variance(&img, &ctx);
+        let var_blurred = compute_variance(&blurred, &ctx);
+
+        assert!(
+            var_blurred < var_original,
+            "Blur should reduce variance: original={}, blurred={}",
+            var_original,
+            var_blurred
+        );
+    }
+
+    // =========================================================================
+    // Dithering tests
+    // =========================================================================
+
+    #[test]
+    fn test_dither_preserves_average_brightness() {
+        use rhizome_resin_field::Field;
+
+        // Dithering should approximately preserve average brightness
+        // Using a 16x16 gray image to get better sampling of Bayer pattern
+        let gray_level = 0.4f32;
+        let data = vec![[gray_level, gray_level, gray_level, 1.0]; 256];
+        let img = ImageField::from_raw(data, 16, 16);
+        let bayer = BayerField::bayer4x4();
+
+        let dithered = QuantizeWithThreshold::new(img.clone(), bayer, 2);
+        let ctx = rhizome_resin_field::EvalContext::default();
+
+        // BayerField uses UV * 1000, so 0.001 UV step = 1 Bayer pixel
+        // Sample at UV coords that align with Bayer pattern
+        let mut sum = 0.0f32;
+        let mut count = 0;
+        for y in 0..16 {
+            for x in 0..16 {
+                // Use Bayer-aligned coordinates
+                let uv = Vec2::new(x as f32 * 0.001, y as f32 * 0.001);
+                let color: Rgba = dithered.sample(uv, &ctx);
+                sum += color.r;
+                count += 1;
+            }
+        }
+        let avg = sum / count as f32;
+
+        // Allow tolerance since dithering is discrete (binary 0/1 outputs)
+        assert!(
+            (avg - gray_level).abs() < 0.2,
+            "Dithered average brightness should be ~{}, got {}",
+            gray_level,
+            avg
+        );
+    }
+
+    #[test]
+    fn test_dither_produces_binary_output() {
+        use rhizome_resin_field::Field;
+
+        // Quantize to 2 levels should produce only 0 or 1
+        let data: Vec<[f32; 4]> = (0..64)
+            .map(|i| {
+                let v = i as f32 / 64.0;
+                [v, v, v, 1.0]
+            })
+            .collect();
+        let img = ImageField::from_raw(data, 8, 8);
+        let bayer = BayerField::bayer4x4();
+
+        let dithered = QuantizeWithThreshold::new(img, bayer, 2);
+        let ctx = rhizome_resin_field::EvalContext::default();
+
+        for y in 0..8 {
+            for x in 0..8 {
+                let uv = Vec2::new((x as f32 + 0.5) / 8.0, (y as f32 + 0.5) / 8.0);
+                let color: Rgba = dithered.sample(uv, &ctx);
+                assert!(
+                    color.r == 0.0 || color.r == 1.0,
+                    "Binary dither should produce 0 or 1, got {} at ({}, {})",
+                    color.r,
+                    x,
+                    y
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_bayer_field_range() {
+        use rhizome_resin_field::Field;
+
+        // Bayer field values should be in [0, 1)
+        // BayerField tiles at UV * 1000.0, so sample at small UV steps
+        let bayer = BayerField::bayer8x8();
+        let ctx = rhizome_resin_field::EvalContext::default();
+
+        for y in 0..8 {
+            for x in 0..8 {
+                // BayerField converts UV to pixels via * 1000, then mods by size
+                // So 0.001 UV step = 1 pixel step
+                let uv = Vec2::new(x as f32 * 0.001, y as f32 * 0.001);
+                let v: f32 = bayer.sample(uv, &ctx);
+                assert!(
+                    v >= 0.0 && v < 1.0,
+                    "Bayer value should be in [0, 1), got {} at ({}, {})",
+                    v,
+                    x,
+                    y
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_bayer_field_unique_values() {
+        use rhizome_resin_field::Field;
+
+        // Each value in an nxn Bayer matrix should be unique within the tile
+        // BayerField converts UV to pixels via * 1000, then mods by size
+        let bayer = BayerField::bayer4x4();
+        let ctx = rhizome_resin_field::EvalContext::default();
+
+        let mut values: Vec<f32> = Vec::new();
+        for y in 0..4 {
+            for x in 0..4 {
+                // 0.001 UV step = 1 pixel step in Bayer
+                let uv = Vec2::new(x as f32 * 0.001, y as f32 * 0.001);
+                values.push(bayer.sample(uv, &ctx));
+            }
+        }
+
+        // Sort and check for duplicates
+        values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        for i in 1..values.len() {
+            assert!(
+                (values[i] - values[i - 1]).abs() > 1e-6,
+                "Bayer matrix should have unique values, found duplicates: {:?}",
+                values
+            );
+        }
+    }
+
+    // =========================================================================
+    // Color transform invertibility tests
+    // =========================================================================
+
+    #[test]
+    fn test_grayscale_idempotent() {
+        use rhizome_resin_field::Field;
+
+        // Applying grayscale twice should give the same result
+        let data = vec![
+            [0.2, 0.5, 0.8, 1.0],
+            [0.1, 0.9, 0.3, 1.0],
+            [0.7, 0.2, 0.6, 1.0],
+            [0.4, 0.4, 0.4, 1.0],
+        ];
+        let img = ImageField::from_raw(data, 2, 2);
+
+        let gray1 = grayscale(&img);
+        let gray2 = grayscale(&gray1);
+
+        let ctx = rhizome_resin_field::EvalContext::default();
+        for y in 0..2 {
+            for x in 0..2 {
+                let uv = Vec2::new((x as f32 + 0.5) / 2.0, (y as f32 + 0.5) / 2.0);
+                let v1: Rgba = gray1.sample(uv, &ctx);
+                let v2: Rgba = gray2.sample(uv, &ctx);
+                assert!(
+                    (v1.r - v2.r).abs() < 1e-5,
+                    "Grayscale should be idempotent at ({}, {})",
+                    x,
+                    y
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_invert_is_involution() {
+        use rhizome_resin_field::Field;
+
+        // Inverting twice should give the original
+        let data = vec![
+            [0.2, 0.5, 0.8, 1.0],
+            [0.1, 0.9, 0.3, 1.0],
+            [0.7, 0.2, 0.6, 1.0],
+            [0.0, 1.0, 0.5, 1.0],
+        ];
+        let img = ImageField::from_raw(data.clone(), 2, 2);
+
+        let inv1 = invert(&img);
+        let inv2 = invert(&inv1);
+
+        let ctx = rhizome_resin_field::EvalContext::default();
+        for y in 0..2 {
+            for x in 0..2 {
+                let uv = Vec2::new((x as f32 + 0.5) / 2.0, (y as f32 + 0.5) / 2.0);
+                let original: Rgba = img.sample(uv, &ctx);
+                let double_inv: Rgba = inv2.sample(uv, &ctx);
+                assert!(
+                    (original.r - double_inv.r).abs() < 1e-5,
+                    "Double invert should restore original R at ({}, {})",
+                    x,
+                    y
+                );
+                assert!(
+                    (original.g - double_inv.g).abs() < 1e-5,
+                    "Double invert should restore original G at ({}, {})",
+                    x,
+                    y
+                );
+                assert!(
+                    (original.b - double_inv.b).abs() < 1e-5,
+                    "Double invert should restore original B at ({}, {})",
+                    x,
+                    y
+                );
+            }
+        }
+    }
+}
