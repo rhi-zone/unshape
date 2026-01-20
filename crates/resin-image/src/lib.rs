@@ -6313,18 +6313,15 @@ impl BitManip {
 /// let banded = bit_manip(&image, &BitManip::new(BitOperation::And, 0xF0));
 /// ```
 pub fn bit_manip(image: &ImageField, config: &BitManip) -> ImageField {
+    let op = config.operation;
     let value = config.value;
     let channels = config.channels;
 
-    // Hoist match out of inner loop
-    let byte_op: fn(u8, u8) -> u8 = match config.operation {
-        BitOperation::Xor => |b, v| b ^ v,
-        BitOperation::And => |b, v| b & v,
-        BitOperation::Or => |b, v| b | v,
-        BitOperation::Not => |b, _| !b,
-        BitOperation::ShiftLeft => |b, v| b.wrapping_shl(v as u32),
-        BitOperation::ShiftRight => |b, v| b.wrapping_shr(v as u32),
-    };
+    // Perf guess: inline match probably better than function pointer or closure.
+    // - Function pointer: indirect call overhead on every pixel?
+    // - Closure: same, plus potential capture overhead?
+    // - Inline match: LLVM *might* see `op` is loop-invariant and hoist
+    // Not benchmarked - branch prediction probably makes it all moot anyway.
 
     let (width, height) = image.dimensions();
     let mut data = Vec::with_capacity((width * height) as usize);
@@ -6336,7 +6333,15 @@ pub fn bit_manip(image: &ImageField, config: &BitManip) -> ImageField {
             for (i, &should_apply) in channels.iter().enumerate() {
                 if should_apply {
                     let byte = (pixel[i].clamp(0.0, 1.0) * 255.0) as u8;
-                    result[i] = byte_op(byte, value) as f32 / 255.0;
+                    let out = match op {
+                        BitOperation::Xor => byte ^ value,
+                        BitOperation::And => byte & value,
+                        BitOperation::Or => byte | value,
+                        BitOperation::Not => !byte,
+                        BitOperation::ShiftLeft => byte.wrapping_shl(value as u32),
+                        BitOperation::ShiftRight => byte.wrapping_shr(value as u32),
+                    };
+                    result[i] = out as f32 / 255.0;
                 }
             }
             data.push(result);
