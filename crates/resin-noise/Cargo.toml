@@ -10,9 +10,12 @@ repository = "https://github.com/rhizome-lab/resin"
 default = []
 # Enable thorough statistical/invariant tests (slower, for CI)
 invariant-tests = []
+# Serialization support
+serde = ["dep:serde"]
 
 [dependencies]
 glam.workspace = true
+serde = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion.workspace = true

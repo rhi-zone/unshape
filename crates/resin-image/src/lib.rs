@@ -2164,52 +2164,31 @@ pub fn adjust_hsl(image: &ImageField, adjustment: &HslAdjustment) -> ImageField 
 
 /// Converts an image to grayscale using luminance.
 ///
-/// This function is sugar over [`map_pixels_fn`] with the grayscale transform.
-///
 /// Uses ITU-R BT.709 coefficients: 0.2126 R + 0.7152 G + 0.0722 B
 pub fn grayscale(image: &ImageField) -> ImageField {
-    map_pixels_fn(image, |[r, g, b, a]| {
-        let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        [lum, lum, lum, a]
-    })
+    map_pixels(image, &ColorExpr::grayscale())
 }
 
 /// Inverts the colors of an image.
 ///
-/// This function is sugar over [`map_pixels_fn`] with the invert transform.
-///
 /// Each RGB channel is inverted (1 - value). Alpha is preserved.
 pub fn invert(image: &ImageField) -> ImageField {
-    map_pixels_fn(image, |[r, g, b, a]| [1.0 - r, 1.0 - g, 1.0 - b, a])
+    map_pixels(image, &ColorExpr::invert())
 }
 
 /// Applies a posterization effect, reducing the number of color levels.
 ///
-/// This function is sugar over [`map_pixels_fn`] with the posterize transform.
-///
 /// # Arguments
 /// * `levels` - Number of levels per channel (2-256, typically 2-8 for visible effect)
 pub fn posterize(image: &ImageField, levels: u32) -> ImageField {
-    let levels = levels.clamp(2, 256) as f32;
-    let factor = levels - 1.0;
-
-    map_pixels_fn(image, move |[r, g, b, a]| {
-        let quantize = |v: f32| ((v * factor).round() / factor).clamp(0.0, 1.0);
-        [quantize(r), quantize(g), quantize(b), a]
-    })
+    map_pixels(image, &ColorExpr::posterize(levels))
 }
 
 /// Applies a threshold effect, converting to black and white.
 ///
-/// This function is sugar over [`map_pixels_fn`] with the threshold transform.
-///
 /// Pixels with luminance above the threshold become white, below become black.
 pub fn threshold(image: &ImageField, thresh: f32) -> ImageField {
-    map_pixels_fn(image, move |[r, g, b, a]| {
-        let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        let v = if lum > thresh { 1.0 } else { 0.0 };
-        [v, v, v, a]
-    })
+    map_pixels(image, &ColorExpr::threshold(thresh))
 }
 
 // ============================================================================
@@ -3462,6 +3441,216 @@ fn calculate_density_3d(
         }
     }
     density
+}
+
+// -----------------------------------------------------------------------------
+// Temporal Dithering
+// -----------------------------------------------------------------------------
+
+/// Bayer dithering pattern with temporal offset for animation.
+///
+/// Each frame uses a different offset into the Bayer pattern, reducing
+/// temporal flickering when frames are viewed in sequence.
+///
+/// The offset cycles through all positions in the Bayer matrix over `size²` frames.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct TemporalBayer {
+    /// Matrix size (2, 4, or 8).
+    pub size: u32,
+    /// Current frame index.
+    pub frame: u32,
+}
+
+impl TemporalBayer {
+    /// Creates a temporal Bayer field with given size and frame.
+    pub fn new(size: u32, frame: u32) -> Self {
+        let size = match size {
+            0..=2 => 2,
+            3..=5 => 4,
+            _ => 8,
+        };
+        Self { size, frame }
+    }
+
+    /// Creates a 4x4 temporal Bayer field (default size).
+    pub fn bayer4x4(frame: u32) -> Self {
+        Self::new(4, frame)
+    }
+
+    /// Creates an 8x8 temporal Bayer field.
+    pub fn bayer8x8(frame: u32) -> Self {
+        Self::new(8, frame)
+    }
+}
+
+impl Field<Vec2, f32> for TemporalBayer {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        let size = self.size as usize;
+
+        // Convert UV to pixel coordinates
+        let px = (input.x.abs() * 1000.0) as usize;
+        let py = (input.y.abs() * 1000.0) as usize;
+
+        // Temporal offset: shift pattern position each frame
+        let frame_offset = self.frame as usize;
+        let x = (px + frame_offset) % size;
+        let y = (py + frame_offset / size) % size;
+
+        match self.size {
+            2 => BAYER_2X2[y % 2][x % 2],
+            4 => BAYER_4X4[y % 4][x % 4],
+            _ => BAYER_8X8[y % 8][x % 8],
+        }
+    }
+}
+
+/// Interleaved Gradient Noise (IGN) for temporal dithering.
+///
+/// A low-discrepancy noise pattern commonly used in real-time graphics.
+/// Produces well-distributed noise that varies smoothly with frame index,
+/// making it ideal for temporal anti-aliasing and dithering in animation.
+///
+/// Based on Jorge Jimenez's algorithm from "Next Generation Post Processing in Call of Duty".
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct InterleavedGradientNoise {
+    /// Current frame index.
+    pub frame: u32,
+}
+
+impl InterleavedGradientNoise {
+    /// Creates a new IGN field for the given frame.
+    pub fn new(frame: u32) -> Self {
+        Self { frame }
+    }
+}
+
+impl Field<Vec2, f32> for InterleavedGradientNoise {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
+        // Convert UV to pixel coordinates (assume 1000x1000 resolution for consistency)
+        let x = input.x.abs() * 1000.0;
+        let y = input.y.abs() * 1000.0;
+
+        // Temporal rotation using golden ratio
+        let frame_offset = self.frame as f32 * 5.588238;
+        let rotated_x = x + frame_offset;
+        let rotated_y = y + frame_offset;
+
+        // IGN formula: fract(52.9829189 * fract(0.06711056 * x + 0.00583715 * y))
+        fract(52.9829189 * fract(0.06711056 * rotated_x + 0.00583715 * rotated_y))
+    }
+}
+
+/// Temporal blue noise dithering using 3D blue noise with frame as Z coordinate.
+///
+/// This wrapper provides explicit frame-based access to `BlueNoise3D`,
+/// making the temporal dithering use case clearer.
+///
+/// Blue noise has optimal spectral properties - the pattern varies per-frame
+/// but maintains consistent distribution, minimizing visible flickering.
+#[derive(Debug, Clone)]
+pub struct TemporalBlueNoise {
+    /// The underlying 3D blue noise.
+    pub noise: BlueNoise3D,
+    /// Current frame index.
+    pub frame: u32,
+}
+
+impl TemporalBlueNoise {
+    /// Creates a temporal blue noise field from existing 3D noise.
+    pub fn from_noise(noise: BlueNoise3D, frame: u32) -> Self {
+        Self { noise, frame }
+    }
+
+    /// Generates a new temporal blue noise field.
+    ///
+    /// **Note**: Generation is expensive. Pre-generate and reuse the `BlueNoise3D`.
+    pub fn generate(size: u32, frame: u32) -> Self {
+        Self {
+            noise: BlueNoise3D::generate(size),
+            frame,
+        }
+    }
+
+    /// Returns a new instance for a different frame (shares the noise data).
+    pub fn at_frame(&self, frame: u32) -> Self {
+        Self {
+            noise: self.noise.clone(),
+            frame,
+        }
+    }
+}
+
+impl Field<Vec2, f32> for TemporalBlueNoise {
+    fn sample(&self, input: Vec2, ctx: &EvalContext) -> f32 {
+        // Map frame to z coordinate, wrapping at noise size
+        let z = (self.frame % self.noise.size) as f32 / self.noise.size as f32;
+        self.noise.sample(Vec3::new(input.x, input.y, z), ctx)
+    }
+}
+
+/// Quantizes with temporal dithering threshold.
+///
+/// Like `QuantizeWithThreshold` but takes a frame parameter for temporal variation.
+/// This reduces temporal flickering in animated sequences by ensuring the
+/// dithering pattern changes smoothly between frames.
+#[derive(Clone)]
+pub struct QuantizeWithTemporalThreshold<F, T> {
+    /// The input color field.
+    pub input: F,
+    /// The threshold field (takes Vec3 where z = frame/total_frames).
+    pub threshold: T,
+    /// Number of quantization levels.
+    pub levels: u32,
+    /// Current frame index.
+    pub frame: u32,
+    /// Total frames in the animation (for z-coordinate normalization).
+    pub total_frames: u32,
+}
+
+impl<F, T> QuantizeWithTemporalThreshold<F, T> {
+    /// Creates a new temporal quantize operation.
+    ///
+    /// # Arguments
+    /// * `input` - The color field to quantize
+    /// * `threshold` - A 3D threshold field (x, y, frame_normalized)
+    /// * `levels` - Number of quantization levels
+    /// * `frame` - Current frame (0-indexed)
+    /// * `total_frames` - Total frames in animation (used to normalize z)
+    pub fn new(input: F, threshold: T, levels: u32, frame: u32, total_frames: u32) -> Self {
+        Self {
+            input,
+            threshold,
+            levels: levels.clamp(2, 256),
+            frame,
+            total_frames: total_frames.max(1),
+        }
+    }
+}
+
+impl<F, T> Field<Vec2, Rgba> for QuantizeWithTemporalThreshold<F, T>
+where
+    F: Field<Vec2, Rgba>,
+    T: Field<Vec3, f32>,
+{
+    fn sample(&self, pos: Vec2, ctx: &EvalContext) -> Rgba {
+        let color = self.input.sample(pos, ctx);
+
+        // Sample threshold with frame as z-coordinate
+        let z = self.frame as f32 / self.total_frames as f32;
+        let thresh = self.threshold.sample(Vec3::new(pos.x, pos.y, z), ctx);
+
+        let quantize = Quantize::new(self.levels);
+        let offset = (thresh - 0.5) * quantize.spread();
+
+        Rgba::new(
+            quantize.apply(color.r + offset),
+            quantize.apply(color.g + offset),
+            quantize.apply(color.b + offset),
+            color.a,
+        )
+    }
 }
 
 // ============================================================================
@@ -6107,8 +6296,6 @@ impl BitManip {
 
 /// Applies bit manipulation to image pixel data.
 ///
-/// This function is sugar over [`map_pixels_fn`] with the bit manipulation transform.
-///
 /// Treats pixel values as 8-bit integers and applies bitwise operations,
 /// creating digital glitch effects.
 ///
@@ -8124,40 +8311,11 @@ pub fn remap_uv_fn(image: &ImageField, f: impl Fn(f32, f32) -> (f32, f32)) -> Im
         .with_filter_mode(image.filter_mode)
 }
 
-/// Applies a per-pixel color transform using a closure.
+/// Internal: applies a per-pixel color transform using a closure.
 ///
-/// This is the runtime closure variant of [`map_pixels`]. Use this when:
-/// - The transformation doesn't need to be serialized
-/// - The transformation is a one-off custom effect
-/// - The transformation references external state
-///
-/// For serializable/compilable transforms, use [`map_pixels`] with [`ColorExpr`] instead.
-///
-/// # Arguments
-///
-/// * `image` - The source image to transform
-/// * `f` - A function that maps `[r, g, b, a]` → `[r', g', b', a']`
-///
-/// # Example
-///
-/// ```
-/// use rhizome_resin_image::{ImageField, map_pixels_fn};
-///
-/// let image = ImageField::from_raw(vec![[0.5, 0.3, 0.7, 1.0]; 16], 4, 4);
-///
-/// // Custom sepia effect
-/// let sepia = map_pixels_fn(&image, |[r, g, b, a]| {
-///     let gray = r * 0.299 + g * 0.587 + b * 0.114;
-///     [gray * 1.2, gray * 1.0, gray * 0.8, a]
-/// });
-///
-/// // Threshold with custom logic
-/// let binary = map_pixels_fn(&image, |[r, g, b, a]| {
-///     let lum = r * 0.2126 + g * 0.7152 + b * 0.0722;
-///     if lum > 0.5 { [1.0, 1.0, 1.0, a] } else { [0.0, 0.0, 0.0, a] }
-/// });
-/// ```
-pub fn map_pixels_fn(image: &ImageField, f: impl Fn([f32; 4]) -> [f32; 4]) -> ImageField {
+/// This is for internal use where ColorExpr doesn't support the operation
+/// (e.g., bit manipulation). Public API should use [`map_pixels`] with [`ColorExpr`].
+pub(crate) fn map_pixels_fn(image: &ImageField, f: impl Fn([f32; 4]) -> [f32; 4]) -> ImageField {
     let (width, height) = image.dimensions();
     let mut data = Vec::with_capacity((width * height) as usize);
 
@@ -9195,6 +9353,119 @@ mod tests {
         assert!(
             has_black && has_white,
             "Blue noise dithering should produce mix of values"
+        );
+    }
+
+    #[test]
+    fn test_temporal_bayer_varies_by_frame() {
+        let ctx = EvalContext::new();
+        let pos = Vec2::new(0.5, 0.5);
+
+        // Different frames should produce different thresholds
+        let mut values = Vec::new();
+        for frame in 0..16 {
+            let bayer = TemporalBayer::bayer4x4(frame);
+            values.push(bayer.sample(pos, &ctx));
+        }
+
+        // Should have multiple distinct values (not all the same)
+        let mut unique = values.clone();
+        unique.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        unique.dedup_by(|a, b| (*a - *b).abs() < 0.01);
+        assert!(unique.len() > 1, "Temporal Bayer should vary across frames");
+    }
+
+    #[test]
+    fn test_temporal_bayer_range() {
+        let ctx = EvalContext::new();
+
+        // All values should be in [0, 1)
+        for frame in 0..10 {
+            let bayer = TemporalBayer::bayer8x8(frame);
+            for i in 0..10 {
+                for j in 0..10 {
+                    let pos = Vec2::new(i as f32 / 10.0, j as f32 / 10.0);
+                    let v = bayer.sample(pos, &ctx);
+                    assert!(v >= 0.0 && v < 1.0, "Bayer value {} out of range", v);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_ign_varies_by_frame() {
+        let ctx = EvalContext::new();
+        let pos = Vec2::new(0.5, 0.5);
+
+        // Different frames should produce different values
+        let mut values = Vec::new();
+        for frame in 0..10 {
+            let ign = InterleavedGradientNoise::new(frame);
+            values.push(ign.sample(pos, &ctx));
+        }
+
+        // Should have distinct values
+        let mut unique = values.clone();
+        unique.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        unique.dedup_by(|a, b| (*a - *b).abs() < 0.01);
+        assert!(unique.len() > 5, "IGN should vary across frames");
+    }
+
+    #[test]
+    fn test_ign_range() {
+        let ctx = EvalContext::new();
+
+        // All values should be in [0, 1)
+        for frame in 0..10 {
+            let ign = InterleavedGradientNoise::new(frame);
+            for i in 0..10 {
+                for j in 0..10 {
+                    let pos = Vec2::new(i as f32 / 10.0, j as f32 / 10.0);
+                    let v = ign.sample(pos, &ctx);
+                    assert!(v >= 0.0 && v < 1.0, "IGN value {} out of range", v);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_temporal_blue_noise_varies_by_frame() {
+        let ctx = EvalContext::new();
+        let noise = BlueNoise3D::generate(8);
+        let pos = Vec2::new(0.5, 0.5);
+
+        // Different frames should produce different values
+        let mut values = Vec::new();
+        for frame in 0..8 {
+            let temporal = TemporalBlueNoise::from_noise(noise.clone(), frame);
+            values.push(temporal.sample(pos, &ctx));
+        }
+
+        // Should have distinct values
+        let mut unique = values.clone();
+        unique.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        unique.dedup_by(|a, b| (*a - *b).abs() < 0.01);
+        assert!(
+            unique.len() > 3,
+            "Temporal blue noise should vary across frames"
+        );
+    }
+
+    #[test]
+    fn test_temporal_blue_noise_at_frame() {
+        let ctx = EvalContext::new();
+        let noise = BlueNoise3D::generate(8);
+        let pos = Vec2::new(0.25, 0.75);
+
+        let temporal1 = TemporalBlueNoise::from_noise(noise.clone(), 3);
+        let temporal2 = temporal1.at_frame(3);
+
+        // Same frame should give same value
+        let v1 = temporal1.sample(pos, &ctx);
+        let v2 = temporal2.sample(pos, &ctx);
+        assert!(
+            (v1 - v2).abs() < 0.001,
+            "at_frame should preserve noise data"
         );
     }
 

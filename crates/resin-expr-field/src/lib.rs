@@ -57,8 +57,9 @@ impl ScalarFn<f32> for Noise {
         2
     }
     fn call(&self, args: &[f32]) -> f32 {
+        use rhizome_resin_noise::Noise2D;
         let [x, y] = args else { return 0.0 };
-        rhizome_resin_noise::perlin2(*x, *y)
+        rhizome_resin_noise::Perlin2D::new().sample(*x, *y)
     }
 }
 
@@ -72,8 +73,9 @@ impl ScalarFn<f32> for Perlin {
         2
     }
     fn call(&self, args: &[f32]) -> f32 {
+        use rhizome_resin_noise::Noise2D;
         let [x, y] = args else { return 0.0 };
-        rhizome_resin_noise::perlin2(*x, *y)
+        rhizome_resin_noise::Perlin2D::new().sample(*x, *y)
     }
 }
 
@@ -87,8 +89,9 @@ impl ScalarFn<f32> for Perlin3 {
         3
     }
     fn call(&self, args: &[f32]) -> f32 {
+        use rhizome_resin_noise::Noise3D;
         let [x, y, z] = args else { return 0.0 };
-        rhizome_resin_noise::perlin3(*x, *y, *z)
+        rhizome_resin_noise::Perlin3D::new().sample(*x, *y, *z)
     }
 }
 
@@ -102,8 +105,9 @@ impl ScalarFn<f32> for Simplex {
         2
     }
     fn call(&self, args: &[f32]) -> f32 {
+        use rhizome_resin_noise::Noise2D;
         let [x, y] = args else { return 0.0 };
-        rhizome_resin_noise::simplex2(*x, *y)
+        rhizome_resin_noise::Simplex2D::new().sample(*x, *y)
     }
 }
 
@@ -117,8 +121,9 @@ impl ScalarFn<f32> for Simplex3 {
         3
     }
     fn call(&self, args: &[f32]) -> f32 {
+        use rhizome_resin_noise::Noise3D;
         let [x, y, z] = args else { return 0.0 };
-        rhizome_resin_noise::simplex3(*x, *y, *z)
+        rhizome_resin_noise::Simplex3D::new().sample(*x, *y, *z)
     }
 }
 
@@ -132,8 +137,11 @@ impl ScalarFn<f32> for Fbm {
         3
     }
     fn call(&self, args: &[f32]) -> f32 {
+        use rhizome_resin_noise::Noise2D;
         let [x, y, octaves] = args else { return 0.0 };
-        rhizome_resin_noise::fbm_perlin2(*x, *y, *octaves as u32)
+        rhizome_resin_noise::Fbm::new(rhizome_resin_noise::Perlin2D::new())
+            .octaves(*octaves as u32)
+            .sample(*x, *y)
     }
 }
 
@@ -558,49 +566,64 @@ impl FieldExpr {
 
             // Noise functions
             Self::Perlin2 { x: ex, y: ey } => {
-                rhizome_resin_noise::perlin2(ex.eval(x, y, z, t, vars), ey.eval(x, y, z, t, vars))
+                use rhizome_resin_noise::Noise2D;
+                rhizome_resin_noise::Perlin2D::new()
+                    .sample(ex.eval(x, y, z, t, vars), ey.eval(x, y, z, t, vars))
             }
             Self::Perlin3 {
                 x: ex,
                 y: ey,
                 z: ez,
-            } => rhizome_resin_noise::perlin3(
-                ex.eval(x, y, z, t, vars),
-                ey.eval(x, y, z, t, vars),
-                ez.eval(x, y, z, t, vars),
-            ),
+            } => {
+                use rhizome_resin_noise::Noise3D;
+                rhizome_resin_noise::Perlin3D::new().sample(
+                    ex.eval(x, y, z, t, vars),
+                    ey.eval(x, y, z, t, vars),
+                    ez.eval(x, y, z, t, vars),
+                )
+            }
             Self::Simplex2 { x: ex, y: ey } => {
-                rhizome_resin_noise::simplex2(ex.eval(x, y, z, t, vars), ey.eval(x, y, z, t, vars))
+                use rhizome_resin_noise::Noise2D;
+                rhizome_resin_noise::Simplex2D::new()
+                    .sample(ex.eval(x, y, z, t, vars), ey.eval(x, y, z, t, vars))
             }
             Self::Simplex3 {
                 x: ex,
                 y: ey,
                 z: ez,
-            } => rhizome_resin_noise::simplex3(
-                ex.eval(x, y, z, t, vars),
-                ey.eval(x, y, z, t, vars),
-                ez.eval(x, y, z, t, vars),
-            ),
+            } => {
+                use rhizome_resin_noise::Noise3D;
+                rhizome_resin_noise::Simplex3D::new().sample(
+                    ex.eval(x, y, z, t, vars),
+                    ey.eval(x, y, z, t, vars),
+                    ez.eval(x, y, z, t, vars),
+                )
+            }
             Self::Fbm2 {
                 x: ex,
                 y: ey,
                 octaves,
-            } => rhizome_resin_noise::fbm_perlin2(
-                ex.eval(x, y, z, t, vars),
-                ey.eval(x, y, z, t, vars),
-                *octaves,
-            ),
+            } => {
+                use rhizome_resin_noise::Noise2D;
+                rhizome_resin_noise::Fbm::new(rhizome_resin_noise::Perlin2D::new())
+                    .octaves(*octaves)
+                    .sample(ex.eval(x, y, z, t, vars), ey.eval(x, y, z, t, vars))
+            }
             Self::Fbm3 {
                 x: ex,
                 y: ey,
                 z: ez,
                 octaves,
-            } => rhizome_resin_noise::fbm_perlin3(
-                ex.eval(x, y, z, t, vars),
-                ey.eval(x, y, z, t, vars),
-                ez.eval(x, y, z, t, vars),
-                *octaves,
-            ),
+            } => {
+                use rhizome_resin_noise::Noise3D;
+                rhizome_resin_noise::Fbm::new(rhizome_resin_noise::Perlin3D::new())
+                    .octaves(*octaves)
+                    .sample(
+                        ex.eval(x, y, z, t, vars),
+                        ey.eval(x, y, z, t, vars),
+                        ez.eval(x, y, z, t, vars),
+                    )
+            }
 
             // Distance functions
             Self::Distance2 {

@@ -170,7 +170,7 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
     - Prior art: https://github.com/akavel/WernessDithering, https://dukope.com/devlogs/obra-dinn/tig-18/
   - [x] Riemersma dithering - error diffusion along Hilbert curve, eliminates directional artifacts
     - Prior art: https://surma.dev/things/ditherpunk/
-  - [ ] Temporal dithering - for animation/video (interleaved patterns across frames)
+  - [x] Temporal dithering - for animation/video (TemporalBayer, InterleavedGradientNoise, TemporalBlueNoise, QuantizeWithTemporalThreshold)
 
 ### Audio
 
@@ -277,15 +277,18 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 > Sugar functions remain for ergonomics but delegate to primitives.
 
 **True Primitives:**
-- [x] `remap_uv_fn(image, Fn(f32, f32) -> (f32, f32))` - UV coordinate remapping (runtime, closure-based)
-- [x] `map_pixels_fn(image, Fn([f32;4]) -> [f32;4])` - per-pixel color transform (runtime, closure-based)
+- [x] `remap_uv(image, &UvExpr)` - UV coordinate remapping (serializable Dew expression)
+- [x] `remap_uv_fn(image, Fn)` - UV coordinate remapping (internal, closure-based)
+- [x] `map_pixels(image, &ColorExpr)` - per-pixel color transform (serializable Dew expression)
+- [x] `map_pixels_fn` - internal only; `bit_manip` uses this since bit ops aren't in ColorExpr
 - [x] `convolve(image, Kernel)` - neighborhood operation (already exists)
 - [x] `composite(image, image, BlendMode, opacity)` - blending (already exists)
 - [x] `sample_uv` - texture sampling (already exists on ImageField)
 
 **Refactor to use primitives:**
 - [x] `swirl`, `spherize`, `transform_image` → use `remap_uv_fn`
-- [x] `grayscale`, `invert`, `threshold`, `posterize`, `bit_manip` → use `map_pixels_fn`
+- [x] `grayscale`, `invert`, `threshold`, `posterize` → use `map_pixels` + `ColorExpr`
+- [x] `bit_manip` → uses `map_pixels_fn` (internal, bit ops not in ColorExpr)
 - [x] `blur`, `sharpen`, `emboss`, `edge_detect` → already use `convolve`
 
 **Serialization & compilation:**
@@ -301,7 +304,7 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 
 - [x] Per-channel transform - `map_channel(image, channel, Fn(ImageField) -> ImageField)`
 - [x] Colorspace decomposition - decompose/reconstruct in HSL/HSV/LAB/YCbCr (decompose_colorspace, reconstruct_colorspace, Colorspace)
-- [ ] Arbitrary channel reorder - swap/permute channels across colorspaces
+- ~~Arbitrary channel reorder~~ - N/A, use `map_pixels(img, &ColorExpr::Vec4 { r: B, g: G, b: R, a: A })`
 - [x] Buffer map - `map_buffer(&[f32], Fn(f32) -> f32)` in resin-bytes
 - [x] Buffer zip - `zip_buffers(&[f32], &[f32], Fn(f32, f32) -> f32)` in resin-bytes
 - [x] Buffer fold - `fold_buffer(&[f32], init, Fn(acc, f32) -> acc)` in resin-bytes
@@ -496,8 +499,8 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 ### Spatial Additions
 
 - [x] k-nearest neighbor queries - `k_nearest(position, k)` for Quadtree/Octree
-- [ ] KD-tree - common alternative to octree, often faster for point queries
-- [ ] Ball tree - good for high-dimensional nearest neighbor
+- [x] KD-tree - `KdTree2D`, `KdTree3D` with nearest, k_nearest, query_region, query_radius
+- [x] Ball tree - `BallTree2D`, `BallTree3D` with nearest, k_nearest, query_radius
 
 ### Crate Pattern Gaps
 
@@ -505,7 +508,7 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 
 **serde feature missing:**
 - [x] resin-curve - added `serde` feature with Serialize/Deserialize for all curve types
-- [x] resin-noise - no structs to serialize (pure functions only)
+- [x] resin-noise - added `serde` feature for all noise structs (Perlin2D, Simplex3D, Fbm, etc.)
 - [x] resin-easing - added `serde` feature for Easing enum
 - [x] resin-geometry - N/A (traits only, no structs)
 - [x] resin-spatial - added `serde` feature for Aabb2, Aabb3, Ray
@@ -515,31 +518,31 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 **dynop feature missing:**
 - [x] resin-audio - already has `dynop` feature properly configured
 - [x] resin-curve - N/A (data types only, no operations)
-- [x] resin-noise - N/A (pure functions only, no operations)
+- [x] resin-noise - N/A (serde sufficient, not used in Pipeline pattern)
 - [x] resin-easing - N/A (pure functions only, no operations)
-- [ ] resin-spatial - add `dynop` feature and register_ops()
-- [ ] resin-transform - add `dynop` feature and register_ops()
-- [ ] resin-motion - add `dynop` feature and register_ops()
-- [ ] resin-motion-fn - add `dynop` feature and register_ops()
+- [x] resin-spatial - N/A (data structures for queries, not operations)
+- [x] resin-transform - N/A (trait only, no structs)
+- [x] resin-motion - N/A (scene graph containers, motion types in motion-fn)
+- [x] resin-motion-fn - N/A (generic types, serde sufficient, composed via Field trait)
 
-**invariant-tests missing:**
-- [ ] resin-voxel - add invariant tests for voxel operations
-- [ ] resin-field - add invariant tests for field composition
-- [ ] resin-vector - add invariant tests for vector operations
-- [ ] resin-spring - add invariant tests for spring physics
-- [ ] resin-particle - add invariant tests for particle systems
-- [ ] resin-physics - add invariant tests for rigid body physics
+**invariant-tests added:**
+- [x] resin-voxel - 11 invariant tests for voxel operations
+- [x] resin-field - 12 invariant tests for field composition
+- [x] resin-vector - 18 invariant tests for vector operations
+- [x] resin-spring - 9 invariant tests for spring physics
+- [x] resin-particle - 18 invariant tests for particle systems
+- [x] resin-physics - 16 invariant tests for rigid body physics
 
-**Field trait implementations missing:**
-- [x] resin-noise - Field implementations already exist in resin-field (Perlin2D, Simplex2D, etc.)
-- [ ] resin-automata - implement Field for cellular automata
-- [ ] resin-rd - implement Field for reaction-diffusion
+**Field trait implementations:**
+- [x] resin-noise - Field implementations in resin-field (Perlin2D, Simplex2D, etc.)
+- [x] resin-automata - N/A (discrete grid simulation, not continuous field)
+- [x] resin-rd - N/A (discrete grid simulation, not continuous field)
 
-**benchmarks missing:**
-- [ ] resin-field - add criterion benchmarks
-- [ ] resin-spatial - add criterion benchmarks for spatial queries
-- [ ] resin-physics - add criterion benchmarks
-- [ ] resin-pointcloud - add criterion benchmarks
+**benchmarks added:**
+- [x] resin-field - criterion benchmarks for noise, FBM, combinators, terrain, heightmap
+- [x] resin-spatial - criterion benchmarks for quadtree, octree, BVH, spatial hash, R-tree
+- [x] resin-physics - criterion benchmarks for world step, collision, integration, constraints
+- [x] resin-pointcloud - criterion benchmarks for creation, sampling, normals, transforms
 
 ### Architecture / Future Extraction
 

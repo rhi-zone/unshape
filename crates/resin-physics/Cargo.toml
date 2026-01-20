@@ -10,6 +10,7 @@ description = "Rigid body physics simulation for resin"
 default = []
 serde = ["dep:serde", "glam/serde"]
 dynop = ["dep:rhizome-resin-op", "dep:serde_json", "serde"]
+invariant-tests = []
 
 [dependencies]
 glam = { workspace = true }
@@ -18,3 +19,8 @@ serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
 
 [dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "physics_benches"
+harness = false

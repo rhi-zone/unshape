@@ -1903,3 +1903,627 @@ mod tests {
         assert!((d_ca - 2.0).abs() < 0.3, "d_ca = {} should be ~2.0", d_ca);
     }
 }
+
+/// Invariant tests for physics simulation.
+///
+/// Run with: cargo test -p rhizome-resin-physics --features invariant-tests
+#[cfg(all(test, feature = "invariant-tests"))]
+mod invariant_tests {
+    use super::*;
+
+    /// Calculate kinetic energy of a body: KE = 0.5 * m * v^2 + 0.5 * I * w^2
+    fn kinetic_energy(body: &RigidBody) -> f32 {
+        if body.is_static {
+            return 0.0;
+        }
+        let linear_ke = 0.5 * body.mass * body.velocity.length_squared();
+        let angular_ke = 0.5
+            * body
+                .inertia
+                .dot(body.angular_velocity * body.angular_velocity);
+        linear_ke + angular_ke
+    }
+
+    /// Calculate potential energy relative to y=0: PE = m * g * h
+    fn potential_energy(body: &RigidBody, gravity_magnitude: f32) -> f32 {
+        if body.is_static {
+            return 0.0;
+        }
+        body.mass * gravity_magnitude * body.position.y
+    }
+
+    /// Calculate total mechanical energy of the system.
+    fn total_energy(world: &PhysicsWorld) -> f32 {
+        let gravity_mag = world.config.gravity.length();
+        world
+            .bodies
+            .iter()
+            .map(|b| kinetic_energy(b) + potential_energy(b, gravity_mag))
+            .sum()
+    }
+
+    /// Calculate total momentum of the system.
+    fn total_momentum(world: &PhysicsWorld) -> Vec3 {
+        world
+            .bodies
+            .iter()
+            .filter(|b| !b.is_static)
+            .map(|b| b.velocity * b.mass)
+            .sum()
+    }
+
+    // ========================================================================
+    // Energy Conservation Tests
+    // ========================================================================
+
+    #[test]
+    fn invariant_energy_conservation_free_fall() {
+        // In free fall (no collisions, no damping), mechanical energy should be conserved.
+        let mut world = PhysicsWorld::new(PhysicsConfig {
+            gravity: Vec3::new(0.0, -9.81, 0.0),
+            dt: 1.0 / 120.0, // Small timestep for accuracy
+            solver_iterations: 10,
+        });
+
+        // Single falling sphere with zero damping
+        let mut body = RigidBody::new(Vec3::Y * 10.0, Collider::sphere(1.0), 1.0);
+        body.linear_damping = 0.0;
+        body.angular_damping = 0.0;
+        world.add_body(body);
+
+        let initial_energy = total_energy(&world);
+
+        // Simulate for a short time (before hitting anything)
+        for _ in 0..60 {
+            world.step();
+        }
+
+        let final_energy = total_energy(&world);
+
+        // Energy should be conserved within numerical tolerance
+        let energy_error = (final_energy - initial_energy).abs() / initial_energy.abs();
+        assert!(
+            energy_error < 0.01,
+            "Energy conservation violated: initial={}, final={}, error={}%",
+            initial_energy,
+            final_energy,
+            energy_error * 100.0
+        );
+    }
+
+    #[test]
+    fn invariant_energy_conservation_zero_gravity() {
+        // With no gravity and no damping, kinetic energy should be conserved.
+        let mut world = PhysicsWorld::new(PhysicsConfig {
+            gravity: Vec3::ZERO,
+            dt: 1.0 / 60.0,
+            solver_iterations: 10,
+        });
+
+        // Moving sphere with initial velocity
+        let mut body = RigidBody::new(Vec3::ZERO, Collider::sphere(1.0), 1.0);
+        body.velocity = Vec3::new(5.0, 3.0, -2.0);
+        body.angular_velocity = Vec3::new(1.0, 0.5, 0.0);
+        body.linear_damping = 0.0;
+        body.angular_damping = 0.0;
+        world.add_body(body);
+
+        let initial_ke = kinetic_energy(&world.bodies[0]);
+
+        // Simulate
+        for _ in 0..100 {
+            world.step();
+        }
+
+        let final_ke = kinetic_energy(&world.bodies[0]);
+
+        // Kinetic energy should be conserved
+        let ke_error = (final_ke - initial_ke).abs();
+        assert!(
+            ke_error < 0.001,
+            "Kinetic energy should be conserved: initial={}, final={}, error={}",
+            initial_ke,
+            final_ke,
+            ke_error
+        );
+    }
+
+    // ========================================================================
+    // Momentum Conservation Tests
+    // ========================================================================
+
+    #[test]
+    fn invariant_momentum_conservation_isolated_system() {
+        // In an isolated system (no external forces), total momentum is conserved.
+        let mut world = PhysicsWorld::new(PhysicsConfig {
+            gravity: Vec3::ZERO,
+            dt: 1.0 / 60.0,
+            solver_iterations: 10,
+        });
+
+        // Two spheres moving toward each other
+        let mut body1 = RigidBody::new(Vec3::new(-5.0, 0.0, 0.0), Collider::sphere(1.0), 2.0);
+        body1.velocity = Vec3::new(3.0, 0.0, 0.0);
+        body1.linear_damping = 0.0;
+        world.add_body(body1);
+
+        let mut body2 = RigidBody::new(Vec3::new(5.0, 0.0, 0.0), Collider::sphere(1.0), 1.0);
+        body2.velocity = Vec3::new(-2.0, 0.0, 0.0);
+        body2.linear_damping = 0.0;
+        world.add_body(body2);
+
+        let initial_momentum = total_momentum(&world);
+
+        // Simulate (they may or may not collide)
+        for _ in 0..100 {
+            world.step();
+        }
+
+        let final_momentum = total_momentum(&world);
+
+        // Momentum should be conserved
+        let momentum_error = (final_momentum - initial_momentum).length();
+        assert!(
+            momentum_error < 0.01,
+            "Momentum conservation violated: initial={:?}, final={:?}, error={}",
+            initial_momentum,
+            final_momentum,
+            momentum_error
+        );
+    }
+
+    #[test]
+    fn invariant_momentum_conservation_collision() {
+        // Test momentum conservation through a collision.
+        let mut world = PhysicsWorld::new(PhysicsConfig {
+            gravity: Vec3::ZERO,
+            dt: 1.0 / 60.0,
+            solver_iterations: 20,
+        });
+
+        // Two spheres that will collide
+        let mut body1 = RigidBody::new(Vec3::new(-2.0, 0.0, 0.0), Collider::sphere(1.0), 1.0);
+        body1.velocity = Vec3::new(5.0, 0.0, 0.0);
+        body1.linear_damping = 0.0;
+        body1.restitution = 1.0; // Elastic collision
+        world.add_body(body1);
+
+        let mut body2 = RigidBody::new(Vec3::new(2.0, 0.0, 0.0), Collider::sphere(1.0), 1.0);
+        body2.velocity = Vec3::new(-5.0, 0.0, 0.0);
+        body2.linear_damping = 0.0;
+        body2.restitution = 1.0;
+        world.add_body(body2);
+
+        let initial_momentum = total_momentum(&world);
+
+        // Simulate through collision
+        for _ in 0..100 {
+            world.step();
+        }
+
+        let final_momentum = total_momentum(&world);
+
+        let momentum_error = (final_momentum - initial_momentum).length();
+        assert!(
+            momentum_error < 0.1,
+            "Momentum not conserved through collision: initial={:?}, final={:?}",
+            initial_momentum,
+            final_momentum
+        );
+    }
+
+    // ========================================================================
+    // Collision Detection Tests
+    // ========================================================================
+
+    #[test]
+    fn invariant_overlapping_spheres_detected() {
+        // Overlapping spheres should always be detected as colliding.
+        let world = {
+            let mut w = PhysicsWorld::new(PhysicsConfig::default());
+
+            // Two overlapping spheres (radius 1 each, centers 1.0 apart)
+            w.add_body(RigidBody::new(Vec3::ZERO, Collider::sphere(1.0), 1.0));
+            w.add_body(RigidBody::new(Vec3::X * 1.0, Collider::sphere(1.0), 1.0));
+            w
+        };
+
+        let contacts = world.detect_collisions();
+
+        assert!(
+            !contacts.is_empty(),
+            "Overlapping spheres should be detected"
+        );
+        assert_eq!(contacts.len(), 1, "Should have exactly one contact");
+
+        let contact = &contacts[0];
+        assert!(contact.depth > 0.0, "Penetration depth should be positive");
+        assert!(
+            (contact.depth - 1.0).abs() < 0.01,
+            "Penetration depth should be ~1.0, got {}",
+            contact.depth
+        );
+    }
+
+    #[test]
+    fn invariant_separated_spheres_not_colliding() {
+        // Non-overlapping spheres should not be detected as colliding.
+        let world = {
+            let mut w = PhysicsWorld::new(PhysicsConfig::default());
+
+            // Two separated spheres (radius 1 each, centers 3.0 apart)
+            w.add_body(RigidBody::new(Vec3::ZERO, Collider::sphere(1.0), 1.0));
+            w.add_body(RigidBody::new(Vec3::X * 3.0, Collider::sphere(1.0), 1.0));
+            w
+        };
+
+        let contacts = world.detect_collisions();
+        assert!(contacts.is_empty(), "Separated spheres should not collide");
+    }
+
+    #[test]
+    fn invariant_sphere_plane_detection() {
+        // Sphere below plane should be detected as colliding.
+        let world = {
+            let mut w = PhysicsWorld::new(PhysicsConfig::default());
+
+            // Ground plane at y=0
+            w.add_body(RigidBody::new_static(Vec3::ZERO, Collider::ground()));
+
+            // Sphere penetrating ground (center at y=0.5, radius=1.0)
+            w.add_body(RigidBody::new(Vec3::Y * 0.5, Collider::sphere(1.0), 1.0));
+            w
+        };
+
+        let contacts = world.detect_collisions();
+
+        assert!(
+            !contacts.is_empty(),
+            "Sphere penetrating ground should be detected"
+        );
+
+        let contact = &contacts[0];
+        assert!(
+            (contact.depth - 0.5).abs() < 0.01,
+            "Depth should be ~0.5, got {}",
+            contact.depth
+        );
+    }
+
+    #[test]
+    fn invariant_box_plane_detection() {
+        // Box below plane should be detected as colliding.
+        let world = {
+            let mut w = PhysicsWorld::new(PhysicsConfig::default());
+
+            // Ground plane at y=0
+            w.add_body(RigidBody::new_static(Vec3::ZERO, Collider::ground()));
+
+            // Box penetrating ground (center at y=0.25, half-extent=0.5)
+            w.add_body(RigidBody::new(
+                Vec3::Y * 0.25,
+                Collider::box_shape(Vec3::splat(0.5)),
+                1.0,
+            ));
+            w
+        };
+
+        let contacts = world.detect_collisions();
+
+        assert!(
+            !contacts.is_empty(),
+            "Box penetrating ground should be detected"
+        );
+    }
+
+    // ========================================================================
+    // Integration / Trajectory Tests
+    // ========================================================================
+
+    #[test]
+    fn invariant_free_fall_trajectory() {
+        // Under gravity, a body should follow the expected kinematic equation:
+        // y(t) = y0 + v0*t - 0.5*g*t^2
+        let mut world = PhysicsWorld::new(PhysicsConfig {
+            gravity: Vec3::new(0.0, -10.0, 0.0), // Nice round number
+            dt: 1.0 / 100.0,
+            solver_iterations: 10,
+        });
+
+        let y0 = 100.0;
+        let mut body = RigidBody::new(Vec3::Y * y0, Collider::sphere(0.5), 1.0);
+        body.linear_damping = 0.0;
+        body.angular_damping = 0.0;
+        world.add_body(body);
+
+        let g = 10.0;
+        let dt = world.config.dt;
+
+        // Simulate for 1 second
+        for step in 1..=100 {
+            world.step();
+
+            let t = step as f32 * dt;
+            let expected_y = y0 - 0.5 * g * t * t;
+            let actual_y = world.bodies[0].position.y;
+
+            // Allow small numerical error that grows with time
+            let tolerance = 0.1 + t * 0.1;
+            assert!(
+                (actual_y - expected_y).abs() < tolerance,
+                "At t={}: expected y={}, got y={}, error={}",
+                t,
+                expected_y,
+                actual_y,
+                (actual_y - expected_y).abs()
+            );
+        }
+    }
+
+    #[test]
+    fn invariant_uniform_motion_no_forces() {
+        // With no forces, a body should move in a straight line at constant velocity.
+        let mut world = PhysicsWorld::new(PhysicsConfig {
+            gravity: Vec3::ZERO,
+            dt: 1.0 / 60.0,
+            solver_iterations: 10,
+        });
+
+        let initial_pos = Vec3::new(1.0, 2.0, 3.0);
+        let initial_vel = Vec3::new(5.0, -3.0, 2.0);
+
+        let mut body = RigidBody::new(initial_pos, Collider::sphere(0.5), 1.0);
+        body.velocity = initial_vel;
+        body.linear_damping = 0.0;
+        body.angular_damping = 0.0;
+        world.add_body(body);
+
+        let dt = world.config.dt;
+
+        for step in 1..=60 {
+            world.step();
+
+            let t = step as f32 * dt;
+            let expected_pos = initial_pos + initial_vel * t;
+            let actual_pos = world.bodies[0].position;
+
+            let error = (actual_pos - expected_pos).length();
+            assert!(error < 0.001, "At t={}: position error = {}", t, error);
+
+            // Velocity should remain constant
+            let vel_error = (world.bodies[0].velocity - initial_vel).length();
+            assert!(
+                vel_error < 0.001,
+                "Velocity should be constant, error = {}",
+                vel_error
+            );
+        }
+    }
+
+    #[test]
+    fn invariant_projectile_motion() {
+        // Test that horizontal and vertical motion are independent (projectile motion).
+        let mut world = PhysicsWorld::new(PhysicsConfig {
+            gravity: Vec3::new(0.0, -10.0, 0.0),
+            dt: 1.0 / 100.0,
+            solver_iterations: 10,
+        });
+
+        let initial_pos = Vec3::ZERO;
+        let initial_vel = Vec3::new(10.0, 20.0, 0.0); // 45 degree launch
+
+        let mut body = RigidBody::new(initial_pos, Collider::sphere(0.5), 1.0);
+        body.velocity = initial_vel;
+        body.linear_damping = 0.0;
+        body.angular_damping = 0.0;
+        world.add_body(body);
+
+        let g = 10.0;
+        let dt = world.config.dt;
+
+        // Simulate for 2 seconds
+        for step in 1..=200 {
+            world.step();
+
+            let t = step as f32 * dt;
+
+            // x(t) = v0x * t (constant horizontal velocity)
+            let expected_x = initial_vel.x * t;
+            // y(t) = v0y * t - 0.5 * g * t^2
+            let expected_y = initial_vel.y * t - 0.5 * g * t * t;
+
+            let actual_pos = world.bodies[0].position;
+
+            let x_error = (actual_pos.x - expected_x).abs();
+            let y_error = (actual_pos.y - expected_y).abs();
+
+            let tolerance = 0.1 + t * 0.05;
+            assert!(
+                x_error < tolerance,
+                "At t={}: x error = {} (expected {}, got {})",
+                t,
+                x_error,
+                expected_x,
+                actual_pos.x
+            );
+            assert!(
+                y_error < tolerance,
+                "At t={}: y error = {} (expected {}, got {})",
+                t,
+                y_error,
+                expected_y,
+                actual_pos.y
+            );
+        }
+    }
+
+    // ========================================================================
+    // Additional Physics Invariants
+    // ========================================================================
+
+    #[test]
+    fn invariant_static_bodies_immovable() {
+        // Static bodies should never move regardless of forces or collisions.
+        let mut world = PhysicsWorld::new(PhysicsConfig {
+            gravity: Vec3::new(0.0, -9.81, 0.0),
+            dt: 1.0 / 60.0,
+            solver_iterations: 10,
+        });
+
+        let static_pos = Vec3::new(5.0, 3.0, 2.0);
+        world.add_body(RigidBody::new_static(static_pos, Collider::sphere(1.0)));
+
+        // Add a dynamic body that will collide with it
+        let mut dynamic = RigidBody::new(static_pos + Vec3::X * 1.5, Collider::sphere(1.0), 10.0);
+        dynamic.velocity = Vec3::X * -10.0; // Moving toward static body
+        world.add_body(dynamic);
+
+        // Simulate with collisions
+        for _ in 0..100 {
+            world.step();
+        }
+
+        // Static body should not have moved
+        let final_pos = world.bodies[0].position;
+        assert_eq!(
+            final_pos, static_pos,
+            "Static body moved from {:?} to {:?}",
+            static_pos, final_pos
+        );
+    }
+
+    #[test]
+    fn invariant_inverse_mass_relationship() {
+        // Verify that inv_mass is correctly computed as 1/mass.
+        let body = RigidBody::new(Vec3::ZERO, Collider::sphere(1.0), 5.0);
+        assert!(
+            (body.inv_mass - 0.2).abs() < 0.0001,
+            "inv_mass should be 1/mass = 0.2, got {}",
+            body.inv_mass
+        );
+
+        let static_body = RigidBody::new_static(Vec3::ZERO, Collider::sphere(1.0));
+        assert_eq!(
+            static_body.inv_mass, 0.0,
+            "Static body should have inv_mass = 0"
+        );
+    }
+
+    #[test]
+    fn invariant_contact_normal_direction() {
+        // Contact normal should point from body A toward body B.
+        let world = {
+            let mut w = PhysicsWorld::new(PhysicsConfig::default());
+            w.add_body(RigidBody::new(Vec3::ZERO, Collider::sphere(1.0), 1.0));
+            w.add_body(RigidBody::new(Vec3::X * 1.5, Collider::sphere(1.0), 1.0));
+            w
+        };
+
+        let contacts = world.detect_collisions();
+        assert!(!contacts.is_empty());
+
+        let contact = &contacts[0];
+        let body_a_pos = world.bodies[contact.body_a].position;
+        let body_b_pos = world.bodies[contact.body_b].position;
+
+        // Normal should roughly point from A to B
+        let a_to_b = (body_b_pos - body_a_pos).normalize();
+        let dot = contact.normal.dot(a_to_b);
+
+        assert!(
+            dot > 0.9,
+            "Contact normal should point from A to B, dot product = {}",
+            dot
+        );
+    }
+
+    #[test]
+    fn invariant_symmetry_equal_mass_collision() {
+        // With symmetric initial conditions, the center of mass should remain stationary.
+        let mut world = PhysicsWorld::new(PhysicsConfig {
+            gravity: Vec3::ZERO,
+            dt: 1.0 / 60.0,
+            solver_iterations: 20,
+        });
+
+        // Two equal-mass bodies with equal and opposite velocities
+        let mut body1 = RigidBody::new(Vec3::new(-2.0, 0.0, 0.0), Collider::sphere(1.0), 1.0);
+        body1.velocity = Vec3::X * 5.0;
+        body1.linear_damping = 0.0;
+        body1.restitution = 0.5;
+        world.add_body(body1);
+
+        let mut body2 = RigidBody::new(Vec3::new(2.0, 0.0, 0.0), Collider::sphere(1.0), 1.0);
+        body2.velocity = Vec3::X * -5.0;
+        body2.linear_damping = 0.0;
+        body2.restitution = 0.5;
+        world.add_body(body2);
+
+        // Initial center of mass should be at origin
+        let initial_com = (world.bodies[0].position + world.bodies[1].position) / 2.0;
+        assert!(
+            initial_com.length() < 0.01,
+            "Initial COM should be at origin"
+        );
+
+        // Initial total momentum should be zero
+        let initial_momentum = total_momentum(&world);
+        assert!(
+            initial_momentum.length() < 0.01,
+            "Initial momentum should be zero"
+        );
+
+        // Simulate through collision
+        for _ in 0..100 {
+            world.step();
+        }
+
+        // Center of mass should remain at origin (within tolerance)
+        let final_com = (world.bodies[0].position + world.bodies[1].position) / 2.0;
+        assert!(
+            final_com.length() < 0.5,
+            "Center of mass should stay near origin: {:?}",
+            final_com
+        );
+
+        // Total momentum should remain zero
+        let final_momentum = total_momentum(&world);
+        assert!(
+            final_momentum.length() < 0.1,
+            "Momentum should remain zero: {:?}",
+            final_momentum
+        );
+    }
+
+    #[test]
+    fn invariant_damping_reduces_energy() {
+        // With damping, kinetic energy should decrease over time.
+        let mut world = PhysicsWorld::new(PhysicsConfig {
+            gravity: Vec3::ZERO,
+            dt: 1.0 / 60.0,
+            solver_iterations: 10,
+        });
+
+        let mut body = RigidBody::new(Vec3::ZERO, Collider::sphere(1.0), 1.0);
+        body.velocity = Vec3::new(10.0, 5.0, 3.0);
+        body.angular_velocity = Vec3::new(2.0, 1.0, 0.5);
+        body.linear_damping = 0.05;
+        body.angular_damping = 0.05;
+        world.add_body(body);
+
+        let initial_ke = kinetic_energy(&world.bodies[0]);
+
+        for _ in 0..100 {
+            world.step();
+        }
+
+        let final_ke = kinetic_energy(&world.bodies[0]);
+
+        assert!(
+            final_ke < initial_ke,
+            "Damping should reduce energy: initial={}, final={}",
+            initial_ke,
+            final_ke
+        );
+    }
+}

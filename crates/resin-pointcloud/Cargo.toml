@@ -20,3 +20,10 @@ rhizome-resin-field = { path = "../resin-field" }
 rhizome-resin-op = { path = "../resin-op", optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "pointcloud_benches"
+harness = false

@@ -16,3 +16,10 @@ serde = ["dep:serde", "glam/serde"]
 [dependencies]
 glam = { workspace = true }
 serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "spatial_benches"
+harness = false

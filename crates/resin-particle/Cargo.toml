@@ -9,6 +9,7 @@ repository = "https://github.com/rhizome-lab/resin"
 [features]
 serde = ["dep:serde", "glam/serde"]
 dynop = ["dep:rhizome-resin-op", "dep:serde_json", "serde"]
+invariant-tests = []
 
 [dependencies]
 glam.workspace = true

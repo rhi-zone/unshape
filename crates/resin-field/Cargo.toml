@@ -8,6 +8,8 @@ repository = "https://github.com/rhizome-lab/resin"
 
 [features]
 default = []
+# Enable thorough statistical/invariant tests (slower, for CI)
+invariant-tests = []
 serde = ["dep:serde"]
 dynop = ["dep:rhizome-resin-op", "dep:serde_json", "serde"]
 
@@ -17,3 +19,10 @@ rhizome-resin-noise = { path = "../resin-noise" }
 rhizome-resin-op = { path = "../resin-op", optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "field_benches"
+harness = false

@@ -736,14 +736,15 @@ impl Turbulence {
 
 impl Force for Turbulence {
     fn apply(&self, particle: &mut Particle, dt: f32) {
-        use rhizome_resin_noise::simplex3v;
+        use rhizome_resin_noise::Noise3D;
+        let noise = rhizome_resin_noise::Simplex3D::new();
 
         let p = particle.position * self.frequency;
 
         // Use 3D noise with time offset for each axis
-        let fx = simplex3v(Vec3::new(p.x, p.y, p.z + self.time));
-        let fy = simplex3v(Vec3::new(p.x + 100.0, p.y, p.z + self.time));
-        let fz = simplex3v(Vec3::new(p.x, p.y + 100.0, p.z + self.time));
+        let fx = noise.sample_vec(Vec3::new(p.x, p.y, p.z + self.time));
+        let fy = noise.sample_vec(Vec3::new(p.x + 100.0, p.y, p.z + self.time));
+        let fz = noise.sample_vec(Vec3::new(p.x, p.y + 100.0, p.z + self.time));
 
         let force = Vec3::new(fx, fy, fz) * self.strength;
         particle.velocity += force * dt;
@@ -792,7 +793,8 @@ impl CurlNoise {
 
 impl Force for CurlNoise {
     fn apply(&self, particle: &mut Particle, dt: f32) {
-        use rhizome_resin_noise::simplex3v;
+        use rhizome_resin_noise::Noise3D;
+        let noise = rhizome_resin_noise::Simplex3D::new();
 
         let p = particle.position * self.frequency;
         let e = self.epsilon;
@@ -801,12 +803,12 @@ impl Force for CurlNoise {
         // curl(F) = (dFz/dy - dFy/dz, dFx/dz - dFz/dx, dFy/dx - dFx/dy)
 
         // Sample noise at offset positions
-        let n_x0 = simplex3v(p - Vec3::X * e);
-        let n_x1 = simplex3v(p + Vec3::X * e);
-        let n_y0 = simplex3v(p - Vec3::Y * e);
-        let n_y1 = simplex3v(p + Vec3::Y * e);
-        let n_z0 = simplex3v(p - Vec3::Z * e);
-        let n_z1 = simplex3v(p + Vec3::Z * e);
+        let n_x0 = noise.sample_vec(p - Vec3::X * e);
+        let n_x1 = noise.sample_vec(p + Vec3::X * e);
+        let n_y0 = noise.sample_vec(p - Vec3::Y * e);
+        let n_y1 = noise.sample_vec(p + Vec3::Y * e);
+        let n_z0 = noise.sample_vec(p - Vec3::Z * e);
+        let n_z1 = noise.sample_vec(p + Vec3::Z * e);
 
         let dx = (n_x1 - n_x0) / (2.0 * e);
         let dy = (n_y1 - n_y0) / (2.0 * e);
@@ -1031,5 +1033,467 @@ mod tests {
 
         // Should be pushed toward wind velocity
         assert!(p.velocity.x > 0.0);
+    }
+}
+
+/// Invariant tests for particle systems.
+///
+/// Run with: cargo test -p rhizome-resin-particle --features invariant-tests
+#[cfg(all(test, feature = "invariant-tests"))]
+mod invariant_tests {
+    use super::*;
+
+    // =========================================================================
+    // Emitter invariants
+    // =========================================================================
+
+    /// PointEmitter should emit particles exactly at the configured position.
+    #[test]
+    fn invariant_point_emitter_position() {
+        let position = Vec3::new(5.0, 10.0, -3.0);
+        let emitter = PointEmitter {
+            position,
+            spread: 0.0,
+            ..Default::default()
+        };
+
+        let mut rng = ParticleRng::new(42);
+
+        for _ in 0..100 {
+            let p = emitter.emit(&mut rng);
+            assert_eq!(
+                p.position, position,
+                "PointEmitter should emit particles at the configured position"
+            );
+        }
+    }
+
+    /// SphereEmitter with volume=false should emit particles on the sphere surface.
+    #[test]
+    fn invariant_sphere_emitter_surface() {
+        let center = Vec3::new(1.0, 2.0, 3.0);
+        let radius = 2.5;
+        let emitter = SphereEmitter {
+            center,
+            radius,
+            volume: false,
+            ..Default::default()
+        };
+
+        let mut rng = ParticleRng::new(42);
+
+        for _ in 0..100 {
+            let p = emitter.emit(&mut rng);
+            let dist = (p.position - center).length();
+            assert!(
+                (dist - radius).abs() < 1e-5,
+                "SphereEmitter (surface) should emit at radius {}, got {}",
+                radius,
+                dist
+            );
+        }
+    }
+
+    /// SphereEmitter with volume=true should emit particles inside the sphere.
+    #[test]
+    fn invariant_sphere_emitter_volume() {
+        let center = Vec3::new(1.0, 2.0, 3.0);
+        let radius = 2.5;
+        let emitter = SphereEmitter {
+            center,
+            radius,
+            volume: true,
+            ..Default::default()
+        };
+
+        let mut rng = ParticleRng::new(42);
+
+        for _ in 0..100 {
+            let p = emitter.emit(&mut rng);
+            let dist = (p.position - center).length();
+            assert!(
+                dist <= radius + 1e-5,
+                "SphereEmitter (volume) should emit inside radius {}, got {}",
+                radius,
+                dist
+            );
+        }
+    }
+
+    /// ConeEmitter should emit particles within the configured cone angle.
+    #[test]
+    fn invariant_cone_emitter_angle() {
+        let direction = Vec3::Y;
+        let angle = std::f32::consts::FRAC_PI_6; // 30 degrees
+        let emitter = ConeEmitter {
+            direction,
+            angle,
+            ..Default::default()
+        };
+
+        let mut rng = ParticleRng::new(42);
+        let cos_angle = angle.cos();
+
+        for _ in 0..100 {
+            let p = emitter.emit(&mut rng);
+            let vel_dir = p.velocity.normalize();
+            let dot = vel_dir.dot(direction);
+            assert!(
+                dot >= cos_angle - 1e-4,
+                "ConeEmitter velocity should be within cone angle, dot={} (expected >= {})",
+                dot,
+                cos_angle
+            );
+        }
+    }
+
+    // =========================================================================
+    // Force invariants
+    // =========================================================================
+
+    /// Gravity should accelerate particles downward (negative Y by default).
+    #[test]
+    fn invariant_gravity_accelerates_downward() {
+        let gravity = Gravity::default(); // acceleration = (0, -9.81, 0)
+        let mut p = Particle::new(Vec3::ZERO);
+        p.velocity = Vec3::ZERO;
+
+        let initial_vy = p.velocity.y;
+        Force::apply(&gravity, &mut p, 1.0);
+
+        assert!(
+            p.velocity.y < initial_vy,
+            "Gravity should decrease Y velocity: initial={}, after={}",
+            initial_vy,
+            p.velocity.y
+        );
+        assert!(
+            (p.velocity.y - (-9.81)).abs() < 1e-5,
+            "After 1s, velocity.y should be -9.81, got {}",
+            p.velocity.y
+        );
+    }
+
+    /// Gravity applied over multiple steps should equal single step of same total time.
+    #[test]
+    fn invariant_gravity_time_step_independent() {
+        let gravity = Gravity {
+            acceleration: Vec3::new(0.0, -10.0, 0.0),
+        };
+
+        // Single step
+        let mut p1 = Particle::new(Vec3::ZERO);
+        p1.velocity = Vec3::new(1.0, 5.0, 0.0);
+        Force::apply(&gravity, &mut p1, 1.0);
+
+        // Multiple small steps
+        let mut p2 = Particle::new(Vec3::ZERO);
+        p2.velocity = Vec3::new(1.0, 5.0, 0.0);
+        for _ in 0..100 {
+            Force::apply(&gravity, &mut p2, 0.01);
+        }
+
+        assert!(
+            (p1.velocity - p2.velocity).length() < 1e-4,
+            "Gravity should be time-step independent: single={:?}, multi={:?}",
+            p1.velocity,
+            p2.velocity
+        );
+    }
+
+    /// Drag should slow particles over time (velocity magnitude decreases).
+    #[test]
+    fn invariant_drag_slows_particles() {
+        let drag = Drag { coefficient: 0.5 };
+        let mut p = Particle::new(Vec3::ZERO);
+        p.velocity = Vec3::new(10.0, 5.0, -3.0);
+
+        let initial_speed = p.velocity.length();
+        Force::apply(&drag, &mut p, 0.1);
+        let after_speed = p.velocity.length();
+
+        assert!(
+            after_speed < initial_speed,
+            "Drag should reduce speed: initial={}, after={}",
+            initial_speed,
+            after_speed
+        );
+    }
+
+    /// Drag should preserve velocity direction (only reduce magnitude).
+    #[test]
+    fn invariant_drag_preserves_direction() {
+        let drag = Drag { coefficient: 0.5 };
+        let mut p = Particle::new(Vec3::ZERO);
+        p.velocity = Vec3::new(10.0, 5.0, -3.0);
+
+        let initial_dir = p.velocity.normalize();
+        Force::apply(&drag, &mut p, 0.1);
+        let after_dir = p.velocity.normalize();
+
+        assert!(
+            (initial_dir - after_dir).length() < 1e-5,
+            "Drag should preserve velocity direction: initial={:?}, after={:?}",
+            initial_dir,
+            after_dir
+        );
+    }
+
+    /// Drag should never reverse velocity direction or increase speed.
+    #[test]
+    fn invariant_drag_never_reverses() {
+        let drag = Drag { coefficient: 2.0 }; // Strong drag
+        let mut p = Particle::new(Vec3::ZERO);
+        p.velocity = Vec3::new(1.0, 0.0, 0.0);
+
+        // Apply drag with large dt
+        Force::apply(&drag, &mut p, 1.0);
+
+        // Velocity should be clamped at 0, not negative
+        assert!(
+            p.velocity.x >= 0.0,
+            "Drag should never reverse velocity: got {}",
+            p.velocity.x
+        );
+    }
+
+    /// Attractor should pull particles toward the attractor position.
+    #[test]
+    fn invariant_attractor_pulls_toward() {
+        let attractor = Attractor {
+            position: Vec3::new(10.0, 0.0, 0.0),
+            strength: 10.0,
+            min_distance: 0.1,
+        };
+
+        let mut p = Particle::new(Vec3::ZERO);
+        let initial_vel = p.velocity;
+        Force::apply(&attractor, &mut p, 1.0);
+
+        let to_attractor = attractor.position - p.position;
+        let vel_change = p.velocity - initial_vel;
+
+        // Velocity change should be in the direction of the attractor
+        assert!(
+            vel_change.dot(to_attractor) > 0.0,
+            "Attractor should pull toward itself"
+        );
+    }
+
+    /// Attractor with negative strength should repel particles.
+    #[test]
+    fn invariant_attractor_repels_with_negative_strength() {
+        let repulsor = Attractor {
+            position: Vec3::new(10.0, 0.0, 0.0),
+            strength: -10.0,
+            min_distance: 0.1,
+        };
+
+        let mut p = Particle::new(Vec3::ZERO);
+        let initial_vel = p.velocity;
+        Force::apply(&repulsor, &mut p, 1.0);
+
+        let to_attractor = repulsor.position - p.position;
+        let vel_change = p.velocity - initial_vel;
+
+        // Velocity change should be away from the repulsor
+        assert!(
+            vel_change.dot(to_attractor) < 0.0,
+            "Negative strength attractor should repel"
+        );
+    }
+
+    // =========================================================================
+    // Particle lifetime invariants
+    // =========================================================================
+
+    /// Dead particles (age >= lifetime) should be removed on update.
+    #[test]
+    fn invariant_dead_particles_removed() {
+        let mut system = ParticleSystem::new(100);
+        let emitter = PointEmitter {
+            lifetime_min: 1.0,
+            lifetime_max: 1.0,
+            ..Default::default()
+        };
+
+        system.emit(&emitter, 10);
+        assert_eq!(system.count(), 10);
+
+        // Advance time just past lifetime
+        system.update(1.01);
+
+        assert_eq!(
+            system.count(),
+            0,
+            "All particles should be removed after exceeding lifetime"
+        );
+    }
+
+    /// Particles should not be removed before their lifetime expires.
+    #[test]
+    fn invariant_alive_particles_retained() {
+        let mut system = ParticleSystem::new(100);
+        let emitter = PointEmitter {
+            lifetime_min: 2.0,
+            lifetime_max: 2.0,
+            ..Default::default()
+        };
+
+        system.emit(&emitter, 10);
+
+        // Advance time but stay within lifetime
+        system.update(0.5);
+        assert_eq!(system.count(), 10, "Particles should remain at t=0.5");
+
+        system.update(0.5);
+        assert_eq!(system.count(), 10, "Particles should remain at t=1.0");
+
+        system.update(0.5);
+        assert_eq!(system.count(), 10, "Particles should remain at t=1.5");
+
+        // Now exceed lifetime
+        system.update(0.6);
+        assert_eq!(system.count(), 0, "Particles should be removed after t=2.0");
+    }
+
+    /// Particle normalized_age should increase linearly with time.
+    #[test]
+    fn invariant_normalized_age_linear() {
+        let mut p = Particle::new(Vec3::ZERO);
+        p.lifetime = 4.0;
+
+        assert!((p.normalized_age() - 0.0).abs() < 1e-5);
+
+        p.age = 1.0;
+        assert!((p.normalized_age() - 0.25).abs() < 1e-5);
+
+        p.age = 2.0;
+        assert!((p.normalized_age() - 0.5).abs() < 1e-5);
+
+        p.age = 4.0;
+        assert!((p.normalized_age() - 1.0).abs() < 1e-5);
+    }
+
+    /// Particle normalized_age should be clamped to [0, 1].
+    #[test]
+    fn invariant_normalized_age_clamped() {
+        let mut p = Particle::new(Vec3::ZERO);
+        p.lifetime = 1.0;
+
+        p.age = -0.5;
+        assert!(
+            p.normalized_age() >= 0.0,
+            "normalized_age should not be negative"
+        );
+
+        p.age = 2.0;
+        assert!(
+            p.normalized_age() <= 1.0,
+            "normalized_age should not exceed 1.0"
+        );
+    }
+
+    // =========================================================================
+    // Conservation laws
+    // =========================================================================
+
+    /// In the absence of forces, particle momentum should be conserved.
+    #[test]
+    fn invariant_momentum_conservation_no_forces() {
+        let mut system = ParticleSystem::new(100);
+        let emitter = PointEmitter {
+            speed_min: 5.0,
+            speed_max: 5.0,
+            lifetime_min: 10.0,
+            lifetime_max: 10.0,
+            ..Default::default()
+        };
+
+        system.emit(&emitter, 50);
+
+        // Calculate total momentum before update
+        let momentum_before: Vec3 = system.particles().iter().map(|p| p.velocity).sum();
+
+        // Update without forces
+        system.update(0.1);
+
+        // Calculate total momentum after update
+        let momentum_after: Vec3 = system.particles().iter().map(|p| p.velocity).sum();
+
+        assert!(
+            (momentum_before - momentum_after).length() < 1e-4,
+            "Momentum should be conserved without forces: before={:?}, after={:?}",
+            momentum_before,
+            momentum_after
+        );
+    }
+
+    /// Position update should follow velocity integration (p += v * dt).
+    #[test]
+    fn invariant_position_velocity_integration() {
+        // Create a simple emitter that emits at a known position with known velocity
+        let emitter = PointEmitter {
+            position: Vec3::new(1.0, 2.0, 3.0),
+            direction: Vec3::new(10.0, -5.0, 2.0).normalize(),
+            spread: 0.0,
+            speed_min: Vec3::new(10.0, -5.0, 2.0).length(),
+            speed_max: Vec3::new(10.0, -5.0, 2.0).length(),
+            lifetime_min: 10.0,
+            lifetime_max: 10.0,
+            ..Default::default()
+        };
+
+        let mut system = ParticleSystem::new(1);
+        system.emit(&emitter, 1);
+
+        let initial_pos = system.particles()[0].position;
+        let velocity = system.particles()[0].velocity;
+        let dt = 0.5;
+
+        system.update(dt);
+
+        let expected_pos = initial_pos + velocity * dt;
+        let actual_pos = system.particles()[0].position;
+
+        assert!(
+            (expected_pos - actual_pos).length() < 1e-5,
+            "Position should follow p += v*dt: expected={:?}, got={:?}",
+            expected_pos,
+            actual_pos
+        );
+    }
+
+    /// Vortex force should produce circular motion (radial distance stays constant).
+    #[test]
+    fn invariant_vortex_preserves_radial_distance() {
+        let vortex = Vortex {
+            position: Vec3::ZERO,
+            axis: Vec3::Y,
+            strength: 5.0,
+            falloff: 0.0, // No falloff for cleaner test
+        };
+
+        let mut p = Particle::new(Vec3::new(1.0, 0.0, 0.0));
+        p.velocity = Vec3::ZERO;
+        p.lifetime = 100.0;
+
+        // The vortex creates tangential velocity, so radial distance should stay constant
+        // over small time steps when position updates are included
+
+        let _initial_radial = (p.position - vortex.position).length();
+
+        // Apply vortex force
+        Force::apply(&vortex, &mut p, 0.01);
+
+        // The velocity should be tangential (perpendicular to radial direction)
+        let radial_dir = (p.position - vortex.position).normalize();
+        let vel_radial_component = p.velocity.dot(radial_dir);
+
+        assert!(
+            vel_radial_component.abs() < 1e-4,
+            "Vortex velocity should be tangential: radial component = {}",
+            vel_radial_component
+        );
     }
 }

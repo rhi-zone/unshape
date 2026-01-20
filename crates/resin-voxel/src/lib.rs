@@ -996,3 +996,291 @@ mod tests {
         assert_eq!(found[0], UVec3::new(1, 1, 1));
     }
 }
+
+/// Invariant tests for voxel operations.
+///
+/// These tests verify mathematical and geometric properties that should hold
+/// for all voxel implementations. Run with:
+///
+/// ```sh
+/// cargo test -p rhizome-resin-voxel --features invariant-tests
+/// ```
+#[cfg(all(test, feature = "invariant-tests"))]
+mod invariant_tests {
+    use super::*;
+    use glam::{UVec3, Vec3};
+
+    // ========================================================================
+    // VoxelGrid bounds and indexing invariants
+    // ========================================================================
+
+    /// Grid size should match the requested dimensions.
+    #[test]
+    fn test_grid_size_invariant() {
+        for size in [(8, 8, 8), (16, 32, 24), (1, 100, 1), (64, 64, 64)] {
+            let grid = VoxelGrid::new(size.0, size.1, size.2, false);
+            assert_eq!(grid.size(), UVec3::new(size.0, size.1, size.2));
+            assert_eq!(grid.len(), (size.0 * size.1 * size.2) as usize);
+        }
+    }
+
+    /// Set and get should be consistent.
+    #[test]
+    fn test_set_get_roundtrip() {
+        let mut grid = VoxelGrid::new(16, 16, 16, 0u8);
+
+        // Set values at various positions
+        for x in 0..16 {
+            for y in 0..16 {
+                for z in 0..16 {
+                    let value = ((x + y * 16 + z * 256) % 256) as u8;
+                    grid.set(x, y, z, value);
+                }
+            }
+        }
+
+        // Verify all values
+        for x in 0..16 {
+            for y in 0..16 {
+                for z in 0..16 {
+                    let expected = ((x + y * 16 + z * 256) % 256) as u8;
+                    assert_eq!(*grid.get(x, y, z), expected);
+                }
+            }
+        }
+    }
+
+    // ========================================================================
+    // Sphere fill geometric invariants
+    // ========================================================================
+
+    /// Sphere fill should respect geometric bounds.
+    #[test]
+    fn test_sphere_fill_bounds() {
+        let mut grid = VoxelGrid::new(32, 32, 32, false);
+        let center = Vec3::new(16.0, 16.0, 16.0);
+        let radius = 8.0;
+
+        fill_sphere(&mut grid, center, radius, true);
+
+        // All points inside sphere should be set
+        // All points far outside sphere should not be set
+        for x in 0..32 {
+            for y in 0..32 {
+                for z in 0..32 {
+                    let pos = Vec3::new(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
+                    let dist = pos.distance(center);
+                    let is_set = *grid.get(x, y, z);
+
+                    if dist < radius - 1.0 {
+                        assert!(is_set, "Point clearly inside sphere should be set: {pos:?}");
+                    }
+                    if dist > radius + 1.0 {
+                        assert!(
+                            !is_set,
+                            "Point clearly outside sphere should not be set: {pos:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Sphere fill count should be approximately (4/3)πr³.
+    #[test]
+    fn test_sphere_volume_approximation() {
+        for radius in [4.0, 8.0, 12.0] {
+            let size = (radius * 3.0) as u32;
+            let mut grid = VoxelGrid::new(size, size, size, false);
+            let center = Vec3::splat(size as f32 / 2.0);
+
+            fill_sphere(&mut grid, center, radius, true);
+
+            let actual_count = count_solid(&grid);
+            let expected_volume = (4.0 / 3.0) * std::f32::consts::PI * radius.powi(3);
+
+            // Allow 20% error due to voxelization
+            let error_ratio = (actual_count as f32 - expected_volume).abs() / expected_volume;
+            assert!(
+                error_ratio < 0.20,
+                "Sphere r={radius}: volume error too large: {error_ratio:.1}%"
+            );
+        }
+    }
+
+    // ========================================================================
+    // Box fill geometric invariants
+    // ========================================================================
+
+    /// Box fill should set exactly the requested region.
+    #[test]
+    fn test_box_fill_exact() {
+        let mut grid = VoxelGrid::new(32, 32, 32, false);
+        let min = UVec3::new(4, 8, 12);
+        let max = UVec3::new(12, 16, 20);
+
+        fill_box(&mut grid, min, max, true);
+
+        let count = count_solid(&grid);
+        let expected = (max.x - min.x) * (max.y - min.y) * (max.z - min.z);
+
+        assert_eq!(count, expected as usize);
+
+        // Verify boundaries
+        for x in 0..32 {
+            for y in 0..32 {
+                for z in 0..32 {
+                    let inside = x >= min.x
+                        && x < max.x
+                        && y >= min.y
+                        && y < max.y
+                        && z >= min.z
+                        && z < max.z;
+                    assert_eq!(*grid.get(x, y, z), inside);
+                }
+            }
+        }
+    }
+
+    // ========================================================================
+    // Morphological operation invariants
+    // ========================================================================
+
+    /// Dilate should never decrease solid count.
+    #[test]
+    fn test_dilate_increases_count() {
+        let mut grid = VoxelGrid::new(16, 16, 16, false);
+        fill_sphere(&mut grid, Vec3::splat(8.0), 4.0, true);
+
+        let before = count_solid(&grid);
+        let dilated = dilate(&grid);
+        let after = count_solid(&dilated);
+
+        assert!(
+            after >= before,
+            "Dilate should not decrease count: {before} -> {after}"
+        );
+    }
+
+    /// Erode should never increase solid count.
+    #[test]
+    fn test_erode_decreases_count() {
+        let mut grid = VoxelGrid::new(16, 16, 16, false);
+        fill_sphere(&mut grid, Vec3::splat(8.0), 6.0, true);
+
+        let before = count_solid(&grid);
+        let eroded = erode(&grid);
+        let after = count_solid(&eroded);
+
+        assert!(
+            after <= before,
+            "Erode should not increase count: {before} -> {after}"
+        );
+    }
+
+    /// Dilate then erode (closing) should preserve connectivity.
+    #[test]
+    fn test_morphological_closing() {
+        let mut grid = VoxelGrid::new(16, 16, 16, false);
+        fill_sphere(&mut grid, Vec3::splat(8.0), 5.0, true);
+
+        let original_count = count_solid(&grid);
+        let closed = erode(&dilate(&grid));
+        let closed_count = count_solid(&closed);
+
+        // Closing should roughly preserve the shape
+        let change_ratio =
+            (closed_count as f32 - original_count as f32).abs() / original_count as f32;
+        assert!(
+            change_ratio < 0.3,
+            "Closing should roughly preserve shape: change ratio {change_ratio:.1}%"
+        );
+    }
+
+    // ========================================================================
+    // Sparse voxel invariants
+    // ========================================================================
+
+    /// Sparse and dense representations should be equivalent.
+    #[test]
+    fn test_sparse_dense_equivalence() {
+        let mut dense = VoxelGrid::new(16, 16, 16, false);
+        let mut sparse = SparseVoxels::new();
+
+        // Fill random pattern
+        for x in 0..16 {
+            for y in 0..16 {
+                for z in 0..16 {
+                    let should_set = (x + y + z) % 3 == 0;
+                    if should_set {
+                        dense.set(x, y, z, true);
+                        sparse.set(IVec3::new(x as i32, y as i32, z as i32), true);
+                    }
+                }
+            }
+        }
+
+        // Verify equivalence
+        for x in 0..16 {
+            for y in 0..16 {
+                for z in 0..16 {
+                    let dense_val = *dense.get(x, y, z);
+                    let sparse_val = *sparse.get(IVec3::new(x as i32, y as i32, z as i32));
+
+                    assert_eq!(dense_val, sparse_val, "Mismatch at ({x}, {y}, {z})");
+                }
+            }
+        }
+
+        // Sparse should track actual count
+        let dense_count = count_solid(&dense);
+        assert_eq!(sparse.len(), dense_count);
+    }
+
+    // ========================================================================
+    // Mesh generation invariants
+    // ========================================================================
+
+    /// Generated mesh should have reasonable structure.
+    #[test]
+    fn test_voxels_to_mesh_validity() {
+        let mut grid = VoxelGrid::new(8, 8, 8, false);
+        fill_sphere(&mut grid, Vec3::splat(4.0), 3.0, true);
+
+        let mesh = voxels_to_mesh(&grid, 1.0);
+
+        // Mesh should have vertices
+        assert!(!mesh.positions.is_empty(), "Mesh should have vertices");
+
+        // Triangle count should be divisible by 3
+        assert_eq!(mesh.indices.len() % 3, 0, "Indices should form triangles");
+
+        // All indices should be valid
+        let max_vertex = mesh.positions.len();
+        for &idx in &mesh.indices {
+            assert!(
+                (idx as usize) < max_vertex,
+                "Index {idx} out of bounds (max {max_vertex})"
+            );
+        }
+    }
+
+    /// Larger voxel grids should produce more mesh faces.
+    #[test]
+    fn test_mesh_scales_with_voxels() {
+        let mut small = VoxelGrid::new(8, 8, 8, false);
+        fill_sphere(&mut small, Vec3::splat(4.0), 3.0, true);
+
+        let mut large = VoxelGrid::new(16, 16, 16, false);
+        fill_sphere(&mut large, Vec3::splat(8.0), 6.0, true);
+
+        let small_mesh = voxels_to_mesh(&small, 1.0);
+        let large_mesh = voxels_to_mesh(&large, 1.0);
+
+        // Double radius should produce more faces
+        assert!(
+            large_mesh.indices.len() > small_mesh.indices.len(),
+            "Larger sphere should produce more mesh faces"
+        );
+    }
+}

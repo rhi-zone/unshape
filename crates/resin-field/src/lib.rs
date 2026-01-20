@@ -382,9 +382,8 @@ impl Perlin2D {
 
 impl Field<Vec2, f32> for Perlin2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        // Offset by seed
-        let p = input + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
-        rhizome_resin_noise::perlin2(p.x, p.y)
+        use rhizome_resin_noise::Noise2D;
+        rhizome_resin_noise::Perlin2D::with_seed(self.seed).sample(input.x, input.y)
     }
 }
 
@@ -409,13 +408,8 @@ impl Perlin3D {
 
 impl Field<Vec3, f32> for Perlin3D {
     fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
-        let p = input
-            + Vec3::new(
-                self.seed as f32 * 17.0,
-                self.seed as f32 * 31.0,
-                self.seed as f32 * 47.0,
-            );
-        rhizome_resin_noise::perlin3(p.x, p.y, p.z)
+        use rhizome_resin_noise::Noise3D;
+        rhizome_resin_noise::Perlin3D::with_seed(self.seed).sample(input.x, input.y, input.z)
     }
 }
 
@@ -440,8 +434,8 @@ impl Simplex2D {
 
 impl Field<Vec2, f32> for Simplex2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        let p = input + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
-        rhizome_resin_noise::simplex2(p.x, p.y)
+        use rhizome_resin_noise::Noise2D;
+        rhizome_resin_noise::Simplex2D::with_seed(self.seed).sample(input.x, input.y)
     }
 }
 
@@ -466,13 +460,8 @@ impl Simplex3D {
 
 impl Field<Vec3, f32> for Simplex3D {
     fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
-        let p = input
-            + Vec3::new(
-                self.seed as f32 * 17.0,
-                self.seed as f32 * 31.0,
-                self.seed as f32 * 47.0,
-            );
-        rhizome_resin_noise::simplex3(p.x, p.y, p.z)
+        use rhizome_resin_noise::Noise3D;
+        rhizome_resin_noise::Simplex3D::with_seed(self.seed).sample(input.x, input.y, input.z)
     }
 }
 
@@ -620,7 +609,8 @@ impl Perlin1D {
 
 impl Field<f32, f32> for Perlin1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        rhizome_resin_noise::perlin1(input + self.seed as f32 * 17.0)
+        use rhizome_resin_noise::Noise1D;
+        rhizome_resin_noise::Perlin1D::with_seed(self.seed).sample(input)
     }
 }
 
@@ -647,7 +637,8 @@ impl Simplex1D {
 
 impl Field<f32, f32> for Simplex1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        rhizome_resin_noise::simplex1(input + self.seed as f32 * 17.0)
+        use rhizome_resin_noise::Noise1D;
+        rhizome_resin_noise::Simplex1D::with_seed(self.seed).sample(input)
     }
 }
 
@@ -675,7 +666,8 @@ impl Value1D {
 
 impl Field<f32, f32> for Value1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        rhizome_resin_noise::value1(input + self.seed as f32 * 17.0)
+        use rhizome_resin_noise::Noise1D;
+        rhizome_resin_noise::Value1D::with_seed(self.seed).sample(input)
     }
 }
 
@@ -700,8 +692,8 @@ impl Value2D {
 
 impl Field<Vec2, f32> for Value2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        let p = input + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
-        rhizome_resin_noise::value2(p.x, p.y)
+        use rhizome_resin_noise::Noise2D;
+        rhizome_resin_noise::Value2D::with_seed(self.seed).sample(input.x, input.y)
     }
 }
 
@@ -726,13 +718,8 @@ impl Value3D {
 
 impl Field<Vec3, f32> for Value3D {
     fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
-        let p = input
-            + Vec3::new(
-                self.seed as f32 * 17.0,
-                self.seed as f32 * 31.0,
-                self.seed as f32 * 47.0,
-            );
-        rhizome_resin_noise::value3(p.x, p.y, p.z)
+        use rhizome_resin_noise::Noise3D;
+        rhizome_resin_noise::Value3D::with_seed(self.seed).sample(input.x, input.y, input.z)
     }
 }
 
@@ -761,7 +748,8 @@ impl Worley1D {
 
 impl Field<f32, f32> for Worley1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        rhizome_resin_noise::worley1(input + self.seed as f32 * 17.0)
+        use rhizome_resin_noise::Noise1D;
+        rhizome_resin_noise::Worley1D::with_seed(self.seed).sample(input)
     }
 }
 
@@ -788,8 +776,8 @@ impl Worley2D {
 
 impl Field<Vec2, f32> for Worley2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        let p = input + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
-        rhizome_resin_noise::worley2(p.x, p.y)
+        use rhizome_resin_noise::Noise2D;
+        rhizome_resin_noise::Worley2D::with_seed(self.seed).sample(input.x, input.y)
     }
 }
 
@@ -814,13 +802,8 @@ impl Worley3D {
 
 impl Field<Vec3, f32> for Worley3D {
     fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
-        let p = input
-            + Vec3::new(
-                self.seed as f32 * 17.0,
-                self.seed as f32 * 31.0,
-                self.seed as f32 * 47.0,
-            );
-        rhizome_resin_noise::worley3(p.x, p.y, p.z)
+        use rhizome_resin_noise::Noise3D;
+        rhizome_resin_noise::Worley3D::with_seed(self.seed).sample(input.x, input.y, input.z)
     }
 }
 
@@ -847,8 +830,10 @@ impl WorleyF2_2D {
 
 impl Field<Vec2, f32> for WorleyF2_2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        let p = input + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
-        rhizome_resin_noise::worley2_f2(p.x, p.y)
+        use rhizome_resin_noise::{Noise2D, WorleyReturn};
+        rhizome_resin_noise::Worley2D::with_seed(self.seed)
+            .return_type(WorleyReturn::F2)
+            .sample(input.x, input.y)
     }
 }
 
@@ -875,8 +860,10 @@ impl WorleyEdge2D {
 
 impl Field<Vec2, f32> for WorleyEdge2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        let p = input + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
-        rhizome_resin_noise::worley2_edge(p.x, p.y)
+        use rhizome_resin_noise::{Noise2D, WorleyReturn};
+        rhizome_resin_noise::Worley2D::with_seed(self.seed)
+            .return_type(WorleyReturn::Edge)
+            .sample(input.x, input.y)
     }
 }
 
@@ -921,7 +908,10 @@ impl PinkNoise1D {
 
 impl Field<f32, f32> for PinkNoise1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        rhizome_resin_noise::pink1(input + self.seed as f32 * 17.0, self.octaves)
+        use rhizome_resin_noise::Noise1D;
+        rhizome_resin_noise::Pink1D::with_seed(self.seed)
+            .octaves(self.octaves)
+            .sample(input)
     }
 }
 
@@ -965,8 +955,10 @@ impl PinkNoise2D {
 
 impl Field<Vec2, f32> for PinkNoise2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        let p = input + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
-        rhizome_resin_noise::pink2(p.x, p.y, self.octaves)
+        use rhizome_resin_noise::Noise2D;
+        rhizome_resin_noise::Pink2D::with_seed(self.seed)
+            .octaves(self.octaves)
+            .sample(input.x, input.y)
     }
 }
 
@@ -994,7 +986,8 @@ impl BrownNoise1D {
 
 impl Field<f32, f32> for BrownNoise1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        rhizome_resin_noise::brown1(input + self.seed as f32 * 17.0)
+        use rhizome_resin_noise::Noise1D;
+        rhizome_resin_noise::Brown1D::with_seed(self.seed).sample(input)
     }
 }
 
@@ -1021,8 +1014,8 @@ impl BrownNoise2D {
 
 impl Field<Vec2, f32> for BrownNoise2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        let p = input + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
-        rhizome_resin_noise::brown2(p.x, p.y)
+        use rhizome_resin_noise::Noise2D;
+        rhizome_resin_noise::Brown2D::with_seed(self.seed).sample(input.x, input.y)
     }
 }
 
@@ -1050,7 +1043,8 @@ impl VioletNoise1D {
 
 impl Field<f32, f32> for VioletNoise1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        rhizome_resin_noise::violet1(input + self.seed as f32 * 17.0)
+        use rhizome_resin_noise::Noise1D;
+        rhizome_resin_noise::Violet1D::with_seed(self.seed).sample(input)
     }
 }
 
@@ -1082,7 +1076,8 @@ impl GreyNoise1D {
 
 impl Field<f32, f32> for GreyNoise1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        rhizome_resin_noise::grey1(input + self.seed as f32 * 17.0)
+        use rhizome_resin_noise::Noise1D;
+        rhizome_resin_noise::Grey1D::with_seed(self.seed).sample(input)
     }
 }
 
@@ -1130,7 +1125,10 @@ impl VelvetNoise1D {
 
 impl Field<f32, f32> for VelvetNoise1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        rhizome_resin_noise::velvet1(input + self.seed as f32 * 17.0, self.density)
+        use rhizome_resin_noise::Noise1D;
+        rhizome_resin_noise::Velvet1D::with_seed(self.seed)
+            .density(self.density)
+            .sample(input)
     }
 }
 
@@ -1350,7 +1348,9 @@ impl Terrain2D {
 
 impl Field<Vec2, f32> for Terrain2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        let p = input * self.scale + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
+        use rhizome_resin_noise::Noise2D;
+        let noise = rhizome_resin_noise::Simplex2D::with_seed(self.seed);
+        let p = input * self.scale;
 
         let mut value = 0.0;
         let mut amplitude = 1.0;
@@ -1358,7 +1358,7 @@ impl Field<Vec2, f32> for Terrain2D {
         let mut max_value = 0.0;
 
         for _ in 0..self.octaves {
-            value += amplitude * rhizome_resin_noise::simplex2(p.x * frequency, p.y * frequency);
+            value += amplitude * noise.sample_signed(p.x * frequency, p.y * frequency);
             max_value += amplitude;
             amplitude *= self.persistence;
             frequency *= self.lacunarity;
@@ -1408,7 +1408,9 @@ impl RidgedTerrain2D {
 
 impl Field<Vec2, f32> for RidgedTerrain2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        let p = input * self.scale + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
+        use rhizome_resin_noise::Noise2D;
+        let noise_fn = rhizome_resin_noise::Simplex2D::with_seed(self.seed);
+        let p = input * self.scale;
 
         let mut value = 0.0;
         let mut amplitude = 1.0;
@@ -1416,7 +1418,7 @@ impl Field<Vec2, f32> for RidgedTerrain2D {
         let mut weight = 1.0;
 
         for _ in 0..self.octaves {
-            let noise = rhizome_resin_noise::simplex2(p.x * frequency, p.y * frequency);
+            let noise = noise_fn.sample_signed(p.x * frequency, p.y * frequency);
 
             // Ridged noise: abs(noise) with inversion for ridges
             let ridge = 1.0 - noise.abs();
@@ -1468,7 +1470,9 @@ impl BillowyTerrain2D {
 
 impl Field<Vec2, f32> for BillowyTerrain2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        let p = input * self.scale + Vec2::new(self.seed as f32 * 17.0, self.seed as f32 * 31.0);
+        use rhizome_resin_noise::Noise2D;
+        let noise_fn = rhizome_resin_noise::Simplex2D::with_seed(self.seed);
+        let p = input * self.scale;
 
         let mut value = 0.0;
         let mut amplitude = 1.0;
@@ -1476,7 +1480,7 @@ impl Field<Vec2, f32> for BillowyTerrain2D {
         let mut max_value = 0.0;
 
         for _ in 0..self.octaves {
-            let noise = rhizome_resin_noise::simplex2(p.x * frequency, p.y * frequency);
+            let noise = noise_fn.sample_signed(p.x * frequency, p.y * frequency);
 
             // Billowy: abs(noise) gives rounded peaks
             value += noise.abs() * amplitude;
@@ -5158,5 +5162,364 @@ mod tests {
 
         // Far outside radius should be positive
         assert!(pie.sample(Vec2::new(3.0, 0.0), &ctx) > 0.0);
+    }
+}
+
+/// Invariant tests for field properties.
+///
+/// These tests verify mathematical and statistical properties that should hold
+/// for all field implementations. Run with:
+///
+/// ```sh
+/// cargo test -p rhizome-resin-field --features invariant-tests
+/// ```
+#[cfg(all(test, feature = "invariant-tests"))]
+mod invariant_tests {
+    use super::*;
+    use glam::{Vec2, Vec3};
+
+    const SAMPLE_COUNT: usize = 10_000;
+
+    // ========================================================================
+    // Noise field range tests
+    // ========================================================================
+
+    /// All 2D noise fields should produce values in [0, 1].
+    #[test]
+    fn test_noise_2d_range() {
+        let ctx = EvalContext::new();
+        let fields: Vec<(&str, Box<dyn Field<Vec2, f32>>)> = vec![
+            ("Perlin2D", Box::new(Perlin2D::new())),
+            ("Simplex2D", Box::new(Simplex2D::new())),
+            ("Value2D", Box::new(Value2D::new())),
+            ("Worley2D", Box::new(Worley2D::new())),
+            ("WorleyF2_2D", Box::new(WorleyF2_2D::new())),
+            ("WorleyEdge2D", Box::new(WorleyEdge2D::new())),
+            ("WhiteNoise2D", Box::new(WhiteNoise2D::new())),
+            ("PinkNoise2D", Box::new(PinkNoise2D::new())),
+            ("BrownNoise2D", Box::new(BrownNoise2D::new())),
+        ];
+
+        for (name, field) in fields {
+            let mut min = f32::MAX;
+            let mut max = f32::MIN;
+
+            for i in 0..SAMPLE_COUNT {
+                let x = (i as f32 / SAMPLE_COUNT as f32) * 100.0 - 50.0;
+                let y = ((i * 7) as f32 / SAMPLE_COUNT as f32) * 100.0 - 50.0;
+                let v = field.sample(Vec2::new(x, y), &ctx);
+                min = min.min(v);
+                max = max.max(v);
+            }
+
+            assert!(
+                min >= -0.01 && max <= 1.01,
+                "{name}: values out of range [0, 1], got [{min:.3}, {max:.3}]"
+            );
+        }
+    }
+
+    /// All 3D noise fields should produce values in [0, 1].
+    #[test]
+    fn test_noise_3d_range() {
+        let ctx = EvalContext::new();
+        let fields: Vec<(&str, Box<dyn Field<Vec3, f32>>)> = vec![
+            ("Perlin3D", Box::new(Perlin3D::new())),
+            ("Simplex3D", Box::new(Simplex3D::new())),
+            ("Value3D", Box::new(Value3D::new())),
+            ("Worley3D", Box::new(Worley3D::new())),
+        ];
+
+        for (name, field) in fields {
+            let mut min = f32::MAX;
+            let mut max = f32::MIN;
+
+            for i in 0..SAMPLE_COUNT {
+                let x = (i as f32 / SAMPLE_COUNT as f32) * 100.0 - 50.0;
+                let y = ((i * 7) as f32 / SAMPLE_COUNT as f32) * 100.0 - 50.0;
+                let z = ((i * 13) as f32 / SAMPLE_COUNT as f32) * 100.0 - 50.0;
+                let v = field.sample(Vec3::new(x, y, z), &ctx);
+                min = min.min(v);
+                max = max.max(v);
+            }
+
+            assert!(
+                min >= -0.01 && max <= 1.01,
+                "{name}: values out of range [0, 1], got [{min:.3}, {max:.3}]"
+            );
+        }
+    }
+
+    /// 1D noise fields should produce values in [0, 1].
+    #[test]
+    fn test_noise_1d_range() {
+        let ctx = EvalContext::new();
+        let fields: Vec<(&str, Box<dyn Field<f32, f32>>)> = vec![
+            ("Perlin1D", Box::new(Perlin1D::new())),
+            ("Simplex1D", Box::new(Simplex1D::new())),
+            ("Value1D", Box::new(Value1D::new())),
+            ("Worley1D", Box::new(Worley1D::new())),
+            ("WhiteNoise1D", Box::new(WhiteNoise1D::new())),
+            ("PinkNoise1D", Box::new(PinkNoise1D::new())),
+            ("BrownNoise1D", Box::new(BrownNoise1D::new())),
+            ("VioletNoise1D", Box::new(VioletNoise1D::new())),
+            ("GreyNoise1D", Box::new(GreyNoise1D::new())),
+            ("VelvetNoise1D", Box::new(VelvetNoise1D::new())),
+        ];
+
+        for (name, field) in fields {
+            let mut min = f32::MAX;
+            let mut max = f32::MIN;
+
+            for i in 0..SAMPLE_COUNT {
+                let x = (i as f32 / SAMPLE_COUNT as f32) * 100.0 - 50.0;
+                let v = field.sample(x, &ctx);
+                min = min.min(v);
+                max = max.max(v);
+            }
+
+            assert!(
+                min >= -0.01 && max <= 1.01,
+                "{name}: values out of range [0, 1], got [{min:.3}, {max:.3}]"
+            );
+        }
+    }
+
+    // ========================================================================
+    // Determinism tests
+    // ========================================================================
+
+    /// Noise fields with the same seed should produce identical output.
+    #[test]
+    fn test_noise_determinism() {
+        let ctx = EvalContext::new();
+        let seeds = [0, 42, 12345, -999];
+        let positions = [
+            Vec2::new(0.0, 0.0),
+            Vec2::new(1.5, -2.3),
+            Vec2::new(100.0, 100.0),
+            Vec2::new(-50.0, 25.0),
+        ];
+
+        for seed in seeds {
+            for pos in positions {
+                // Create two instances with same seed
+                let a = Perlin2D::with_seed(seed);
+                let b = Perlin2D::with_seed(seed);
+
+                let va = a.sample(pos, &ctx);
+                let vb = b.sample(pos, &ctx);
+
+                assert_eq!(
+                    va, vb,
+                    "Same seed should produce identical output: seed={seed}, pos={pos:?}"
+                );
+            }
+        }
+    }
+
+    /// Different seeds should produce different output (with high probability).
+    #[test]
+    fn test_different_seeds_differ() {
+        let ctx = EvalContext::new();
+        let pos = Vec2::new(5.5, -3.2);
+
+        let v0 = Perlin2D::with_seed(0).sample(pos, &ctx);
+        let v1 = Perlin2D::with_seed(1).sample(pos, &ctx);
+        let v2 = Perlin2D::with_seed(42).sample(pos, &ctx);
+
+        // At least 2 of 3 should be different
+        let different = (v0 != v1) as u32 + (v1 != v2) as u32 + (v0 != v2) as u32;
+        assert!(
+            different >= 2,
+            "Different seeds should produce different outputs"
+        );
+    }
+
+    // ========================================================================
+    // FBM property tests
+    // ========================================================================
+
+    /// FBM should still produce values in [0, 1] after octave composition.
+    #[test]
+    fn test_fbm_range() {
+        let ctx = EvalContext::new();
+
+        for octaves in [1, 2, 4, 8] {
+            let fbm = Fbm2D::new(Perlin2D::new()).octaves(octaves);
+
+            let mut min = f32::MAX;
+            let mut max = f32::MIN;
+
+            for i in 0..SAMPLE_COUNT {
+                let x = (i as f32 / SAMPLE_COUNT as f32) * 50.0 - 25.0;
+                let y = ((i * 7) as f32 / SAMPLE_COUNT as f32) * 50.0 - 25.0;
+                let v = fbm.sample(Vec2::new(x, y), &ctx);
+                min = min.min(v);
+                max = max.max(v);
+            }
+
+            assert!(
+                min >= -0.01 && max <= 1.01,
+                "FBM({octaves} octaves): values out of range, got [{min:.3}, {max:.3}]"
+            );
+        }
+    }
+
+    // ========================================================================
+    // Terrain property tests
+    // ========================================================================
+
+    /// Terrain fields should produce values in [0, 1].
+    #[test]
+    fn test_terrain_range() {
+        let ctx = EvalContext::new();
+        let terrains: Vec<(&str, Box<dyn Field<Vec2, f32>>)> = vec![
+            ("Terrain2D::default", Box::new(Terrain2D::default())),
+            ("Terrain2D::mountains", Box::new(Terrain2D::mountains())),
+            ("Terrain2D::plains", Box::new(Terrain2D::plains())),
+            ("Terrain2D::canyons", Box::new(Terrain2D::canyons())),
+            ("RidgedTerrain2D", Box::new(RidgedTerrain2D::default())),
+            ("BillowyTerrain2D", Box::new(BillowyTerrain2D::default())),
+        ];
+
+        for (name, terrain) in terrains {
+            let mut min = f32::MAX;
+            let mut max = f32::MIN;
+
+            for i in 0..SAMPLE_COUNT {
+                let x = (i as f32 / SAMPLE_COUNT as f32) * 20.0 - 10.0;
+                let y = ((i * 7) as f32 / SAMPLE_COUNT as f32) * 20.0 - 10.0;
+                let v = terrain.sample(Vec2::new(x, y), &ctx);
+                min = min.min(v);
+                max = max.max(v);
+            }
+
+            assert!(
+                min >= -0.01 && max <= 1.01,
+                "{name}: values out of range [0, 1], got [{min:.3}, {max:.3}]"
+            );
+        }
+    }
+
+    // ========================================================================
+    // Combinator property tests
+    // ========================================================================
+
+    /// Scale combinator should scale input coordinates (zoom effect).
+    #[test]
+    fn test_scale_combinator() {
+        let ctx = EvalContext::new();
+        // Use checkerboard which has visible scale effect
+        let field = Checkerboard::with_scale(1.0);
+
+        // At scale 2.0, pattern should appear twice as large (sample at 1.0 = unscaled at 2.0)
+        let scaled = Scale {
+            field: field.clone(),
+            factor: 2.0,
+        };
+
+        // Sample scaled at (0.25, 0.25) = unscaled at (0.5, 0.5)
+        let v_scaled = scaled.sample(Vec2::new(0.25, 0.25), &ctx);
+        let v_unscaled = field.sample(Vec2::new(0.5, 0.5), &ctx);
+
+        assert_eq!(
+            v_scaled, v_unscaled,
+            "Scale should multiply input coordinates"
+        );
+    }
+
+    /// Add combinator should sum outputs correctly.
+    #[test]
+    fn test_add_combinator() {
+        let ctx = EvalContext::new();
+        let a = Constant::<f32>::new(0.3);
+        let b = Constant::<f32>::new(0.4);
+
+        let sum = Add { a, b };
+        let v = sum.sample(Vec2::ZERO, &ctx);
+
+        assert!((v - 0.7).abs() < 0.001, "Add: expected 0.7, got {v}");
+    }
+
+    /// Translate combinator should shift input coordinates.
+    #[test]
+    fn test_translate_combinator() {
+        let ctx = EvalContext::new();
+        // Use a field that depends on position
+        let field = Checkerboard::with_scale(1.0);
+
+        // Translate shifts input by subtracting offset
+        // So translated.sample(p) = field.sample(p - offset)
+        let translated = Translate {
+            field: field.clone(),
+            offset: Vec2::new(1.0, 1.0),
+        };
+
+        let v1 = translated.sample(Vec2::new(1.5, 1.5), &ctx);
+        let v2 = field.sample(Vec2::new(0.5, 0.5), &ctx);
+
+        assert_eq!(v1, v2, "Translate should shift input coordinates");
+    }
+
+    // ========================================================================
+    // Statistical distribution tests
+    // ========================================================================
+
+    /// White noise should have approximately uniform distribution.
+    #[test]
+    fn test_white_noise_distribution() {
+        let ctx = EvalContext::new();
+        let noise = WhiteNoise2D::new();
+
+        let mut sum = 0.0;
+        let mut sum_sq = 0.0;
+
+        for i in 0..SAMPLE_COUNT {
+            let x = i as f32 * 0.1;
+            let y = (i * 7) as f32 * 0.1;
+            let v = noise.sample(Vec2::new(x, y), &ctx);
+            sum += v;
+            sum_sq += v * v;
+        }
+
+        let mean = sum / SAMPLE_COUNT as f32;
+        let variance = sum_sq / SAMPLE_COUNT as f32 - mean * mean;
+
+        // Uniform [0,1] has mean 0.5 and variance 1/12 ≈ 0.0833
+        assert!(
+            (mean - 0.5).abs() < 0.05,
+            "White noise mean should be ~0.5, got {mean}"
+        );
+        assert!(
+            (variance - 0.0833).abs() < 0.02,
+            "White noise variance should be ~0.0833, got {variance}"
+        );
+    }
+
+    /// Velvet noise should be mostly neutral (0.5) with occasional impulses.
+    #[test]
+    fn test_velvet_noise_sparsity() {
+        let ctx = EvalContext::new();
+        let velvet = VelvetNoise1D::new().density(0.1);
+
+        let mut neutral_count = 0;
+
+        for i in 0..SAMPLE_COUNT {
+            let x = i as f32 * 0.01;
+            let v = velvet.sample(x, &ctx);
+            if (v - 0.5).abs() < 0.01 {
+                neutral_count += 1;
+            }
+        }
+
+        let neutral_ratio = neutral_count as f32 / SAMPLE_COUNT as f32;
+
+        // With 10% density, ~90% should be neutral
+        assert!(
+            neutral_ratio > 0.85,
+            "Velvet noise should be mostly neutral, got {:.1}% neutral",
+            neutral_ratio * 100.0
+        );
     }
 }

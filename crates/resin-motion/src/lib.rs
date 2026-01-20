@@ -1151,14 +1151,19 @@ impl WiggleTransform2D {
 
 impl Motion<Transform2D> for WiggleTransform2D {
     fn at(&self, t: f32) -> Transform2D {
-        use rhizome_resin_noise::perlin2;
+        use rhizome_resin_noise::Noise2D;
+        let perlin = |seed: f32| {
+            rhizome_resin_noise::Perlin2D::with_seed(seed as i32).sample(t * self.frequency, 0.0)
+                * 2.0
+                - 1.0
+        };
 
-        let noise_pos_x = perlin2(t * self.frequency, self.seed) * 2.0 - 1.0;
-        let noise_pos_y = perlin2(t * self.frequency, self.seed + 100.0) * 2.0 - 1.0;
-        let noise_rot = perlin2(t * self.frequency, self.seed + 200.0) * 2.0 - 1.0;
-        let noise_scale_x = perlin2(t * self.frequency, self.seed + 300.0) * 2.0 - 1.0;
-        let noise_scale_y = perlin2(t * self.frequency, self.seed + 400.0) * 2.0 - 1.0;
-        let noise_skew = perlin2(t * self.frequency, self.seed + 500.0) * 2.0 - 1.0;
+        let noise_pos_x = perlin(self.seed);
+        let noise_pos_y = perlin(self.seed + 100.0);
+        let noise_rot = perlin(self.seed + 200.0);
+        let noise_scale_x = perlin(self.seed + 300.0);
+        let noise_scale_y = perlin(self.seed + 400.0);
+        let noise_skew = perlin(self.seed + 500.0);
 
         Transform2D {
             position: self.center.position
@@ -1216,11 +1221,16 @@ impl WiggleLinearTransform2D {
 
 impl Motion<LinearTransform2D> for WiggleLinearTransform2D {
     fn at(&self, t: f32) -> LinearTransform2D {
-        use rhizome_resin_noise::perlin2;
+        use rhizome_resin_noise::Noise2D;
+        let perlin = |seed: f32| {
+            rhizome_resin_noise::Perlin2D::with_seed(seed as i32).sample(t * self.frequency, 0.0)
+                * 2.0
+                - 1.0
+        };
 
-        let noise_rot = perlin2(t * self.frequency, self.seed) * 2.0 - 1.0;
-        let noise_scale_x = perlin2(t * self.frequency, self.seed + 100.0) * 2.0 - 1.0;
-        let noise_scale_y = perlin2(t * self.frequency, self.seed + 200.0) * 2.0 - 1.0;
+        let noise_rot = perlin(self.seed);
+        let noise_scale_x = perlin(self.seed + 100.0);
+        let noise_scale_y = perlin(self.seed + 200.0);
 
         LinearTransform2D {
             rotation: self.center.rotation + self.rotation_amplitude * noise_rot,

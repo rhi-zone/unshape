@@ -742,3 +742,444 @@ mod tests {
         assert_eq!(positions[1], Vec3::new(2.0, 0.0, 0.0));
     }
 }
+
+/// Invariant tests for spring physics.
+///
+/// Run with: cargo test -p rhizome-resin-spring --features invariant-tests
+#[cfg(all(test, feature = "invariant-tests"))]
+mod invariant_tests {
+    use super::*;
+
+    /// Helper to compute total kinetic energy of a spring system.
+    fn kinetic_energy(system: &SpringSystem) -> f32 {
+        system
+            .particles()
+            .iter()
+            .map(|p| {
+                let v = p.velocity();
+                0.5 * p.mass * v.length_squared()
+            })
+            .sum()
+    }
+
+    /// Helper to compute total potential energy stored in springs.
+    fn spring_potential_energy(system: &SpringSystem) -> f32 {
+        system
+            .springs()
+            .iter()
+            .map(|s| {
+                let pa = &system.particles()[s.a];
+                let pb = &system.particles()[s.b];
+                let dist = (pb.position - pa.position).length();
+                let stretch = dist - s.config.rest_length;
+                // Simple harmonic potential: 0.5 * k * x^2
+                // Using stiffness as a proxy for spring constant
+                0.5 * s.config.stiffness * stretch * stretch
+            })
+            .sum()
+    }
+
+    /// Critically damped springs should converge to target position.
+    ///
+    /// When a spring connects a pinned particle to a free particle,
+    /// the free particle should eventually settle at the rest length distance.
+    #[test]
+    fn invariant_spring_convergence() {
+        let mut system = SpringSystem::new();
+
+        // Pinned anchor at origin
+        let anchor = system.add_particle(Vec3::ZERO, 1.0);
+        system.pin_particle(anchor);
+
+        // Free particle displaced from rest position
+        let free = system.add_particle(Vec3::new(3.0, 0.0, 0.0), 1.0);
+
+        // Connect with high stiffness, high damping spring (rest length 1.0)
+        system.add_spring(
+            anchor,
+            free,
+            SpringConfig {
+                rest_length: 1.0,
+                stiffness: 0.9,
+                damping: 0.3, // High damping for faster settling
+            },
+        );
+
+        system.set_damping(0.95); // Global damping
+
+        // Simulate for many steps
+        for _ in 0..500 {
+            system.step(0.016);
+        }
+
+        // Check that free particle has converged near rest length from anchor
+        let final_dist = system.particle(free).unwrap().position.length();
+        let error = (final_dist - 1.0).abs();
+
+        assert!(
+            error < 0.1,
+            "Spring should converge to rest length. Expected ~1.0, got {}, error {}",
+            final_dist,
+            error
+        );
+    }
+
+    /// Underdamped springs should oscillate with decreasing amplitude.
+    ///
+    /// With low damping, a spring system should show oscillation where
+    /// each successive peak has lower amplitude than the previous.
+    #[test]
+    fn invariant_underdamped_decreasing_amplitude() {
+        let mut system = SpringSystem::new();
+
+        // Pinned anchor at origin
+        let anchor = system.add_particle(Vec3::ZERO, 1.0);
+        system.pin_particle(anchor);
+
+        // Free particle displaced from rest position
+        let free = system.add_particle(Vec3::new(3.0, 0.0, 0.0), 1.0);
+
+        // Low damping spring - should oscillate
+        system.add_spring(
+            anchor,
+            free,
+            SpringConfig {
+                rest_length: 1.0,
+                stiffness: 0.8,
+                damping: 0.01, // Low damping
+            },
+        );
+
+        system.set_damping(0.999); // Very little global damping
+
+        // Track maximum displacements (peaks)
+        let mut peaks: Vec<f32> = Vec::new();
+        let mut prev_dist = 3.0_f32;
+        let mut increasing = false;
+
+        for _ in 0..300 {
+            system.step(0.016);
+            let dist = system.particle(free).unwrap().position.length();
+
+            // Detect peaks (local maxima of distance from rest)
+            let displacement = (dist - 1.0).abs();
+            let prev_displacement = (prev_dist - 1.0).abs();
+
+            if increasing && displacement < prev_displacement {
+                // We just passed a peak
+                peaks.push(prev_displacement);
+            }
+
+            increasing = displacement > prev_displacement;
+            prev_dist = dist;
+        }
+
+        // We should have at least 2 peaks to compare
+        assert!(
+            peaks.len() >= 2,
+            "Expected at least 2 oscillation peaks, got {}",
+            peaks.len()
+        );
+
+        // Each peak should be smaller than or equal to the previous
+        for i in 1..peaks.len() {
+            assert!(
+                peaks[i] <= peaks[i - 1] + 0.01, // Small tolerance for numerical error
+                "Amplitude should decrease: peak {} ({}) should be <= peak {} ({})",
+                i,
+                peaks[i],
+                i - 1,
+                peaks[i - 1]
+            );
+        }
+    }
+
+    /// Spring positions should remain bounded (no explosion).
+    ///
+    /// A properly damped spring system should never have particles
+    /// fly off to infinity, even after many simulation steps.
+    #[test]
+    fn invariant_position_bounds() {
+        let mut system = SpringSystem::new();
+
+        // Create a chain of springs
+        for i in 0..10 {
+            system.add_particle(Vec3::new(i as f32, 0.0, 0.0), 1.0);
+        }
+
+        // Pin the first particle
+        system.pin_particle(0);
+
+        // Connect with springs
+        for i in 0..9 {
+            system.add_spring(i, i + 1, SpringConfig::default());
+        }
+
+        // Apply gravity and simulate
+        system.set_gravity(Vec3::new(0.0, -9.8, 0.0));
+
+        let initial_bound = 100.0; // Reasonable bound for this setup
+
+        for step in 0..1000 {
+            system.step(0.016);
+
+            // Check all particles are within bounds
+            for (i, p) in system.particles().iter().enumerate() {
+                let dist = p.position.length();
+                assert!(
+                    dist < initial_bound,
+                    "Particle {} position exploded at step {}: distance {} exceeds bound {}",
+                    i,
+                    step,
+                    dist,
+                    initial_bound
+                );
+            }
+        }
+    }
+
+    /// Higher global damping should result in faster settling.
+    ///
+    /// A system with higher global damping should have lower total
+    /// displacement over time compared to one with lower damping.
+    #[test]
+    fn invariant_damping_reduces_motion() {
+        // Test with low global damping
+        let total_displacement_low = measure_total_displacement(0.99);
+
+        // Test with high global damping
+        let total_displacement_high = measure_total_displacement(0.90);
+
+        assert!(
+            total_displacement_high < total_displacement_low,
+            "Higher damping should reduce total motion. Low damping: {}, High damping: {}",
+            total_displacement_low,
+            total_displacement_high
+        );
+    }
+
+    /// Helper to measure total displacement during spring simulation.
+    fn measure_total_displacement(global_damping: f32) -> f32 {
+        let mut system = SpringSystem::new();
+
+        let anchor = system.add_particle(Vec3::ZERO, 1.0);
+        system.pin_particle(anchor);
+
+        let free = system.add_particle(Vec3::new(3.0, 0.0, 0.0), 1.0);
+
+        system.add_spring(
+            anchor,
+            free,
+            SpringConfig {
+                rest_length: 1.0,
+                stiffness: 0.8,
+                damping: 0.0, // No spring damping to isolate global damping effect
+            },
+        );
+
+        system.set_damping(global_damping);
+
+        let mut total_displacement = 0.0_f32;
+        let mut prev_pos = system.particle(free).unwrap().position;
+
+        for _ in 0..200 {
+            system.step(0.016);
+            let pos = system.particle(free).unwrap().position;
+            total_displacement += (pos - prev_pos).length();
+            prev_pos = pos;
+        }
+
+        total_displacement
+    }
+
+    /// Damped spring system should lose energy over time.
+    ///
+    /// With damping, total mechanical energy should decrease over time
+    /// as energy is dissipated.
+    #[test]
+    fn invariant_energy_dissipation_damped() {
+        let mut system = SpringSystem::new();
+
+        // Create a system with initial potential energy (stretched spring)
+        let anchor = system.add_particle(Vec3::ZERO, 1.0);
+        system.pin_particle(anchor);
+
+        // Start particle far from rest position to give it potential energy
+        system.add_particle(Vec3::new(3.0, 0.0, 0.0), 1.0);
+
+        system.add_spring(
+            0,
+            1,
+            SpringConfig {
+                rest_length: 1.0,
+                stiffness: 0.8,
+                damping: 0.1, // Moderate damping
+            },
+        );
+
+        system.set_damping(0.98); // Global damping
+
+        // Measure energy at different time points
+        let mut energies: Vec<f32> = Vec::new();
+
+        for step in 0..200 {
+            system.step(0.016);
+
+            // Sample energy every 20 steps
+            if step % 20 == 0 {
+                let ke = kinetic_energy(&system);
+                let pe = spring_potential_energy(&system);
+                energies.push(ke + pe);
+            }
+        }
+
+        // Energy should generally decrease over time
+        // Check that final energy is less than initial
+        let initial_energy = energies.first().copied().unwrap_or(0.0);
+        let final_energy = energies.last().copied().unwrap_or(0.0);
+
+        assert!(
+            final_energy < initial_energy,
+            "Damped system should dissipate energy. Initial: {}, Final: {}",
+            initial_energy,
+            final_energy
+        );
+    }
+
+    /// Verlet particle should maintain velocity direction under constant force.
+    ///
+    /// A particle under constant acceleration should move in the direction
+    /// of that acceleration.
+    #[test]
+    fn invariant_verlet_velocity_direction() {
+        let mut p = VerletParticle::new(Vec3::ZERO);
+        let gravity = Vec3::new(0.0, -9.8, 0.0);
+
+        for _ in 0..10 {
+            p.integrate(gravity, 0.016, 1.0);
+        }
+
+        // Velocity should be pointing downward (same direction as gravity)
+        let velocity = p.velocity();
+        assert!(
+            velocity.y < 0.0,
+            "Velocity should be in gravity direction, got {:?}",
+            velocity
+        );
+
+        // Velocity should be mostly in Y direction
+        let normalized = velocity.normalize();
+        assert!(
+            normalized.y.abs() > 0.99,
+            "Velocity should be aligned with gravity, got {:?}",
+            normalized
+        );
+    }
+
+    /// Distance constraint should preserve distance over time.
+    ///
+    /// After many applications of a distance constraint, the two
+    /// particles should be at approximately the target distance.
+    #[test]
+    fn invariant_distance_constraint_convergence() {
+        let mut a = VerletParticle::new(Vec3::ZERO);
+        let mut b = VerletParticle::new(Vec3::new(5.0, 0.0, 0.0));
+
+        let target = 2.0;
+
+        // Apply constraint many times
+        for _ in 0..50 {
+            solve_distance_constraint(&mut a, &mut b, target, 1.0);
+        }
+
+        let final_dist = (a.position - b.position).length();
+        let error = (final_dist - target).abs();
+
+        assert!(
+            error < 0.01,
+            "Distance constraint should converge to target {}. Got {}, error {}",
+            target,
+            final_dist,
+            error
+        );
+    }
+
+    /// Pinned particles should not move under any circumstance.
+    #[test]
+    fn invariant_pinned_immobility() {
+        let mut system = SpringSystem::new();
+
+        // Create pinned particle
+        let pinned = system.add_particle(Vec3::new(1.0, 2.0, 3.0), 1.0);
+        system.pin_particle(pinned);
+
+        // Create free particle connected to it
+        let free = system.add_particle(Vec3::new(10.0, 0.0, 0.0), 1.0);
+        system.add_spring(
+            pinned,
+            free,
+            SpringConfig {
+                rest_length: 1.0,
+                stiffness: 1.0,
+                damping: 0.0,
+            },
+        );
+
+        // Apply forces and gravity
+        system.set_gravity(Vec3::new(0.0, -100.0, 0.0));
+        system.apply_force(pinned, Vec3::new(1000.0, 1000.0, 1000.0));
+
+        let initial_pos = system.particle(pinned).unwrap().position;
+
+        // Simulate many steps
+        for _ in 0..100 {
+            system.step(0.016);
+        }
+
+        let final_pos = system.particle(pinned).unwrap().position;
+
+        assert_eq!(
+            initial_pos, final_pos,
+            "Pinned particle should not move. Initial: {:?}, Final: {:?}",
+            initial_pos, final_pos
+        );
+    }
+
+    /// Cloth simulation should maintain structural integrity.
+    ///
+    /// A cloth under gravity should not have any springs stretched
+    /// beyond a reasonable multiple of their rest length.
+    #[test]
+    fn invariant_cloth_structural_integrity() {
+        let mut cloth = create_cloth(Vec3::ZERO, 2.0, 2.0, 4, 4, SpringConfig::default());
+
+        // Pin top row
+        for i in 0..4 {
+            cloth.pin_particle(i);
+        }
+
+        cloth.set_gravity(Vec3::new(0.0, -9.8, 0.0));
+
+        // Simulate
+        for _ in 0..200 {
+            cloth.step(0.016);
+        }
+
+        // Check that no spring is stretched more than 3x its rest length
+        let max_stretch_ratio = 3.0;
+
+        for spring in cloth.springs() {
+            let pa = &cloth.particles()[spring.a];
+            let pb = &cloth.particles()[spring.b];
+            let actual_length = (pb.position - pa.position).length();
+            let ratio = actual_length / spring.config.rest_length;
+
+            assert!(
+                ratio < max_stretch_ratio,
+                "Spring stretched too much: {:.2}x rest length (max allowed: {}x)",
+                ratio,
+                max_stretch_ratio
+            );
+        }
+    }
+}

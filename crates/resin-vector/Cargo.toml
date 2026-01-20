@@ -9,6 +9,7 @@ description = "2D vector graphics for resin"
 default = []
 serde = ["dep:serde", "glam/serde"]
 dynop = ["dep:rhizome-resin-op", "dep:serde_json", "serde"]
+invariant-tests = []
 
 [dependencies]
 glam.workspace = true
