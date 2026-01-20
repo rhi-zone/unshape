@@ -2192,3 +2192,577 @@ mod tests {
         assert_eq!(results.len(), 3);
     }
 }
+
+// ============================================================================
+// Invariant tests
+// ============================================================================
+
+/// Invariant tests for spatial data structures.
+///
+/// These tests verify mathematical properties that should hold for spatial
+/// data structures. Run with:
+///
+/// ```sh
+/// cargo test -p rhizome-resin-spatial --features invariant-tests
+/// ```
+#[cfg(all(test, feature = "invariant-tests"))]
+mod invariant_tests {
+    use super::*;
+
+    // ========================================================================
+    // AABB invariants
+    // ========================================================================
+
+    /// AABB center is midpoint of min and max.
+    #[test]
+    fn test_aabb2_center_is_midpoint() {
+        for _ in 0..100 {
+            let min = Vec2::new(rand_f32(-100.0, 100.0), rand_f32(-100.0, 100.0));
+            let max = min + Vec2::new(rand_f32(0.1, 50.0), rand_f32(0.1, 50.0));
+            let aabb = Aabb2::new(min, max);
+
+            let expected_center = (min + max) * 0.5;
+            let center = aabb.center();
+
+            assert!(
+                (center - expected_center).length() < 1e-5,
+                "Center should be midpoint: expected {expected_center:?}, got {center:?}"
+            );
+        }
+    }
+
+    /// AABB3 center is midpoint of min and max.
+    #[test]
+    fn test_aabb3_center_is_midpoint() {
+        for _ in 0..100 {
+            let min = Vec3::new(
+                rand_f32(-100.0, 100.0),
+                rand_f32(-100.0, 100.0),
+                rand_f32(-100.0, 100.0),
+            );
+            let max = min
+                + Vec3::new(
+                    rand_f32(0.1, 50.0),
+                    rand_f32(0.1, 50.0),
+                    rand_f32(0.1, 50.0),
+                );
+            let aabb = Aabb3::new(min, max);
+
+            let expected_center = (min + max) * 0.5;
+            let center = aabb.center();
+
+            assert!(
+                (center - expected_center).length() < 1e-5,
+                "Center should be midpoint"
+            );
+        }
+    }
+
+    /// AABB quadrants should cover the original AABB exactly.
+    #[test]
+    fn test_aabb2_quadrants_cover_original() {
+        for _ in 0..50 {
+            let min = Vec2::new(rand_f32(-100.0, 100.0), rand_f32(-100.0, 100.0));
+            let max = min + Vec2::new(rand_f32(1.0, 50.0), rand_f32(1.0, 50.0));
+            let aabb = Aabb2::new(min, max);
+            let quadrants = aabb.quadrants();
+
+            // Test random points - if in original, must be in exactly one quadrant
+            for _ in 0..100 {
+                let point = Vec2::new(
+                    rand_f32(aabb.min.x, aabb.max.x),
+                    rand_f32(aabb.min.y, aabb.max.y),
+                );
+
+                let containing_quads: Vec<_> = quadrants
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, q)| q.contains_point(point))
+                    .collect();
+
+                assert!(
+                    !containing_quads.is_empty(),
+                    "Point {point:?} should be in at least one quadrant"
+                );
+            }
+        }
+    }
+
+    /// AABB octants should cover the original AABB exactly.
+    #[test]
+    fn test_aabb3_octants_cover_original() {
+        for _ in 0..50 {
+            let min = Vec3::new(
+                rand_f32(-100.0, 100.0),
+                rand_f32(-100.0, 100.0),
+                rand_f32(-100.0, 100.0),
+            );
+            let max = min + Vec3::splat(rand_f32(1.0, 50.0));
+            let aabb = Aabb3::new(min, max);
+            let octants = aabb.octants();
+
+            // Test random points
+            for _ in 0..100 {
+                let point = Vec3::new(
+                    rand_f32(aabb.min.x, aabb.max.x),
+                    rand_f32(aabb.min.y, aabb.max.y),
+                    rand_f32(aabb.min.z, aabb.max.z),
+                );
+
+                let containing_octs: Vec<_> = octants
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, o)| o.contains_point(point))
+                    .collect();
+
+                assert!(
+                    !containing_octs.is_empty(),
+                    "Point {point:?} should be in at least one octant"
+                );
+            }
+        }
+    }
+
+    /// AABB intersection is symmetric.
+    #[test]
+    fn test_aabb_intersection_symmetric() {
+        for _ in 0..100 {
+            let a = Aabb2::new(
+                Vec2::new(rand_f32(-50.0, 50.0), rand_f32(-50.0, 50.0)),
+                Vec2::new(rand_f32(0.0, 100.0), rand_f32(0.0, 100.0)),
+            );
+            let b = Aabb2::new(
+                Vec2::new(rand_f32(-50.0, 50.0), rand_f32(-50.0, 50.0)),
+                Vec2::new(rand_f32(0.0, 100.0), rand_f32(0.0, 100.0)),
+            );
+
+            assert_eq!(
+                a.intersects(&b),
+                b.intersects(&a),
+                "Intersection should be symmetric"
+            );
+        }
+    }
+
+    // ========================================================================
+    // Quadtree invariants
+    // ========================================================================
+
+    /// All inserted points should be found via range query.
+    #[test]
+    fn test_quadtree_all_points_queryable() {
+        let bounds = Aabb2::new(Vec2::ZERO, Vec2::splat(100.0));
+        let mut tree = Quadtree::new(bounds, 8, 4);
+
+        let mut points = Vec::new();
+        for i in 0..100 {
+            let point = Vec2::new(rand_f32(0.0, 100.0), rand_f32(0.0, 100.0));
+            points.push((point, i));
+            tree.insert(point, i);
+        }
+
+        assert_eq!(tree.len(), 100);
+
+        // Query entire bounds should return all points
+        let results: Vec<_> = tree.query_region(&bounds).collect();
+        assert_eq!(results.len(), 100);
+    }
+
+    /// Range query only returns points within query region.
+    #[test]
+    fn test_quadtree_range_query_correctness() {
+        let bounds = Aabb2::new(Vec2::ZERO, Vec2::splat(100.0));
+        let mut tree = Quadtree::new(bounds, 8, 4);
+
+        for i in 0..100 {
+            let point = Vec2::new(rand_f32(0.0, 100.0), rand_f32(0.0, 100.0));
+            tree.insert(point, i);
+        }
+
+        // Query a sub-region
+        let query = Aabb2::new(Vec2::new(25.0, 25.0), Vec2::new(75.0, 75.0));
+        let results: Vec<_> = tree.query_region(&query).collect();
+
+        // All returned points must be within query region
+        for (pos, _) in &results {
+            assert!(
+                query.contains_point(*pos),
+                "Returned point {:?} outside query region",
+                pos
+            );
+        }
+    }
+
+    /// Nearest neighbor returns the truly closest point.
+    #[test]
+    fn test_quadtree_nearest_is_truly_closest() {
+        let bounds = Aabb2::new(Vec2::ZERO, Vec2::splat(100.0));
+        let mut tree = Quadtree::new(bounds, 8, 4);
+
+        let mut points = Vec::new();
+        for i in 0..50 {
+            let point = Vec2::new(rand_f32(0.0, 100.0), rand_f32(0.0, 100.0));
+            points.push(point);
+            tree.insert(point, i);
+        }
+
+        // Test several query points
+        for _ in 0..20 {
+            let query = Vec2::new(rand_f32(0.0, 100.0), rand_f32(0.0, 100.0));
+
+            // Find nearest via tree
+            let tree_nearest = tree.nearest(query);
+            assert!(tree_nearest.is_some());
+            let (tree_pos, _, tree_dist) = tree_nearest.unwrap();
+
+            // Find nearest via brute force
+            let brute_nearest = points
+                .iter()
+                .map(|p| (*p, p.distance(query)))
+                .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                .unwrap();
+
+            assert!(
+                (tree_dist - brute_nearest.1).abs() < 1e-5,
+                "Tree nearest ({tree_dist}) != brute force ({}) for query {query:?}",
+                brute_nearest.1
+            );
+            assert!(
+                (tree_pos - brute_nearest.0).length() < 1e-5,
+                "Tree returned wrong point"
+            );
+        }
+    }
+
+    // ========================================================================
+    // Octree invariants
+    // ========================================================================
+
+    /// All inserted points should be found via range query.
+    #[test]
+    fn test_octree_all_points_queryable() {
+        let bounds = Aabb3::new(Vec3::ZERO, Vec3::splat(100.0));
+        let mut tree = Octree::new(bounds, 8, 4);
+
+        for i in 0..100 {
+            let point = Vec3::new(
+                rand_f32(0.0, 100.0),
+                rand_f32(0.0, 100.0),
+                rand_f32(0.0, 100.0),
+            );
+            tree.insert(point, i);
+        }
+
+        assert_eq!(tree.len(), 100);
+
+        // Query entire bounds should return all points
+        let results: Vec<_> = tree.query_region(&bounds).collect();
+        assert_eq!(results.len(), 100);
+    }
+
+    /// Nearest neighbor returns the truly closest point.
+    #[test]
+    fn test_octree_nearest_is_truly_closest() {
+        let bounds = Aabb3::new(Vec3::ZERO, Vec3::splat(100.0));
+        let mut tree = Octree::new(bounds, 8, 4);
+
+        let mut points = Vec::new();
+        for i in 0..50 {
+            let point = Vec3::new(
+                rand_f32(0.0, 100.0),
+                rand_f32(0.0, 100.0),
+                rand_f32(0.0, 100.0),
+            );
+            points.push(point);
+            tree.insert(point, i);
+        }
+
+        // Test several query points
+        for _ in 0..20 {
+            let query = Vec3::new(
+                rand_f32(0.0, 100.0),
+                rand_f32(0.0, 100.0),
+                rand_f32(0.0, 100.0),
+            );
+
+            let tree_nearest = tree.nearest(query);
+            assert!(tree_nearest.is_some());
+            let (_, _, tree_dist) = tree_nearest.unwrap();
+
+            // Brute force
+            let brute_dist = points
+                .iter()
+                .map(|p| p.distance(query))
+                .min_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap();
+
+            assert!(
+                (tree_dist - brute_dist).abs() < 1e-5,
+                "Tree nearest ({tree_dist}) != brute force ({brute_dist})"
+            );
+        }
+    }
+
+    // ========================================================================
+    // Ray invariants
+    // ========================================================================
+
+    /// Ray at(t) returns origin when t=0.
+    #[test]
+    fn test_ray_at_zero_is_origin() {
+        for _ in 0..50 {
+            let origin = Vec3::new(
+                rand_f32(-100.0, 100.0),
+                rand_f32(-100.0, 100.0),
+                rand_f32(-100.0, 100.0),
+            );
+            let dir = Vec3::new(
+                rand_f32(-1.0, 1.0),
+                rand_f32(-1.0, 1.0),
+                rand_f32(-1.0, 1.0),
+            )
+            .normalize();
+            let ray = Ray::new(origin, dir);
+
+            assert!(
+                (ray.at(0.0) - origin).length() < 1e-5,
+                "Ray at(0) should be origin"
+            );
+        }
+    }
+
+    /// Ray-AABB intersection points are on the AABB surface.
+    #[test]
+    fn test_ray_aabb_hit_point_on_surface() {
+        let aabb = Aabb3::new(Vec3::splat(-5.0), Vec3::splat(5.0));
+
+        for _ in 0..50 {
+            // Create ray pointing toward AABB from outside
+            let origin = Vec3::new(
+                rand_f32(-20.0, -10.0),
+                rand_f32(-3.0, 3.0),
+                rand_f32(-3.0, 3.0),
+            );
+            let target = Vec3::new(
+                rand_f32(-4.0, 4.0),
+                rand_f32(-4.0, 4.0),
+                rand_f32(-4.0, 4.0),
+            );
+            let ray = Ray::new(origin, (target - origin).normalize());
+
+            if let Some((t_min, _)) = ray.intersect_aabb(&aabb) {
+                let hit = ray.at(t_min);
+
+                // Hit point should be on or very close to AABB surface
+                let on_min_x = (hit.x - aabb.min.x).abs() < 1e-3;
+                let on_max_x = (hit.x - aabb.max.x).abs() < 1e-3;
+                let on_min_y = (hit.y - aabb.min.y).abs() < 1e-3;
+                let on_max_y = (hit.y - aabb.max.y).abs() < 1e-3;
+                let on_min_z = (hit.z - aabb.min.z).abs() < 1e-3;
+                let on_max_z = (hit.z - aabb.max.z).abs() < 1e-3;
+
+                let on_surface =
+                    on_min_x || on_max_x || on_min_y || on_max_y || on_min_z || on_max_z;
+
+                assert!(on_surface, "Hit point {hit:?} should be on AABB surface");
+            }
+        }
+    }
+
+    // ========================================================================
+    // BVH invariants
+    // ========================================================================
+
+    /// All primitives should be reachable via AABB query covering all.
+    #[test]
+    fn test_bvh_all_primitives_queryable() {
+        let mut primitives = Vec::new();
+        for i in 0..50 {
+            let center = Vec3::new(
+                rand_f32(0.0, 100.0),
+                rand_f32(0.0, 100.0),
+                rand_f32(0.0, 100.0),
+            );
+            let half = Vec3::splat(rand_f32(0.5, 2.0));
+            primitives.push((Aabb3::new(center - half, center + half), i));
+        }
+
+        let bvh = Bvh::build(primitives);
+        assert_eq!(bvh.len(), 50);
+
+        // Query entire space
+        let query = Aabb3::new(Vec3::splat(-10.0), Vec3::splat(110.0));
+        let results = bvh.query_aabb(&query);
+
+        assert_eq!(results.len(), 50, "All primitives should be found");
+    }
+
+    /// BVH ray intersection returns only primitives the ray actually hits.
+    #[test]
+    fn test_bvh_ray_hits_are_valid() {
+        let primitives = vec![
+            (
+                Aabb3::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(2.0, 2.0, 2.0)),
+                "A",
+            ),
+            (
+                Aabb3::new(Vec3::new(10.0, 0.0, 0.0), Vec3::new(12.0, 2.0, 2.0)),
+                "B",
+            ),
+            (
+                Aabb3::new(Vec3::new(20.0, 0.0, 0.0), Vec3::new(22.0, 2.0, 2.0)),
+                "C",
+            ),
+        ];
+
+        let bvh = Bvh::build(primitives);
+
+        // Ray hitting A
+        let ray = Ray::new(Vec3::new(1.0, 1.0, -5.0), Vec3::Z);
+        let hits = bvh.intersect_ray(&ray);
+        assert_eq!(hits.len(), 1);
+
+        // Verify the hit is valid
+        for (aabb, _) in &hits {
+            assert!(
+                ray.intersect_aabb(aabb).is_some(),
+                "Returned primitive should actually be hit"
+            );
+        }
+    }
+
+    // ========================================================================
+    // Spatial hash invariants
+    // ========================================================================
+
+    /// Points in same cell are within cell_size * sqrt(3) of each other.
+    #[test]
+    fn test_spatial_hash_cell_locality() {
+        let cell_size = 10.0;
+        let mut hash = SpatialHash::new(cell_size);
+
+        // Insert points in same cell
+        let base = Vec3::new(5.0, 5.0, 5.0);
+        hash.insert(base, "A");
+        hash.insert(base + Vec3::new(1.0, 1.0, 1.0), "B");
+        hash.insert(base + Vec3::new(2.0, 2.0, 2.0), "C");
+
+        let results: Vec<_> = hash.query_cell(base).collect();
+
+        // All points in same cell should be within cell diagonal
+        let max_dist = cell_size * 3.0_f32.sqrt();
+        for (pos, _) in &results {
+            let dist = pos.distance(base);
+            assert!(
+                dist <= max_dist,
+                "Point in same cell should be within cell diagonal"
+            );
+        }
+    }
+
+    /// Radius query returns all points within radius.
+    #[test]
+    fn test_spatial_hash_radius_query_complete() {
+        let mut hash = SpatialHash::new(10.0);
+
+        let mut points = Vec::new();
+        for i in 0..100 {
+            let point = Vec3::new(
+                rand_f32(0.0, 100.0),
+                rand_f32(0.0, 100.0),
+                rand_f32(0.0, 100.0),
+            );
+            points.push(point);
+            hash.insert(point, i);
+        }
+
+        let query = Vec3::new(50.0, 50.0, 50.0);
+        let radius = 20.0;
+
+        let results: Vec<_> = hash.query_radius(query, radius).collect();
+
+        // Count via brute force
+        let brute_count = points
+            .iter()
+            .filter(|p| p.distance(query) <= radius)
+            .count();
+
+        assert_eq!(
+            results.len(),
+            brute_count,
+            "Radius query should return all points within radius"
+        );
+    }
+
+    // ========================================================================
+    // R-tree invariants
+    // ========================================================================
+
+    /// All inserted rectangles should be found via full-bounds query.
+    #[test]
+    fn test_rtree_all_rects_queryable() {
+        let mut tree = Rtree::new(4);
+
+        for i in 0..50 {
+            let min = Vec2::new(rand_f32(0.0, 90.0), rand_f32(0.0, 90.0));
+            let max = min + Vec2::new(rand_f32(1.0, 10.0), rand_f32(1.0, 10.0));
+            tree.insert(Aabb2::new(min, max), i);
+        }
+
+        assert_eq!(tree.len(), 50);
+
+        // Query entire space
+        let query = Aabb2::new(Vec2::splat(-10.0), Vec2::splat(200.0));
+        let results = tree.query(&query);
+
+        assert_eq!(results.len(), 50);
+    }
+
+    /// Query only returns rectangles that actually intersect.
+    #[test]
+    fn test_rtree_query_correctness() {
+        let mut tree = Rtree::new(4);
+
+        let mut rects = Vec::new();
+        for i in 0..30 {
+            let min = Vec2::new(rand_f32(0.0, 90.0), rand_f32(0.0, 90.0));
+            let max = min + Vec2::new(rand_f32(1.0, 10.0), rand_f32(1.0, 10.0));
+            let rect = Aabb2::new(min, max);
+            rects.push(rect);
+            tree.insert(rect, i);
+        }
+
+        let query = Aabb2::new(Vec2::new(40.0, 40.0), Vec2::new(60.0, 60.0));
+        let results = tree.query(&query);
+
+        // All returned rects must intersect query
+        for (bounds, _) in &results {
+            assert!(
+                bounds.intersects(&query),
+                "Returned rect should intersect query"
+            );
+        }
+
+        // Count should match brute force
+        let brute_count = rects.iter().filter(|r| r.intersects(&query)).count();
+        assert_eq!(results.len(), brute_count);
+    }
+
+    // ========================================================================
+    // Helper functions
+    // ========================================================================
+
+    /// Simple LCG random number generator for tests.
+    fn rand_f32(min: f32, max: f32) -> f32 {
+        use std::cell::Cell;
+        thread_local! {
+            static SEED: Cell<u64> = const { Cell::new(12345) };
+        }
+        SEED.with(|seed| {
+            let s = seed.get().wrapping_mul(6364136223846793005).wrapping_add(1);
+            seed.set(s);
+            let t = ((s >> 33) as u32) as f32 / u32::MAX as f32;
+            min + t * (max - min)
+        })
+    }
+}
