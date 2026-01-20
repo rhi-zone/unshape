@@ -495,7 +495,7 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 
 ### Spatial Additions
 
-- [ ] k-nearest neighbor queries - Quadtree/Octree currently only have `nearest()`, add `k_nearest(k)`
+- [x] k-nearest neighbor queries - `k_nearest(position, k)` for Quadtree/Octree
 - [ ] KD-tree - common alternative to octree, often faster for point queries
 - [ ] Ball tree - good for high-dimensional nearest neighbor
 
