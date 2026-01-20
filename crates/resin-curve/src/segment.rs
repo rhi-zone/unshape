@@ -5,6 +5,7 @@ use glam::{Vec2, Vec3};
 
 /// A 2D path segment (line, quadratic, cubic, or arc).
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Segment2D {
     Line(Line<Vec2>),
     Quad(QuadBezier<Vec2>),
@@ -127,6 +128,7 @@ impl Curve2DExt for Segment2D {
 ///
 /// No Arc variant - use NURBS for 3D curves.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Segment3D {
     Line(Line<Vec3>),
     Quad(QuadBezier<Vec3>),

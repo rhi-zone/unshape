@@ -4,6 +4,14 @@ use crate::{CubicBezier, Curve, VectorSpace, lerp};
 
 /// A line segment from start to end.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(bound(
+        serialize = "V: serde::Serialize",
+        deserialize = "V: serde::de::DeserializeOwned"
+    ))
+)]
 pub struct Line<V> {
     pub start: V,
     pub end: V,

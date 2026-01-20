@@ -6,6 +6,14 @@ use crate::{Curve, VectorSpace, lerp};
 ///
 /// Defined by 3 control points: start (p0), control (p1), end (p2).
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(bound(
+        serialize = "V: serde::Serialize",
+        deserialize = "V: serde::de::DeserializeOwned"
+    ))
+)]
 pub struct QuadBezier<V> {
     pub p0: V,
     pub p1: V,
@@ -80,6 +88,14 @@ impl<V: VectorSpace> Curve for QuadBezier<V> {
 ///
 /// Defined by 4 control points: start (p0), control 1 (p1), control 2 (p2), end (p3).
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(bound(
+        serialize = "V: serde::Serialize",
+        deserialize = "V: serde::de::DeserializeOwned"
+    ))
+)]
 pub struct CubicBezier<V> {
     pub p0: V,
     pub p1: V,

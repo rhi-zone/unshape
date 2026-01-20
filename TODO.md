@@ -499,6 +499,48 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 - [ ] KD-tree - common alternative to octree, often faster for point queries
 - [ ] Ball tree - good for high-dimensional nearest neighbor
 
+### Crate Pattern Gaps
+
+> **Goal:** Ensure consistent patterns across all crates for serde, dynop, invariant-tests, Field trait, etc.
+
+**serde feature missing:**
+- [x] resin-curve - added `serde` feature with Serialize/Deserialize for all curve types
+- [x] resin-noise - no structs to serialize (pure functions only)
+- [x] resin-easing - added `serde` feature for Easing enum
+- [x] resin-geometry - N/A (traits only, no structs)
+- [x] resin-spatial - added `serde` feature for Aabb2, Aabb3, Ray
+- [x] resin-spline - added `serde` feature for all spline types
+- [x] resin-surface - added `serde` feature for all surface types
+
+**dynop feature missing:**
+- [x] resin-audio - already has `dynop` feature properly configured
+- [x] resin-curve - N/A (data types only, no operations)
+- [x] resin-noise - N/A (pure functions only, no operations)
+- [x] resin-easing - N/A (pure functions only, no operations)
+- [ ] resin-spatial - add `dynop` feature and register_ops()
+- [ ] resin-transform - add `dynop` feature and register_ops()
+- [ ] resin-motion - add `dynop` feature and register_ops()
+- [ ] resin-motion-fn - add `dynop` feature and register_ops()
+
+**invariant-tests missing:**
+- [ ] resin-voxel - add invariant tests for voxel operations
+- [ ] resin-field - add invariant tests for field composition
+- [ ] resin-vector - add invariant tests for vector operations
+- [ ] resin-spring - add invariant tests for spring physics
+- [ ] resin-particle - add invariant tests for particle systems
+- [ ] resin-physics - add invariant tests for rigid body physics
+
+**Field trait implementations missing:**
+- [x] resin-noise - Field implementations already exist in resin-field (Perlin2D, Simplex2D, etc.)
+- [ ] resin-automata - implement Field for cellular automata
+- [ ] resin-rd - implement Field for reaction-diffusion
+
+**benchmarks missing:**
+- [ ] resin-field - add criterion benchmarks
+- [ ] resin-spatial - add criterion benchmarks for spatial queries
+- [ ] resin-physics - add criterion benchmarks
+- [ ] resin-pointcloud - add criterion benchmarks
+
 ### Architecture / Future Extraction
 
 - [ ] Scene graph generalization - evaluate if resin-motion's scene graph should be extracted to resin-scene for general use (2D/3D hierarchy, transforms, parent-child relationships)

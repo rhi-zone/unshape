@@ -111,6 +111,7 @@ pub type EaseFn = fn(f32) -> f32;
 
 /// Standard easing function types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Easing {
     /// Linear interpolation (no easing).
     #[default]

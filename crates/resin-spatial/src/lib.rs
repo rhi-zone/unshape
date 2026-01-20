@@ -37,6 +37,7 @@ use std::collections::BinaryHeap;
 
 /// 2D axis-aligned bounding box.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Aabb2 {
     /// Minimum corner (lower-left).
     pub min: Vec2,
@@ -113,6 +114,7 @@ impl Aabb2 {
 
 /// 3D axis-aligned bounding box.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Aabb3 {
     /// Minimum corner.
     pub min: Vec3,
@@ -1066,6 +1068,7 @@ impl<T> Octree<T> {
 
 /// A ray in 3D space.
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ray {
     /// Origin of the ray.
     pub origin: Vec3,

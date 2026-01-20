@@ -44,6 +44,7 @@ pub fn lerp<T: Interpolatable>(a: T, b: T, t: f32) -> T {
 
 /// Axis-aligned bounding box (3D).
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Aabb {
     pub min: Vec3,
     pub max: Vec3,
@@ -69,6 +70,7 @@ impl Aabb {
 
 /// Axis-aligned bounding rectangle (2D).
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Rect {
     pub min: Vec2,
     pub max: Vec2,
