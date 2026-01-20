@@ -36,6 +36,9 @@ proc-macro2 = "1"
 # Benchmarking
 criterion = "0.5"
 
+# FFT for spectral analysis
+rustfft = "6"
+
 # JIT compilation (optional)
 cranelift = { package = "cranelift-codegen", version = "0.113" }
 cranelift-frontend = "0.113"
