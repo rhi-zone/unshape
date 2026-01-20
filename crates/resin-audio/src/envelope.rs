@@ -528,3 +528,267 @@ mod tests {
         assert!(env.value() < 0.1);
     }
 }
+
+// ============================================================================
+// Invariant tests - envelope smoothness and timing
+// ============================================================================
+
+#[cfg(all(test, feature = "invariant-tests"))]
+mod invariant_tests {
+    use super::*;
+
+    const SAMPLE_RATE: f32 = 44100.0;
+    const DT: f32 = 1.0 / SAMPLE_RATE;
+
+    #[test]
+    fn test_adsr_range_bounds() {
+        // ADSR output should always be in [0, 1]
+        let mut env = Adsr::with_params(0.01, 0.1, 0.7, 0.2);
+        env.trigger();
+
+        for _ in 0..10000 {
+            let value = env.process(DT);
+            assert!(value >= 0.0 && value <= 1.0, "ADSR out of range: {}", value);
+        }
+
+        env.release();
+        for _ in 0..10000 {
+            let value = env.process(DT);
+            assert!(
+                value >= 0.0 && value <= 1.0,
+                "ADSR out of range during release: {}",
+                value
+            );
+        }
+    }
+
+    #[test]
+    fn test_adsr_smoothness() {
+        // ADSR should be smooth (no large discontinuities)
+        let mut env = Adsr::with_params(0.01, 0.05, 0.7, 0.1);
+        env.trigger();
+
+        let mut prev = env.process(DT);
+        for _ in 0..5000 {
+            let curr = env.process(DT);
+            let delta = (curr - prev).abs();
+            // Max change per sample should be bounded
+            assert!(
+                delta < 0.01,
+                "ADSR discontinuity: prev={}, curr={}, delta={}",
+                prev,
+                curr,
+                delta
+            );
+            prev = curr;
+        }
+
+        env.release();
+        for _ in 0..5000 {
+            let curr = env.process(DT);
+            let delta = (curr - prev).abs();
+            assert!(
+                delta < 0.01,
+                "ADSR release discontinuity: prev={}, curr={}, delta={}",
+                prev,
+                curr,
+                delta
+            );
+            prev = curr;
+        }
+    }
+
+    #[test]
+    fn test_adsr_attack_reaches_peak() {
+        // Attack phase should reach 1.0
+        let attack_time = 0.1;
+        let mut env = Adsr::with_params(attack_time, 0.1, 0.5, 0.1);
+        env.trigger();
+
+        // Process through attack
+        let samples = (attack_time * SAMPLE_RATE * 1.5) as usize;
+        let mut max_value = 0.0f32;
+        for _ in 0..samples {
+            let value = env.process(DT);
+            max_value = max_value.max(value);
+        }
+
+        assert!(
+            max_value > 0.95,
+            "ADSR should reach peak during attack, got max={}",
+            max_value
+        );
+    }
+
+    #[test]
+    fn test_adsr_sustain_level() {
+        // After attack+decay, should hold at sustain level
+        let sustain = 0.6;
+        let mut env = Adsr::with_params(0.01, 0.05, sustain, 0.1);
+        env.trigger();
+
+        // Process through attack and decay
+        for _ in 0..5000 {
+            env.process(DT);
+        }
+
+        // Should be at sustain level
+        let value = env.value();
+        assert!(
+            (value - sustain).abs() < 0.05,
+            "ADSR should sustain at {}, got {}",
+            sustain,
+            value
+        );
+    }
+
+    #[test]
+    fn test_adsr_release_to_zero() {
+        // After release, should decay to zero
+        let mut env = Adsr::with_params(0.01, 0.01, 0.5, 0.1);
+        env.trigger();
+
+        // Process to sustain
+        for _ in 0..2000 {
+            env.process(DT);
+        }
+
+        env.release();
+
+        // Process through release
+        for _ in 0..10000 {
+            env.process(DT);
+        }
+
+        let value = env.value();
+        assert!(
+            value < 0.01,
+            "ADSR should release to near zero, got {}",
+            value
+        );
+    }
+
+    #[test]
+    fn test_lfo_range() {
+        // LFO with amplitude 1.0 and offset 0.0 should be in [-1, 1]
+        let lfo = Lfo::new();
+
+        for i in 0..1000 {
+            let phase = i as f32 / 1000.0;
+            let value = lfo.sample_at(phase);
+            assert!(
+                value >= -1.0 && value <= 1.0,
+                "LFO out of range at phase {}: {}",
+                phase,
+                value
+            );
+        }
+    }
+
+    #[test]
+    fn test_lfo_waveform_ranges() {
+        // All LFO waveforms should stay in range
+        let waveforms = [
+            LfoWaveform::Sine,
+            LfoWaveform::Triangle,
+            LfoWaveform::Square,
+            LfoWaveform::Saw,
+            LfoWaveform::Random,
+        ];
+
+        for waveform in waveforms {
+            let mut lfo = Lfo::new();
+            lfo.waveform = waveform;
+
+            for i in 0..1000 {
+                let phase = i as f32 / 1000.0;
+                let value = lfo.sample_at(phase);
+                assert!(
+                    value >= -1.0 && value <= 1.0,
+                    "{:?} LFO out of range at phase {}: {}",
+                    waveform,
+                    phase,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_lfo_amplitude_scaling() {
+        // Amplitude should scale the output
+        let mut lfo = Lfo::new();
+        lfo.amplitude = 0.5;
+
+        let mut max_value = 0.0f32;
+        for i in 0..1000 {
+            let phase = i as f32 / 1000.0;
+            max_value = max_value.max(lfo.sample_at(phase).abs());
+        }
+
+        assert!(
+            (max_value - 0.5).abs() < 0.01,
+            "LFO max should be ~0.5 with amplitude 0.5, got {}",
+            max_value
+        );
+    }
+
+    #[test]
+    fn test_lfo_offset() {
+        // Offset should shift the center
+        let mut lfo = Lfo::new();
+        lfo.offset = 0.5;
+        lfo.amplitude = 0.5;
+
+        let mut min_value = f32::INFINITY;
+        let mut max_value = f32::NEG_INFINITY;
+
+        for i in 0..1000 {
+            let phase = i as f32 / 1000.0;
+            let value = lfo.sample_at(phase);
+            min_value = min_value.min(value);
+            max_value = max_value.max(value);
+        }
+
+        // With offset 0.5 and amplitude 0.5, should range from 0 to 1
+        assert!(
+            min_value >= -0.01 && max_value <= 1.01,
+            "LFO with offset 0.5, amp 0.5 should be in [0, 1], got [{}, {}]",
+            min_value,
+            max_value
+        );
+    }
+
+    #[test]
+    fn test_ar_range_bounds() {
+        // AR envelope should be in [0, 1]
+        let mut env = Ar::new(0.1, 0.2);
+        env.trigger();
+
+        for _ in 0..20000 {
+            let value = env.process(DT);
+            assert!(value >= 0.0 && value <= 1.0, "AR out of range: {}", value);
+        }
+    }
+
+    #[test]
+    fn test_ar_smoothness() {
+        // AR should be smooth
+        let mut env = Ar::new(0.05, 0.1);
+        env.trigger();
+
+        let mut prev = env.process(DT);
+        for _ in 0..10000 {
+            let curr = env.process(DT);
+            let delta = (curr - prev).abs();
+            assert!(
+                delta < 0.01,
+                "AR discontinuity: prev={}, curr={}, delta={}",
+                prev,
+                curr,
+                delta
+            );
+            prev = curr;
+        }
+    }
+}

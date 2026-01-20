@@ -835,3 +835,223 @@ mod tests {
         );
     }
 }
+
+// ============================================================================
+// Invariant tests - frequency response validation via FFT
+// ============================================================================
+
+#[cfg(all(test, feature = "invariant-tests"))]
+mod invariant_tests {
+    use super::*;
+    use rustfft::{FftPlanner, num_complex::Complex};
+
+    const SAMPLE_RATE: f32 = 44100.0;
+    const FFT_SIZE: usize = 4096;
+
+    /// Compute magnitude frequency response of a filter using impulse response
+    fn frequency_response(filter: &mut Biquad) -> Vec<f32> {
+        filter.reset();
+
+        // Generate impulse response
+        let mut ir = vec![0.0f32; FFT_SIZE];
+        ir[0] = filter.process(1.0);
+        for i in 1..FFT_SIZE {
+            ir[i] = filter.process(0.0);
+        }
+
+        // FFT
+        let mut planner = FftPlanner::new();
+        let fft = planner.plan_fft_forward(FFT_SIZE);
+
+        let mut buffer: Vec<Complex<f32>> = ir.iter().map(|&x| Complex::new(x, 0.0)).collect();
+        fft.process(&mut buffer);
+
+        // Magnitude spectrum (first half)
+        buffer[..FFT_SIZE / 2].iter().map(|c| c.norm()).collect()
+    }
+
+    /// Convert bin index to frequency
+    fn bin_to_freq(bin: usize) -> f32 {
+        bin as f32 * SAMPLE_RATE / FFT_SIZE as f32
+    }
+
+    /// Find bin index closest to frequency
+    fn freq_to_bin(freq: f32) -> usize {
+        (freq * FFT_SIZE as f32 / SAMPLE_RATE).round() as usize
+    }
+
+    #[test]
+    fn test_lowpass_attenuates_high_frequencies() {
+        let cutoff = 1000.0;
+        let mut filter = Biquad::lowpass(cutoff, 0.707, SAMPLE_RATE);
+        let response = frequency_response(&mut filter);
+
+        let dc_mag = response[1]; // Avoid bin 0 for DC
+        let high_freq_bin = freq_to_bin(10000.0);
+        let high_freq_mag = response[high_freq_bin.min(response.len() - 1)];
+
+        // High frequencies should be significantly attenuated
+        assert!(
+            high_freq_mag < dc_mag * 0.1,
+            "Lowpass should attenuate 10kHz by >20dB: DC={}, 10kHz={}",
+            dc_mag,
+            high_freq_mag
+        );
+    }
+
+    #[test]
+    fn test_highpass_attenuates_low_frequencies() {
+        let cutoff = 1000.0;
+        let mut filter = Biquad::highpass(cutoff, 0.707, SAMPLE_RATE);
+        let response = frequency_response(&mut filter);
+
+        let low_freq_bin = freq_to_bin(100.0);
+        let low_freq_mag = response[low_freq_bin.max(1)];
+        let high_freq_bin = freq_to_bin(10000.0);
+        let high_freq_mag = response[high_freq_bin.min(response.len() - 1)];
+
+        // Low frequencies should be significantly attenuated
+        assert!(
+            low_freq_mag < high_freq_mag * 0.2,
+            "Highpass should attenuate 100Hz: 100Hz={}, 10kHz={}",
+            low_freq_mag,
+            high_freq_mag
+        );
+    }
+
+    #[test]
+    fn test_bandpass_peaks_at_center() {
+        let center = 2000.0;
+        let mut filter = Biquad::bandpass(center, 2.0, SAMPLE_RATE);
+        let response = frequency_response(&mut filter);
+
+        let center_bin = freq_to_bin(center);
+        let low_bin = freq_to_bin(200.0);
+        let high_bin = freq_to_bin(15000.0);
+
+        let center_mag = response[center_bin.min(response.len() - 1)];
+        let low_mag = response[low_bin.max(1)];
+        let high_mag = response[high_bin.min(response.len() - 1)];
+
+        // Center frequency should be loudest
+        assert!(
+            center_mag > low_mag * 2.0 && center_mag > high_mag * 2.0,
+            "Bandpass should peak at center: low={}, center={}, high={}",
+            low_mag,
+            center_mag,
+            high_mag
+        );
+    }
+
+    #[test]
+    fn test_notch_attenuates_center() {
+        let center = 2000.0;
+        let mut filter = Biquad::notch(center, 2.0, SAMPLE_RATE);
+        let response = frequency_response(&mut filter);
+
+        let center_bin = freq_to_bin(center);
+        let nearby_bin = freq_to_bin(center * 2.0);
+
+        let center_mag = response[center_bin.min(response.len() - 1)];
+        let nearby_mag = response[nearby_bin.min(response.len() - 1)];
+
+        // Center frequency should be attenuated
+        assert!(
+            center_mag < nearby_mag * 0.5,
+            "Notch should attenuate center: center={}, nearby={}",
+            center_mag,
+            nearby_mag
+        );
+    }
+
+    #[test]
+    fn test_allpass_preserves_magnitude() {
+        let center = 2000.0;
+        let mut filter = Biquad::allpass(center, 1.0, SAMPLE_RATE);
+        let response = frequency_response(&mut filter);
+
+        // All-pass should have unity magnitude at all frequencies
+        let low_mag = response[freq_to_bin(100.0).max(1)];
+        let mid_mag = response[freq_to_bin(2000.0)];
+        let high_mag = response[freq_to_bin(10000.0).min(response.len() - 1)];
+
+        assert!(
+            (low_mag - 1.0).abs() < 0.1,
+            "Allpass should be ~1.0 at 100Hz, got {}",
+            low_mag
+        );
+        assert!(
+            (mid_mag - 1.0).abs() < 0.1,
+            "Allpass should be ~1.0 at 2kHz, got {}",
+            mid_mag
+        );
+        assert!(
+            (high_mag - 1.0).abs() < 0.1,
+            "Allpass should be ~1.0 at 10kHz, got {}",
+            high_mag
+        );
+    }
+
+    #[test]
+    fn test_filter_stability() {
+        // Filters should not explode with random input
+        let mut lowpass = Biquad::lowpass(1000.0, 0.707, SAMPLE_RATE);
+        let mut highpass = Biquad::highpass(1000.0, 0.707, SAMPLE_RATE);
+        let mut bandpass = Biquad::bandpass(1000.0, 2.0, SAMPLE_RATE);
+
+        // Process random-ish signal
+        for i in 0..10000 {
+            let input = ((i * 7919) % 1000) as f32 / 500.0 - 1.0;
+            let lp_out = lowpass.process(input);
+            let hp_out = highpass.process(input);
+            let bp_out = bandpass.process(input);
+
+            assert!(
+                lp_out.is_finite() && lp_out.abs() < 100.0,
+                "Lowpass unstable at sample {}: {}",
+                i,
+                lp_out
+            );
+            assert!(
+                hp_out.is_finite() && hp_out.abs() < 100.0,
+                "Highpass unstable at sample {}: {}",
+                i,
+                hp_out
+            );
+            assert!(
+                bp_out.is_finite() && bp_out.abs() < 100.0,
+                "Bandpass unstable at sample {}: {}",
+                i,
+                bp_out
+            );
+        }
+    }
+
+    #[test]
+    fn test_lowpass_cutoff_ordering() {
+        // Lower cutoff should attenuate high frequencies more
+        let test_freq = 5000.0;
+        let test_bin = freq_to_bin(test_freq);
+
+        let mut filter_500 = Biquad::lowpass(500.0, 0.707, SAMPLE_RATE);
+        let mut filter_2000 = Biquad::lowpass(2000.0, 0.707, SAMPLE_RATE);
+        let mut filter_8000 = Biquad::lowpass(8000.0, 0.707, SAMPLE_RATE);
+
+        let resp_500 = frequency_response(&mut filter_500);
+        let resp_2000 = frequency_response(&mut filter_2000);
+        let resp_8000 = frequency_response(&mut filter_8000);
+
+        let mag_500 = resp_500[test_bin.min(resp_500.len() - 1)];
+        let mag_2000 = resp_2000[test_bin.min(resp_2000.len() - 1)];
+        let mag_8000 = resp_8000[test_bin.min(resp_8000.len() - 1)];
+
+        assert!(
+            mag_500 < mag_2000 && mag_2000 < mag_8000,
+            "Lower cutoff should attenuate more at {}: 500Hz={}, 2kHz={}, 8kHz={}",
+            test_freq,
+            mag_500,
+            mag_2000,
+            mag_8000
+        );
+    }
+}

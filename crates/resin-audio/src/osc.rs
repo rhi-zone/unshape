@@ -1055,3 +1055,264 @@ mod tests {
         }
     }
 }
+
+// ============================================================================
+// Invariant tests - oscillator properties and frequency accuracy
+// ============================================================================
+
+#[cfg(all(test, feature = "invariant-tests"))]
+mod invariant_tests {
+    use super::*;
+    use rustfft::{FftPlanner, num_complex::Complex};
+
+    const SAMPLE_RATE: f32 = 44100.0;
+    const FFT_SIZE: usize = 4096;
+
+    /// Generate samples from an oscillator at a given frequency
+    fn generate_signal<F: Fn(f32) -> f32>(
+        osc_fn: F,
+        frequency: f32,
+        num_samples: usize,
+    ) -> Vec<f32> {
+        (0..num_samples)
+            .map(|i| {
+                let phase = sample_to_phase(frequency, i as u64, SAMPLE_RATE);
+                osc_fn(phase)
+            })
+            .collect()
+    }
+
+    /// Find the bin with maximum magnitude (ignoring DC)
+    fn find_peak_bin(signal: &[f32]) -> (usize, f32) {
+        let mut planner = FftPlanner::new();
+        let fft = planner.plan_fft_forward(signal.len());
+
+        let mut buffer: Vec<Complex<f32>> = signal.iter().map(|&x| Complex::new(x, 0.0)).collect();
+        fft.process(&mut buffer);
+
+        let magnitudes: Vec<f32> = buffer[1..signal.len() / 2]
+            .iter()
+            .map(|c| c.norm())
+            .collect();
+
+        let (max_idx, &max_mag) = magnitudes
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+            .unwrap();
+
+        (max_idx + 1, max_mag) // +1 because we skipped bin 0
+    }
+
+    /// Convert bin index to frequency
+    fn bin_to_freq(bin: usize, fft_size: usize) -> f32 {
+        bin as f32 * SAMPLE_RATE / fft_size as f32
+    }
+
+    #[test]
+    fn test_oscillator_output_range() {
+        // All oscillators should output values in [-1, 1]
+        let oscillators: Vec<(&str, fn(f32) -> f32)> = vec![
+            ("sine", sine),
+            ("square", square),
+            ("saw", saw),
+            ("saw_rev", saw_rev),
+            ("triangle", triangle),
+        ];
+
+        for (name, osc_fn) in oscillators {
+            for i in 0..1000 {
+                let phase = i as f32 / 1000.0;
+                let value = osc_fn(phase);
+                assert!(
+                    value >= -1.0 && value <= 1.0,
+                    "{} out of range at phase {}: {}",
+                    name,
+                    phase,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_sine_frequency_accuracy() {
+        let test_freq = 440.0;
+        let signal = generate_signal(sine, test_freq, FFT_SIZE);
+        let (peak_bin, _) = find_peak_bin(&signal);
+        let detected_freq = bin_to_freq(peak_bin, FFT_SIZE);
+
+        // Allow one bin tolerance
+        let bin_width = SAMPLE_RATE / FFT_SIZE as f32;
+        assert!(
+            (detected_freq - test_freq).abs() < bin_width * 1.5,
+            "Sine frequency mismatch: expected {}, got {}",
+            test_freq,
+            detected_freq
+        );
+    }
+
+    #[test]
+    fn test_square_fundamental_frequency() {
+        let test_freq = 440.0;
+        let signal = generate_signal(square, test_freq, FFT_SIZE);
+        let (peak_bin, _) = find_peak_bin(&signal);
+        let detected_freq = bin_to_freq(peak_bin, FFT_SIZE);
+
+        let bin_width = SAMPLE_RATE / FFT_SIZE as f32;
+        assert!(
+            (detected_freq - test_freq).abs() < bin_width * 1.5,
+            "Square fundamental mismatch: expected {}, got {}",
+            test_freq,
+            detected_freq
+        );
+    }
+
+    #[test]
+    fn test_saw_fundamental_frequency() {
+        let test_freq = 440.0;
+        let signal = generate_signal(saw, test_freq, FFT_SIZE);
+        let (peak_bin, _) = find_peak_bin(&signal);
+        let detected_freq = bin_to_freq(peak_bin, FFT_SIZE);
+
+        let bin_width = SAMPLE_RATE / FFT_SIZE as f32;
+        assert!(
+            (detected_freq - test_freq).abs() < bin_width * 1.5,
+            "Saw fundamental mismatch: expected {}, got {}",
+            test_freq,
+            detected_freq
+        );
+    }
+
+    #[test]
+    fn test_triangle_fundamental_frequency() {
+        let test_freq = 440.0;
+        let signal = generate_signal(triangle, test_freq, FFT_SIZE);
+        let (peak_bin, _) = find_peak_bin(&signal);
+        let detected_freq = bin_to_freq(peak_bin, FFT_SIZE);
+
+        let bin_width = SAMPLE_RATE / FFT_SIZE as f32;
+        assert!(
+            (detected_freq - test_freq).abs() < bin_width * 1.5,
+            "Triangle fundamental mismatch: expected {}, got {}",
+            test_freq,
+            detected_freq
+        );
+    }
+
+    #[test]
+    fn test_phase_continuity() {
+        // Phase should wrap smoothly
+        let mut prev_value = sine(0.0);
+        for i in 1..1000 {
+            let phase = i as f32 / 100.0; // Goes beyond 1.0
+            let value = sine(phase);
+            let delta = (value - prev_value).abs();
+            // Maximum rate of change for sine at 1% phase step
+            assert!(
+                delta < 0.1,
+                "Discontinuity at phase {}: prev={}, curr={}, delta={}",
+                phase,
+                prev_value,
+                value,
+                delta
+            );
+            prev_value = value;
+        }
+    }
+
+    #[test]
+    fn test_sine_is_zero_at_origin() {
+        let value = sine(0.0);
+        assert!(
+            value.abs() < 1e-6,
+            "Sine should be 0 at phase 0, got {}",
+            value
+        );
+    }
+
+    #[test]
+    fn test_sine_symmetry() {
+        // sin(x) = -sin(-x) = -sin(1-x) in our phase space
+        for i in 1..100 {
+            let phase = i as f32 / 100.0;
+            let positive = sine(phase);
+            let negative = sine(1.0 - phase);
+            assert!(
+                (positive + negative).abs() < 1e-5,
+                "Sine asymmetry at phase {}: {} vs {}",
+                phase,
+                positive,
+                negative
+            );
+        }
+    }
+
+    #[test]
+    fn test_square_duty_cycle() {
+        // Square wave should spend 50% of time at +1 and 50% at -1
+        let mut positive_count = 0;
+        let mut negative_count = 0;
+
+        for i in 0..1000 {
+            let phase = i as f32 / 1000.0;
+            let value = square(phase);
+            if value > 0.0 {
+                positive_count += 1;
+            } else {
+                negative_count += 1;
+            }
+        }
+
+        let ratio = positive_count as f32 / negative_count as f32;
+        assert!(
+            (ratio - 1.0).abs() < 0.01,
+            "Square wave should have 50/50 duty cycle, got {}/{}",
+            positive_count,
+            negative_count
+        );
+    }
+
+    #[test]
+    fn test_pulse_duty_cycle() {
+        // Pulse with 0.25 duty should be high 25% of the time
+        let duty = 0.25;
+        let mut positive_count = 0;
+
+        for i in 0..1000 {
+            let phase = i as f32 / 1000.0;
+            if pulse(phase, duty) > 0.0 {
+                positive_count += 1;
+            }
+        }
+
+        let actual_duty = positive_count as f32 / 1000.0;
+        assert!(
+            (actual_duty - duty).abs() < 0.02,
+            "Pulse duty cycle mismatch: expected {}, got {}",
+            duty,
+            actual_duty
+        );
+    }
+
+    #[test]
+    fn test_wavetable_interpolation_smoothness() {
+        // Wavetable interpolation should be smooth
+        let sine_table = Wavetable::sine(256);
+
+        let mut prev = sine_table.sample(0.0);
+        for i in 1..1000 {
+            let phase = i as f32 / 1000.0;
+            let curr = sine_table.sample(phase);
+            let delta = (curr - prev).abs();
+            // Should be smooth
+            assert!(
+                delta < 0.05,
+                "Wavetable discontinuity at phase {}: delta={}",
+                phase,
+                delta
+            );
+            prev = curr;
+        }
+    }
+}
