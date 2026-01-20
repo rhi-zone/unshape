@@ -4124,6 +4124,7 @@ dependencies = [
  "rhizome-resin-expr-field",
  "rhizome-resin-jit",
  "rhizome-resin-op",
+ "rustfft",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
