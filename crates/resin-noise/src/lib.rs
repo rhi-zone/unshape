@@ -771,15 +771,29 @@ pub fn brown2(x: f32, y: f32) -> f32 {
 
 /// 1D Violet noise.
 ///
-/// Violet noise has an f² spectrum - very high frequency.
-/// This is approximated as the difference between adjacent white noise samples.
+/// Violet noise has an f² spectrum - very high frequency emphasis.
+/// This is computed as the second difference of white noise (differentiated twice),
+/// which produces an f² power spectrum.
 /// Returns a value in [0, 1].
 pub fn violet1(x: f32) -> f32 {
+    // Second difference: d²w/dx² ≈ w[n+1] - 2*w[n] + w[n-1]
+    // This gives f² spectral slope
     let xi = x.floor() as i32;
-    let h1 = perm(xi) as f32 / 255.0;
-    let h2 = perm(xi + 1) as f32 / 255.0;
-    // Differentiated: high values where there's rapid change
-    ((h2 - h1).abs() * 2.0).clamp(0.0, 1.0)
+    let t = x - x.floor();
+
+    let w0 = perm(xi - 1) as f32 / 255.0;
+    let w1 = perm(xi) as f32 / 255.0;
+    let w2 = perm(xi + 1) as f32 / 255.0;
+    let w3 = perm(xi + 2) as f32 / 255.0;
+
+    // Interpolate second differences
+    let d1 = w2 - 2.0 * w1 + w0; // Second diff at xi
+    let d2 = w3 - 2.0 * w2 + w1; // Second diff at xi+1
+
+    let v = d1 + t * (d2 - d1);
+
+    // Range of second diff is roughly [-2, 2], scale to [0, 1]
+    (v * 0.25 + 0.5).clamp(0.0, 1.0)
 }
 
 /// 1D Grey noise (approximation).
@@ -1530,11 +1544,11 @@ mod invariant_tests {
         let power = power_spectrum(&samples);
         let slope = spectral_slope(&power);
 
-        // Violet noise should have positive slope (high frequency emphasis)
-        // Our simple differentiated white noise implementation may not hit the ideal +2
+        // Violet noise should have slope around +2 (f²)
+        // Second-difference implementation gives a good approximation
         assert!(
-            slope > 0.0,
-            "Violet noise should have positive slope, got slope = {}",
+            slope > 1.0,
+            "Violet noise should have steep positive slope (> 1.0), got slope = {}",
             slope
         );
     }
