@@ -34,6 +34,14 @@ impl Interpolatable for Vec3 {}
 /// Defined by 4 control points: start (P0), control 1 (P1), control 2 (P2), end (P3).
 /// The curve passes through P0 and P3, and is influenced by P1 and P2.
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(bound(
+        serialize = "T: serde::Serialize",
+        deserialize = "T: serde::de::DeserializeOwned"
+    ))
+)]
 pub struct CubicBezier<T: Interpolatable> {
     /// Start point.
     pub p0: T,
@@ -98,6 +106,14 @@ impl<T: Interpolatable> CubicBezier<T> {
 ///
 /// Uses centripetal parameterization for better curve behavior.
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(bound(
+        serialize = "T: serde::Serialize",
+        deserialize = "T: serde::de::DeserializeOwned"
+    ))
+)]
 pub struct CatmullRom<T: Interpolatable> {
     /// Control points (the curve passes through all of them).
     pub points: Vec<T>,
@@ -199,6 +215,14 @@ impl<T: Interpolatable> Default for CatmullRom<T> {
 /// B-splines provide smooth curves that approximate (but don't pass through)
 /// control points, with local control.
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(bound(
+        serialize = "T: serde::Serialize",
+        deserialize = "T: serde::de::DeserializeOwned"
+    ))
+)]
 pub struct BSpline<T: Interpolatable> {
     /// Control points.
     pub points: Vec<T>,
@@ -333,6 +357,14 @@ impl<T: Interpolatable> Default for BSpline<T> {
 
 /// A piecewise cubic Bezier spline with continuity.
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(bound(
+        serialize = "T: serde::Serialize",
+        deserialize = "T: serde::de::DeserializeOwned"
+    ))
+)]
 pub struct BezierSpline<T: Interpolatable> {
     /// Bezier segments.
     pub segments: Vec<CubicBezier<T>>,
@@ -455,6 +487,14 @@ impl<T: Interpolatable> Default for BezierSpline<T> {
 
 /// A weighted control point for NURBS curves.
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(bound(
+        serialize = "T: serde::Serialize",
+        deserialize = "T: serde::de::DeserializeOwned"
+    ))
+)]
 pub struct WeightedPoint<T: Interpolatable> {
     /// The control point position.
     pub point: T,
@@ -481,6 +521,14 @@ impl<T: Interpolatable> WeightedPoint<T> {
 /// - Greater control over curve shape
 /// - Industry-standard curve representation (CAD, modeling)
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(bound(
+        serialize = "T: serde::Serialize",
+        deserialize = "T: serde::de::DeserializeOwned"
+    ))
+)]
 pub struct Nurbs<T: Interpolatable> {
     /// Weighted control points.
     pub points: Vec<WeightedPoint<T>>,

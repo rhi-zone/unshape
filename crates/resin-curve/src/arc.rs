@@ -8,6 +8,7 @@ use std::f32::consts::{FRAC_PI_2, PI};
 ///
 /// Arcs are 2D-only because 3D arcs are better represented as NURBS.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Arc {
     /// Center of the ellipse.
     pub center: Vec2,

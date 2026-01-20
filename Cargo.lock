@@ -4200,6 +4200,7 @@ name = "rhizome-resin-curve"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "serde",
 ]
 
 [[package]]
@@ -4207,6 +4208,7 @@ name = "rhizome-resin-easing"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "serde",
 ]
 
 [[package]]
@@ -4547,6 +4549,7 @@ name = "rhizome-resin-spatial"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "serde",
 ]
 
 [[package]]
@@ -4555,6 +4558,7 @@ version = "0.1.0"
 dependencies = [
  "glam",
  "rhizome-resin-curve",
+ "serde",
 ]
 
 [[package]]
@@ -4572,6 +4576,7 @@ name = "rhizome-resin-surface"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "serde",
 ]
 
 [[package]]

@@ -23,6 +23,7 @@ use glam::Vec3;
 
 /// A weighted control point for NURBS surfaces.
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SurfacePoint {
     /// The control point position.
     pub point: Vec3,
@@ -44,6 +45,7 @@ impl SurfacePoint {
 
 /// Parameter domain for a NURBS surface.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SurfaceDomain {
     /// Minimum and maximum u parameter values.
     pub u: ParameterRange,
@@ -53,6 +55,7 @@ pub struct SurfaceDomain {
 
 /// A parameter range (min, max).
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ParameterRange {
     /// Minimum parameter value.
     pub min: f32,
@@ -65,6 +68,7 @@ pub struct ParameterRange {
 /// Control points are arranged in a 2D grid with dimensions (num_u, num_v).
 /// The surface is parameterized by (u, v) coordinates.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NurbsSurface {
     /// Control points in row-major order (v varies fastest).
     /// Index = u * num_v + v
@@ -295,6 +299,7 @@ impl NurbsSurface {
 
 /// Result of tessellating a NURBS surface.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TessellatedSurface {
     /// Vertex positions.
     pub positions: Vec<Vec3>,

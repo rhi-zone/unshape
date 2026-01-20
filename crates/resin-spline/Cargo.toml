@@ -6,6 +6,12 @@ description = "Spline curves (Bezier, Catmull-Rom, B-spline, NURBS)"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rhizome-lab/resin"
 
+[features]
+default = []
+# Serialization support
+serde = ["dep:serde", "glam/serde"]
+
 [dependencies]
 glam.workspace = true
 rhizome-resin-curve.workspace = true
+serde = { workspace = true, optional = true }

@@ -4,6 +4,14 @@ use crate::{Curve, Segment2D};
 
 /// A sequence of connected curves.
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(bound(
+        serialize = "C: serde::Serialize",
+        deserialize = "C: serde::de::DeserializeOwned"
+    ))
+)]
 pub struct Path<C: Curve = Segment2D> {
     pub segments: Vec<C>,
     pub closed: bool,
@@ -130,6 +138,14 @@ impl<C: Curve> Default for Path<C> {
 
 /// Wrapper that caches cumulative segment lengths for uniform-speed sampling.
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(bound(
+        serialize = "C: serde::Serialize",
+        deserialize = "C: serde::de::DeserializeOwned"
+    ))
+)]
 pub struct ArcLengthPath<C: Curve> {
     path: Path<C>,
     cumulative_lengths: Vec<f32>,
