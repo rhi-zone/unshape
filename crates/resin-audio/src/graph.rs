@@ -971,6 +971,170 @@ impl AudioNode for AudioGraph {
 }
 
 // ============================================================================
+// Hot-swappable Graphs
+// ============================================================================
+
+/// A graph wrapper that supports glitch-free hot-swapping.
+///
+/// `SwappableGraph` allows replacing an audio graph at runtime while audio
+/// is playing, using crossfading to avoid clicks and pops.
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_resin_audio::graph::{SwappableGraph, AudioGraph, AudioContext};
+///
+/// // Create initial graph
+/// let graph1 = AudioGraph::new();
+/// let mut swappable = SwappableGraph::new(graph1);
+///
+/// // In audio callback
+/// fn process_audio(swappable: &mut SwappableGraph, buffer: &mut [f32], ctx: &mut AudioContext) {
+///     swappable.process_buffer(buffer, ctx);
+/// }
+///
+/// // From UI thread - queue a new graph
+/// let graph2 = AudioGraph::new();
+/// swappable.swap(graph2, 1024); // 1024 sample crossfade
+/// ```
+pub struct SwappableGraph {
+    /// Current active graph.
+    current: AudioGraph,
+    /// Pending graph being crossfaded in.
+    pending: Option<AudioGraph>,
+    /// Crossfade progress (samples remaining).
+    crossfade_remaining: u32,
+    /// Total crossfade duration (samples).
+    crossfade_total: u32,
+}
+
+impl SwappableGraph {
+    /// Creates a new swappable graph wrapper.
+    pub fn new(graph: AudioGraph) -> Self {
+        Self {
+            current: graph,
+            pending: None,
+            crossfade_remaining: 0,
+            crossfade_total: 0,
+        }
+    }
+
+    /// Queues a new graph to replace the current one.
+    ///
+    /// The new graph will be crossfaded in over `crossfade_samples` samples.
+    /// Typical values: 256-2048 samples (5-45ms at 44.1kHz).
+    ///
+    /// If a crossfade is already in progress, the pending graph is replaced.
+    pub fn swap(&mut self, new_graph: AudioGraph, crossfade_samples: u32) {
+        // If we're mid-crossfade, instantly complete it
+        if self.pending.is_some() {
+            self.complete_crossfade();
+        }
+
+        self.pending = Some(new_graph);
+        self.crossfade_remaining = crossfade_samples;
+        self.crossfade_total = crossfade_samples;
+    }
+
+    /// Returns true if a crossfade is currently in progress.
+    pub fn is_crossfading(&self) -> bool {
+        self.pending.is_some()
+    }
+
+    /// Returns the crossfade progress (0.0 = just started, 1.0 = complete).
+    pub fn crossfade_progress(&self) -> f32 {
+        if self.crossfade_total == 0 {
+            1.0
+        } else {
+            1.0 - (self.crossfade_remaining as f32 / self.crossfade_total as f32)
+        }
+    }
+
+    /// Processes a single sample through the graph(s).
+    pub fn process(&mut self, input: f32, ctx: &AudioContext) -> f32 {
+        if self.pending.is_some() {
+            // Calculate crossfade position before borrowing
+            let t = if self.crossfade_total == 0 {
+                1.0
+            } else {
+                1.0 - (self.crossfade_remaining as f32 / self.crossfade_total as f32)
+            };
+
+            // Use equal-power crossfade for smoother transition
+            let old_gain = ((1.0 - t) * std::f32::consts::FRAC_PI_2).sin();
+            let new_gain = (t * std::f32::consts::FRAC_PI_2).sin();
+
+            let old_out = self.current.process(input, ctx);
+            let new_out = self.pending.as_mut().unwrap().process(input, ctx);
+
+            let output = old_out * old_gain + new_out * new_gain;
+
+            // Advance crossfade
+            self.crossfade_remaining = self.crossfade_remaining.saturating_sub(1);
+            if self.crossfade_remaining == 0 {
+                self.complete_crossfade();
+            }
+
+            output
+        } else {
+            self.current.process(input, ctx)
+        }
+    }
+
+    /// Processes a buffer of samples.
+    pub fn process_buffer(&mut self, buffer: &mut [f32], ctx: &mut AudioContext) {
+        for sample in buffer {
+            *sample = self.process(*sample, ctx);
+            ctx.advance();
+        }
+    }
+
+    /// Generates samples (no input).
+    pub fn generate(&mut self, buffer: &mut [f32], ctx: &mut AudioContext) {
+        for sample in buffer {
+            *sample = self.process(0.0, ctx);
+            ctx.advance();
+        }
+    }
+
+    /// Completes any pending crossfade immediately.
+    fn complete_crossfade(&mut self) {
+        if let Some(pending) = self.pending.take() {
+            self.current = pending;
+        }
+        self.crossfade_remaining = 0;
+        self.crossfade_total = 0;
+    }
+
+    /// Cancels any pending crossfade and keeps the current graph.
+    pub fn cancel_swap(&mut self) {
+        self.pending = None;
+        self.crossfade_remaining = 0;
+        self.crossfade_total = 0;
+    }
+
+    /// Returns a reference to the current (active) graph.
+    pub fn current(&self) -> &AudioGraph {
+        &self.current
+    }
+
+    /// Returns a mutable reference to the current graph.
+    ///
+    /// Use this to modify parameters on the active graph.
+    pub fn current_mut(&mut self) -> &mut AudioGraph {
+        &mut self.current
+    }
+
+    /// Resets all graphs.
+    pub fn reset(&mut self) {
+        self.current.reset();
+        if let Some(ref mut pending) = self.pending {
+            pending.reset();
+        }
+    }
+}
+
+// ============================================================================
 // Built-in Audio Nodes
 // ============================================================================
 
@@ -1842,5 +2006,175 @@ mod tests {
         assert!(params.set_index(1, 0.8));
         assert!((params.get_index(1).unwrap() - 0.8).abs() < 1e-6);
         assert!(params.get_index(99).is_none());
+    }
+
+    // =========================================================================
+    // SwappableGraph tests
+    // =========================================================================
+
+    #[test]
+    fn test_swappable_graph_basic() {
+        // Create a simple graph that outputs 1.0
+        let mut graph1 = AudioGraph::new();
+        let const1 = graph1.add(Constant(1.0));
+        graph1.set_output(const1);
+
+        let mut swappable = SwappableGraph::new(graph1);
+        let ctx = AudioContext::new(44100.0);
+
+        // Process should output 1.0
+        assert!((swappable.process(0.0, &ctx) - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_swappable_graph_swap_no_crossfade() {
+        // Create first graph that outputs 1.0
+        let mut graph1 = AudioGraph::new();
+        let const1 = graph1.add(Constant(1.0));
+        graph1.set_output(const1);
+
+        let mut swappable = SwappableGraph::new(graph1);
+        let ctx = AudioContext::new(44100.0);
+
+        assert!((swappable.process(0.0, &ctx) - 1.0).abs() < 1e-6);
+
+        // Create second graph that outputs 2.0
+        let mut graph2 = AudioGraph::new();
+        let const2 = graph2.add(Constant(2.0));
+        graph2.set_output(const2);
+
+        // Swap with 0 crossfade (instant)
+        swappable.swap(graph2, 0);
+
+        // Should immediately output 2.0
+        assert!((swappable.process(0.0, &ctx) - 2.0).abs() < 1e-6);
+        assert!(!swappable.is_crossfading());
+    }
+
+    #[test]
+    fn test_swappable_graph_crossfade() {
+        // Create first graph that outputs 0.0
+        let mut graph1 = AudioGraph::new();
+        let const1 = graph1.add(Constant(0.0));
+        graph1.set_output(const1);
+
+        let mut swappable = SwappableGraph::new(graph1);
+        let ctx = AudioContext::new(44100.0);
+
+        // Create second graph that outputs 1.0
+        let mut graph2 = AudioGraph::new();
+        let const2 = graph2.add(Constant(1.0));
+        graph2.set_output(const2);
+
+        // Swap with 10 sample crossfade
+        swappable.swap(graph2, 10);
+        assert!(swappable.is_crossfading());
+
+        // Process through crossfade
+        let mut outputs = Vec::new();
+        for _ in 0..15 {
+            outputs.push(swappable.process(0.0, &ctx));
+        }
+
+        // First sample should be closer to 0.0 (old graph)
+        assert!(outputs[0] < 0.5);
+
+        // Middle sample should be around 0.5-ish (equal power crossfade)
+        // At t=0.5, equal power gives sin(0.5 * π/2) ≈ 0.707 for new
+        // so output ≈ 0 * 0.707 + 1 * 0.707 ≈ 0.707 (but actually 0 * old_gain + 1 * new_gain)
+
+        // Last samples should be 1.0 (new graph only)
+        assert!((outputs[14] - 1.0).abs() < 1e-6);
+        assert!(!swappable.is_crossfading());
+    }
+
+    #[test]
+    fn test_swappable_graph_cancel_swap() {
+        let mut graph1 = AudioGraph::new();
+        let const1 = graph1.add(Constant(1.0));
+        graph1.set_output(const1);
+
+        let mut swappable = SwappableGraph::new(graph1);
+        let ctx = AudioContext::new(44100.0);
+
+        let mut graph2 = AudioGraph::new();
+        let const2 = graph2.add(Constant(2.0));
+        graph2.set_output(const2);
+
+        // Start a swap
+        swappable.swap(graph2, 100);
+        assert!(swappable.is_crossfading());
+
+        // Process a few samples
+        for _ in 0..10 {
+            swappable.process(0.0, &ctx);
+        }
+
+        // Cancel the swap
+        swappable.cancel_swap();
+        assert!(!swappable.is_crossfading());
+
+        // Should be back to outputting 1.0
+        assert!((swappable.process(0.0, &ctx) - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_swappable_graph_process_buffer() {
+        let mut graph1 = AudioGraph::new();
+        let const1 = graph1.add(Constant(0.5));
+        graph1.set_output(const1);
+
+        let mut swappable = SwappableGraph::new(graph1);
+        let mut ctx = AudioContext::new(44100.0);
+
+        let mut buffer = vec![0.0; 64];
+        swappable.process_buffer(&mut buffer, &mut ctx);
+
+        for sample in &buffer {
+            assert!((sample - 0.5).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_swappable_graph_generate() {
+        let mut graph1 = AudioGraph::new();
+        let const1 = graph1.add(Constant(0.75));
+        graph1.set_output(const1);
+
+        let mut swappable = SwappableGraph::new(graph1);
+        let mut ctx = AudioContext::new(44100.0);
+
+        let mut buffer = vec![0.0; 32];
+        swappable.generate(&mut buffer, &mut ctx);
+
+        for sample in &buffer {
+            assert!((sample - 0.75).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_swappable_graph_crossfade_progress() {
+        let graph1 = AudioGraph::new();
+        let mut swappable = SwappableGraph::new(graph1);
+        let ctx = AudioContext::new(44100.0);
+
+        // No crossfade - progress is 1.0
+        assert!((swappable.crossfade_progress() - 1.0).abs() < 1e-6);
+
+        // Start crossfade
+        swappable.swap(AudioGraph::new(), 100);
+        assert!((swappable.crossfade_progress() - 0.0).abs() < 1e-6);
+
+        // Process halfway
+        for _ in 0..50 {
+            swappable.process(0.0, &ctx);
+        }
+        assert!((swappable.crossfade_progress() - 0.5).abs() < 0.02);
+
+        // Process to end
+        for _ in 0..50 {
+            swappable.process(0.0, &ctx);
+        }
+        assert!((swappable.crossfade_progress() - 1.0).abs() < 1e-6);
     }
 }

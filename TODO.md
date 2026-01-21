@@ -606,7 +606,10 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 
 **Architecture considerations:**
 - [ ] Separation of "scheduling" from "synthesis" - patterns schedule events, audio graph renders
-- [ ] Hot-swappable graphs - replace effect chain without glitches
+- [x] Hot-swappable graphs - `SwappableGraph` for glitch-free effect chain replacement
+  - Equal-power crossfade during transition
+  - Configurable crossfade duration
+  - Cancel support for reverting to previous graph
 - [ ] Time model - absolute vs relative time, tempo changes, pattern alignment
 
 **Feature parity targets (from Strudel/Tidal):**

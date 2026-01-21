@@ -45,7 +45,7 @@ pub use graph::{
     AdsrNode, AffineNode, ArNode, AudioContext, AudioGraph, AudioNode, AudioWire, BiquadNode,
     BlockProcessor, Chain, Clip, Constant, DelayNode, FeedbackDelayNode, HighPassNode, LfoNode,
     LowPassNode, Mixer, NodeIndex, Oscillator, ParamDescriptor, ParamWire, RingMod, Silence,
-    SoftClip, Waveform,
+    SoftClip, SwappableGraph, Waveform,
 };
 pub use midi::{
     Channel, ControlValue, Controller, MidiMessage, Note, Program, Velocity, amplitude_to_velocity,
