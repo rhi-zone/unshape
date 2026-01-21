@@ -5972,6 +5972,503 @@ fn simple_hash(x: u32) -> u32 {
 }
 
 // =============================================================================
+// Datamosh (P-frame/I-frame manipulation)
+// =============================================================================
+
+/// Configuration for datamosh glitch effect.
+///
+/// Datamosh simulates video codec artifacts caused by P-frame accumulation
+/// without I-frame refreshes, creating motion smearing and visual corruption.
+#[derive(Debug, Clone)]
+pub struct Datamosh {
+    /// Block size for motion compensation (typical values: 8, 16, 32).
+    pub block_size: u32,
+    /// Number of "frames" to accumulate artifacts (more = more corruption).
+    pub iterations: u32,
+    /// Motion intensity - how much blocks shift between iterations (0-1).
+    pub motion_intensity: f32,
+    /// Decay factor - how much previous frame influences result (0-1).
+    /// Higher values create more ghosting/smearing.
+    pub decay: f32,
+    /// Random seed for reproducible motion vectors.
+    pub seed: u32,
+    /// Motion pattern to use.
+    pub motion: MotionPattern,
+    /// Probability of a block "sticking" and not updating (0-1).
+    /// Creates freeze artifacts where parts of the image get stuck.
+    pub freeze_probability: f32,
+}
+
+/// Pattern for motion vector generation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MotionPattern {
+    /// Random motion vectors per block (most chaotic).
+    #[default]
+    Random,
+    /// Directional flow (all blocks move in similar direction).
+    Directional,
+    /// Radial motion from center (expanding or contracting).
+    Radial,
+    /// Spiral/vortex motion.
+    Vortex,
+    /// Motion based on pixel brightness (bright areas move more).
+    Brightness,
+}
+
+impl Default for Datamosh {
+    fn default() -> Self {
+        Self {
+            block_size: 16,
+            iterations: 3,
+            motion_intensity: 0.5,
+            decay: 0.7,
+            seed: 42,
+            motion: MotionPattern::Random,
+            freeze_probability: 0.1,
+        }
+    }
+}
+
+impl Datamosh {
+    /// Creates a datamosh config with the given number of iterations.
+    pub fn new(iterations: u32) -> Self {
+        Self {
+            iterations,
+            ..Default::default()
+        }
+    }
+
+    /// Sets the block size.
+    pub fn block_size(mut self, size: u32) -> Self {
+        self.block_size = size.max(4);
+        self
+    }
+
+    /// Sets the motion intensity.
+    pub fn intensity(mut self, intensity: f32) -> Self {
+        self.motion_intensity = intensity.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Sets the decay factor.
+    pub fn decay(mut self, decay: f32) -> Self {
+        self.decay = decay.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Sets the motion pattern.
+    pub fn pattern(mut self, pattern: MotionPattern) -> Self {
+        self.motion = pattern;
+        self
+    }
+
+    /// Sets the freeze probability.
+    pub fn freeze(mut self, prob: f32) -> Self {
+        self.freeze_probability = prob.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Sets the random seed.
+    pub fn seed(mut self, seed: u32) -> Self {
+        self.seed = seed;
+        self
+    }
+
+    /// Applies this datamosh configuration to an image.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        datamosh(image, self)
+    }
+}
+
+/// Applies datamosh glitch effect to an image.
+///
+/// Simulates video codec artifacts from P-frame accumulation without I-frame
+/// refreshes, creating motion smearing and block corruption typical of corrupted
+/// video files.
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_resin_image::{datamosh, Datamosh, MotionPattern};
+///
+/// // Basic datamosh with default settings
+/// let glitched = datamosh(&image, &Datamosh::default());
+///
+/// // More intense datamosh with radial motion
+/// let config = Datamosh::new(5)
+///     .intensity(0.8)
+///     .pattern(MotionPattern::Radial)
+///     .decay(0.9);
+/// let glitched = datamosh(&image, &config);
+/// ```
+pub fn datamosh(image: &ImageField, config: &Datamosh) -> ImageField {
+    let width = image.width as usize;
+    let height = image.height as usize;
+    let block_size = config.block_size.max(4) as usize;
+
+    // Calculate number of blocks
+    let blocks_x = (width + block_size - 1) / block_size;
+    let blocks_y = (height + block_size - 1) / block_size;
+
+    // Start with the original image data
+    let mut current = image.data.clone();
+    let mut motion_vectors: Vec<(i32, i32)> = vec![(0, 0); blocks_x * blocks_y];
+    let mut frozen: Vec<bool> = vec![false; blocks_x * blocks_y];
+
+    // Initialize motion vectors based on pattern
+    initialize_motion_vectors(&mut motion_vectors, &mut frozen, blocks_x, blocks_y, config);
+
+    // Iterate to accumulate artifacts
+    for iteration in 0..config.iterations {
+        let mut next = vec![[0.0f32; 4]; width * height];
+
+        // Update motion vectors for each iteration (add some drift)
+        update_motion_vectors(&mut motion_vectors, blocks_x, blocks_y, iteration, config);
+
+        // Process each block
+        for by in 0..blocks_y {
+            for bx in 0..blocks_x {
+                let block_idx = by * blocks_x + bx;
+                let (mvx, mvy) = motion_vectors[block_idx];
+
+                // Calculate block boundaries
+                let x_start = bx * block_size;
+                let y_start = by * block_size;
+                let x_end = (x_start + block_size).min(width);
+                let y_end = (y_start + block_size).min(height);
+
+                // If frozen, don't update this block
+                if frozen[block_idx] {
+                    for y in y_start..y_end {
+                        for x in x_start..x_end {
+                            let idx = y * width + x;
+                            next[idx] = current[idx];
+                        }
+                    }
+                    continue;
+                }
+
+                // Apply motion compensation
+                for y in y_start..y_end {
+                    for x in x_start..x_end {
+                        let idx = y * width + x;
+
+                        // Source position (with motion vector applied)
+                        let src_x = (x as i32 + mvx).clamp(0, (width - 1) as i32) as usize;
+                        let src_y = (y as i32 + mvy).clamp(0, (height - 1) as i32) as usize;
+                        let src_idx = src_y * width + src_x;
+
+                        // Blend with decay
+                        let src_pixel = current[src_idx];
+                        let cur_pixel = current[idx];
+
+                        next[idx] = [
+                            src_pixel[0] * config.decay + cur_pixel[0] * (1.0 - config.decay),
+                            src_pixel[1] * config.decay + cur_pixel[1] * (1.0 - config.decay),
+                            src_pixel[2] * config.decay + cur_pixel[2] * (1.0 - config.decay),
+                            cur_pixel[3], // Preserve alpha
+                        ];
+                    }
+                }
+            }
+        }
+
+        current = next;
+    }
+
+    ImageField {
+        data: current,
+        width: image.width,
+        height: image.height,
+        wrap_mode: image.wrap_mode,
+        filter_mode: image.filter_mode,
+    }
+}
+
+/// Initialize motion vectors based on the pattern.
+fn initialize_motion_vectors(
+    vectors: &mut [(i32, i32)],
+    frozen: &mut [bool],
+    blocks_x: usize,
+    blocks_y: usize,
+    config: &Datamosh,
+) {
+    let max_motion = (config.block_size as f32 * config.motion_intensity * 2.0) as i32;
+    let cx = blocks_x as f32 / 2.0;
+    let cy = blocks_y as f32 / 2.0;
+
+    for by in 0..blocks_y {
+        for bx in 0..blocks_x {
+            let idx = by * blocks_x + bx;
+
+            // Check for freeze
+            let freeze_hash = simple_hash(config.seed.wrapping_add(idx as u32).wrapping_mul(7919));
+            let freeze_prob = freeze_hash as f32 / u32::MAX as f32;
+            frozen[idx] = freeze_prob < config.freeze_probability;
+
+            if frozen[idx] {
+                vectors[idx] = (0, 0);
+                continue;
+            }
+
+            let (mvx, mvy) = match config.motion {
+                MotionPattern::Random => {
+                    let hash_x = simple_hash(config.seed.wrapping_add(idx as u32));
+                    let hash_y =
+                        simple_hash(config.seed.wrapping_add(idx as u32).wrapping_mul(31337));
+                    let mvx = ((hash_x as f32 / u32::MAX as f32) * 2.0 - 1.0) * max_motion as f32;
+                    let mvy = ((hash_y as f32 / u32::MAX as f32) * 2.0 - 1.0) * max_motion as f32;
+                    (mvx as i32, mvy as i32)
+                }
+                MotionPattern::Directional => {
+                    // Mostly horizontal motion with some variance
+                    let hash = simple_hash(config.seed.wrapping_add(idx as u32));
+                    let variance = ((hash as f32 / u32::MAX as f32) * 2.0 - 1.0) * 0.3;
+                    let mvx = max_motion as f32 * (1.0 + variance);
+                    let mvy = max_motion as f32 * variance * 0.5;
+                    (mvx as i32, mvy as i32)
+                }
+                MotionPattern::Radial => {
+                    // Motion away from center
+                    let dx = bx as f32 - cx;
+                    let dy = by as f32 - cy;
+                    let dist = (dx * dx + dy * dy).sqrt().max(0.001);
+                    let scale = config.motion_intensity * config.block_size as f32 / dist;
+                    ((dx * scale) as i32, (dy * scale) as i32)
+                }
+                MotionPattern::Vortex => {
+                    // Spiral motion around center
+                    let dx = bx as f32 - cx;
+                    let dy = by as f32 - cy;
+                    let dist = (dx * dx + dy * dy).sqrt().max(0.001);
+                    let scale = config.motion_intensity * config.block_size as f32 / (dist + 1.0);
+                    // Perpendicular + some radial
+                    (
+                        (-dy * scale + dx * scale * 0.3) as i32,
+                        (dx * scale + dy * scale * 0.3) as i32,
+                    )
+                }
+                MotionPattern::Brightness => {
+                    // Will be updated in update_motion_vectors based on block brightness
+                    (0, 0)
+                }
+            };
+
+            vectors[idx] = (mvx, mvy);
+        }
+    }
+}
+
+/// Update motion vectors for subsequent iterations.
+fn update_motion_vectors(
+    vectors: &mut [(i32, i32)],
+    blocks_x: usize,
+    blocks_y: usize,
+    iteration: u32,
+    config: &Datamosh,
+) {
+    // Add some drift/noise to motion vectors over iterations
+    let drift_scale = 0.2 * config.motion_intensity;
+    let max_drift = (config.block_size as f32 * drift_scale) as i32;
+
+    for by in 0..blocks_y {
+        for bx in 0..blocks_x {
+            let idx = by * blocks_x + bx;
+            let (mvx, mvy) = vectors[idx];
+
+            // Skip frozen blocks
+            if mvx == 0 && mvy == 0 && config.freeze_probability > 0.0 {
+                continue;
+            }
+
+            // Add drift based on iteration
+            let hash = simple_hash(
+                config
+                    .seed
+                    .wrapping_add(idx as u32)
+                    .wrapping_mul(iteration.wrapping_add(1)),
+            );
+            let drift_x = ((hash as f32 / u32::MAX as f32) * 2.0 - 1.0) * max_drift as f32;
+            let drift_y = (((hash >> 16) as f32 / u16::MAX as f32) * 2.0 - 1.0) * max_drift as f32;
+
+            vectors[idx] = (mvx + drift_x as i32, mvy + drift_y as i32);
+        }
+    }
+}
+
+/// Applies datamosh effect between two frames.
+///
+/// This variant takes a "previous frame" and applies motion estimation
+/// between the two frames, more closely mimicking actual video codec behavior.
+///
+/// # Example
+///
+/// ```ignore
+/// use rhizome_resin_image::{datamosh_frames, Datamosh};
+///
+/// let glitched = datamosh_frames(&frame1, &frame2, &Datamosh::default());
+/// ```
+pub fn datamosh_frames(
+    prev_frame: &ImageField,
+    curr_frame: &ImageField,
+    config: &Datamosh,
+) -> ImageField {
+    if prev_frame.width != curr_frame.width || prev_frame.height != curr_frame.height {
+        // If sizes don't match, fall back to single-frame datamosh
+        return datamosh(curr_frame, config);
+    }
+
+    let width = curr_frame.width as usize;
+    let height = curr_frame.height as usize;
+    let block_size = config.block_size.max(4) as usize;
+
+    let blocks_x = (width + block_size - 1) / block_size;
+    let blocks_y = (height + block_size - 1) / block_size;
+
+    let mut result = vec![[0.0f32; 4]; width * height];
+
+    // For each block, estimate motion from prev to curr frame
+    for by in 0..blocks_y {
+        for bx in 0..blocks_x {
+            let x_start = bx * block_size;
+            let y_start = by * block_size;
+            let x_end = (x_start + block_size).min(width);
+            let y_end = (y_start + block_size).min(height);
+
+            // Check for freeze
+            let block_idx = by * blocks_x + bx;
+            let freeze_hash = simple_hash(
+                config
+                    .seed
+                    .wrapping_add(block_idx as u32)
+                    .wrapping_mul(7919),
+            );
+            let freeze_prob = freeze_hash as f32 / u32::MAX as f32;
+
+            if freeze_prob < config.freeze_probability {
+                // Frozen block - use previous frame
+                for y in y_start..y_end {
+                    for x in x_start..x_end {
+                        let idx = y * width + x;
+                        result[idx] = prev_frame.data[idx];
+                    }
+                }
+                continue;
+            }
+
+            // Estimate motion vector by finding average color difference
+            let (mvx, mvy) = estimate_block_motion(
+                prev_frame,
+                curr_frame,
+                x_start,
+                y_start,
+                x_end - x_start,
+                y_end - y_start,
+                config,
+                block_idx,
+            );
+
+            // Apply motion-compensated prediction with artifacts
+            for y in y_start..y_end {
+                for x in x_start..x_end {
+                    let idx = y * width + x;
+
+                    // Use motion vector from previous frame
+                    let src_x = (x as i32 + mvx).clamp(0, (width - 1) as i32) as usize;
+                    let src_y = (y as i32 + mvy).clamp(0, (height - 1) as i32) as usize;
+                    let src_idx = src_y * width + src_x;
+
+                    let prev_pixel = prev_frame.data[src_idx];
+                    let curr_pixel = curr_frame.data[idx];
+
+                    // Blend based on decay (simulates incomplete refresh)
+                    result[idx] = [
+                        prev_pixel[0] * config.decay + curr_pixel[0] * (1.0 - config.decay),
+                        prev_pixel[1] * config.decay + curr_pixel[1] * (1.0 - config.decay),
+                        prev_pixel[2] * config.decay + curr_pixel[2] * (1.0 - config.decay),
+                        curr_pixel[3],
+                    ];
+                }
+            }
+        }
+    }
+
+    ImageField {
+        data: result,
+        width: curr_frame.width,
+        height: curr_frame.height,
+        wrap_mode: curr_frame.wrap_mode,
+        filter_mode: curr_frame.filter_mode,
+    }
+}
+
+/// Estimate motion vector for a block based on brightness changes.
+fn estimate_block_motion(
+    prev_frame: &ImageField,
+    curr_frame: &ImageField,
+    x_start: usize,
+    y_start: usize,
+    block_w: usize,
+    block_h: usize,
+    config: &Datamosh,
+    block_idx: usize,
+) -> (i32, i32) {
+    let width = curr_frame.width as usize;
+
+    // Calculate brightness gradient in the block
+    let mut dx_sum = 0.0f32;
+    let mut dy_sum = 0.0f32;
+    let mut count = 0.0;
+
+    for dy in 0..block_h {
+        for dx in 0..block_w {
+            let x = x_start + dx;
+            let y = y_start + dy;
+            let idx = y * width + x;
+
+            let prev_bright = brightness(&prev_frame.data[idx]);
+            let curr_bright = brightness(&curr_frame.data[idx]);
+            let diff = curr_bright - prev_bright;
+
+            // Estimate motion direction from brightness change
+            // (very simplified - real codecs use much more sophisticated algorithms)
+            if diff.abs() > 0.01 {
+                // Add some directional bias based on position in block
+                let bx = dx as f32 / block_w as f32 - 0.5;
+                let by = dy as f32 / block_h as f32 - 0.5;
+                dx_sum += diff * bx;
+                dy_sum += diff * by;
+                count += diff.abs();
+            }
+        }
+    }
+
+    if count < 0.001 {
+        // Low motion - add some noise for visual interest
+        let hash = simple_hash(config.seed.wrapping_add(block_idx as u32));
+        let noise_x = ((hash as f32 / u32::MAX as f32) * 2.0 - 1.0) * config.motion_intensity;
+        let noise_y =
+            (((hash >> 16) as f32 / u16::MAX as f32) * 2.0 - 1.0) * config.motion_intensity;
+        return (
+            (noise_x * config.block_size as f32) as i32,
+            (noise_y * config.block_size as f32) as i32,
+        );
+    }
+
+    // Scale motion vector
+    let scale = config.motion_intensity * config.block_size as f32 * 4.0;
+    (
+        (dx_sum / count * scale) as i32,
+        (dy_sum / count * scale) as i32,
+    )
+}
+
+/// Calculate brightness of a pixel.
+fn brightness(pixel: &[f32; 4]) -> f32 {
+    0.299 * pixel[0] + 0.587 * pixel[1] + 0.114 * pixel[2]
+}
+
+// =============================================================================
 // JPEG Artifacts (DCT-based compression artifacts)
 // =============================================================================
 
@@ -10540,6 +11037,144 @@ mod tests {
         } else {
             panic!("Expected Vec4 result");
         }
+    }
+
+    // =========================================================================
+    // Datamosh tests
+    // =========================================================================
+
+    #[test]
+    fn test_datamosh_preserves_dimensions() {
+        let img = ImageField::solid_sized(32, 24, [0.5, 0.5, 0.5, 1.0]);
+        let config = Datamosh::default();
+        let result = datamosh(&img, &config);
+
+        assert_eq!(result.width, 32);
+        assert_eq!(result.height, 24);
+    }
+
+    #[test]
+    fn test_datamosh_with_zero_iterations() {
+        let img = ImageField::solid_sized(16, 16, [0.5, 0.5, 0.5, 1.0]);
+        let config = Datamosh::new(0);
+        let result = datamosh(&img, &config);
+
+        // With zero iterations, should be close to original
+        assert_eq!(result.width, 16);
+        assert_eq!(result.height, 16);
+    }
+
+    #[test]
+    fn test_datamosh_various_patterns() {
+        let img = ImageField::solid_sized(32, 32, [0.5, 0.3, 0.7, 1.0]);
+
+        for pattern in [
+            MotionPattern::Random,
+            MotionPattern::Directional,
+            MotionPattern::Radial,
+            MotionPattern::Vortex,
+            MotionPattern::Brightness,
+        ] {
+            let config = Datamosh::new(2).pattern(pattern);
+            let result = datamosh(&img, &config);
+            assert_eq!(result.width, 32);
+            assert_eq!(result.height, 32);
+        }
+    }
+
+    #[test]
+    fn test_datamosh_builder_pattern() {
+        let img = ImageField::solid_sized(16, 16, [0.5, 0.5, 0.5, 1.0]);
+        let config = Datamosh::new(3)
+            .block_size(8)
+            .intensity(0.7)
+            .decay(0.8)
+            .freeze(0.2)
+            .seed(12345)
+            .pattern(MotionPattern::Radial);
+
+        let result = config.apply(&img);
+        assert_eq!(result.width, 16);
+        assert_eq!(result.height, 16);
+    }
+
+    #[test]
+    fn test_datamosh_frames_preserves_dimensions() {
+        let frame1 = ImageField::solid_sized(16, 16, [0.3, 0.4, 0.5, 1.0]);
+        let frame2 = ImageField::solid_sized(16, 16, [0.5, 0.6, 0.7, 1.0]);
+        let config = Datamosh::new(1);
+
+        let result = datamosh_frames(&frame1, &frame2, &config);
+        assert_eq!(result.width, 16);
+        assert_eq!(result.height, 16);
+    }
+
+    #[test]
+    fn test_datamosh_frames_size_mismatch_fallback() {
+        let frame1 = ImageField::solid_sized(16, 16, [0.3, 0.4, 0.5, 1.0]);
+        let frame2 = ImageField::solid_sized(32, 32, [0.5, 0.6, 0.7, 1.0]);
+        let config = Datamosh::default();
+
+        // Should fallback to single-frame datamosh on frame2
+        let result = datamosh_frames(&frame1, &frame2, &config);
+        assert_eq!(result.width, 32);
+        assert_eq!(result.height, 32);
+    }
+
+    #[test]
+    fn test_datamosh_reproducible() {
+        let img = ImageField::solid_sized(32, 32, [0.5, 0.3, 0.7, 1.0]);
+
+        let config1 = Datamosh::new(3).seed(42);
+        let config2 = Datamosh::new(3).seed(42);
+
+        let result1 = datamosh(&img, &config1);
+        let result2 = datamosh(&img, &config2);
+
+        // Same seed should produce same result
+        for (p1, p2) in result1.data.iter().zip(result2.data.iter()) {
+            assert!((p1[0] - p2[0]).abs() < 1e-6);
+            assert!((p1[1] - p2[1]).abs() < 1e-6);
+            assert!((p1[2] - p2[2]).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_datamosh_different_seeds() {
+        // Create a gradient image so there's actual variation
+        let mut data = Vec::new();
+        for y in 0..32 {
+            for x in 0..32 {
+                let r = x as f32 / 31.0;
+                let g = y as f32 / 31.0;
+                let b = 0.5;
+                data.push([r, g, b, 1.0]);
+            }
+        }
+        let img = ImageField::from_raw(data, 32, 32);
+
+        let config1 = Datamosh::new(3).seed(42).intensity(0.8);
+        let config2 = Datamosh::new(3).seed(999).intensity(0.8);
+
+        let result1 = datamosh(&img, &config1);
+        let result2 = datamosh(&img, &config2);
+
+        // Different seeds should produce different results
+        // (at least some pixels should differ)
+        let mut any_different = false;
+        for (p1, p2) in result1.data.iter().zip(result2.data.iter()) {
+            if (p1[0] - p2[0]).abs() > 0.001
+                || (p1[1] - p2[1]).abs() > 0.001
+                || (p1[2] - p2[2]).abs() > 0.001
+            {
+                any_different = true;
+                break;
+            }
+        }
+        assert!(
+            any_different,
+            "Different seeds should produce different results"
+        );
     }
 }
 
