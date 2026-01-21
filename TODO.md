@@ -595,7 +595,7 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 **Potential optimizations:**
 - [ ] Incremental pattern evaluation - only recompute changed parts of pattern graph
 - [x] Pre-allocated sample buffers - `SpectralWorkspace`, `TimeStretchWorkspace`, `fft_into`, `ifft_into`
-- [ ] Lock-free parameter updates - atomic floats for real-time safe modulation
+- [x] Lock-free parameter updates - `AtomicF32`, `AtomicParams` for real-time safe modulation
 - [ ] SIMD pattern evaluation - vectorize pattern sampling (already have SIMD JIT for audio)
 - [ ] WebAssembly target - for browser-based live coding (Strudel runs in browser)
 
