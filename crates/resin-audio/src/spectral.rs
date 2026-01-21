@@ -271,6 +271,158 @@ pub fn ifft_complex(spectrum: &[Complex]) -> Vec<Complex> {
 }
 
 // ============================================================================
+// Pre-allocated workspace for real-time spectral processing
+// ============================================================================
+
+/// Pre-allocated buffers for FFT/IFFT operations.
+///
+/// Use this to avoid allocations in audio callbacks or tight loops.
+/// Create once, reuse for all spectral operations of the same size.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_audio::spectral::{SpectralWorkspace, fft_into};
+///
+/// let mut workspace = SpectralWorkspace::new(1024);
+/// let signal = vec![0.0f32; 1024];
+///
+/// // FFT without allocation
+/// fft_into(&signal, &mut workspace);
+///
+/// // Modify spectrum if needed...
+/// // workspace.spectrum_mut()[0] = ...;
+///
+/// // IFFT using workspace's spectrum (no allocation)
+/// workspace.ifft_from_spectrum();
+/// let output = workspace.real_buffer();
+/// ```
+#[derive(Debug, Clone)]
+pub struct SpectralWorkspace {
+    /// FFT size (must be power of 2).
+    fft_size: usize,
+    /// Complex buffer for FFT operations.
+    complex_buffer: Vec<Complex>,
+    /// Real output buffer for IFFT.
+    real_buffer: Vec<f32>,
+    /// Spectrum output (N/2+1 bins).
+    spectrum: Vec<Complex>,
+}
+
+impl SpectralWorkspace {
+    /// Creates a new workspace for the given FFT size.
+    ///
+    /// # Panics
+    /// Panics if `fft_size` is not a power of 2.
+    pub fn new(fft_size: usize) -> Self {
+        assert!(fft_size.is_power_of_two(), "FFT size must be power of 2");
+        Self {
+            fft_size,
+            complex_buffer: vec![Complex::new(0.0, 0.0); fft_size],
+            real_buffer: vec![0.0; fft_size],
+            spectrum: vec![Complex::new(0.0, 0.0); fft_size / 2 + 1],
+        }
+    }
+
+    /// Returns the FFT size this workspace was created for.
+    pub fn fft_size(&self) -> usize {
+        self.fft_size
+    }
+
+    /// Returns the computed spectrum (N/2+1 complex bins).
+    pub fn spectrum(&self) -> &[Complex] {
+        &self.spectrum
+    }
+
+    /// Returns the real output buffer (after IFFT).
+    pub fn real_buffer(&self) -> &[f32] {
+        &self.real_buffer
+    }
+
+    /// Returns mutable access to the spectrum for modification.
+    pub fn spectrum_mut(&mut self) -> &mut [Complex] {
+        &mut self.spectrum
+    }
+
+    /// Computes IFFT from the workspace's current spectrum.
+    ///
+    /// Results are stored in `real_buffer()`.
+    /// This avoids the borrow issues of passing spectrum to `ifft_into`.
+    pub fn ifft_from_spectrum(&mut self) {
+        let n = self.fft_size;
+
+        // Reconstruct full spectrum (conjugate symmetry)
+        for i in 0..self.spectrum.len() {
+            self.complex_buffer[i] = self.spectrum[i];
+        }
+        for i in (1..n / 2).rev() {
+            self.complex_buffer[n - i] = self.spectrum[i].conj();
+        }
+
+        // In-place IFFT
+        fft_in_place(&mut self.complex_buffer, true);
+
+        // Copy real part to output, scaled
+        let scale = 1.0 / n as f32;
+        for (i, c) in self.complex_buffer.iter().enumerate() {
+            self.real_buffer[i] = c.re * scale;
+        }
+    }
+}
+
+/// Computes FFT into a pre-allocated workspace.
+///
+/// Results are stored in `workspace.spectrum()`.
+/// Signal length must match workspace FFT size.
+pub fn fft_into(signal: &[f32], workspace: &mut SpectralWorkspace) {
+    let n = workspace.fft_size;
+    assert_eq!(
+        signal.len(),
+        n,
+        "Signal length must match workspace FFT size"
+    );
+
+    // Copy signal to complex buffer
+    for (i, &s) in signal.iter().enumerate() {
+        workspace.complex_buffer[i] = Complex::new(s, 0.0);
+    }
+
+    // In-place FFT
+    fft_in_place(&mut workspace.complex_buffer, false);
+
+    // Copy positive frequencies to spectrum
+    workspace.spectrum[..n / 2 + 1].copy_from_slice(&workspace.complex_buffer[..n / 2 + 1]);
+}
+
+/// Computes IFFT into a pre-allocated workspace.
+///
+/// Results are stored in `workspace.real_buffer()`.
+/// Spectrum length must be N/2+1 where N is the workspace FFT size.
+pub fn ifft_into(spectrum: &[Complex], workspace: &mut SpectralWorkspace) {
+    let n = workspace.fft_size;
+    assert_eq!(
+        spectrum.len(),
+        n / 2 + 1,
+        "Spectrum length must be N/2+1 for workspace FFT size N"
+    );
+
+    // Reconstruct full spectrum (conjugate symmetry)
+    workspace.complex_buffer[..spectrum.len()].copy_from_slice(spectrum);
+    for i in (1..n / 2).rev() {
+        workspace.complex_buffer[n - i] = spectrum[i].conj();
+    }
+
+    // In-place IFFT
+    fft_in_place(&mut workspace.complex_buffer, true);
+
+    // Copy real part to output, scaled
+    let scale = 1.0 / n as f32;
+    for (i, c) in workspace.complex_buffer.iter().enumerate() {
+        workspace.real_buffer[i] = c.re * scale;
+    }
+}
+
+// ============================================================================
 // STFT (Short-Time Fourier Transform)
 // ============================================================================
 
@@ -672,6 +824,179 @@ impl TimeStretch {
 
 /// Backwards-compatible type alias.
 pub type TimeStretchConfig = TimeStretch;
+
+/// Pre-allocated workspace for time-stretch operations.
+///
+/// Use this to avoid allocations when time-stretching in real-time or in loops.
+/// Create once with your window size, reuse for multiple time-stretch calls.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_audio::spectral::{TimeStretch, TimeStretchWorkspace, time_stretch_with_workspace};
+///
+/// let config = TimeStretch::with_factor(1.5);
+/// let mut workspace = TimeStretchWorkspace::new(config.window_size);
+///
+/// let audio: Vec<f32> = (0..8192).map(|i| (i as f32 * 0.1).sin()).collect();
+/// let stretched = time_stretch_with_workspace(&audio, &config, &mut workspace);
+/// ```
+#[derive(Debug, Clone)]
+pub struct TimeStretchWorkspace {
+    /// Spectral workspace for FFT/IFFT.
+    pub spectral: SpectralWorkspace,
+    /// Window function (cached).
+    window: Vec<f32>,
+    /// Frame buffer for windowed input.
+    frame_buffer: Vec<f32>,
+    /// Previous phase for each bin.
+    prev_phase: Vec<f32>,
+    /// Synthesis phase accumulator for each bin.
+    synth_phase: Vec<f32>,
+    /// Adjusted spectrum buffer.
+    adjusted_spectrum: Vec<Complex>,
+}
+
+impl TimeStretchWorkspace {
+    /// Creates a new workspace for the given window size.
+    ///
+    /// # Panics
+    /// Panics if `window_size` is not a power of 2.
+    pub fn new(window_size: usize) -> Self {
+        assert!(
+            window_size.is_power_of_two(),
+            "Window size must be power of 2"
+        );
+        let num_bins = window_size / 2 + 1;
+        Self {
+            spectral: SpectralWorkspace::new(window_size),
+            window: hann_window(window_size),
+            frame_buffer: vec![0.0; window_size],
+            prev_phase: vec![0.0; num_bins],
+            synth_phase: vec![0.0; num_bins],
+            adjusted_spectrum: vec![Complex::new(0.0, 0.0); num_bins],
+        }
+    }
+
+    /// Resets phase accumulators for a new stretch operation.
+    pub fn reset(&mut self) {
+        self.prev_phase.fill(0.0);
+        self.synth_phase.fill(0.0);
+    }
+
+    /// Returns the window size this workspace was created for.
+    pub fn window_size(&self) -> usize {
+        self.spectral.fft_size()
+    }
+}
+
+/// Time-stretches audio using a phase vocoder with pre-allocated workspace.
+///
+/// This is the allocation-free variant for real-time use.
+/// The workspace must have been created with the same window_size as the config.
+pub fn time_stretch_with_workspace(
+    signal: &[f32],
+    config: &TimeStretch,
+    workspace: &mut TimeStretchWorkspace,
+) -> Vec<f32> {
+    assert_eq!(
+        config.window_size,
+        workspace.window_size(),
+        "Config window_size must match workspace"
+    );
+
+    if signal.is_empty() || (config.stretch_factor - 1.0).abs() < 0.001 {
+        return signal.to_vec();
+    }
+
+    workspace.reset();
+
+    let window_size = config.window_size;
+    let analysis_hop = config.analysis_hop;
+    let synthesis_hop = (analysis_hop as f32 * config.stretch_factor) as usize;
+
+    // Estimate output length
+    let num_frames = (signal.len().saturating_sub(window_size)) / analysis_hop + 1;
+    let output_len = (num_frames.saturating_sub(1)) * synthesis_hop + window_size;
+
+    // Output buffers (these are the actual output, can't avoid allocating)
+    let mut output = vec![0.0f32; output_len];
+    let mut window_sum = vec![0.0f32; output_len];
+
+    let freq_per_bin = 2.0 * PI / window_size as f32;
+
+    let mut analysis_pos = 0;
+    let mut synthesis_pos = 0;
+
+    while analysis_pos + window_size <= signal.len() {
+        // Copy and window the analysis frame
+        workspace
+            .frame_buffer
+            .copy_from_slice(&signal[analysis_pos..analysis_pos + window_size]);
+        apply_window(&mut workspace.frame_buffer, &workspace.window);
+
+        // FFT (no allocation)
+        fft_into(&workspace.frame_buffer, &mut workspace.spectral);
+
+        // Phase vocoder: adjust phases
+        for (bin, c) in workspace.spectral.spectrum().iter().enumerate() {
+            let mag = c.mag();
+            let phase = c.phase();
+
+            let expected_phase_advance = bin as f32 * analysis_hop as f32 * freq_per_bin;
+            let phase_diff = phase - workspace.prev_phase[bin] - expected_phase_advance;
+            let wrapped_diff = wrap_phase(phase_diff);
+            let true_freq = bin as f32 * freq_per_bin + wrapped_diff / analysis_hop as f32;
+
+            workspace.synth_phase[bin] += true_freq * synthesis_hop as f32;
+            workspace.synth_phase[bin] = wrap_phase(workspace.synth_phase[bin]);
+            workspace.prev_phase[bin] = phase;
+
+            workspace.adjusted_spectrum[bin] = Complex::from_polar(mag, workspace.synth_phase[bin]);
+        }
+
+        // Transient detection
+        let is_transient = if config.preserve_transients {
+            detect_transient(
+                workspace.spectral.spectrum(),
+                &workspace.prev_phase,
+                config.transient_threshold,
+            )
+        } else {
+            false
+        };
+
+        // For transients, copy original spectrum to adjusted_spectrum to preserve attack
+        if is_transient {
+            workspace
+                .adjusted_spectrum
+                .copy_from_slice(workspace.spectral.spectrum());
+        }
+
+        // IFFT (no allocation) - always use adjusted_spectrum
+        ifft_into(&workspace.adjusted_spectrum, &mut workspace.spectral);
+
+        // Overlap-add at synthesis position
+        if synthesis_pos + window_size <= output_len {
+            for (j, &sample) in workspace.spectral.real_buffer().iter().enumerate() {
+                output[synthesis_pos + j] += sample * workspace.window[j];
+                window_sum[synthesis_pos + j] += workspace.window[j] * workspace.window[j];
+            }
+        }
+
+        analysis_pos += analysis_hop;
+        synthesis_pos += synthesis_hop;
+    }
+
+    // Normalize by window sum
+    for (o, &w) in output.iter_mut().zip(window_sum.iter()) {
+        if w > 1e-8 {
+            *o /= w;
+        }
+    }
+
+    output
+}
 
 /// Time-stretches audio using a phase vocoder.
 ///
@@ -1195,5 +1520,48 @@ mod tests {
         // Downsample
         let downsampled = resample_linear(&signal, 3);
         assert_eq!(downsampled.len(), 3);
+    }
+
+    #[test]
+    fn test_spectral_workspace_roundtrip() {
+        let signal: Vec<f32> = (0..64)
+            .map(|i| (2.0 * PI * 5.0 * i as f32 / 64.0).sin())
+            .collect();
+
+        let mut workspace = SpectralWorkspace::new(64);
+
+        // FFT
+        fft_into(&signal, &mut workspace);
+
+        // IFFT
+        workspace.ifft_from_spectrum();
+        let recovered = workspace.real_buffer();
+
+        // Verify roundtrip
+        for (a, b) in signal.iter().zip(recovered.iter()) {
+            assert!((a - b).abs() < 0.001, "Mismatch: {} vs {}", a, b);
+        }
+    }
+
+    #[test]
+    fn test_time_stretch_with_workspace() {
+        let signal: Vec<f32> = (0..4096)
+            .map(|i| (2.0 * PI * 440.0 * i as f32 / 44100.0).sin())
+            .collect();
+
+        let config = TimeStretch::with_factor(2.0);
+        let mut workspace = TimeStretchWorkspace::new(config.window_size);
+
+        // Stretch with workspace
+        let stretched_ws = time_stretch_with_workspace(&signal, &config, &mut workspace);
+
+        // Stretch without workspace (for comparison)
+        let stretched = time_stretch(&signal, &config);
+
+        // Results should be identical
+        assert_eq!(stretched_ws.len(), stretched.len());
+        for (a, b) in stretched_ws.iter().zip(stretched.iter()) {
+            assert!((a - b).abs() < 0.001, "Mismatch: {} vs {}", a, b);
+        }
     }
 }
