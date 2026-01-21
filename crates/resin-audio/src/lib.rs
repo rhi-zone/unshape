@@ -64,7 +64,7 @@ pub use patch::{
 };
 pub use pattern::{
     Event, Pattern, TimeArc as PatternArc, Warp, cat, choose, chop, degrade, euclid, every, fast,
-    jux, ply, rand, rev, shift, shuffle, slow, stack, warp,
+    jux, ply, polymeter, polyrhythm, rand, rev, shift, shuffle, slow, stack, warp,
 };
 pub use percussion::{
     Bar, BarConfig, BarSynth, Membrane, MembraneConfig, MembraneSynth, Plate, PlateConfig,

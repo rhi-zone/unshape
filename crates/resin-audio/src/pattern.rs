@@ -680,6 +680,202 @@ pub fn euclid<T: Clone + Send + Sync + 'static>(hits: usize, steps: usize, value
 }
 
 // ============================================================================
+// Polymetric patterns
+// ============================================================================
+
+/// Computes the greatest common divisor of two numbers.
+fn gcd(mut a: u32, mut b: u32) -> u32 {
+    while b != 0 {
+        let t = b;
+        b = a % b;
+        a = t;
+    }
+    a
+}
+
+/// Computes the least common multiple of two numbers.
+fn lcm(a: u32, b: u32) -> u32 {
+    if a == 0 || b == 0 {
+        0
+    } else {
+        (a / gcd(a, b)) * b
+    }
+}
+
+/// Creates a polymetric stack of patterns with different cycle lengths.
+///
+/// Each pattern is paired with its cycle length (in beats). The patterns
+/// run simultaneously but at different rates, creating polyrhythmic phasing.
+/// The combined pattern's cycle length is the LCM of all input lengths.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_audio::pattern::{polymeter, Pattern};
+///
+/// // 3-over-4 polyrhythm
+/// let threes = Pattern::from_events(vec![(0.0, 0.33, "x"), (0.33, 0.33, "x"), (0.66, 0.34, "x")]);
+/// let fours = Pattern::from_events(vec![(0.0, 0.25, "o"), (0.25, 0.25, "o"), (0.5, 0.25, "o"), (0.75, 0.25, "o")]);
+///
+/// // Threes cycle every 3 beats, fours cycle every 4 beats
+/// // Combined cycle is LCM(3,4) = 12 beats
+/// let poly = polymeter(vec![(threes, 3), (fours, 4)]);
+///
+/// // Query the first 12 beats (one full polymetric cycle)
+/// let events = poly.query(rhizome_resin_audio::pattern::TimeArc::new(0.0, 12.0));
+/// // Contains 4 repetitions of threes (4*3=12) and 3 repetitions of fours (3*4=12)
+/// ```
+pub fn polymeter<T: Clone + Send + Sync + 'static>(patterns: Vec<(Pattern<T>, u32)>) -> Pattern<T> {
+    if patterns.is_empty() {
+        return Pattern::silence();
+    }
+
+    // Compute the LCM of all cycle lengths (the super-cycle length)
+    let super_cycle = patterns
+        .iter()
+        .map(|(_, len)| *len)
+        .fold(1u32, |acc, len| if len == 0 { acc } else { lcm(acc, len) });
+
+    if super_cycle == 0 {
+        return Pattern::silence();
+    }
+
+    let patterns = StdArc::new(patterns);
+    let super_cycle_f = super_cycle as f64;
+
+    Pattern::from_query(move |arc| {
+        let mut result = Vec::new();
+
+        for (pattern, cycle_len) in patterns.iter() {
+            if *cycle_len == 0 {
+                continue;
+            }
+
+            let cycle_len_f = *cycle_len as f64;
+            // How many times does this pattern repeat in the super-cycle?
+            let repetitions = super_cycle / cycle_len;
+
+            // For each event from the pattern, we need to place it at multiple
+            // positions within the super-cycle
+            let start_super = arc.start;
+            let end_super = arc.end;
+
+            // Query the pattern for one cycle (0 to 1)
+            let base_events = pattern.query_cycle(0);
+
+            // For each super-cycle that overlaps our arc
+            let start_super_cycle = (start_super / super_cycle_f).floor() as i64;
+            let end_super_cycle = (end_super / super_cycle_f).ceil() as i64;
+
+            for super_cycle_idx in start_super_cycle..end_super_cycle {
+                let super_cycle_start = super_cycle_idx as f64 * super_cycle_f;
+
+                // Place pattern events at each repetition point
+                for rep in 0..repetitions {
+                    let rep_offset = rep as f64 * cycle_len_f;
+
+                    for event in &base_events {
+                        // Scale event onset to absolute time
+                        let abs_onset = super_cycle_start + rep_offset + event.onset * cycle_len_f;
+                        let abs_duration = event.duration * cycle_len_f;
+
+                        // Check if this event falls within our query arc
+                        if abs_onset + abs_duration > arc.start && abs_onset < arc.end {
+                            result.push(Event {
+                                onset: abs_onset,
+                                duration: abs_duration,
+                                value: event.value.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort by onset time
+        result.sort_by(|a, b| a.onset.partial_cmp(&b.onset).unwrap());
+        result
+    })
+}
+
+/// Creates a simple polymetric pattern from a value repeated at different rates.
+///
+/// This is a convenience function for creating polyrhythms like 3-over-4.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_audio::pattern::{polyrhythm, TimeArc};
+///
+/// // Classic 3-over-4 polyrhythm
+/// let poly = polyrhythm(3, 4, ("x", "o"));
+///
+/// // Query first 12 beats
+/// let events = poly.query(TimeArc::new(0.0, 12.0));
+/// ```
+pub fn polyrhythm<T: Clone + Send + Sync + 'static, U: Clone + Send + Sync + 'static>(
+    beats_a: u32,
+    beats_b: u32,
+    values: (T, U),
+) -> Pattern<(Option<T>, Option<U>)> {
+    if beats_a == 0 || beats_b == 0 {
+        return Pattern::silence();
+    }
+
+    let super_cycle = lcm(beats_a, beats_b);
+    let super_cycle_f = super_cycle as f64;
+
+    let value_a = values.0;
+    let value_b = values.1;
+
+    Pattern::from_query(move |arc| {
+        let mut result = Vec::new();
+
+        let start_super_cycle = (arc.start / super_cycle_f).floor() as i64;
+        let end_super_cycle = (arc.end / super_cycle_f).ceil() as i64;
+
+        for super_cycle_idx in start_super_cycle..end_super_cycle {
+            let super_cycle_start = super_cycle_idx as f64 * super_cycle_f;
+
+            // Add pattern A events
+            let reps_a = super_cycle / beats_a;
+            for rep in 0..reps_a {
+                for beat in 0..beats_a {
+                    let onset = super_cycle_start + rep as f64 * beats_a as f64 + beat as f64;
+                    let duration = 1.0;
+                    if onset + duration > arc.start && onset < arc.end {
+                        result.push(Event {
+                            onset,
+                            duration,
+                            value: (Some(value_a.clone()), None),
+                        });
+                    }
+                }
+            }
+
+            // Add pattern B events
+            let reps_b = super_cycle / beats_b;
+            for rep in 0..reps_b {
+                for beat in 0..beats_b {
+                    let onset = super_cycle_start + rep as f64 * beats_b as f64 + beat as f64;
+                    let duration = 1.0;
+                    if onset + duration > arc.start && onset < arc.end {
+                        result.push(Event {
+                            onset,
+                            duration,
+                            value: (None, Some(value_b.clone())),
+                        });
+                    }
+                }
+            }
+        }
+
+        result.sort_by(|a, b| a.onset.partial_cmp(&b.onset).unwrap());
+        result
+    })
+}
+
+// ============================================================================
 // Warp (time remapping)
 // ============================================================================
 
@@ -1181,5 +1377,79 @@ mod tests {
             any_different,
             "Different seeds should produce different shuffles across cycles"
         );
+    }
+
+    #[test]
+    fn test_gcd_lcm() {
+        assert_eq!(gcd(12, 8), 4);
+        assert_eq!(gcd(8, 12), 4);
+        assert_eq!(gcd(3, 4), 1);
+        assert_eq!(gcd(6, 9), 3);
+
+        assert_eq!(lcm(3, 4), 12);
+        assert_eq!(lcm(4, 6), 12);
+        assert_eq!(lcm(2, 5), 10);
+    }
+
+    #[test]
+    fn test_polymeter_basic() {
+        // Create two simple patterns
+        let threes =
+            Pattern::from_events(vec![(0.0, 0.33, "a"), (0.33, 0.33, "b"), (0.67, 0.33, "c")]);
+        let fours = Pattern::from_events(vec![
+            (0.0, 0.25, "1"),
+            (0.25, 0.25, "2"),
+            (0.5, 0.25, "3"),
+            (0.75, 0.25, "4"),
+        ]);
+
+        // 3-over-4 polyrhythm: LCM = 12
+        let poly = polymeter(vec![(threes, 3), (fours, 4)]);
+
+        // Query the full super-cycle (12 beats)
+        let events = poly.query(TimeArc::new(0.0, 12.0));
+
+        // Should have:
+        // - 4 repetitions of 3-beat pattern = 12 "a/b/c" events
+        // - 3 repetitions of 4-beat pattern = 12 "1/2/3/4" events
+        // Total: 24 events
+        assert_eq!(events.len(), 24);
+
+        // Count each pattern's contribution
+        let threes_count = events
+            .iter()
+            .filter(|e| ["a", "b", "c"].contains(&e.value))
+            .count();
+        let fours_count = events
+            .iter()
+            .filter(|e| ["1", "2", "3", "4"].contains(&e.value))
+            .count();
+
+        assert_eq!(threes_count, 12); // 4 reps * 3 events
+        assert_eq!(fours_count, 12); // 3 reps * 4 events
+    }
+
+    #[test]
+    fn test_polymeter_empty() {
+        let poly: Pattern<&str> = polymeter(vec![]);
+        let events = poly.query(TimeArc::new(0.0, 10.0));
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn test_polyrhythm_3_over_4() {
+        let poly = polyrhythm(3, 4, ("x", "o"));
+
+        // Query full super-cycle (12 beats)
+        let events = poly.query(TimeArc::new(0.0, 12.0));
+
+        // Count x and o events
+        let x_count = events.iter().filter(|e| e.value.0.is_some()).count();
+        let o_count = events.iter().filter(|e| e.value.1.is_some()).count();
+
+        // 3-beat pattern repeats 4 times = 12 x events
+        // 4-beat pattern repeats 3 times = 12 o events
+        assert_eq!(x_count, 12);
+        assert_eq!(o_count, 12);
     }
 }

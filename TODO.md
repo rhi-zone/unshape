@@ -606,7 +606,7 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 
 **Feature parity targets (from Strudel/Tidal):**
 - [x] Pattern combinators - `fast()`, `slow()`, `rev()`, `jux()` (already implemented)
-- [ ] Polymetric patterns - patterns of different lengths running in parallel
+- [x] Polymetric patterns - `polymeter()`, `polyrhythm()` for different-length patterns
 - [x] Pattern randomness - `rand`, `choose`, `shuffle` with reproducible seeds
 - [x] Euclidean rhythms - `euclid(k, n)` pattern generator
 - [ ] Continuous patterns - patterns that evaluate at any point in time (not just events)
