@@ -42,6 +42,7 @@ mod error;
 mod eval;
 mod graph;
 mod node;
+pub mod optimize;
 mod value;
 
 pub use error::{GraphError, TypeError};

@@ -226,7 +226,9 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 - [x] Composable passes - `run_optimization_passes()` runs all passes until no changes
 - [x] Preserve semantics - tests verify output unchanged after optimization
 - [x] `GraphOptimizer` trait - `fn apply(&self, graph: &mut AudioGraph) -> usize` with `OptimizerPipeline` for composing
-- [ ] Generic over graph type - works on `AudioGraph`, `FieldGraph`, etc.
+- [x] Generic `Optimizer<G>` trait in resin-core - works with any graph type
+  - `OptimizerPipeline<G>` and `TrackedPipeline<G>` for composing passes
+  - Audio `GraphOptimizer` is now blanket impl over `Optimizer<AudioGraph>`
 
 **JIT Compilation:** ✅
 - [x] Generalized JIT in `resin-jit` crate - extract from audio, apply to any optimized graph

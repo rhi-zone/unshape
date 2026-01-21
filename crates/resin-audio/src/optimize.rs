@@ -29,6 +29,7 @@
 //! ```
 
 use crate::graph::{AudioGraph, AudioNode, NodeIndex};
+use rhizome_resin_core::optimize::Optimizer;
 use std::any::TypeId;
 use std::collections::HashMap;
 
@@ -36,42 +37,14 @@ use std::collections::HashMap;
 // GraphOptimizer Trait
 // ============================================================================
 
-/// Trait for graph optimization passes.
+/// Type alias for backwards compatibility.
 ///
-/// Implement this trait to create custom optimization passes that can be
-/// composed into optimization pipelines.
-///
-/// # Example
-///
-/// ```ignore
-/// use rhizome_resin_audio::optimize::{GraphOptimizer, AffineChainFuser, IdentityEliminator};
-///
-/// // Run individual passes
-/// let mut graph = AudioGraph::new();
-/// let fused = AffineChainFuser.apply(&mut graph);
-/// let removed = IdentityEliminator.apply(&mut graph);
-///
-/// // Or compose into a pipeline
-/// let optimizers: Vec<Box<dyn GraphOptimizer>> = vec![
-///     Box::new(AffineChainFuser),
-///     Box::new(ConstantFolder),
-///     Box::new(IdentityEliminator),
-///     Box::new(DeadNodeEliminator),
-/// ];
-///
-/// for opt in &optimizers {
-///     opt.apply(&mut graph);
-/// }
-/// ```
-pub trait GraphOptimizer {
-    /// Applies this optimization pass to the graph.
-    ///
-    /// Returns the number of nodes affected (removed, merged, or transformed).
-    fn apply(&self, graph: &mut AudioGraph) -> usize;
+/// The generic [`Optimizer`] trait from resin-core provides the same interface.
+/// Use `Optimizer<AudioGraph>` directly for new code.
+pub trait GraphOptimizer: Optimizer<AudioGraph> {}
 
-    /// Returns the name of this optimization pass for debugging/logging.
-    fn name(&self) -> &'static str;
-}
+/// Blanket implementation: any Optimizer<AudioGraph> is a GraphOptimizer.
+impl<T: Optimizer<AudioGraph>> GraphOptimizer for T {}
 
 /// Fuses chains of affine (multiply-add) operations into single nodes.
 ///
@@ -79,7 +52,7 @@ pub trait GraphOptimizer {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct AffineChainFuser;
 
-impl GraphOptimizer for AffineChainFuser {
+impl Optimizer<AudioGraph> for AffineChainFuser {
     fn apply(&self, graph: &mut AudioGraph) -> usize {
         fuse_affine_chains(graph)
     }
@@ -95,7 +68,7 @@ impl GraphOptimizer for AffineChainFuser {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct IdentityEliminator;
 
-impl GraphOptimizer for IdentityEliminator {
+impl Optimizer<AudioGraph> for IdentityEliminator {
     fn apply(&self, graph: &mut AudioGraph) -> usize {
         eliminate_identities(graph)
     }
@@ -109,7 +82,7 @@ impl GraphOptimizer for IdentityEliminator {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DeadNodeEliminator;
 
-impl GraphOptimizer for DeadNodeEliminator {
+impl Optimizer<AudioGraph> for DeadNodeEliminator {
     fn apply(&self, graph: &mut AudioGraph) -> usize {
         eliminate_dead_nodes(graph)
     }
@@ -125,7 +98,7 @@ impl GraphOptimizer for DeadNodeEliminator {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ConstantFolder;
 
-impl GraphOptimizer for ConstantFolder {
+impl Optimizer<AudioGraph> for ConstantFolder {
     fn apply(&self, graph: &mut AudioGraph) -> usize {
         fold_constants(graph)
     }
@@ -141,7 +114,7 @@ impl GraphOptimizer for ConstantFolder {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DelayMerger;
 
-impl GraphOptimizer for DelayMerger {
+impl Optimizer<AudioGraph> for DelayMerger {
     fn apply(&self, graph: &mut AudioGraph) -> usize {
         merge_delays(graph)
     }
@@ -157,7 +130,7 @@ impl GraphOptimizer for DelayMerger {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ConstantPropagator;
 
-impl GraphOptimizer for ConstantPropagator {
+impl Optimizer<AudioGraph> for ConstantPropagator {
     fn apply(&self, graph: &mut AudioGraph) -> usize {
         propagate_constants(graph)
     }
@@ -167,7 +140,12 @@ impl GraphOptimizer for ConstantPropagator {
     }
 }
 
-/// Runs a sequence of optimizers until no more changes occur.
+/// Re-export the generic OptimizerPipeline with default audio passes.
+///
+/// For custom pipelines, use `rhizome_resin_core::optimize::OptimizerPipeline<AudioGraph>`.
+pub use rhizome_resin_core::optimize::OptimizerPipeline as GenericPipeline;
+
+/// Audio-specific optimizer pipeline with default passes.
 ///
 /// # Example
 ///
@@ -178,19 +156,18 @@ impl GraphOptimizer for ConstantPropagator {
 /// pipeline.run(&mut graph);
 /// ```
 pub struct OptimizerPipeline {
-    passes: Vec<Box<dyn GraphOptimizer>>,
+    inner: GenericPipeline<AudioGraph>,
 }
 
 impl Default for OptimizerPipeline {
     fn default() -> Self {
         Self {
-            passes: vec![
-                Box::new(AffineChainFuser),
-                Box::new(ConstantFolder),
-                Box::new(DelayMerger),
-                Box::new(IdentityEliminator),
-                Box::new(DeadNodeEliminator),
-            ],
+            inner: GenericPipeline::new()
+                .add(AffineChainFuser)
+                .add(ConstantFolder)
+                .add(DelayMerger)
+                .add(IdentityEliminator)
+                .add(DeadNodeEliminator),
         }
     }
 }
@@ -198,12 +175,14 @@ impl Default for OptimizerPipeline {
 impl OptimizerPipeline {
     /// Creates an empty pipeline.
     pub fn new() -> Self {
-        Self { passes: Vec::new() }
+        Self {
+            inner: GenericPipeline::new(),
+        }
     }
 
     /// Adds an optimizer to the pipeline.
-    pub fn add<O: GraphOptimizer + 'static>(mut self, optimizer: O) -> Self {
-        self.passes.push(Box::new(optimizer));
+    pub fn add<O: Optimizer<AudioGraph> + 'static>(mut self, optimizer: O) -> Self {
+        self.inner = self.inner.add(optimizer);
         self
     }
 
@@ -211,21 +190,7 @@ impl OptimizerPipeline {
     ///
     /// Returns the total number of nodes affected.
     pub fn run(&self, graph: &mut AudioGraph) -> usize {
-        let mut total = 0;
-
-        loop {
-            let mut changed = 0;
-            for pass in &self.passes {
-                changed += pass.apply(graph);
-            }
-
-            if changed == 0 {
-                break;
-            }
-            total += changed;
-        }
-
-        total
+        self.inner.run(graph)
     }
 }
 
