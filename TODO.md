@@ -270,7 +270,10 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 - [x] VHS tracking - horizontal displacement bands, color bleeding (vhs_tracking, VhsTracking)
 - [x] JPEG artifacts - DCT block corruption, quantization artifacts (jpeg_artifacts, JpegArtifacts)
 - [x] Bit manipulation - XOR/AND/OR on raw pixel bytes (bit_manip, BitManip, BitOperation)
-- [ ] Datamosh (video) - P-frame/I-frame manipulation, motion vector corruption
+- [x] Datamosh - P-frame/I-frame simulation with motion vectors, freeze blocks, decay
+  - `datamosh()` for single-frame simulation, `datamosh_frames()` for two-frame
+  - Motion patterns: Random, Directional, Radial, Vortex, Brightness-based
+  - Builder API: block_size, intensity, decay, freeze probability, seed
 - [x] Corrupt bytes - random byte insertion/deletion/swap in image data (byte_corrupt, ByteCorrupt, CorruptMode)
 
 ### Image Primitive Refactoring
