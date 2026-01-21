@@ -609,7 +609,7 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 - [x] Polymetric patterns - `polymeter()`, `polyrhythm()` for different-length patterns
 - [x] Pattern randomness - `rand`, `choose`, `shuffle` with reproducible seeds
 - [x] Euclidean rhythms - `euclid(k, n)` pattern generator
-- [ ] Continuous patterns - patterns that evaluate at any point in time (not just events)
+- [x] Continuous patterns - `Continuous<T>` for LFOs and control signals (evaluate at any time point)
 
 ## Done
 - [x] Rigid body physics (RigidBody, Collider shapes, PhysicsWorld, impulse-based collision resolution)

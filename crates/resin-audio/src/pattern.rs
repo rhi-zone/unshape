@@ -206,6 +206,209 @@ impl<T: Clone + Send + Sync + 'static> Pattern<T> {
 }
 
 // ============================================================================
+// Continuous Patterns
+// ============================================================================
+
+/// A continuous pattern that can be evaluated at any time point.
+///
+/// Unlike [`Pattern`] which generates discrete events, `Continuous` represents
+/// a smooth function of time. Use this for LFOs, envelopes, control signals,
+/// and any value that varies continuously.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_audio::pattern::Continuous;
+/// use std::f64::consts::PI;
+///
+/// // Sine wave LFO (1 cycle per beat)
+/// let lfo = Continuous::from_fn(|t| (t * 2.0 * PI).sin());
+///
+/// // Sample at various points
+/// assert!((lfo.sample(0.0) - 0.0).abs() < 0.001);
+/// assert!((lfo.sample(0.25) - 1.0).abs() < 0.001);
+/// assert!((lfo.sample(0.5) - 0.0).abs() < 0.001);
+/// ```
+#[derive(Clone)]
+pub struct Continuous<T: Clone + 'static> {
+    /// Function that evaluates the pattern at a given time.
+    eval: StdArc<dyn Fn(Time) -> T + Send + Sync>,
+}
+
+impl<T: Clone + Send + Sync + 'static> Continuous<T> {
+    /// Creates a continuous pattern from an evaluation function.
+    pub fn from_fn<F>(f: F) -> Self
+    where
+        F: Fn(Time) -> T + Send + Sync + 'static,
+    {
+        Self {
+            eval: StdArc::new(f),
+        }
+    }
+
+    /// Samples the pattern at a given time.
+    #[inline]
+    pub fn sample(&self, time: Time) -> T {
+        (self.eval)(time)
+    }
+
+    /// Samples the pattern at multiple time points.
+    pub fn sample_range(&self, start: Time, end: Time, num_samples: usize) -> Vec<T> {
+        if num_samples == 0 {
+            return vec![];
+        }
+        if num_samples == 1 {
+            return vec![self.sample(start)];
+        }
+        let step = (end - start) / (num_samples - 1) as f64;
+        (0..num_samples)
+            .map(|i| self.sample(start + i as f64 * step))
+            .collect()
+    }
+
+    /// Maps values in the pattern.
+    pub fn map<U, F>(self, f: F) -> Continuous<U>
+    where
+        U: Clone + Send + Sync + 'static,
+        F: Fn(T) -> U + Send + Sync + 'static,
+    {
+        let eval = self.eval;
+        Continuous::from_fn(move |t| f(eval(t)))
+    }
+
+    /// Scales the time (makes pattern faster).
+    pub fn fast(self, factor: f64) -> Self {
+        let eval = self.eval;
+        Self::from_fn(move |t| eval(t * factor))
+    }
+
+    /// Scales the time (makes pattern slower).
+    pub fn slow(self, factor: f64) -> Self {
+        if factor == 0.0 {
+            return self;
+        }
+        self.fast(1.0 / factor)
+    }
+
+    /// Shifts the pattern in time.
+    pub fn shift(self, amount: Time) -> Self {
+        let eval = self.eval;
+        Self::from_fn(move |t| eval(t - amount))
+    }
+}
+
+impl Continuous<f64> {
+    /// Creates a constant pattern.
+    pub fn constant(value: f64) -> Self {
+        Self::from_fn(move |_| value)
+    }
+
+    /// Creates a sine wave pattern (0 to 1 range, 1 cycle per unit time).
+    pub fn sine() -> Self {
+        Self::from_fn(|t| ((t * 2.0 * std::f64::consts::PI).sin() + 1.0) / 2.0)
+    }
+
+    /// Creates a cosine wave pattern (0 to 1 range, 1 cycle per unit time).
+    pub fn cosine() -> Self {
+        Self::from_fn(|t| ((t * 2.0 * std::f64::consts::PI).cos() + 1.0) / 2.0)
+    }
+
+    /// Creates a triangle wave pattern (0 to 1 range, 1 cycle per unit time).
+    pub fn triangle() -> Self {
+        Self::from_fn(|t| {
+            let t = t.rem_euclid(1.0);
+            if t < 0.5 { t * 2.0 } else { 2.0 - t * 2.0 }
+        })
+    }
+
+    /// Creates a sawtooth wave pattern (0 to 1 range, 1 cycle per unit time).
+    pub fn saw() -> Self {
+        Self::from_fn(|t| t.rem_euclid(1.0))
+    }
+
+    /// Creates a square wave pattern (0 or 1, 1 cycle per unit time).
+    pub fn square() -> Self {
+        Self::from_fn(|t| if t.rem_euclid(1.0) < 0.5 { 0.0 } else { 1.0 })
+    }
+
+    /// Creates a pulse wave with given duty cycle (0 to 1).
+    pub fn pulse(duty: f64) -> Self {
+        let duty = duty.clamp(0.0, 1.0);
+        Self::from_fn(move |t| if t.rem_euclid(1.0) < duty { 1.0 } else { 0.0 })
+    }
+
+    /// Creates a linear ramp from 0 to 1 over one cycle.
+    pub fn ramp() -> Self {
+        Self::saw()
+    }
+
+    /// Adds two continuous patterns.
+    pub fn add(self, other: Self) -> Self {
+        let eval_a = self.eval;
+        let eval_b = other.eval;
+        Self::from_fn(move |t| eval_a(t) + eval_b(t))
+    }
+
+    /// Multiplies two continuous patterns.
+    pub fn mul(self, other: Self) -> Self {
+        let eval_a = self.eval;
+        let eval_b = other.eval;
+        Self::from_fn(move |t| eval_a(t) * eval_b(t))
+    }
+
+    /// Scales the output by a factor.
+    pub fn scale(self, factor: f64) -> Self {
+        let eval = self.eval;
+        Self::from_fn(move |t| eval(t) * factor)
+    }
+
+    /// Adds an offset to the output.
+    pub fn offset(self, amount: f64) -> Self {
+        let eval = self.eval;
+        Self::from_fn(move |t| eval(t) + amount)
+    }
+
+    /// Converts to bipolar range (-1 to 1).
+    pub fn bipolar(self) -> Self {
+        let eval = self.eval;
+        Self::from_fn(move |t| eval(t) * 2.0 - 1.0)
+    }
+
+    /// Converts to unipolar range (0 to 1) from bipolar input.
+    pub fn unipolar(self) -> Self {
+        let eval = self.eval;
+        Self::from_fn(move |t| (eval(t) + 1.0) / 2.0)
+    }
+
+    /// Converts to discrete events by sampling at regular intervals.
+    pub fn to_events(&self, samples_per_cycle: usize) -> Pattern<f64> {
+        if samples_per_cycle == 0 {
+            return Pattern::silence();
+        }
+
+        let eval = self.eval.clone();
+        let step = 1.0 / samples_per_cycle as f64;
+
+        Pattern::from_query(move |arc| {
+            let mut result = Vec::new();
+            let start_cycle = arc.start.floor() as i64;
+            let end_cycle = arc.end.ceil() as i64;
+
+            for cycle in start_cycle..end_cycle {
+                for i in 0..samples_per_cycle {
+                    let onset = cycle as f64 + i as f64 * step;
+                    if onset >= arc.start && onset < arc.end {
+                        let value = eval(onset);
+                        result.push(Event::new(onset, step, value));
+                    }
+                }
+            }
+            result
+        })
+    }
+}
+
+// ============================================================================
 // Pattern Combinators
 // ============================================================================
 
@@ -1451,5 +1654,163 @@ mod tests {
         // 4-beat pattern repeats 3 times = 12 o events
         assert_eq!(x_count, 12);
         assert_eq!(o_count, 12);
+    }
+
+    #[test]
+    fn test_continuous_constant() {
+        let c = Continuous::constant(0.5);
+        assert!((c.sample(0.0) - 0.5).abs() < 1e-10);
+        assert!((c.sample(1.0) - 0.5).abs() < 1e-10);
+        assert!((c.sample(100.0) - 0.5).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_continuous_sine() {
+        let sine = Continuous::sine();
+        // At t=0, sine is 0.5 (normalized from sin(0) = 0)
+        assert!((sine.sample(0.0) - 0.5).abs() < 1e-10);
+        // At t=0.25, sine is 1.0 (normalized from sin(π/2) = 1)
+        assert!((sine.sample(0.25) - 1.0).abs() < 1e-10);
+        // At t=0.5, sine is 0.5 (normalized from sin(π) = 0)
+        assert!((sine.sample(0.5) - 0.5).abs() < 1e-10);
+        // At t=0.75, sine is 0.0 (normalized from sin(3π/2) = -1)
+        assert!((sine.sample(0.75) - 0.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_continuous_triangle() {
+        let tri = Continuous::triangle();
+        assert!((tri.sample(0.0) - 0.0).abs() < 1e-10);
+        assert!((tri.sample(0.25) - 0.5).abs() < 1e-10);
+        assert!((tri.sample(0.5) - 1.0).abs() < 1e-10);
+        assert!((tri.sample(0.75) - 0.5).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_continuous_saw() {
+        let saw = Continuous::saw();
+        assert!((saw.sample(0.0) - 0.0).abs() < 1e-10);
+        assert!((saw.sample(0.5) - 0.5).abs() < 1e-10);
+        assert!((saw.sample(0.99) - 0.99).abs() < 1e-10);
+        // Wraps at 1.0
+        assert!((saw.sample(1.0) - 0.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_continuous_square() {
+        let sq = Continuous::square();
+        assert!((sq.sample(0.0) - 0.0).abs() < 1e-10);
+        assert!((sq.sample(0.25) - 0.0).abs() < 1e-10);
+        assert!((sq.sample(0.5) - 1.0).abs() < 1e-10);
+        assert!((sq.sample(0.75) - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_continuous_fast_slow() {
+        let sine = Continuous::sine();
+        let fast_sine = sine.clone().fast(2.0);
+
+        // Fast doubles the frequency
+        // At t=0.125, fast_sine should be at the same point as sine at t=0.25
+        assert!((fast_sine.sample(0.125) - 1.0).abs() < 1e-10);
+
+        let slow_sine = Continuous::sine().slow(2.0);
+        // Slow halves the frequency
+        // At t=0.5, slow_sine should be at the same point as sine at t=0.25
+        assert!((slow_sine.sample(0.5) - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_continuous_shift() {
+        let sine = Continuous::sine();
+        let shifted = sine.clone().shift(0.25);
+
+        // Shifted by 0.25, so at t=0 we get what was at t=-0.25 = t=0.75
+        // sine at 0.75 is 0.0
+        assert!((shifted.sample(0.0) - 0.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_continuous_arithmetic() {
+        let a = Continuous::constant(0.3);
+        let b = Continuous::constant(0.2);
+
+        let sum = a.clone().add(b.clone());
+        assert!((sum.sample(0.0) - 0.5).abs() < 1e-10);
+
+        let product = Continuous::constant(0.3).mul(Continuous::constant(0.2));
+        assert!((product.sample(0.0) - 0.06).abs() < 1e-10);
+
+        let scaled = Continuous::constant(0.5).scale(2.0);
+        assert!((scaled.sample(0.0) - 1.0).abs() < 1e-10);
+
+        let offset = Continuous::constant(0.3).offset(0.2);
+        assert!((offset.sample(0.0) - 0.5).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_continuous_bipolar_unipolar() {
+        let uni = Continuous::constant(0.5);
+        let bi = uni.bipolar();
+        // 0.5 * 2 - 1 = 0.0
+        assert!((bi.sample(0.0) - 0.0).abs() < 1e-10);
+
+        let back = Continuous::constant(0.0).unipolar();
+        // (0.0 + 1) / 2 = 0.5
+        assert!((back.sample(0.0) - 0.5).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_continuous_sample_range() {
+        let saw = Continuous::saw();
+        let samples = saw.sample_range(0.0, 1.0, 5);
+
+        assert_eq!(samples.len(), 5);
+        assert!((samples[0] - 0.0).abs() < 1e-10);
+        assert!((samples[1] - 0.25).abs() < 1e-10);
+        assert!((samples[2] - 0.5).abs() < 1e-10);
+        assert!((samples[3] - 0.75).abs() < 1e-10);
+        // Last sample is at t=1.0, which wraps to 0.0
+        assert!((samples[4] - 0.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_continuous_to_events() {
+        let saw = Continuous::saw();
+        let pattern = saw.to_events(4);
+
+        let events = pattern.query_cycle(0);
+        assert_eq!(events.len(), 4);
+
+        // Events at 0.0, 0.25, 0.5, 0.75
+        assert!((events[0].onset - 0.0).abs() < 1e-10);
+        assert!((events[0].value - 0.0).abs() < 1e-10);
+        assert!((events[1].onset - 0.25).abs() < 1e-10);
+        assert!((events[1].value - 0.25).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_continuous_map() {
+        let saw = Continuous::saw();
+        let doubled = saw.map(|x| x * 2.0);
+
+        assert!((doubled.sample(0.25) - 0.5).abs() < 1e-10);
+        assert!((doubled.sample(0.5) - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_continuous_from_fn() {
+        let custom = Continuous::from_fn(|t| t * t);
+        assert!((custom.sample(2.0) - 4.0).abs() < 1e-10);
+        assert!((custom.sample(3.0) - 9.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_continuous_pulse() {
+        let pulse = Continuous::pulse(0.25);
+        assert!((pulse.sample(0.0) - 1.0).abs() < 1e-10);
+        assert!((pulse.sample(0.1) - 1.0).abs() < 1e-10);
+        assert!((pulse.sample(0.25) - 0.0).abs() < 1e-10);
+        assert!((pulse.sample(0.5) - 0.0).abs() < 1e-10);
     }
 }
