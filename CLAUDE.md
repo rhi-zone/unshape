@@ -58,6 +58,9 @@ Do not:
 - **Return tuples from functions** - use structs with named fields
 - **String-match when structure exists** - use proper typed representations
 - **Create DSLs** - custom syntax is subjective, hard to maintain, and creates learning burden. Use Rust APIs instead (builders, combinators, method chaining)
+- Use path dependencies in Cargo.toml - causes clippy to stash changes across repos
+- Use `--no-verify` - fix the issue or fix the hook
+- Assume tools are missing - check if `nix develop` is available for the right environment
 
 ## Design Principles
 
