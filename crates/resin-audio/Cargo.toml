@@ -13,6 +13,8 @@ serde = ["dep:serde"]
 dynop = ["dep:rhizome-resin-op", "dep:serde_json", "serde"]
 # Graph pattern matching and optimization
 optimize = []
+# Spectral analysis (FFT, STFT, time-stretch, pitch-shift)
+spectral = ["dep:rhizome-resin-spectral"]
 # Experimental: JIT compilation for audio graphs
 cranelift = ["dep:cranelift", "dep:cranelift-frontend", "dep:cranelift-native", "dep:cranelift-module", "dep:cranelift-jit", "dep:rhizome-resin-jit", "rhizome-resin-jit/cranelift"]
 # Build-time codegen (requires serde)
@@ -23,6 +25,7 @@ codegen-bench = ["codegen"]
 [dependencies]
 rhizome-resin-core = { path = "../resin-core" }
 rhizome-resin-expr-field = { path = "../resin-expr-field" }
+rhizome-resin-spectral = { path = "../resin-spectral", optional = true }
 serde = { workspace = true, optional = true }
 rhizome-resin-op = { path = "../resin-op", optional = true }
 rhizome-resin-audio-codegen = { path = "../resin-audio-codegen", optional = true }

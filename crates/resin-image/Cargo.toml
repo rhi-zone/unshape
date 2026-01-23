@@ -21,6 +21,7 @@ glam.workspace = true
 image.workspace = true
 rhizome-resin-color = { path = "../resin-color" }
 rhizome-resin-field = { path = "../resin-field" }
+rhizome-resin-spectral = { path = "../resin-spectral" }
 rhizome-resin-op = { path = "../resin-op", optional = true }
 rhizome-dew-core = { git = "https://github.com/rhizome-lab/dew", features = ["cond"], optional = true }
 rhizome-dew-linalg = { git = "https://github.com/rhizome-lab/dew", features = ["4d"], optional = true }

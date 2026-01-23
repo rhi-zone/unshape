@@ -1,0 +1,13 @@
+[package]
+name = "rhizome-resin-spectral"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "FFT and frequency-domain primitives for resin"
+
+[features]
+default = []
+serde = ["dep:serde"]
+
+[dependencies]
+serde = { workspace = true, optional = true }

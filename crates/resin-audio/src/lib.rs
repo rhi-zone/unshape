@@ -23,15 +23,20 @@ pub mod physical;
 pub mod primitive;
 pub mod room;
 pub mod spatial;
+#[cfg(feature = "spectral")]
 pub mod spectral;
+#[cfg(feature = "spectral")]
 pub mod vocoder;
 pub mod wav;
 
 pub use effects::{
-    AllpassBank, AmplitudeMod, Bitcrusher, Compressor, Convolution, ConvolutionConfig,
-    ConvolutionReverb, Distortion, DistortionMode, Limiter, ModulatedDelay, NoiseGate, Reverb,
-    chorus, chorus_graph, convolution_reverb, flanger, flanger_graph, generate_room_ir, phaser,
+    AllpassBank, AmplitudeMod, Bitcrusher, Compressor, Distortion, DistortionMode, Limiter,
+    ModulatedDelay, NoiseGate, Reverb, chorus, chorus_graph, flanger, flanger_graph, phaser,
     tremolo, tremolo_graph,
+};
+#[cfg(feature = "spectral")]
+pub use effects::{
+    Convolution, ConvolutionConfig, ConvolutionReverb, convolution_reverb, generate_room_ir,
 };
 pub use envelope::{Adsr, AdsrState, Ar, Lfo, LfoWaveform};
 pub use filter::{
@@ -84,12 +89,14 @@ pub use spatial::{
     DistanceModel, HrtfMode, SpatialListener, SpatialSource, Spatialize, Spatializer,
     SpatializerConfig, StereoMix, Vec3 as SpatialVec3, doppler_factor,
 };
+#[cfg(feature = "spectral")]
 pub use spectral::{
     Complex, Stft, StftConfig, StftResult, TimeStretch, TimeStretchConfig, blackman_window,
     estimate_pitch, fft, fft_complex, find_peak_frequency, hamming_window, hann_window, ifft,
     ifft_complex, istft, pitch_shift, rect_window, spectral_centroid, spectral_flatness, stft,
     stft_with_sample_rate, time_stretch, time_stretch_granular,
 };
+#[cfg(feature = "spectral")]
 pub use vocoder::{FilterbankVocoder, VocodeSynth, Vocoder, VocoderConfig};
 pub use wav::{
     WavError, WavFile, WavFormat, WavResult, from_bytes as wav_from_bytes, to_bytes as wav_to_bytes,
@@ -100,14 +107,18 @@ pub use wav::{
 /// Call this to enable deserialization of audio ops from saved pipelines.
 #[cfg(feature = "dynop")]
 pub fn register_ops(registry: &mut rhizome_resin_op::OpRegistry) {
+    #[cfg(feature = "spectral")]
     registry.register_type::<Convolution>("resin::Convolution");
     registry.register_type::<GranularSynth>("resin::GranularSynth");
     registry.register_type::<PluckSynth>("resin::PluckSynth");
     registry.register_type::<MembraneSynth>("resin::MembraneSynth");
     registry.register_type::<BarSynth>("resin::BarSynth");
     registry.register_type::<PlateSynth>("resin::PlateSynth");
-    registry.register_type::<Stft>("resin::Stft");
-    registry.register_type::<TimeStretch>("resin::TimeStretch");
-    registry.register_type::<VocodeSynth>("resin::VocodeSynth");
+    #[cfg(feature = "spectral")]
+    {
+        registry.register_type::<Stft>("resin::Stft");
+        registry.register_type::<TimeStretch>("resin::TimeStretch");
+        registry.register_type::<VocodeSynth>("resin::VocodeSynth");
+    }
     registry.register_type::<Spatialize>("resin::Spatialize");
 }

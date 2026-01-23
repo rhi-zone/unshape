@@ -23,8 +23,9 @@ Track progress auditing each crate for decomposition opportunities.
 | resin-gltf | skip | — | I/O |
 | resin-gpu | - | | |
 | resin-history | skip | — | Infrastructure |
-| resin-image | done | 5 | map_pixels, remap_uv, convolve, composite, resize |
+| resin-image | done | 5+spectral | MapPixels, RemapUv, Convolve, Composite, Resize + spectral ops from resin-spectral |
 | resin-jit | skip | — | Codegen |
+| resin-spectral | done | 6 | FFT, IFFT, FFT2D, IFFT2D, DCT, IDCT (shared by audio/image) |
 | resin-lsystem | - | | |
 | resin-macros | skip | — | Proc macros |
 | resin-mesh | done | 7 | Poke, SplitEdge, RipVertex, Transform, Linear/Loop/CC subdivision |
@@ -58,39 +59,52 @@ Track progress auditing each crate for decomposition opportunities.
 
 ### resin-image (done)
 
-**True Primitives (5):**
+**True Primitives (Spatial, 5):**
 1. `MapPixels { expr: ColorExpr }` - per-pixel color transform
 2. `RemapUv { expr: UvExpr }` - UV coordinate remapping
 3. `Convolve { kernel: Kernel }` - 2D spatial convolution
 4. `Composite { blend_mode, opacity }` - image blending
 5. `Resize { width, height }` - resampling
 
-**WARNING:** Currently implemented as functions, not op structs. Needs refactor to ops-as-values.
+**Frequency Domain (via resin-spectral, 5):**
+6. `Fft2d` - 2D FFT to frequency domain
+7. `Ifft2d` - 2D IFFT back to spatial
+8. `FftShift` - shift DC to center
+9. `Dct2d { block_size }` - 2D DCT (JPEG-style)
+10. `Idct2d { block_size }` - inverse DCT
+
+**Integer/Bit-Level (4):**
+11. `ToInt { range }` - float to integer conversion
+12. `FromInt { range }` - integer to float conversion
+13. `ExtractBitPlane { channel, bit }` - extract single bit as image
+14. `SetBitPlane { channel, bit }` - set single bit from image
+
+**Note:** Some spatial primitives are still snake_case functions. Needs refactor to ops-as-values.
 
 **Decompositions Found:**
 
-| Function | Decomposes To |
+| Op | Decomposes To |
 |----------|---------------|
-| blur | `convolve(gaussian_kernel)` in loop |
-| sharpen | `convolve(sharpen_kernel)` |
-| emboss | `convolve(emboss_kernel) + map_pixels(+0.5)` |
-| detect_edges | `convolve(sobel_h) + convolve(sobel_v) + map_pixels(magnitude)` |
-| grayscale | `map_pixels(ColorExpr::grayscale())` |
-| invert | `map_pixels(ColorExpr::invert())` |
-| posterize | `map_pixels(ColorExpr::posterize(levels))` |
-| threshold | `map_pixels(ColorExpr::threshold(t))` |
-| lens_distortion | `remap_uv(config.to_uv_expr())` |
-| wave_distortion | `remap_uv(config.to_uv_expr())` |
-| glow | `threshold + blur + colorize + composite` |
-| bloom | `threshold + pyramid_blur + composite` |
-| drop_shadow | `extract_channel + displace + blur + colorize + composite` |
-| chromatic_aberration | `set_channel(R, remap_uv) + set_channel(B, remap_uv)` |
-| downsample | `resize(w/2, h/2)` - trivial wrapper |
-| upsample | `resize(w*2, h*2)` - trivial wrapper |
+| Blur | `Convolve { kernel: Gaussian }` in loop |
+| Sharpen | `Convolve { kernel: Sharpen }` |
+| Emboss | `Convolve { kernel: Emboss } + MapPixels { expr: +0.5 }` |
+| DetectEdges | `Convolve { SobelH } + Convolve { SobelV } + MapPixels { magnitude }` |
+| Grayscale | `MapPixels { expr: grayscale }` |
+| Invert | `MapPixels { expr: invert }` |
+| Posterize | `MapPixels { expr: posterize(levels) }` |
+| Threshold | `MapPixels { expr: threshold(t) }` |
+| LensDistortion | `RemapUv { expr: lens_expr }` |
+| WaveDistortion | `RemapUv { expr: wave_expr }` |
+| Glow | `Threshold + Blur + Colorize + Composite` |
+| Bloom | `Threshold + PyramidBlur + Composite` |
+| DropShadow | `ExtractChannel + Displace + Blur + Colorize + Composite` |
+| ChromaticAberration | `SetChannel { R, RemapUv } + SetChannel { B, RemapUv }` |
+| Downsample | `Resize { w/2, h/2 }` - trivial wrapper |
+| Upsample | `Resize { w*2, h*2 }` - trivial wrapper |
 
 **Issues Found:**
-- `adjust_hsl()` duplicates ColorExpr colorspace logic
-- `adjust_brightness_contrast()` duplicates per-pixel math
+- `AdjustHsl` duplicates ColorExpr colorspace logic
+- `AdjustBrightnessContrast` duplicates per-pixel math
 - Channel operations duplicate sampling patterns
 
 ---
@@ -298,14 +312,21 @@ Track progress auditing each crate for decomposition opportunities.
 
 ## Summary: Minimal Primitive Sets
 
-### Image (5)
-`MapPixels`, `RemapUv`, `Convolve`, `Composite`, `Resize` *(currently functions, need op struct refactor)*
+### Image (14)
+**Spatial:** `MapPixels`, `RemapUv`, `Convolve`, `Composite`, `Resize`
+**Spectral:** `Fft2d`, `Ifft2d`, `FftShift`, `Dct2d`, `Idct2d` (via resin-spectral)
+**Integer:** `ToInt`, `FromInt`, `ExtractBitPlane`, `SetBitPlane`
 
-### Audio (9)
-`DelayLine`, `PhaseOsc`, `Biquad`, `EnvelopeFollower`, `Allpass1`, `FFT/IFFT`, `AffineNode`, `Smoother`, `Mix`
+### Spectral (6) - shared crate
+`fft`, `ifft`, `fft2d`, `ifft2d`, `dct2d`, `idct2d` + window functions
 
-### Field (4)
-`Map`, `Zip`, `FnField`, `{Twist, Bend, Repeat}`
+### Audio (8)
+`DelayLine`, `PhaseOsc`, `Biquad`, `EnvelopeFollower`, `Allpass1`, `AffineNode`, `Smoother` + spectral ops via resin-spectral
+*(Mix removed - it's `Zip3 + lerp expression`, provided as ergonomic helper)*
+
+### Field (5)
+`Map`, `Zip`, `Zip3`, `FnField`, `{Twist, Bend, Repeat}`
+*(Add/Mul/Lerp/Mix removed - all are Zip/Zip3 + expression, provided as ergonomic helpers)*
 
 ### Mesh (7)
 `Poke`, `SplitEdge`, `RipVertex`, `TransformVertex`, `Linear/Loop/CatmullClark Subdivision`
@@ -321,6 +342,144 @@ Track progress auditing each crate for decomposition opportunities.
 
 ### Physics (5)
 `RigidBody`, `Force/Impulse`, `Integration`, `CollisionShapes`, `Constraint`
+
+---
+
+## Non-Primitives (Intentionally Excluded)
+
+These operations are **not** included as primitives because they're compositions of existing primitives. Users should build them from the underlying ops rather than having them as special cases.
+
+### Image
+
+| Excluded Op | Why | Compose From |
+|-------------|-----|--------------|
+| LsbEmbed | Byte-level loop over ExtractBitPlane/SetBitPlane | Loop + SetBitPlane per bit |
+| Glow | Multi-step composite effect | Threshold → Blur → Colorize → Composite |
+| Bloom | Multi-step composite effect | Threshold → PyramidBlur → Composite |
+| DropShadow | Multi-step composite effect | ExtractChannel → Displace → Blur → Colorize → Composite |
+| Downsample | Trivial wrapper | `Resize { w/2, h/2 }` |
+| Upsample | Trivial wrapper | `Resize { w*2, h*2 }` |
+| ApplyMask | Just lerp with black/transparent | `Lerp(original, black, mask)` |
+| MaskUnion | Just field math | `max(a, b)` or `Zip.map(max)` |
+| MaskIntersect | Just field math | `min(a, b)` or `Zip.map(min)` |
+| MaskSubtract | Just field math | `a * (1 - b)` |
+| MaskInvert | Just field math | `1 - mask` |
+| FrequencyMask | FFT composition | `Fft2d → Zip(mask) → Ifft2d` |
+| HighPassFreq | FFT + radial mask | `Fft2d → Zip(radial_mask(cutoff, 0→1)) → Ifft2d` |
+| LowPassFreq | FFT + radial mask | `Fft2d → Zip(radial_mask(cutoff, 1→0)) → Ifft2d` |
+| BandPassFreq | FFT + ring mask | `Fft2d → Zip(ring_mask(lo, hi)) → Ifft2d` |
+| SdfToImage | SDF is already a Field | Sample SDF directly as ImageField via Field trait |
+| GetBitPlane | Trivial pattern | `(channel >> bit) & 1` via dew expression |
+
+### Audio
+
+| Excluded Op | Why | Compose From |
+|-------------|-----|--------------|
+| Tremolo | Single multiplication | `Input × PhaseOsc (LFO)` |
+| RingModulator | Single multiplication | `Input × Oscillator` |
+| Gravity | Constant vector | `Acceleration { (0, -9.81, 0) }` |
+| Wind | Constant with target | `Acceleration { target_velocity }` |
+
+### Field
+
+| Excluded Op | Why | Compose From |
+|-------------|-----|--------------|
+| Add | Binary Zip + Map | `Zip<A, B>.map(\|(a,b)\| a + b)` |
+| Mul | Binary Zip + Map | `Zip<A, B>.map(\|(a,b)\| a * b)` |
+| Lerp / Mix | Ternary Zip + Map | `Zip3<A, B, T>.map(\|(a,b,t)\| a*(1-t) + b*t)` |
+| Blend | Just lerp | `lerp(a, b, mask)` |
+| SdfUnion | Binary Zip + Map | `Zip.map(min)` |
+| SdfIntersection | Binary Zip + Map | `Zip.map(max)` |
+| SdfSubtraction | Binary Zip + Map | `Zip.map(\|(a,b)\| max(a, -b))` |
+| SdfSmoothUnion | Binary Zip + Map | `Zip + smooth_min` |
+| SdfToMask | Threshold a field | `map(\|d\| if d < 0.0 { 1.0 } else { 0.0 })` |
+| SdfToImage | SDF implements Field | Just sample the SDF—no conversion op needed |
+
+**Note on SDFs:** An SDF *is* a Field<Vec2, f32> or Field<Vec3, f32>. There's no need for a dedicated "SdfToField" or "SdfToImage" op—just use the SDF directly where a field is expected, or sample it into an ImageField.
+
+### Mesh
+
+| Excluded Op | Why | Compose From |
+|-------------|-----|--------------|
+| Extrude | Multi-step mesh edit | Duplicate verts + Transform + Bridge edges |
+| Inset | Multi-step mesh edit | Poke + Scale + Bridge |
+| Bevel | Multi-step mesh edit | Split + Scale + Create caps |
+| Smooth | Iterative neighbor average | Loop: Transform toward centroid |
+| Merge | Index manipulation | Index rewiring + Remove degenerates |
+
+### Particle
+
+| Excluded Op | Why | Compose From |
+|-------------|-----|--------------|
+| Gravity | Constant acceleration | `Acceleration { (0, -9.81, 0) }` |
+| Wind | Constant with target | `Acceleration { target_velocity }` |
+| Vortex | Tangent of distance field | `DistanceField + TangentTransform` |
+| CurlNoise | Curl of noise field | `NoisePerturbation + CurlOperator` |
+
+### Vector
+
+| Excluded Op | Why | Compose From |
+|-------------|-----|--------------|
+| circle | Bezier approximation | 4× CubicTo + Close |
+| ellipse | Scaled circle | circle + scale_xy |
+| rect | Line segments | 4× LineTo + Close |
+| rounded_rect | Lines + arcs | LineTo + CubicTo + Close |
+| star | Interleaved vertices | polygon with computed points |
+
+### General Principle
+
+An operation is **not a primitive** if:
+1. It can be expressed as a composition of other primitives (no unique algorithm)
+2. It's a trivial wrapper with no added behavior (e.g., downsample = resize/2)
+3. It's a specific use case of a general primitive (e.g., gravity = constant acceleration)
+4. It duplicates what expressions/fields already provide (e.g., SDF already *is* a field)
+5. It can be expressed as a dew expression pattern (e.g., `(channel >> bit) & 1` for bit extraction)
+
+**No "blessed compositions"** - if it can be reduced, it's not a primitive. Period. Ergonomics are handled separately (see below).
+
+---
+
+## Three-Layer Architecture
+
+Primitives, ergonomics, and optimization are **separate concerns**:
+
+### Layer 1: True Primitives
+Irreducible operations with unique algorithms:
+- `Zip<A, B>` - evaluate two fields at same input
+- `Zip3<A, B, C>` - evaluate three fields at same input
+- `Map<F, Expr>` - transform output
+- `Convolve`, `FFT`, `Resize`, etc.
+
+### Layer 2: Ergonomic Helpers
+Functions that return compositions of primitives:
+```rust
+fn lerp<A, B, T>(a: A, b: B, t: T) -> Zip3<A, B, T, LerpExpr> {
+    Zip3::new(a, b, t).map(|(a, b, t)| a * (1.0 - t) + b * t)
+}
+
+fn add<A, B>(a: A, b: B) -> Zip<A, B, AddExpr> {
+    Zip::new(a, b).map(|(a, b)| a + b)
+}
+
+fn blend<A, B, M>(a: A, b: B, mask: M) -> impl Field {
+    lerp(a, b, mask)
+}
+```
+
+Users write `lerp(a, b, t)`. They don't care it's a composition internally.
+
+### Layer 3: Pattern-Matching Optimizer
+Recognizes common patterns and emits optimal code:
+
+| Pattern | Expression | Optimized To |
+|---------|------------|--------------|
+| Lerp | `a * (1-t) + b * t` | GPU `mix` instruction |
+| Bit extraction | `(channel >> N) & 1` | Fused bit extract |
+| Bit setting | `(channel & ~(1 << N)) \| (bit << N)` | Fused bit set |
+| Threshold | `if x > t { 1.0 } else { 0.0 }` | GPU `step` instruction |
+| Clamp | `max(min(x, hi), lo)` | GPU `clamp` instruction |
+
+**Result:** Minimal primitive set + ergonomic API + optimal codegen. No compromises.
 
 ---
 

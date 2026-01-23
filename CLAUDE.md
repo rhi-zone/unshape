@@ -207,6 +207,20 @@ When adding a new feature or module:
    - Example use cases
    - Example compositions with other crates
 
+### Reference Documents (Keep in Sync)
+
+These documents are authoritative references - **update them when implementation changes**:
+
+- **`DECOMPOSITION-AUDIT.md`** - Primitive decomposition audit. Update when:
+  - Adding/removing primitives in any domain
+  - Finding new decomposition opportunities
+  - Changing the three-layer architecture (primitives → helpers → optimizer)
+
+- **`docs/spec/graph-format.md`** (when created) - Graph JSON serialization spec. Update when:
+  - `SerialGraph` structure changes (nodes, edges, metadata)
+  - Node/edge format changes
+  - Expression (dew) AST serialization changes
+
 ### Working Style
 
 Agentic by default - continue through tasks unless:

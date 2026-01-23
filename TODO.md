@@ -592,15 +592,16 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 - Hue LSB hiding (0-359 range) - low visual impact, detectable but obscure
 - Custom ranges for specific quantization schemes
 
-### Frequency Domain Image Processing
+### Frequency Domain Image Processing ✅
 
 > **Goal:** FFT/DCT for frequency analysis, filtering, and manipulation.
 
-**Primitives:**
-- [ ] `Fft2d` - image → complex frequency domain (two fields: real, imaginary)
-- [ ] `Ifft2d` - complex frequency domain → image
-- [ ] `Dct2d { block_size: Option<u32> }` - discrete cosine transform (JPEG-style)
-- [ ] `Idct2d { block_size: Option<u32> }` - inverse DCT
+**Primitives:** (implemented in resin-spectral shared crate)
+- [x] `Fft2d` - image → complex frequency domain (two fields: real, imaginary)
+- [x] `Ifft2d` - complex frequency domain → image
+- [x] `Dct2d { block_size: Option<u32> }` - discrete cosine transform (JPEG-style)
+- [x] `Idct2d { block_size: Option<u32> }` - inverse DCT
+- [x] `FftShift` - shift DC to center for visualization/filtering
 
 **Complex number representation:** Two separate fields (real, imaginary) - explicit, composable.
 
@@ -675,6 +676,21 @@ Add to image pattern-matching optimizer (like audio's tremolo/chorus recognition
 
 **Outcome:** Minimal primitive set + pattern-matching optimizer for common compositions.
 
+### Field Crate Organization
+
+> **Goal:** Separate trait definitions from combinator implementations.
+
+**Problem:** resin-field currently defines both the `Field` trait AND the combinator ops (Map, Add, Mul, etc.). This conflates interface and implementation.
+
+**Proposed split:**
+- [ ] `resin-field` - just the `Field<I, O>` trait and core types
+- [ ] `resin-field-ops` - combinator structs (Map, Zip, Mix, domain transforms)
+
+**Benefits:**
+- Cleaner dependency graph
+- Trait can be implemented without pulling in all combinators
+- Matches pattern used elsewhere (e.g., Iterator trait vs itertools)
+
 ### Field Combinator Simplification
 
 > **Goal:** Reduce field combinators to true primitives.
@@ -703,14 +719,28 @@ Add to image pattern-matching optimizer (like audio's tremolo/chorus recognition
   - `Mix<a, b, 0.5>` = 50% blend
 - ~~MaskUnion/Intersect/Subtract~~ - just field math: `max(a,b)`, `min(a,b)`, `a*(1-b)`
 
-### Spread Spectrum / Quantization
+### Spread Spectrum / Quantization ✅
 
 > **Goal:** Primitives for robust signal embedding.
 
-**Ops:**
-- [ ] `SpreadSpectrum { seed: u64 }` - multiply by pseudorandom ±1 sequence
-- [ ] `UnspreadSpectrum { seed: u64 }` - reverse spread (same seed)
-- [ ] `QuantizeWithBias { levels: u32, bias: ImageField }` - round toward bias value
+**Ops:** (implemented in resin-image)
+- [x] `SpreadSpectrum { seed, factor }` - add factor × pseudorandom ±1 sequence
+- [x] `UnspreadSpectrum { seed, factor }` - reverse spread (same seed)
+- [x] `QuantizeWithBias { levels }` - round toward bias image values
+
+### Image Ops-as-Values Refactor
+
+> **Goal:** Convert remaining function-based image ops to struct-based ops.
+
+**Currently snake_case functions (need conversion):**
+- [ ] `map_pixels` → `MapPixels { expr }`
+- [ ] `remap_uv` → `RemapUv { expr }`
+- [ ] `convolve` → `Convolve { kernel }`
+- [ ] `composite` → `Composite { blend_mode, opacity }`
+- [ ] `resize` → `Resize { width, height, filter }`
+- [ ] `color_matrix` → `ColorMatrix { matrix }`
+
+See DECOMPOSITION-AUDIT.md for which are true primitives vs compositions.
 
 ### Dew → Rust Codegen (AOT)
 
@@ -730,6 +760,44 @@ Add to image pattern-matching optimizer (like audio's tremolo/chorus recognition
 - Run pattern recognition at build time
 - Emit specialized Rust for recognized patterns
 - Example: detect `fft → mask → ifft`, emit single fused function
+
+### Graph Format Specification
+
+> **Goal:** Document the JSON graph serialization format - cross-language spec for interop.
+
+**Problem:** `SerialGraph` in resin-serde defines a JSON format, but it's only documented in Rust code. Other languages need a spec to read/write resin graphs.
+
+**Proposed spec (`docs/spec/graph-format.md` + JSON Schema):**
+- [ ] `SerialGraph` structure: nodes array, edges array, metadata
+- [ ] Node format: `{ "id": "...", "type": "...", "params": {...} }`
+- [ ] Edge format: `{ "from": "node:port", "to": "node:port" }`
+- [ ] Type registry: how node types map to implementations
+- [ ] Expression format: dew AST serialization
+
+**Example:**
+```json
+{
+  "nodes": [
+    { "id": "n1", "type": "resin::Oscillator", "params": { "waveform": "sine", "frequency": 440.0 } },
+    { "id": "n2", "type": "resin::LowPass", "params": { "cutoff": 1000.0, "resonance": 0.7 } }
+  ],
+  "edges": [
+    { "from": "n1:out", "to": "n2:in" }
+  ]
+}
+```
+
+**Optimizer hints (advisory, separate doc):**
+- [ ] Common patterns ranked by frequency (lerp, bit ops, etc.)
+- [ ] Suggested optimizations (not mandatory)
+- [ ] GPU intrinsic mappings where applicable
+
+**Sync requirement:** Update when SerialGraph format changes.
+
+**Benefits:**
+- Cross-language: JS/Python/etc can read/write graphs
+- Auditable: implementations can validate against schema
+- Tooling: editors, visualizers, converters
 
 ### Architecture / Future Extraction
 

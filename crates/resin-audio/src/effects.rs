@@ -805,10 +805,13 @@ impl AudioNode for Distortion {
 }
 
 // ============================================================================
-// Convolution Reverb
+// Convolution Reverb (requires spectral feature)
 // ============================================================================
 
+#[cfg(feature = "spectral")]
 use crate::spectral::{Complex, fft, ifft};
+
+#[cfg(feature = "spectral")]
 
 /// Convolution reverb using impulse responses.
 ///
@@ -840,6 +843,7 @@ pub struct ConvolutionReverb {
     pub gain: f32,
 }
 
+#[cfg(feature = "spectral")]
 impl ConvolutionReverb {
     /// Creates a new convolution reverb from an impulse response.
     ///
@@ -1021,6 +1025,7 @@ impl ConvolutionReverb {
     }
 }
 
+#[cfg(feature = "spectral")]
 impl AudioNode for ConvolutionReverb {
     fn process(&mut self, input: f32, _ctx: &AudioContext) -> f32 {
         ConvolutionReverb::process(self, input)
@@ -1035,6 +1040,7 @@ impl AudioNode for ConvolutionReverb {
 ///
 /// Operations on audio buffers use the ops-as-values pattern.
 /// See `docs/design/ops-as-values.md`.
+#[cfg(feature = "spectral")]
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "dynop", derive(rhizome_resin_op::Op))]
@@ -1048,6 +1054,7 @@ pub struct Convolution {
     pub gain: f32,
 }
 
+#[cfg(feature = "spectral")]
 impl Default for Convolution {
     fn default() -> Self {
         Self {
@@ -1058,6 +1065,7 @@ impl Default for Convolution {
     }
 }
 
+#[cfg(feature = "spectral")]
 impl Convolution {
     /// Creates a new convolution configuration.
     pub fn new(block_size: usize) -> Self {
@@ -1077,9 +1085,11 @@ impl Convolution {
 }
 
 /// Backwards-compatible type alias.
+#[cfg(feature = "spectral")]
 pub type ConvolutionConfig = Convolution;
 
 /// Creates a convolution reverb with configuration.
+#[cfg(feature = "spectral")]
 pub fn convolution_reverb(ir: &[f32], config: &ConvolutionConfig) -> ConvolutionReverb {
     config.apply(ir)
 }
@@ -1091,6 +1101,7 @@ pub fn convolution_reverb(ir: &[f32], config: &ConvolutionConfig) -> Convolution
 /// * `damping` - High frequency damping (0-1)
 /// * `duration` - IR duration in seconds
 /// * `sample_rate` - Sample rate in Hz
+#[cfg(feature = "spectral")]
 pub fn generate_room_ir(size: f32, damping: f32, duration: f32, sample_rate: f32) -> Vec<f32> {
     let samples = (duration * sample_rate) as usize;
     let mut ir = vec![0.0; samples];
@@ -1148,6 +1159,7 @@ pub fn generate_room_ir(size: f32, damping: f32, duration: f32, sample_rate: f32
 }
 
 /// Simple hash for reproducible noise.
+#[cfg(feature = "spectral")]
 fn simple_hash(x: u32) -> u32 {
     let mut h = x;
     h = h.wrapping_mul(0x85ebca6b);

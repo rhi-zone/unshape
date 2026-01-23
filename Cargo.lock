@@ -4124,6 +4124,7 @@ dependencies = [
  "rhizome-resin-expr-field",
  "rhizome-resin-jit",
  "rhizome-resin-op",
+ "rhizome-resin-spectral",
  "rustfft",
  "serde",
  "serde_json",
@@ -4338,6 +4339,7 @@ dependencies = [
  "rhizome-resin-color",
  "rhizome-resin-field",
  "rhizome-resin-op",
+ "rhizome-resin-spectral",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -4554,6 +4556,13 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "glam",
+ "serde",
+]
+
+[[package]]
+name = "rhizome-resin-spectral"
+version = "0.1.0"
+dependencies = [
  "serde",
 ]
 
