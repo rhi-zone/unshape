@@ -928,6 +928,48 @@ impl Kernel {
 /// let blurred = convolve(&img, &Kernel::box_blur());
 /// ```
 pub fn convolve(image: &ImageField, kernel: &Kernel) -> ImageField {
+    Convolve::new(kernel.clone()).apply(image)
+}
+
+// ============================================================================
+// Primitive Op Structs (ops-as-values pattern)
+// ============================================================================
+
+/// 2D spatial convolution operation.
+///
+/// A true image primitive - neighborhood operations cannot be decomposed further.
+/// All blur, sharpen, and edge detection effects are implemented via this primitive.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, Kernel, Convolve};
+///
+/// let img = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 9], 3, 3);
+/// let blur = Convolve::new(Kernel::box_blur());
+/// let blurred = blur.apply(&img);
+/// ```
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Convolve {
+    /// The convolution kernel.
+    pub kernel: Kernel,
+}
+
+impl Convolve {
+    /// Creates a new convolution operation.
+    pub fn new(kernel: Kernel) -> Self {
+        Self { kernel }
+    }
+
+    /// Applies the convolution to an image.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        convolve_impl(image, &self.kernel)
+    }
+}
+
+/// Internal convolution implementation.
+fn convolve_impl(image: &ImageField, kernel: &Kernel) -> ImageField {
     let (width, height) = image.dimensions();
     let radius = kernel.radius() as i32;
     let mut data = Vec::with_capacity((width * height) as usize);
@@ -962,6 +1004,152 @@ pub fn convolve(image: &ImageField, kernel: &Kernel) -> ImageField {
     ImageField::from_raw(data, width, height)
         .with_wrap_mode(image.wrap_mode)
         .with_filter_mode(image.filter_mode)
+}
+
+/// Image resizing operation.
+///
+/// A true image primitive - resampling requires interpolation which cannot
+/// be decomposed further.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, Resize};
+///
+/// let img = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
+/// let resize = Resize::new(8, 6);
+/// let resized = resize.apply(&img);
+/// assert_eq!(resized.dimensions(), (8, 6));
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Resize {
+    /// Target width in pixels.
+    pub width: u32,
+    /// Target height in pixels.
+    pub height: u32,
+}
+
+impl Resize {
+    /// Creates a new resize operation.
+    pub fn new(width: u32, height: u32) -> Self {
+        Self { width, height }
+    }
+
+    /// Applies the resize to an image.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        resize_impl(image, self.width, self.height)
+    }
+}
+
+/// Image compositing operation.
+///
+/// A true image primitive - blending requires per-pixel blend mode computation
+/// which cannot be decomposed further.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, Composite};
+/// use rhizome_resin_color::BlendMode;
+///
+/// let base = ImageField::from_raw(vec![[0.2, 0.3, 0.4, 1.0]; 16], 4, 4);
+/// let overlay = ImageField::from_raw(vec![[1.0, 0.0, 0.0, 0.5]; 16], 4, 4);
+///
+/// let comp = Composite::new(BlendMode::Normal, 0.8);
+/// let result = comp.apply(&base, &overlay);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Composite {
+    /// The blend mode to use.
+    pub mode: BlendMode,
+    /// Opacity of the overlay (0.0 = transparent, 1.0 = opaque).
+    pub opacity: f32,
+}
+
+impl Composite {
+    /// Creates a new composite operation.
+    pub fn new(mode: BlendMode, opacity: f32) -> Self {
+        Self { mode, opacity }
+    }
+
+    /// Applies the composite operation.
+    pub fn apply(&self, base: &ImageField, overlay: &ImageField) -> ImageField {
+        composite_impl(base, overlay, self.mode, self.opacity)
+    }
+}
+
+/// UV coordinate remapping operation.
+///
+/// A true image primitive - spatial transforms on pixel coordinates.
+/// All geometric effects (rotation, scale, distortion, lens effects) are
+/// implemented via this primitive.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, UvExpr, RemapUv};
+///
+/// let img = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
+///
+/// // Rotate around center
+/// let rotate = RemapUv::new(UvExpr::rotate_centered(0.5));
+/// let rotated = rotate.apply(&img);
+/// ```
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct RemapUv {
+    /// The UV remapping expression.
+    pub expr: UvExpr,
+}
+
+impl RemapUv {
+    /// Creates a new UV remapping operation.
+    pub fn new(expr: UvExpr) -> Self {
+        Self { expr }
+    }
+
+    /// Applies the UV remapping to an image.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        remap_uv_impl(image, &self.expr)
+    }
+}
+
+/// Per-pixel color transform operation.
+///
+/// A true image primitive - per-pixel color computation.
+/// All color effects (grayscale, invert, levels, curves, color grading) are
+/// implemented via this primitive.
+///
+/// # Example
+///
+/// ```
+/// use rhizome_resin_image::{ImageField, ColorExpr, MapPixels};
+///
+/// let img = ImageField::from_raw(vec![[0.5, 0.3, 0.7, 1.0]; 16], 4, 4);
+///
+/// // Convert to grayscale
+/// let gray_op = MapPixels::new(ColorExpr::grayscale());
+/// let gray = gray_op.apply(&img);
+/// ```
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct MapPixels {
+    /// The color transform expression.
+    pub expr: ColorExpr,
+}
+
+impl MapPixels {
+    /// Creates a new per-pixel color transform.
+    pub fn new(expr: ColorExpr) -> Self {
+        Self { expr }
+    }
+
+    /// Applies the color transform to an image.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        map_pixels_impl(image, &self.expr)
+    }
 }
 
 /// Applies Sobel edge detection and returns the edge magnitude.
@@ -3689,6 +3877,16 @@ pub fn composite(
     mode: BlendMode,
     opacity: f32,
 ) -> ImageField {
+    Composite::new(mode, opacity).apply(base, overlay)
+}
+
+/// Internal composite implementation.
+fn composite_impl(
+    base: &ImageField,
+    overlay: &ImageField,
+    mode: BlendMode,
+    opacity: f32,
+) -> ImageField {
     let (width, height) = base.dimensions();
     let mut data = Vec::with_capacity((width * height) as usize);
 
@@ -4875,6 +5073,11 @@ impl ImagePyramid {
 /// assert_eq!(resized.dimensions(), (8, 6));
 /// ```
 pub fn resize(image: &ImageField, new_width: u32, new_height: u32) -> ImageField {
+    Resize::new(new_width, new_height).apply(image)
+}
+
+/// Internal resize implementation.
+fn resize_impl(image: &ImageField, new_width: u32, new_height: u32) -> ImageField {
     let new_width = new_width.max(1);
     let new_height = new_height.max(1);
 
@@ -9460,6 +9663,11 @@ pub use colorspace_dew::register_colorspace;
 /// let rotated = remap_uv(&image, &UvExpr::rotate_centered(0.5));
 /// ```
 pub fn remap_uv(image: &ImageField, expr: &UvExpr) -> ImageField {
+    RemapUv::new(expr.clone()).apply(image)
+}
+
+/// Internal remap_uv implementation.
+fn remap_uv_impl(image: &ImageField, expr: &UvExpr) -> ImageField {
     let (width, height) = image.dimensions();
     let mut data = Vec::with_capacity((width * height) as usize);
 
@@ -9514,6 +9722,11 @@ pub fn remap_uv(image: &ImageField, expr: &UvExpr) -> ImageField {
 /// let binary = map_pixels(&image, &ColorExpr::threshold(0.5));
 /// ```
 pub fn map_pixels(image: &ImageField, expr: &ColorExpr) -> ImageField {
+    MapPixels::new(expr.clone()).apply(image)
+}
+
+/// Internal map_pixels implementation.
+fn map_pixels_impl(image: &ImageField, expr: &ColorExpr) -> ImageField {
     let (width, height) = image.dimensions();
     let mut data = Vec::with_capacity((width * height) as usize);
 

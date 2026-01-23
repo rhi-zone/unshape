@@ -79,7 +79,7 @@ Track progress auditing each crate for decomposition opportunities.
 13. `ExtractBitPlane { channel, bit }` - extract single bit as image
 14. `SetBitPlane { channel, bit }` - set single bit from image
 
-**Note:** Some spatial primitives are still snake_case functions. Needs refactor to ops-as-values.
+**Ops-as-Values:** ✅ All spatial primitives now have struct forms (Convolve, Resize, Composite, RemapUv, MapPixels). Functions are sugar that delegate to op structs.
 
 **Decompositions Found:**
 
@@ -489,7 +489,7 @@ Recognizes common patterns and emits optimal code:
 ## Action Items
 
 ### High Priority
-- [ ] **Refactor resin-image to ops-as-values** - primitives are functions, should be structs
+- [x] **Refactor resin-image to ops-as-values** - Convolve, Resize, Composite, RemapUv, MapPixels now structs
 - [x] Add `Zip<A, B>` and `Zip3<A, B, C>` combinators to resin-field
 - [ ] Expose Integrator trait in resin-particle
 - [ ] Fix code duplication in resin-image colorspace ops

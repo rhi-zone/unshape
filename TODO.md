@@ -728,17 +728,19 @@ Add to image pattern-matching optimizer (like audio's tremolo/chorus recognition
 - [x] `UnspreadSpectrum { seed, factor }` - reverse spread (same seed)
 - [x] `QuantizeWithBias { levels }` - round toward bias image values
 
-### Image Ops-as-Values Refactor
+### Image Ops-as-Values Refactor ✅
 
 > **Goal:** Convert remaining function-based image ops to struct-based ops.
 
-**Currently snake_case functions (need conversion):**
-- [ ] `map_pixels` → `MapPixels { expr }`
-- [ ] `remap_uv` → `RemapUv { expr }`
-- [ ] `convolve` → `Convolve { kernel }`
-- [ ] `composite` → `Composite { blend_mode, opacity }`
-- [ ] `resize` → `Resize { width, height, filter }`
-- [ ] `color_matrix` → `ColorMatrix { matrix }`
+**Converted (functions now delegate to op structs):**
+- [x] `map_pixels` → `MapPixels { expr }`
+- [x] `remap_uv` → `RemapUv { expr }`
+- [x] `convolve` → `Convolve { kernel }`
+- [x] `composite` → `Composite { mode, opacity }`
+- [x] `resize` → `Resize { width, height }`
+
+**Remaining:**
+- [ ] `color_matrix` → `ColorMatrix { matrix }` (if needed - may be ColorExpr composition)
 
 See DECOMPOSITION-AUDIT.md for which are true primitives vs compositions.
 
