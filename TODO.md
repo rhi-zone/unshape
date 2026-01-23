@@ -548,11 +548,194 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 - [x] resin-physics - criterion benchmarks for world step, collision, integration, constraints
 - [x] resin-pointcloud - criterion benchmarks for creation, sampling, normals, transforms
 
+### Context Field Dead Code Elimination
+
+> **Goal:** Unified context types (PixelContext, AudioContext) with all fields, but optimizers eliminate unused fields across all backends.
+
+**Problem:** Passing `(u, v, x, y, width, height, time)` when only `(u, v)` is used wastes cycles.
+
+**Solution:** Static analysis + DCE in all backends:
+- [ ] AST analysis pass - determine which context fields are actually referenced
+- [ ] Cranelift JIT - eliminate unused parameter loads, dead stores
+- [ ] WGSL codegen - omit unused uniforms/varyings from generated shaders
+- [ ] GLSL codegen - same as WGSL
+- [ ] AOT/build.rs codegen - generate specialized functions without unused params
+- [ ] Interpreter - could skip field computation but lower priority
+
+**Context types affected:**
+- `PixelContext { u, v, x, y, width, height, time }` for image expressions
+- `AudioContext { sample_rate, time, dt, sample_index }` for audio expressions
+- Future: `FieldContext { x, y, z, time }` for 3D fields
+
+### Integer Image Processing / Bit-Level Primitives
+
+> **Goal:** Low-level bit manipulation for images - enables steganography, glitch art, compression analysis.
+
+**Types:**
+- [ ] `ImageFieldU8` - `[u8; 4]` per pixel, integer representation
+- [ ] `IntColorExpr` - integer color expressions with bitwise ops via dew
+
+**Conversion ops:**
+- [ ] `ToInt { range: IntRange }` - f32 0-1 → integer in range
+- [ ] `FromInt { range: IntRange }` - integer in range → f32 0-1
+- [ ] `IntRange` enum: `U8` (0-255), `Hue360` (0-359), `Custom { min: i32, max: i32 }`
+
+**Bit-level ops:**
+- [ ] `IntColorExpr` evaluation - full integer expression with bitwise ops via dew
+  - Bit plane extract: `(r >> bit) & 1`
+  - Bit plane set: `(r & ~(1 << bit)) | (source << bit)`
+  - LSB embed: `(r & 0xFE) | data_bit`
+  - These are expression patterns, not special ops - optimizer can recognize
+
+**Use cases:**
+- RGB LSB manipulation (0-255 range)
+- Hue LSB hiding (0-359 range) - low visual impact, detectable but obscure
+- Custom ranges for specific quantization schemes
+
+### Frequency Domain Image Processing
+
+> **Goal:** FFT/DCT for frequency analysis, filtering, and manipulation.
+
+**Primitives:**
+- [ ] `Fft2d` - image → complex frequency domain (two fields: real, imaginary)
+- [ ] `Ifft2d` - complex frequency domain → image
+- [ ] `Dct2d { block_size: Option<u32> }` - discrete cosine transform (JPEG-style)
+- [ ] `Idct2d { block_size: Option<u32> }` - inverse DCT
+
+**Complex number representation:** Two separate fields (real, imaginary) - explicit, composable.
+
+**Not primitives (compositions for optimizer):**
+- ~~FrequencyMask~~ - `fft → zip(mask) → ifft`
+- ~~HighPassFreq~~ - `fft → zip(radial_mask(cutoff, 0→1)) → ifft`
+- ~~LowPassFreq~~ - `fft → zip(radial_mask(cutoff, 1→0)) → ifft`
+- ~~BandPassFreq~~ - `fft → zip(ring_mask(lo, hi)) → ifft`
+
+Add to image pattern-matching optimizer (like audio's tremolo/chorus recognition).
+
+### Image Pattern-Matching Optimizer
+
+> **Goal:** Recognize common image operation patterns and replace with optimized implementations.
+> Parallel to audio's `GraphOptimizer` that recognizes tremolo/chorus/flanger.
+
+**Frequency domain patterns:**
+- [ ] `fft → mul(radial_mask) → ifft` → `LowPassFreqOptimized` / `HighPassFreqOptimized`
+- [ ] `fft → mul(ring_mask) → ifft` → `BandPassFreqOptimized`
+
+**Convolution patterns:**
+- [ ] Separable kernel detection → two 1D passes instead of 2D
+- [ ] `blur(blur(x))` → single blur with combined sigma
+
+**Bit manipulation patterns:**
+- [ ] `(r >> N) & 1` → `ExtractBitPlaneOptimized`
+- [ ] `(r & ~(1 << N)) | (src << N)` → `SetBitPlaneOptimized`
+- [ ] `(r & 0xFE) | bit` → `LsbEmbedOptimized`
+
+**Composite patterns:**
+- [ ] `original - blur(original)` → `HighPassOptimized` (unsharp component)
+- [ ] `original + k * (original - blur(original))` → `UnsharpMaskOptimized`
+- [ ] `lerp(original, transformed, mask)` → fused masked transform
+
+**Implementation:**
+- [ ] `ImageOptimizer` trait (parallel to `GraphOptimizer`)
+- [ ] Pattern matchers for each recognized pattern
+- [ ] Optimized implementations that fuse operations / use SIMD / avoid intermediate allocations
+
+### Comprehensive Primitive Decomposition Pass
+
+> **Goal:** Audit all ops across resin to find decomposition opportunities. Many "primitives" are compositions.
+
+**Mindset examples (what we've found so far):**
+
+| Looked like primitive | Actually is |
+|-----------------------|-------------|
+| `SdfToMask` | SDF is already a field, just use it (threshold = `map(\|d\| d < 0.0)`) |
+| `ApplyMasked<Op>` | `Mix<original, transformed, mask>` |
+| `MaskUnion/Intersect/Subtract` | Field math: `max(a,b)`, `min(a,b)`, `a*(1-b)` |
+| `HighPassFreq { cutoff }` | `fft → zip(radial_mask) → ifft` |
+| `LowPassFreq { cutoff }` | `fft → zip(radial_mask_inv) → ifft` |
+| `ExtractBitPlane { bit }` | IntColorExpr: `(r >> bit) & 1` |
+| `SetBitPlane { bit, src }` | IntColorExpr: `(r & ~(1 << bit)) \| (src << bit)` |
+| `Add<A, B>` | `Zip<A, B, "a + b">` |
+| `Mul<A, B>` | `Zip<A, B, "a * b">` |
+| `GaussianBlur { sigma }` | `convolve(gaussian_kernel(sigma))` - kernel is data, not op |
+| `UnsharpMask { amount }` | `original + amount * (original - blur(original))` |
+
+**Questions to ask for each op:**
+1. Can this be expressed as a composition of existing ops?
+2. Is this just an expression pattern the optimizer should recognize?
+3. Is the "parameter" actually data (kernel, LUT, mask) rather than configuration?
+4. Would a more general op subsume this and others?
+
+**Audit targets:**
+- [ ] resin-image - all ops, filters, effects
+- [ ] resin-audio - effects, filters (already did some: wah = envelope + bandpass)
+- [ ] resin-mesh - operations, modifiers
+- [ ] resin-vector - path operations
+- [ ] resin-field - combinators (are Add/Mul/Mix all needed, or just Zip + Map?)
+
+**Outcome:** Minimal primitive set + pattern-matching optimizer for common compositions.
+
+### Field Combinator Simplification
+
+> **Goal:** Reduce field combinators to true primitives.
+
+**Current state:**
+- `Mix<A, B, Blend>` - ternary lerp
+- `Add<A, B>`, `Mul<A, B>` - binary ops
+- `Map<F, M>` - unary transform
+
+**Proposed primitives:**
+- [ ] `Zip<A, B, Expr>` - general binary: subsumes Add, Mul, Min, Max, etc.
+- [ ] `Map<F, Expr>` - general unary: subsumes Abs, Negate, etc.
+- [ ] `Mix<A, B, T>` - keep as primitive? Or `Zip3<A, B, T, Expr>`?
+- [ ] Extend all to support Rgba output
+
+**Redundant (remove or make sugar):**
+- ~~Add<A, B>~~ → `Zip<A, B, "a + b">`
+- ~~Mul<A, B>~~ → `Zip<A, B, "a * b">`
+
+**Not needed (just use combinators):**
+- ~~SdfToMask~~ - SDF is already a field, threshold via `map(|d| if d < 0.0 { 1.0 } else { 0.0 })`
+- ~~ApplyMasked~~ - masking is just lerp with a second value:
+  - `Mix<original, transparent, mask>` = alpha mask
+  - `Mix<original, black, mask>` = fade to black
+  - `Mix<original, transformed, mask>` = selective transform
+  - `Mix<a, b, 0.5>` = 50% blend
+- ~~MaskUnion/Intersect/Subtract~~ - just field math: `max(a,b)`, `min(a,b)`, `a*(1-b)`
+
+### Spread Spectrum / Quantization
+
+> **Goal:** Primitives for robust signal embedding.
+
+**Ops:**
+- [ ] `SpreadSpectrum { seed: u64 }` - multiply by pseudorandom ±1 sequence
+- [ ] `UnspreadSpectrum { seed: u64 }` - reverse spread (same seed)
+- [ ] `QuantizeWithBias { levels: u32, bias: ImageField }` - round toward bias value
+
+### Dew → Rust Codegen (AOT)
+
+> **Goal:** Generate Rust source from dew expressions for compile-time optimization.
+
+**Outputs:**
+- [ ] `expr.to_rust_code() -> String` - text output for build.rs
+- [ ] `expr.to_tokens() -> TokenStream` - for proc-macros (feature-gated on `proc-macro2`)
+
+**Use cases:**
+- build.rs generates optimized effect implementations (parallel to audio codegen)
+- `#[derive(CompiledField)]` generates Field impl at compile time
+- Avoids JIT overhead, rustc optimizes further, better debugging
+- Pattern-matching optimizer runs at build time, emits fused implementations
+
+**Integration with optimizers:**
+- Run pattern recognition at build time
+- Emit specialized Rust for recognized patterns
+- Example: detect `fft → mask → ifft`, emit single fused function
+
 ### Architecture / Future Extraction
 
-- [ ] Scene graph generalization - evaluate if resin-motion's scene graph should be extracted to resin-scene for general use (2D/3D hierarchy, transforms, parent-child relationships)
-- [ ] Expression AST extensibility - figure out how users can add custom functions to MotionExpr/FieldExpr without forking
-- [ ] End-to-end shader compilation - compile dew expressions / ColorExpr / UvExpr to standalone WGSL/GLSL shaders (not just kernel fragments). Could enable exporting effects as reusable shader files.
+- [ ] Scene graph generalization - evaluate if resin-motion's scene graph should be extracted to resin-scene for general use
+- [ ] Expression AST extensibility - user-defined functions in MotionExpr/FieldExpr without forking
+- [ ] End-to-end shader compilation - dew/ColorExpr/UvExpr to standalone WGSL/GLSL shaders
 
 ### Extensibility / User-Defined Processing
 

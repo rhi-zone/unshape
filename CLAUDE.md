@@ -88,16 +88,71 @@ Do not:
 - Parameters > presets
 - Composition > inheritance
 
-**Operations as values.** Operations are serializable structs, methods are sugar:
+**Operations as values.** THIS IS CRITICAL. Every new piece of functionality MUST be an op struct first, method second.
+
 ```rust
+// CORRECT: Op struct with all parameters
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Subdivide { pub levels: u32 }
-impl Subdivide { fn apply(&self, mesh: &Mesh) -> Mesh { ... } }
 
-// Method is sugar for the op struct
-impl Mesh { fn subdivide(&self, levels: u32) -> Mesh { Subdivide { levels }.apply(self) } }
+impl Subdivide {
+    pub fn apply(&self, mesh: &Mesh) -> Mesh { ... }
+}
+
+// Method is SUGAR for the op - just delegates
+impl Mesh {
+    pub fn subdivide(&self, levels: u32) -> Mesh {
+        Subdivide { levels }.apply(self)
+    }
+}
 ```
-This makes history/serialization natural - just collect the ops. See `docs/design/ops-as-values.md`.
+
+**Why this matters:**
+- Serialization: ops can be saved/loaded as JSON, enabling project files
+- History/undo: collect ops into a Vec, replay or reverse them
+- Node graphs: ops become nodes trivially
+- Inspection: users can see what parameters were used
+- Reproducibility: same ops = same output
+
+**Apply to ALL domains:**
+```rust
+// Image
+pub struct GaussianBlur { pub radius: f32, pub sigma: f32 }
+pub struct ExtractBitPlane { pub channel: Channel, pub bit: u8 }
+pub struct Fft2d { pub inverse: bool }
+
+// Audio
+pub struct LowPass { pub cutoff_hz: f32, pub resonance: f32 }
+pub struct Reverb { pub room_size: f32, pub damping: f32 }
+
+// Mesh
+pub struct Extrude { pub distance: f32, pub segments: u32 }
+pub struct Bevel { pub width: f32, pub segments: u32 }
+```
+
+**Anti-patterns to AVOID:**
+```rust
+// BAD: Function with many parameters, no struct
+pub fn blur(image: &Image, radius: f32, sigma: f32, edge_mode: EdgeMode) -> Image
+
+// BAD: Method that doesn't delegate to an op
+impl Image {
+    pub fn blur(&self, radius: f32) -> Image {
+        // implementation directly here - NOT serializable!
+    }
+}
+
+// BAD: Proposing a "primitive" as just a function
+// "we could add an extract_bit_plane() function" - NO! Make it a struct first
+```
+
+**When proposing new functionality, ALWAYS structure as:**
+1. Define the op struct with all parameters
+2. Implement `apply(&self, input) -> output`
+3. Optionally add method sugar on the input type
+4. Derive Serialize/Deserialize
+
+See `docs/design/ops-as-values.md` for full rationale.
 
 ## Conventions
 
