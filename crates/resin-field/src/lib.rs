@@ -100,15 +100,60 @@ pub trait Field<I, O> {
             blend,
         }
     }
+
+    /// Zips this field with another, yielding a tuple of their outputs.
+    ///
+    /// This is a fundamental combinator - `Add`, `Mul`, `Mix` can all be
+    /// expressed as `zip().map(...)`.
+    ///
+    /// # Example
+    /// ```
+    /// use rhizome_resin_field::{Field, EvalContext, Constant, Zip};
+    ///
+    /// let a = Constant::new(1.0_f32);
+    /// let b = Constant::new(2.0_f32);
+    /// let zipped = Zip::new(a, b);
+    ///
+    /// let ctx = EvalContext::new();
+    /// let (va, vb): (f32, f32) = Field::<f32, _>::sample(&zipped, 0.0, &ctx);
+    /// assert_eq!(va, 1.0);
+    /// assert_eq!(vb, 2.0);
+    /// ```
+    fn zip<F2, O2>(self, other: F2) -> Zip<Self, F2>
+    where
+        Self: Sized,
+        F2: Field<I, O2>,
+    {
+        Zip { a: self, b: other }
+    }
+
+    /// Zips this field with two others, yielding a triple of their outputs.
+    ///
+    /// Useful for operations like lerp: `a.zip3(b, t).map(|(a, b, t)| a * (1.0 - t) + b * t)`
+    fn zip3<F2, O2, F3, O3>(self, second: F2, third: F3) -> Zip3<Self, F2, F3>
+    where
+        Self: Sized,
+        F2: Field<I, O2>,
+        F3: Field<I, O3>,
+    {
+        Zip3 {
+            a: self,
+            b: second,
+            c: third,
+        }
+    }
 }
 
 // Combinators
 
 /// Maps the output of a field.
 pub struct Map<F, M, O> {
-    field: F,
-    f: M,
-    _phantom: PhantomData<O>,
+    /// The inner field to transform.
+    pub field: F,
+    /// The mapping function.
+    pub f: M,
+    /// Phantom data for the original output type.
+    pub _phantom: PhantomData<O>,
 }
 
 impl<I, O, O2, F, M> Field<I, O2> for Map<F, M, O>
@@ -118,6 +163,100 @@ where
 {
     fn sample(&self, input: I, ctx: &EvalContext) -> O2 {
         (self.f)(self.field.sample(input, ctx))
+    }
+}
+
+/// Zips two fields, evaluating both at the same input.
+///
+/// This is a fundamental primitive - binary operations like `Add`, `Mul`
+/// can be expressed as `Zip + Map`.
+///
+/// # Example
+/// ```
+/// use rhizome_resin_field::{Field, EvalContext, Constant, Zip, Map};
+/// use std::marker::PhantomData;
+///
+/// let a = Constant::new(3.0_f32);
+/// let b = Constant::new(4.0_f32);
+///
+/// // Manual addition via zip + map
+/// let zipped = Zip::new(a, b);
+/// let sum = Map { field: zipped, f: |(x, y): (f32, f32)| x + y, _phantom: PhantomData };
+///
+/// let ctx = EvalContext::new();
+/// assert_eq!(Field::<f32, f32>::sample(&sum, 0.0, &ctx), 7.0);
+/// ```
+pub struct Zip<A, B> {
+    a: A,
+    b: B,
+}
+
+impl<A, B> Zip<A, B> {
+    /// Creates a new zip combinator.
+    pub fn new(a: A, b: B) -> Self {
+        Self { a, b }
+    }
+}
+
+impl<I, A, B, OA, OB> Field<I, (OA, OB)> for Zip<A, B>
+where
+    I: Clone,
+    A: Field<I, OA>,
+    B: Field<I, OB>,
+{
+    fn sample(&self, input: I, ctx: &EvalContext) -> (OA, OB) {
+        let va = self.a.sample(input.clone(), ctx);
+        let vb = self.b.sample(input, ctx);
+        (va, vb)
+    }
+}
+
+/// Zips three fields, evaluating all at the same input.
+///
+/// This is a fundamental primitive - ternary operations like `Mix`/lerp
+/// can be expressed as `Zip3 + Map`.
+///
+/// # Example
+/// ```
+/// use rhizome_resin_field::{Field, EvalContext, Constant, Zip3, Map};
+/// use std::marker::PhantomData;
+///
+/// let a = Constant::new(0.0_f32);
+/// let b = Constant::new(10.0_f32);
+/// let t = Constant::new(0.5_f32);
+///
+/// // Manual lerp via zip3 + map
+/// let zipped = Zip3::new(a, b, t);
+/// let lerp = Map { field: zipped, f: |(a, b, t): (f32, f32, f32)| a * (1.0 - t) + b * t, _phantom: PhantomData };
+///
+/// let ctx = EvalContext::new();
+/// assert_eq!(Field::<f32, f32>::sample(&lerp, 0.0, &ctx), 5.0);
+/// ```
+pub struct Zip3<A, B, C> {
+    a: A,
+    b: B,
+    c: C,
+}
+
+impl<A, B, C> Zip3<A, B, C> {
+    /// Creates a new zip3 combinator.
+    pub fn new(a: A, b: B, c: C) -> Self {
+        Self { a, b, c }
+    }
+}
+
+impl<I, A, B, C, OA, OB, OC> Field<I, (OA, OB, OC)> for Zip3<A, B, C>
+where
+    I: Clone,
+    A: Field<I, OA>,
+    B: Field<I, OB>,
+    C: Field<I, OC>,
+{
+    fn sample(&self, input: I, ctx: &EvalContext) -> (OA, OB, OC) {
+        let va = self.a.sample(input.clone(), ctx);
+        let vb = self.b.sample(input.clone(), ctx);
+        let vc = self.c.sample(input, ctx);
+        (va, vb, vc)
     }
 }
 
@@ -315,6 +454,59 @@ where
         let b = self.b.sample(input, ctx);
         a.lerp(b, t)
     }
+}
+
+// ============================================================================
+// Ergonomic Helper Functions (Layer 2)
+// ============================================================================
+//
+// These functions provide convenient APIs that expand to Zip/Map compositions.
+// They're not primitives - just sugar over the true primitives.
+
+/// Zips two fields together.
+///
+/// Standalone function version of `Field::zip()`.
+pub fn zip<A, B>(a: A, b: B) -> Zip<A, B> {
+    Zip::new(a, b)
+}
+
+/// Zips three fields together.
+///
+/// Standalone function version of `Field::zip3()`.
+pub fn zip3<A, B, C>(a: A, b: B, c: C) -> Zip3<A, B, C> {
+    Zip3::new(a, b, c)
+}
+
+/// Linearly interpolates between two fields.
+///
+/// This is an ergonomic helper that expands to `Zip3 + Map`.
+///
+/// # Example
+/// ```
+/// use rhizome_resin_field::{Field, EvalContext, Constant, lerp};
+/// use glam::Vec2;
+///
+/// let a = Constant::new(0.0_f32);
+/// let b = Constant::new(10.0_f32);
+/// let t = Constant::new(0.25_f32);
+///
+/// let result = lerp::<Vec2, _, _, _>(a, b, t);
+///
+/// let ctx = EvalContext::new();
+/// assert_eq!(result.sample(Vec2::ZERO, &ctx), 2.5);
+/// ```
+pub fn lerp<I, A, B, T>(
+    a: A,
+    b: B,
+    t: T,
+) -> Map<Zip3<A, B, T>, impl Fn((f32, f32, f32)) -> f32, (f32, f32, f32)>
+where
+    I: Clone,
+    A: Field<I, f32>,
+    B: Field<I, f32>,
+    T: Field<I, f32>,
+{
+    Zip3::new(a, b, t).map(|(a, b, t)| a * (1.0 - t) + b * t)
 }
 
 // Basic field implementations
@@ -4337,6 +4529,101 @@ mod tests {
         let ctx = EvalContext::new();
 
         assert_eq!(field.sample(Vec2::ZERO, &ctx), 7.0);
+    }
+
+    #[test]
+    fn test_zip_combinator() {
+        let a = Constant::new(3.0f32);
+        let b = Constant::new(4.0f32);
+        let zipped = Zip::new(a, b);
+        let ctx = EvalContext::new();
+
+        let (va, vb): (f32, f32) = Field::<Vec2, (f32, f32)>::sample(&zipped, Vec2::ZERO, &ctx);
+        assert_eq!(va, 3.0);
+        assert_eq!(vb, 4.0);
+    }
+
+    #[test]
+    fn test_zip_with_map_equals_add() {
+        let a = Constant::new(3.0f32);
+        let b = Constant::new(4.0f32);
+        let zipped = Zip::new(a, b);
+        let sum = Map {
+            field: zipped,
+            f: |(x, y): (f32, f32)| x + y,
+            _phantom: PhantomData::<(f32, f32)>,
+        };
+        let ctx = EvalContext::new();
+
+        assert_eq!(Field::<Vec2, f32>::sample(&sum, Vec2::ZERO, &ctx), 7.0);
+    }
+
+    #[test]
+    fn test_zip3_combinator() {
+        let a = Constant::new(1.0f32);
+        let b = Constant::new(2.0f32);
+        let c = Constant::new(3.0f32);
+        let zipped = Zip3::new(a, b, c);
+        let ctx = EvalContext::new();
+
+        let (va, vb, vc): (f32, f32, f32) =
+            Field::<Vec2, (f32, f32, f32)>::sample(&zipped, Vec2::ZERO, &ctx);
+        assert_eq!(va, 1.0);
+        assert_eq!(vb, 2.0);
+        assert_eq!(vc, 3.0);
+    }
+
+    #[test]
+    fn test_zip3_lerp() {
+        let a = Constant::new(0.0f32);
+        let b = Constant::new(10.0f32);
+        let t = Constant::new(0.5f32);
+        let zipped = Zip3::new(a, b, t);
+        let result = Map {
+            field: zipped,
+            f: |(a, b, t): (f32, f32, f32)| a * (1.0 - t) + b * t,
+            _phantom: PhantomData::<(f32, f32, f32)>,
+        };
+        let ctx = EvalContext::new();
+
+        assert_eq!(Field::<Vec2, f32>::sample(&result, Vec2::ZERO, &ctx), 5.0);
+    }
+
+    #[test]
+    fn test_lerp_helper() {
+        let a = Constant::new(0.0f32);
+        let b = Constant::new(10.0f32);
+        let t = Constant::new(0.25f32);
+        let result = super::lerp::<Vec2, _, _, _>(a, b, t);
+        let ctx = EvalContext::new();
+
+        assert_eq!(result.sample(Vec2::ZERO, &ctx), 2.5);
+    }
+
+    #[test]
+    fn test_zip_standalone_fn() {
+        let a = Constant::new(5.0f32);
+        let b = Constant::new(7.0f32);
+        let zipped = super::zip(a, b);
+        let ctx = EvalContext::new();
+
+        let (va, vb): (f32, f32) = zipped.sample(0.0f32, &ctx);
+        assert_eq!(va, 5.0);
+        assert_eq!(vb, 7.0);
+    }
+
+    #[test]
+    fn test_zip3_standalone_fn() {
+        let a = Constant::new(1.0f32);
+        let b = Constant::new(2.0f32);
+        let c = Constant::new(3.0f32);
+        let zipped = super::zip3(a, b, c);
+        let ctx = EvalContext::new();
+
+        let (va, vb, vc): (f32, f32, f32) = zipped.sample(0.0f32, &ctx);
+        assert_eq!(va, 1.0);
+        assert_eq!(vb, 2.0);
+        assert_eq!(vc, 3.0);
     }
 
     #[test]
