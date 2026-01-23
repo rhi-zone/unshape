@@ -17,7 +17,7 @@ Track progress auditing each crate for decomposition opportunities.
 | resin-curve | - | | |
 | resin-easing | - | | |
 | resin-expr-field | - | | |
-| resin-field | done | 3-4 | Map, FnField, Twist/Bend/Repeat. Add/Mul/Mix are Zip+Map |
+| resin-field | done | 5 | Map, Zip, Zip3, FnField, Twist/Bend/Repeat. Add/Mul/Mix are Zip+Map |
 | resin-fluid | - | | |
 | resin-geometry | skip | — | Traits only |
 | resin-gltf | skip | — | I/O |
@@ -146,13 +146,16 @@ Track progress auditing each crate for decomposition opportunities.
 
 ### resin-field (done)
 
-**True Primitives (3-4):**
+**True Primitives (5):**
 1. `Map<F, M>` - output transformation
-2. `FnField<I, O, F>` - universal closure adapter
-3. `Twist/Bend/Repeat` - irreducible domain transforms
+2. `Zip<A, B>` - evaluate both fields at same input, yield tuple ✅
+3. `Zip3<A, B, C>` - evaluate three fields at same input, yield triple ✅
+4. `FnField<I, O, F>` - universal closure adapter
+5. `Twist/Bend/Repeat` - irreducible domain transforms
 
-**Missing Primitive:**
-- `Zip<A, B>` - evaluate both fields at same input, yield tuple
+**Ergonomic Helpers (Layer 2):**
+- `lerp(a, b, t)` - expands to `Zip3 + Map` ✅
+- `zip(a, b)`, `zip3(a, b, c)` - standalone functions ✅
 
 **Redundant (all are Zip+Map):**
 
@@ -487,7 +490,7 @@ Recognizes common patterns and emits optimal code:
 
 ### High Priority
 - [ ] **Refactor resin-image to ops-as-values** - primitives are functions, should be structs
-- [ ] Add `Zip<A, B>` combinator to resin-field
+- [x] Add `Zip<A, B>` and `Zip3<A, B, C>` combinators to resin-field
 - [ ] Expose Integrator trait in resin-particle
 - [ ] Fix code duplication in resin-image colorspace ops
 
