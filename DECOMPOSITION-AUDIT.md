@@ -538,6 +538,225 @@ Track progress auditing each crate for decomposition opportunities.
 
 ---
 
+### resin-motion / resin-motion-fn (done)
+
+**True Primitives (3):**
+1. `Spring<T>` - critically/underdamped spring ODE solver via `spring_value()`
+2. `Oscillate<T>` - sine wave parameterization (t → phase → sin)
+3. `Wiggle` / `Wiggle2D` - noise-based motion via Perlin sampling
+
+**Time Transformations (not primitives):**
+- `Delay<M>` → `motion.at(t - delay)`
+- `TimeScale<M>` → `motion.at(t * scale)`
+- `Loop<M>` → `motion.at(t % duration)`
+- `PingPong<M>` → bidirectional looping
+
+**Decompositions Found:**
+
+| Operation | Decomposes To |
+|-----------|---------------|
+| `OscillateTransform2D` | `Oscillate<f32>` per component + reassemble |
+| `WiggleTransform2D` | `Wiggle` per component + reassemble |
+| `Eased<T>` | `Lerp<T>` + easing expression (dew) |
+| `Constant<T>` | Trivial (return clone) |
+| `Lerp<T>` | Standard linear interpolation |
+
+**Key Insight:** Transform motion types decompose to Zip of per-component scalar motions. Time wrappers are orthogonal transformations.
+
+---
+
+### resin-pointcloud (done)
+
+**True Primitives (2 Op structs):**
+1. `Poisson { min_distance, max_attempts }` - Bridson's algorithm with spatial hashing
+2. `RemoveOutliers { k, std_ratio }` - statistical distance-based filtering
+
+**Should-Be-Ops (currently free functions):**
+- `UniformSampling { count }` - area-weighted surface sampling
+- `SdfSampling { count, threshold }` - rejection sampling on implicit surface
+- `EstimateNormals { k }` - local PCA normal inference
+- `VoxelDownsample { voxel_size }` - spatial quantization + averaging
+- `CropBounds { min, max }` - AABB filtering
+
+**Key Insight:** Only 2 ops follow ops-as-values pattern. 5 free functions need struct wrappers for serialization.
+
+---
+
+### resin-scatter (done)
+
+**True Primitives (6):**
+1. `ScatterRandom` - uniform random distribution in bounds
+2. `ScatterGrid` - regular 3D lattice
+3. `ScatterSphere` - Fibonacci sphere parameterization
+4. `ScatterPoissonDisk2D` - Bridson's 2D blue noise
+5. `ScatterLine` - linear interpolation along segment
+6. `ScatterCircle` - polar angle enumeration
+
+**Decompositions Found:**
+
+| Operation | Decomposes To |
+|-----------|---------------|
+| `scatter_grid_2d` | `scatter_grid([rx, ry, 1])` with z fixed |
+| `randomize_scale` | Post-process: per-instance scale multiplication |
+| `randomize_rotation` | Post-process: random quaternion assignment |
+| `jitter_positions` | Post-process: per-axis offset perturbation |
+| Stagger system | Animation timing (belongs in resin-motion) |
+
+**Key Insight:** 6 distinct distribution algorithms. Post-processing helpers (randomize_*, jitter_*) are transforms, not scatter ops.
+
+---
+
+### resin-procgen (done)
+
+**True Primitives (8):**
+1. `WfcSolver` - Wave Function Collapse with entropy-driven constraint propagation
+2. `RecursiveBacktracker` - DFS maze (long winding passages)
+3. `Prim` - randomized Prim's spanning tree maze
+4. `Kruskal` - union-find spanning tree maze
+5. `Eller` - row-by-row efficient maze generation
+6. `BinaryTree` - simple diagonal-bias maze
+7. `Sidewinder` - horizontal-bias maze variant
+8. `RiverNetwork::generate_river()` - procedural river with meandering
+
+**Op Structs (Layer 2):**
+- `GenerateMaze { width, height, algorithm, add_entrance, add_exit }`
+- `GenerateRiver { source, sink, config }`
+- `GenerateRoadNetworkGrid { bounds_min, bounds_max, spacing }`
+- `GenerateRoadNetworkHierarchical { bounds_min, bounds_max, density }`
+
+**Key Insight:** WFC and maze algorithms are irreducible—each uses fundamentally different traversal patterns. Presets are configurations of these primitives.
+
+---
+
+### resin-rig (done)
+
+**True Primitives (8):**
+1. `Skeleton` - hierarchical bone structure with parent-child relationships
+2. `Pose` - per-bone transforms relative to rest pose
+3. `Transform3D` - TRS composition with lerp via quaternion slerp
+4. `Skin` - linear blend skinning (weighted bone transforms)
+5. `solve_ccd` - Cyclic Coordinate Descent IK
+6. `solve_fabrik` - Forward And Backward Reaching IK
+7. `JiggleBone` - spring-damper physics for soft body
+8. `Track<T>` - keyframe storage with interpolation
+
+**Decompositions Found:**
+
+| Operation | Decomposes To |
+|-----------|---------------|
+| `ProceduralWalk` | Gait config + IK per leg + parametric body motion |
+| `MotionMatcher` | Database search + linear blend |
+| `AnimationStack` | Layered Track sampling + Lerp |
+| `PathConstraint` | Path sampling + transform composition |
+| `BlendNode` | Tree container + recursive sampling |
+
+**Key Insight:** IK solvers (CCD, FABRIK) and physics (JiggleBone) are irreducible. Locomotion and animation blending decompose to primitives.
+
+---
+
+### resin-fluid (done)
+
+**True Primitives (4):**
+1. `Stable Fluids Step` - Eulerian grid PDE (advect + diffuse + project)
+2. `SPH Particle Integration` - Smoothed Particle Hydrodynamics (density + forces + integrate)
+3. `Smoke Buoyancy Force` - temperature-driven velocity (`apply_buoyancy`)
+4. `Dissipation` - exponential energy decay
+
+**Configuration Structs (not primitives):**
+- `Fluid` - grid simulation parameters
+- `Sph` / `SphParams3D` - particle simulation parameters
+- `Smoke` - smoke simulation parameters
+
+**Decompositions Found:**
+
+| Operation | Decomposes To |
+|-----------|---------------|
+| `add_density` / `add_velocity` | Buffer write + field access |
+| `add_particle` / `add_block` | Vec::push + spatial iteration |
+| `sample_density` / `sample_velocity` | Bilinear interpolation |
+| `clear` | `fill(0.0)` on all buffers |
+
+**Key Insight:** Fluid methods (Stable Fluids vs SPH vs Smoke) are fundamentally different algorithms. Cannot decompose further.
+
+---
+
+### resin-crossdomain (done)
+
+**True Primitives (2):**
+1. `ImageToAudio` - per-row frequency bands → additive synthesis
+2. `AudioToImage` - STFT → spectrogram visualization
+
+**Helper Functions (not primitives):**
+- `audio_to_image_colored()` - AudioToImage + colorization
+- `field_to_audio()` / `field_to_audio_stereo()` - field sampling → audio
+- `field_to_image()` / `field_rgba_to_image()` - field sampling → image
+- `field_to_vertices_2d/3d()` - field sampling → vertex positions
+- `field_to_displacement()` - field → mesh displacement
+
+**View Types (reinterpretation, not ops):**
+- `AudioView`, `PixelView`, `Vertices2DView`, `Vertices3DView`
+
+**Key Insight:** Two core domain-crossing primitives (image↔audio via spectral). Helpers are field sampling + domain conversion.
+
+---
+
+### resin-space-colonization (done)
+
+**True Primitives (2):**
+1. `SpaceColonizationStep` - core iteration (influence finding → direction averaging → node creation)
+2. `ComputeRadii` - pipe model radius calculation (leaf → root propagation)
+
+**Decompositions Found:**
+
+| Operation | Decomposes To |
+|-----------|---------------|
+| `generate_tree()` | `SpaceColonizationParams` + sphere attractions + gravity tropism |
+| `generate_lightning()` | `SpaceColonizationParams` + cylinder attractions + directional tropism |
+| `add_attraction_points_*` | Geometric sampling utilities |
+| Tropism | Directional bias (could be field modifier) |
+
+**Key Insight:** Step + radii computation are irreducible. Tree/lightning presets are parameter configurations.
+
+---
+
+### resin-surface (done)
+
+**True Primitives (1):**
+1. `NurbsSurface::evaluate(u, v)` - De Boor algorithm for tensor product B-spline + rational weighting
+
+**Decompositions Found:**
+
+| Operation | Decomposes To |
+|-----------|---------------|
+| `derivative_u(u, v)` | `evaluate(u+ε, v) - evaluate(u-ε, v)` / 2ε |
+| `derivative_v(u, v)` | `evaluate(u, v+ε) - evaluate(u, v-ε)` / 2ε |
+| `normal(u, v)` | `derivative_u.cross(derivative_v).normalize()` |
+| `tessellate(div_u, div_v)` | Grid loop: `evaluate()` + quad triangulation |
+
+**Constructors (presets):**
+- `nurbs_sphere`, `nurbs_cylinder`, `nurbs_torus`, `nurbs_cone`, `nurbs_bilinear_patch`
+
+**Key Insight:** Value container like resin-spline. Evaluation is the only primitive; derivatives and tessellation decompose to repeated evaluation.
+
+---
+
+### resin-gpu (done)
+
+**True Primitives (1):**
+1. `NoiseConfig` - GPU-accelerated noise generation parameters
+
+**Implementation Details (not primitives):**
+- `NoiseTextureKernel` / `NoiseTextureNode` - GPU compute implementations
+- `ParameterizedNoiseNode` - parameterized noise via GPU
+- `MapPixelsKernel` / `RemapUvKernel` (with `image-expr` feature)
+
+**Infrastructure:**
+- `GpuContext`, `GpuTexture` - GPU resource management
+
+**Key Insight:** GPU crate provides accelerated implementations of existing primitives (noise, image ops). NoiseConfig is the only domain-specific op struct.
+
+---
+
 ## Summary: Minimal Primitive Sets
 
 ### Image (14)
@@ -600,6 +819,36 @@ Gamma conversion, HSL/HSV coordinate transform, hue-wrapped lerp
 
 ### Reaction-Diffusion (2)
 `Step` (PDE integration), `Laplacian` (finite difference)
+
+### Motion (3)
+`Spring`, `Oscillate`, `Wiggle` (time wrappers like Delay/Loop are transforms, not primitives)
+
+### Pointcloud (2)
+`Poisson`, `RemoveOutliers`
+
+### Scatter (6)
+`ScatterRandom`, `ScatterGrid`, `ScatterSphere`, `ScatterPoissonDisk2D`, `ScatterLine`, `ScatterCircle`
+
+### Procgen (8)
+`WfcSolver`, `RecursiveBacktracker`, `Prim`, `Kruskal`, `Eller`, `BinaryTree`, `Sidewinder`, river generation
+
+### Rig (8)
+`Skeleton`, `Pose`, `Transform3D`, `Skin`, `solve_ccd`, `solve_fabrik`, `JiggleBone`, `Track`
+
+### Fluid (4)
+Stable Fluids (advect/diffuse/project), SPH, Smoke buoyancy, Dissipation
+
+### Crossdomain (2)
+`ImageToAudio`, `AudioToImage`
+
+### Space Colonization (2)
+`SpaceColonizationStep`, `ComputeRadii`
+
+### Surface (1)
+`NurbsSurface::evaluate` (value container like Spline)
+
+### GPU (1)
+`NoiseConfig` (GPU acceleration of existing primitives)
 
 ---
 
