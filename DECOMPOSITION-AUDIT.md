@@ -8,48 +8,48 @@ Track progress auditing each crate for decomposition opportunities.
 |-------|--------|------------------|-------------|
 | resin-audio | done | 9 | DelayLine, PhaseOsc, Biquad, EnvelopeFollower, Allpass1, FFT/IFFT, AffineNode, Smoother, Mix |
 | resin-audio-codegen | skip | — | Codegen, not ops |
-| resin-automata | - | | |
+| resin-automata | done | 2 | StepElementaryCA, StepCellularAutomaton2D. Config/presets are helpers |
 | resin-backend | skip | — | Infrastructure |
-| resin-bytes | - | | |
-| resin-color | - | | |
-| resin-core | - | | |
-| resin-crossdomain | - | | |
-| resin-curve | - | | |
-| resin-easing | - | | |
-| resin-expr-field | - | | |
+| resin-bytes | skip | — | Infrastructure (byte casting utilities) |
+| resin-color | done | 3 | Gamma, HSL/HSV transform, hue-wrapped lerp. Blend modes are component-wise ops |
+| resin-core | skip | — | Infrastructure (node graph system, DynNode, Value) |
+| resin-crossdomain | done | 2 | ImageToAudio (additive synthesis), AudioToImage (STFT spectrogram) |
+| resin-curve | done | 4 | Line, QuadBezier, CubicBezier, Arc. All ops decompose to position_at/tangent_at |
+| resin-easing | done | 0 | All easing = dew expressions (t*t, sin, pow, etc). Ergonomic presets only |
+| resin-expr-field | skip | — | Infrastructure (dew→field bridge, FieldExpr AST) |
 | resin-field | done | 5 | Map, Zip, Zip3, FnField, Twist/Bend/Repeat. Add/Mul/Mix are Zip+Map |
-| resin-fluid | - | | |
+| resin-fluid | done | 4 | Stable Fluids (advect/diffuse/project), SPH, Smoke buoyancy, Dissipation |
 | resin-geometry | skip | — | Traits only |
 | resin-gltf | skip | — | I/O |
-| resin-gpu | - | | |
+| resin-gpu | done | 1 | NoiseConfig (GPU noise). Kernels are impl detail |
 | resin-history | skip | — | Infrastructure |
 | resin-image | done | 5+spectral | MapPixels, RemapUv, Convolve, Composite, Resize + spectral ops from resin-spectral |
 | resin-jit | skip | — | Codegen |
 | resin-spectral | done | 6 | FFT, IFFT, FFT2D, IFFT2D, DCT, IDCT (shared by audio/image) |
-| resin-lsystem | - | | |
+| resin-lsystem | done | 3 | LSystem.generate, Turtle2D, Turtle3D. Presets are config |
 | resin-macros | skip | — | Proc macros |
 | resin-mesh | done | 7 | Poke, SplitEdge, RipVertex, Transform, Linear/Loop/CC subdivision |
-| resin-motion | - | | |
-| resin-motion-fn | - | | |
+| resin-motion | done | 3 | Spring, Oscillate, Wiggle. Transform motions = Zip of components |
+| resin-motion-fn | done | 3 | Same as resin-motion (Spring, Oscillate, Wiggle). Delay/Loop are time transforms |
 | resin-noise | done | 5 | Perlin, Simplex(2D/3D), Value, Worley, Velvet |
 | resin-op | skip | — | Infrastructure |
 | resin-op-macros | skip | — | Proc macros |
 | resin-particle | done | ~8 | CompositeEmitter pattern, 4 force primitives, Integrator missing |
 | resin-physics | done | 5 | RigidBody, Force/Impulse, Integration, Collision shapes, Constraint |
-| resin-pointcloud | - | | |
-| resin-procgen | - | | |
-| resin-rd | - | | |
-| resin-rig | - | | |
-| resin-scatter | - | | |
+| resin-pointcloud | done | 2 | Poisson, RemoveOutliers. Other ops need struct wrappers |
+| resin-procgen | done | 8 | WfcSolver + 6 maze algorithms + river generation |
+| resin-rd | done | 2 | Step (PDE integration), Laplacian (internal). Seeds are buffer writes |
+| resin-rig | done | 8 | Skeleton, Pose, Skin, CCD, FABRIK, JiggleBone, Track. Locomotion decomposes |
+| resin-scatter | done | 6 | Random, Grid, Sphere, PoissonDisk2D, Line, Circle |
 | resin-serde | skip | — | Serialization |
-| resin-space-colonization | - | | |
-| resin-spatial | - | | |
-| resin-spline | - | | |
-| resin-spring | - | | |
-| resin-surface | - | | |
+| resin-space-colonization | done | 2 | SpaceColonizationStep, ComputeRadii (pipe model) |
+| resin-spatial | done | 9 | Quadtree, Octree, KdTree2D/3D, BallTree2D/3D, Bvh, SpatialHash, Rtree |
+| resin-spline | done | 4 | CubicBezier, CatmullRom, BSpline, Nurbs. Value containers, not ops |
+| resin-spring | done | 2 | Verlet integrate, SpringConstraint solve. Damping is parametric |
+| resin-surface | done | 1 | NurbsSurface::evaluate (De Boor). Value container like resin-spline |
 | resin-transform | skip | — | Traits only |
 | resin-vector | done | ~8 | Line/Curve segments, polygon algorithms. Heavy flattening |
-| resin-voxel | - | | |
+| resin-voxel | done | 8 | FillSphere/Box, Dilate, Erode, VoxelsToMesh, SDF conversion |
 
 **Legend:** `-` = not started, `partial` = in progress, `done` = complete, `skip` = not applicable
 
@@ -313,6 +313,231 @@ Track progress auditing each crate for decomposition opportunities.
 
 ---
 
+### resin-curve (done)
+
+**True Primitives (4):**
+1. `Line<V>` - linear segment (trivial lerp)
+2. `QuadBezier<V>` - quadratic Bézier (3 control points)
+3. `CubicBezier<V>` - cubic Bézier (4 control points)
+4. `Arc` - 2D elliptical arc (angular parameterization)
+
+**Composition Containers:**
+- `Path<C>` - connected sequence of curves
+- `ArcLengthPath<C>` - arc-length parameterized wrapper
+- `Segment2D` / `Segment3D` - enum dispatchers
+
+**Decompositions Found:**
+
+| Operation | Decomposes To |
+|-----------|---------------|
+| `Path::position_at(t)` | Segment indexing + `.position_at()` |
+| `Path::length()` | Sum of segment lengths |
+| `ArcLengthPath` | Path + cumulative length cache + binary search |
+| `Curve::flatten(tol)` | Recursive bisection via `position_at()` |
+| `Curve::length()` | Gaussian quadrature over `tangent_at()` |
+
+**Key Insight:** All operations decompose to repeated queries of `position_at()` and `tangent_at()`.
+
+---
+
+### resin-easing (done)
+
+**True Primitives: 0** - All easing functions are dew expressions.
+
+| Easing | Dew Expression |
+|--------|----------------|
+| `linear` | `t` |
+| `quad_in` | `t * t` |
+| `cubic_in` | `t * t * t` |
+| `quart_in` | `pow(t, 4)` |
+| `sine_in` | `1 - cos(t * PI / 2)` |
+| `expo_in` | `pow(2, 10 * (t - 1))` |
+| `circ_in` | `1 - sqrt(1 - t * t)` |
+| `back_in` | `t * t * (2.70158 * t - 1.70158)` |
+| `elastic_in` | `pow(2, 10*(t-1)) * sin(...)` |
+| `smoothstep` | `t * t * (3 - 2 * t)` |
+| `smootherstep` | `t * t * t * (t * (6*t - 15) + 10)` |
+
+**Decompositions:**
+- All `*_out(t)` = `1 - *_in(1-t)`
+- All `*_in_out(t)` = piecewise `*_in` scaled
+
+**Three-Layer Architecture:**
+1. **Primitives**: dew's `+`, `*`, `sin`, `cos`, `pow`, `sqrt`
+2. **Ergonomics**: `quad_in(t)` constructs the expression `t * t`
+3. **Optimizer**: Pattern-matches `t*t*(3-2*t)` → GPU `smoothstep` intrinsic
+
+**Key Insight:** resin-easing provides ergonomic presets, not primitives. The optimizer handles efficient codegen.
+
+---
+
+### resin-color (done)
+
+**True Primitives (3):**
+1. `srgb_to_linear` / `linear_to_srgb` - gamma curve conversion
+2. `LinearRgb::to_hsl()` / `to_hsv()` - coordinate system transform with hue calculation
+3. `Hsl::lerp()` / `Hsv::lerp()` - interpolation with hue wrapping (short path)
+
+**Decompositions Found:**
+
+| Blend Mode | Decomposes To |
+|------------|---------------|
+| Multiply | `a * b` |
+| Screen | `1 - (1-a)*(1-b)` |
+| Overlay | `if a<0.5 then 2*a*b else 1-2*(1-a)*(1-b)` |
+| Darken | `min(a, b)` |
+| Lighten | `max(a, b)` |
+| Add | `min(a+b, 1)` |
+| Subtract | `max(a-b, 0)` |
+| Difference | `abs(a-b)` |
+| `clamp()` | Per-component bounding |
+| `premultiply()` | Per-channel alpha scaling |
+| `blend_with_alpha()` | Lerp + alpha compositing |
+
+**Key Insight:** Color space conversions are irreducible (unique math), but blend modes decompose to component-wise operations.
+
+---
+
+### resin-spatial (done)
+
+**True Primitives (9 structures):**
+1. `Aabb2` / `Aabb3` - bounding box geometry
+2. `Quadtree` - 2D hierarchical partitioning (4-way)
+3. `Octree` - 3D hierarchical partitioning (8-way)
+4. `KdTree2D` / `KdTree3D` - axis-aligned binary partitioning
+5. `BallTree2D` / `BallTree3D` - metric ball partitioning
+6. `Bvh` - SAH-based ray hierarchy
+7. `SpatialHash` - uniform grid hashing
+8. `Rtree` - dynamic rectangle tree
+
+**Decompositions Found:**
+
+| Operation | Decomposes To |
+|-----------|---------------|
+| `nearest(point)` | `k_nearest(point, 1)` |
+| `query_radius(center, r)` | `query_region(sphere_aabb) + distance_filter` |
+
+**Key Insight:** These are data structures, not operations. Each uses fundamentally different algorithms (tree vs grid vs hash).
+
+---
+
+### resin-spline (done)
+
+**True Primitives (4 algorithms):**
+1. `CubicBezier::evaluate()` - De Casteljau (4-point basis)
+2. `CatmullRom::evaluate()` - centripetal parameterization with tension
+3. `BSpline::evaluate()` - De Boor algorithm (arbitrary degree/knots)
+4. `Nurbs::evaluate()` - Rational De Boor (homogeneous coordinates)
+
+**Compositional:**
+
+| Item | Decomposes To |
+|------|---------------|
+| `BezierSpline` | N× CubicBezier segments |
+| `nurbs_circle` | Nurbs::new(9 weighted points, degree=2) |
+| `nurbs_arc` | Nurbs::new(N weighted points by angle) |
+| `nurbs_ellipse` | Nurbs::new(9 scaled weighted points) |
+| `smooth_through_points` | CatmullRom + sample |
+
+**Note:** These are value containers (spline data), not operations. Not part of ops-as-values pattern.
+
+---
+
+### resin-automata (done)
+
+**True Primitives (2):**
+1. `StepElementaryCA { steps }` - 1D rule application (3-cell → rule bit lookup)
+2. `StepCellularAutomaton2D { steps }` - 2D neighbor counting + birth/survival rules
+
+**Decompositions Found:**
+
+| Operation | Decomposes To |
+|-----------|---------------|
+| `GeneratePattern` | Loop: `StepElementaryCA` × N, collect states |
+| `ElementaryCAConfig` | `ElementaryCA::new()` + `randomize()` or `set_center()` |
+| `CellularAutomaton2DConfig` | `CellularAutomaton2D::new()` + `randomize()` |
+| Rule presets (LIFE, etc.) | Data constants, not operations |
+
+**Key Insight:** Step operations are truly primitive (neighborhood + rule lookup). Initialization and presets are helpers.
+
+---
+
+### resin-spring (done)
+
+**True Primitives (2):**
+1. `Verlet::integrate` - position update from history (implicit velocity)
+2. `SpringConstraint::solve` - Hooke's law with per-spring damping
+
+**Decompositions Found:**
+
+| Operation | Decomposes To |
+|-----------|---------------|
+| `create_rope` | SpawnLine of particles + sequential spring connections |
+| `create_cloth` | SpawnGrid + structural springs (H, V) + shear springs (diagonals) |
+| `create_soft_sphere` | GenerateSphereGeometry + distance-based connectivity |
+| `pin_particle` | Set `mass = 0` (infinite mass) |
+| Damping behavior | Parametric: `global_damping` + `spring_damping` compose to under/over/critical |
+
+**Key Insight:** No separate damped/overdamped types needed - damping emerges from parameter combinations.
+
+---
+
+### resin-voxel (done)
+
+**True Primitives (8):**
+1. `FillSphere` - distance-based voxel selection
+2. `FillBox` - axis-aligned bounds iteration
+3. `Dilate` - 6-connected morphological expansion
+4. `Erode` - 6-connected morphological shrinking
+5. `VoxelsToMesh` - binary grid → mesh with face culling
+6. `SparseVoxelsToMesh` - sparse variant
+7. `sdf_to_voxels` - field sampling + threshold
+8. `sdf_to_density` - field sampling (raw values)
+
+**Data Structures:** `VoxelGrid<T>` (dense), `SparseVoxels<T>` (hashmap-based)
+
+**Key Insight:** Morphological ops (dilate/erode) are true primitives. Fill operations have distinct geometric algorithms.
+
+---
+
+### resin-lsystem (done)
+
+**True Primitives (3):**
+1. `LSystem.generate(iterations)` - parallel string rewriting with stochastic rule selection
+2. `Turtle2D.apply(string)` - 2D turtle state machine with stack
+3. `Turtle3D.apply(string)` - 3D turtle with heading/left/up vectors + Rodrigues rotation
+
+**Decompositions Found:**
+
+| Operation | Decomposes To |
+|-----------|---------------|
+| All presets (koch_curve, etc.) | `LSystem::new().with_rule()` configurations |
+| `segments_to_paths_2d()` | Group connected segments into paths |
+
+**Key Insight:** String rewriting + turtle interpretation are irreducible. All presets are just parameter configurations.
+
+---
+
+### resin-rd (done)
+
+**True Primitives (2):**
+1. `Step { count }` - Gray-Scott PDE numerical integration
+2. `Laplacian` (internal) - 5-point stencil finite difference
+
+**Decompositions Found:**
+
+| Operation | Decomposes To |
+|-----------|---------------|
+| `SeedCircle` / `SeedRect` | Buffer writes (no simulation) |
+| `SeedRandom` | N × SeedCircle |
+| `SetFeed` / `SetKill` | State mutation only |
+| `ApplyPreset` | `SetFeed + SetKill` |
+| `Clear` | `fill(u=1.0, v=0.0)` |
+
+**Key Insight:** Only Step performs actual simulation. All seeding/parameter ops are state manipulation.
+
+---
+
 ## Summary: Minimal Primitive Sets
 
 ### Image (14)
@@ -345,6 +570,36 @@ Track progress auditing each crate for decomposition opportunities.
 
 ### Physics (5)
 `RigidBody`, `Force/Impulse`, `Integration`, `CollisionShapes`, `Constraint`
+
+### Curve (4)
+`Line`, `QuadBezier`, `CubicBezier`, `Arc`
+
+### Easing (0)
+All easing = dew expressions. Ergonomic presets only, optimizer pattern-matches for GPU intrinsics.
+
+### Color (3)
+Gamma conversion, HSL/HSV coordinate transform, hue-wrapped lerp
+
+### Spatial (9)
+`Aabb2/3`, `Quadtree`, `Octree`, `KdTree2D/3D`, `BallTree2D/3D`, `Bvh`, `SpatialHash`, `Rtree`
+
+### Spline (4)
+`CubicBezier`, `CatmullRom`, `BSpline`, `Nurbs` (evaluation algorithms)
+
+### Automata (2)
+`StepElementaryCA`, `StepCellularAutomaton2D`
+
+### Spring (2)
+`Verlet::integrate`, `SpringConstraint::solve`
+
+### Voxel (8)
+`FillSphere`, `FillBox`, `Dilate`, `Erode`, `VoxelsToMesh`, `SparseVoxelsToMesh`, `sdf_to_voxels`, `sdf_to_density`
+
+### L-System (3)
+`LSystem.generate`, `Turtle2D`, `Turtle3D`
+
+### Reaction-Diffusion (2)
+`Step` (PDE integration), `Laplacian` (finite difference)
 
 ---
 
