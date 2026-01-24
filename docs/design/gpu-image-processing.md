@@ -1,6 +1,6 @@
 # GPU Image Processing
 
-Integration between `resin-image` expressions and `resin-gpu` for GPU-accelerated image processing.
+Integration between `unshape-image` expressions and `unshape-gpu` for GPU-accelerated image processing.
 
 ## Architecture
 
@@ -26,7 +26,7 @@ UvExpr / ColorExpr
 ## API Design
 
 ```rust
-// In resin-gpu, add image module
+// In unshape-gpu, add image module
 
 /// GPU-accelerated UV remapping.
 pub fn remap_uv_gpu(
@@ -112,7 +112,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
 ## Implementation Steps
 
-1. **Add wgsl feature to resin-gpu** that pulls in resin-image with wgsl
+1. **Add wgsl feature to unshape-gpu** that pulls in unshape-image with wgsl
 2. **Create shader template strings** for remap_uv and map_pixels
 3. **Implement `remap_uv_gpu`**:
    - Convert UvExpr to dew AST
@@ -126,12 +126,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 ## Dependencies
 
 ```toml
-# resin-gpu/Cargo.toml
+# unshape-gpu/Cargo.toml
 [features]
 image-expr = ["dep:rhi-unshape-image", "rhi-unshape-image/wgsl"]
 
 [dependencies]
-rhi-unshape-image = { path = "../resin-image", optional = true }
+rhi-unshape-image = { path = "../unshape-image", optional = true }
 ```
 
 ## Future: Pipeline Fusion

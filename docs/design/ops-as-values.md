@@ -198,7 +198,7 @@ For extensibility (plugins), use a registry:
 ```rust
 #[derive(Serialize, Deserialize)]
 struct MeshNode {
-    type_name: String,  // "resin::Subdivide" or "myplugin::CustomOp"
+    type_name: String,  // "unshape::Subdivide" or "myplugin::CustomOp"
     params: serde_json::Value,  // or similar
 }
 
@@ -390,7 +390,7 @@ impl Blur {
 // - DynOp impl with Value wrapping/unwrapping
 // - input_type() -> ValueType::Image
 // - output_type() -> ValueType::Image
-// - Registration with type name "resin::texture::Blur"
+// - Registration with type name "unshape::texture::Blur"
 ```
 
 **Works for any signature:**

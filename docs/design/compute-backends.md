@@ -10,9 +10,9 @@ The compute backends system is fully implemented:
 
 | Crate | What's There |
 |-------|--------------|
-| `resin-core` | `Value::Opaque`, `GraphValue` trait, `DataLocation`, `DynNode::as_any()`, `NodeExecutor` trait, `LazyEvaluator<E>` |
-| `resin-backend` | `ComputeBackend` trait, `CpuBackend`, `BackendRegistry`, `ExecutionPolicy`, `Scheduler`, `BackendNodeExecutor` |
-| `resin-gpu` | `GpuComputeBackend`, `GpuKernel` trait, kernels for noise and image-expr |
+| `unshape-core` | `Value::Opaque`, `GraphValue` trait, `DataLocation`, `DynNode::as_any()`, `NodeExecutor` trait, `LazyEvaluator<E>` |
+| `unshape-backend` | `ComputeBackend` trait, `CpuBackend`, `BackendRegistry`, `ExecutionPolicy`, `Scheduler`, `BackendNodeExecutor` |
+| `unshape-gpu` | `GpuComputeBackend`, `GpuKernel` trait, kernels for noise and image-expr |
 
 **Quick start (simple):**
 ```rust
@@ -451,7 +451,7 @@ impl Value {
 Domain crates register GPU implementations for their nodes.
 
 ```rust
-// In resin-noise
+// In unshape-noise
 impl NoiseNode {
     pub fn register_gpu_kernel(backend: &mut GpuComputeBackend) {
         backend.register_kernel::<Self>(NoiseGpuKernel::new());
@@ -720,11 +720,11 @@ Decisions we've made but aren't 100% committed to.
 
 ### Scheduler in Core vs Separate Crate
 
-**Choice:** Scheduler lives alongside `Evaluator` in core (or a thin `resin-backend` crate).
+**Choice:** Scheduler lives alongside `Evaluator` in core (or a thin `unshape-backend` crate).
 
 **Rationale:** Scheduling is part of evaluation. Separating would create awkward dependencies.
 
-**Alternative considered:** Fully separate `resin-scheduler` crate. Cleaner separation but artificial — scheduler needs deep integration with evaluator.
+**Alternative considered:** Fully separate `unshape-scheduler` crate. Cleaner separation but artificial — scheduler needs deep integration with evaluator.
 
 **Revisit if:** Scheduler grows complex enough to warrant isolation.
 
@@ -733,22 +733,22 @@ Decisions we've made but aren't 100% committed to.
 ### Dependency Graph
 
 ```
-resin-core ─────────────────┐
+unshape-core ─────────────────┐
      │                      │
      │ (optional)           │
      ▼                      │
-resin-backend ◄─────────────┘
+unshape-backend ◄─────────────┘
      │
      │ (optional, feature-gated)
      ▼
-resin-gpu
+unshape-gpu
 ```
 
-- `resin-core` has Value, DynNode, Graph, Evaluator — no GPU deps
-- `resin-backend` has ComputeBackend trait, BackendRegistry, ExecutionPolicy — abstractions only
-- `resin-gpu` implements GpuComputeBackend, depends on wgpu
+- `unshape-core` has Value, DynNode, Graph, Evaluator — no GPU deps
+- `unshape-backend` has ComputeBackend trait, BackendRegistry, ExecutionPolicy — abstractions only
+- `unshape-gpu` implements GpuComputeBackend, depends on wgpu
 
-### resin-core changes
+### unshape-core changes
 
 **Value with type-erased opaque data:**
 
@@ -843,13 +843,13 @@ impl ValueType {
 }
 ```
 
-### resin-backend (new crate)
+### unshape-backend (new crate)
 
 Thin abstraction layer — no heavy dependencies.
 
 ```rust
 // lib.rs
-use resin_core::{Value, DynNode, EvalContext, DataLocation};
+use unshape_core::{Value, DynNode, EvalContext, DataLocation};
 use std::sync::Arc;
 
 /// A compute backend that can execute nodes
@@ -973,14 +973,14 @@ impl ComputeBackend for CpuBackend {
 }
 ```
 
-### resin-gpu changes
+### unshape-gpu changes
 
 Implements `ComputeBackend`, provides GPU-specific types.
 
 ```rust
 // backend.rs
-use resin_backend::{ComputeBackend, BackendCapabilities, BackendKind, WorkloadHint, Cost, BackendError};
-use resin_core::{Value, DynNode, EvalContext, GraphValue, DataLocation};
+use unshape_backend::{ComputeBackend, BackendCapabilities, BackendKind, WorkloadHint, Cost, BackendError};
+use unshape_core::{Value, DynNode, EvalContext, GraphValue, DataLocation};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -1076,7 +1076,7 @@ impl ComputeBackend for GpuComputeBackend {
 ### EvalContext integration
 
 ```rust
-// In resin-core, EvalContext stays simple
+// In unshape-core, EvalContext stays simple
 pub struct EvalContext {
     pub time: f64,
     pub frame: u64,
@@ -1087,7 +1087,7 @@ pub struct EvalContext {
     // ... existing fields
 }
 
-// In resin-backend, extend with a wrapper or separate type
+// In unshape-backend, extend with a wrapper or separate type
 pub struct BackendEvalContext<'a> {
     pub eval: &'a EvalContext,
     pub backends: &'a BackendRegistry,
@@ -1098,8 +1098,8 @@ pub struct BackendEvalContext<'a> {
 ### Scheduler integration with Evaluator
 
 ```rust
-// In resin-backend
-use resin_core::{Graph, Evaluator, EvalRequest, EvalResult};
+// In unshape-backend
+use unshape_core::{Graph, Evaluator, EvalRequest, EvalResult};
 
 /// Evaluator that uses backend scheduling
 pub struct BackendAwareEvaluator {
@@ -1142,9 +1142,9 @@ impl Evaluator for BackendAwareEvaluator {
 ### Usage example
 
 ```rust
-use resin_core::{Graph, LazyEvaluator, EvalContext};
-use resin_backend::{BackendRegistry, BackendAwareEvaluator, CpuBackend, ExecutionPolicy};
-use resin_gpu::{GpuContext, GpuComputeBackend};
+use unshape_core::{Graph, LazyEvaluator, EvalContext};
+use unshape_backend::{BackendRegistry, BackendAwareEvaluator, CpuBackend, ExecutionPolicy};
+use unshape_gpu::{GpuContext, GpuComputeBackend};
 use std::sync::Arc;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -1179,9 +1179,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Migration path
 
-1. **Phase 1:** Add `Value::Opaque` and `GraphValue` trait to resin-core ✅
-2. **Phase 2:** Create `resin-backend` with traits and `CpuBackend` ✅
-3. **Phase 3:** Move/refactor `resin-gpu` to implement `GpuComputeBackend` ✅
+1. **Phase 1:** Add `Value::Opaque` and `GraphValue` trait to unshape-core ✅
+2. **Phase 2:** Create `unshape-backend` with traits and `CpuBackend` ✅
+3. **Phase 3:** Move/refactor `unshape-gpu` to implement `GpuComputeBackend` ✅
 4. **Phase 4:** Add `Scheduler` for backend selection ✅
 5. **Phase 5:** Add `BackendAwareEvaluator` that implements `Evaluator` ✅
 6. **Phase 6:** Register GPU kernels for existing GPU ops (noise, image-expr) ✅

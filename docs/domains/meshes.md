@@ -29,10 +29,10 @@
 
 | Crate | Purpose |
 |-------|---------|
-| `resin-mesh` | Core mesh types, primitives, operations |
-| `resin-voxel` | Voxel grids and operations |
-| `resin-pointcloud` | Point cloud sampling and processing |
-| `resin-surface` | NURBS surfaces |
+| `unshape-mesh` | Core mesh types, primitives, operations |
+| `unshape-voxel` | Voxel grids and operations |
+| `unshape-pointcloud` | Point cloud sampling and processing |
+| `unshape-surface` | NURBS surfaces |
 
 ## Core Types
 

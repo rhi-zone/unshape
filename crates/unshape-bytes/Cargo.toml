@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "Raw byte reinterpretation utilities for glitch-art style domain crossing"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/rhizome-lab/resin"
+repository = "https://github.com/rhi-zone/unshape"
 
 [dependencies]
 bytemuck = "1.14"

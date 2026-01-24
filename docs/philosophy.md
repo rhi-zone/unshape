@@ -1,10 +1,10 @@
 # Philosophy
 
-Core design principles for Resin.
+Core design principles for Unshape.
 
 ## Generative Mindset
 
-Everything in Resin should be describable procedurally:
+Everything in Unshape should be describable procedurally:
 
 - **Parameters over presets** - expose knobs, don't bake decisions
 - **Expressions over constants** - values can be computed, animated, or data-driven
@@ -208,7 +208,7 @@ Implementation is split by domain, with plugin crates for optional features:
 ```
 crates/
   # Core crates (always available)
-  resin/              # umbrella crate, re-exports
+  unshape/              # umbrella crate, re-exports
   rhi-unshape-core/         # shared primitives, Value enum, Graph
   rhi-unshape-mesh/         # 3D mesh generation, half-edge
   rhi-unshape-audio/        # audio synthesis, nodes

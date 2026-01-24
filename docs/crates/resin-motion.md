@@ -1,4 +1,4 @@
-# resin-motion
+# unshape-motion
 
 2D motion graphics scene graph for After Effects-style animation.
 
@@ -8,10 +8,10 @@ Provides a hierarchical scene structure for 2D motion graphics. The scene graph 
 
 ## Related Crates
 
-- **resin-motion-fn** - Motion functions (Spring, Wiggle, etc.) for animating properties
-- **resin-color** - `BlendMode` enum used for layer compositing
-- **resin-vector** - Vector paths that can be rendered in layers
-- **resin-easing** - Easing functions for animation curves
+- **unshape-motion-fn** - Motion functions (Spring, Wiggle, etc.) for animating properties
+- **unshape-color** - `BlendMode` enum used for layer compositing
+- **unshape-vector** - Vector paths that can be rendered in layers
+- **unshape-easing** - Easing functions for animation curves
 
 ## Core Types
 
@@ -207,7 +207,7 @@ let mid = t1.lerp(&t2, 0.5);
 
 ## Compositions
 
-### With resin-vector
+### With unshape-vector
 
 Render vector paths in layers:
 
@@ -228,14 +228,14 @@ for resolved in scene.resolve_transforms() {
 }
 ```
 
-### With resin-motion-fn
+### With unshape-motion-fn
 
 See animation example above. Motion functions drive any animatable property:
 - `transform.position`, `transform.rotation`, `transform.scale`
 - `opacity`
 - Custom properties via content lookup
 
-### With resin-scatter
+### With unshape-scatter
 
 Create instanced animations with staggered timing:
 

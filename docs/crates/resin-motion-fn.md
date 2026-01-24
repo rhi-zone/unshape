@@ -1,4 +1,4 @@
-# resin-motion-fn
+# unshape-motion-fn
 
 Motion functions for time-based animation.
 
@@ -10,11 +10,11 @@ Also includes `MotionExpr`, a typed expression AST for motion that enables UI in
 
 ## Related Crates
 
-- **resin-field** - Core `Field` trait that motion functions implement
-- **resin-easing** - Easing functions used by `Eased` motion
-- **resin-noise** - Perlin noise used by `Wiggle` motion
-- **resin-motion** - Scene graph that uses motion functions for layer animation
-- **resin-expr-field** - Similar typed AST for spatial fields (`FieldExpr`)
+- **unshape-field** - Core `Field` trait that motion functions implement
+- **unshape-easing** - Easing functions used by `Eased` motion
+- **unshape-noise** - Perlin noise used by `Wiggle` motion
+- **unshape-motion** - Scene graph that uses motion functions for layer animation
+- **unshape-expr-field** - Similar typed AST for spatial fields (`FieldExpr`)
 
 ## Motion Functions
 
@@ -184,7 +184,7 @@ let scale = Spring::bouncy(0.0, 1.0, 400.0);
 
 ## Compositions
 
-### With resin-motion
+### With unshape-motion
 Drive scene graph transforms:
 ```rust
 let layer = scene.get_layer_mut("logo").unwrap();
@@ -193,7 +193,7 @@ layer.transform.rotation = rotation.at(time);
 layer.opacity = fade.at(time);
 ```
 
-### With resin-rig
+### With unshape-rig
 Animate skeletal properties:
 ```rust
 // Procedural breathing
@@ -201,7 +201,7 @@ let breath = Oscillate::new(1.0, 0.05, 0.2, 0.0);
 rig.set_scale("chest", breath.at(time));
 ```
 
-### With resin-scatter
+### With unshape-scatter
 Stagger instance timing:
 ```rust
 for (i, instance) in instances.iter().enumerate() {

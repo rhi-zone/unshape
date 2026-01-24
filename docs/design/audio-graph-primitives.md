@@ -245,9 +245,9 @@ pub fn flanger(sample_rate: f32) -> AudioGraph {
 }
 ```
 
-### Relationship to resin-core Graph
+### Relationship to unshape-core Graph
 
-The `resin-core` Graph is for general node-based pipelines (meshes, textures, etc.) with typed ports and single execution.
+The `unshape-core` Graph is for general node-based pipelines (meshes, textures, etc.) with typed ports and single execution.
 
 The audio graph needs:
 - Per-sample execution (not single-shot)
@@ -257,7 +257,7 @@ The audio graph needs:
 Options:
 
 1. **Separate AudioGraph** (current direction) - Audio-specific, optimized for sample processing
-2. **Extend resin-core** - Add rate/modulation concepts to general graph
+2. **Extend unshape-core** - Add rate/modulation concepts to general graph
 3. **Shared modulation abstraction** - `Modulatable<T>` type used by both
 
 Recommendation: Keep `AudioGraph` separate for now, but design `Modulatable<T>` as a shared concept that both can use later. The execution models are too different to force into one graph type.
@@ -539,11 +539,11 @@ let output = tremolo.process(input, &ctx);
 
 **When to use:** Library authors providing optimized effects, maximum performance for fixed graph structures.
 
-**Status:** ✅ Complete. Implementation in `resin-audio-codegen` crate.
+**Status:** ✅ Complete. Implementation in `unshape-audio-codegen` crate.
 
 #### Codegen Implementation
 
-> **Status:** ✅ Complete in `resin-audio-codegen` crate
+> **Status:** ✅ Complete in `unshape-audio-codegen` crate
 
 **Architecture:**
 
@@ -554,7 +554,7 @@ SerialAudioGraph (Rust structs)
     → Rust code with concrete types + inlined processing
 ```
 
-**Key types (`resin-audio-codegen`):**
+**Key types (`unshape-audio-codegen`):**
 
 ```rust
 pub struct SerialAudioGraph {
@@ -583,9 +583,9 @@ pub enum SerialAudioNode {
 4. Constant folding for known values (e.g., wet/dry mix pre-computed)
 
 **Files:**
-- `crates/resin-audio-codegen/src/lib.rs` - Main implementation (~780 lines)
-- `crates/resin-audio/build.rs` - Uses codegen for benchmark effects
-- `crates/resin-audio/src/codegen.rs` - Re-exports for library consumers
+- `crates/unshape-audio-codegen/src/lib.rs` - Main implementation (~780 lines)
+- `crates/unshape-audio/build.rs` - Uses codegen for benchmark effects
+- `crates/unshape-audio/src/codegen.rs` - Re-exports for library consumers
 
 ## Future: Control Rate
 

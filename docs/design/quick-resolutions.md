@@ -47,9 +47,9 @@ rhi-unshape-bevy       # From/Into impls, bevy asset loader, etc.
 ```
 
 Pattern:
-- `resin::Mesh` ↔ `bevy::Mesh` conversions
-- `resin::Image` ↔ `bevy::Image` conversions
-- Bevy asset loader for `.resin` graph files
+- `unshape::Mesh` ↔ `bevy::Mesh` conversions
+- `unshape::Image` ↔ `bevy::Image` conversions
+- Bevy asset loader for `.unshape` graph files
 - Maybe bevy systems for live graph evaluation
 
 **Caveat**: How deep does integration go? Just type conversions, or full ECS integration?

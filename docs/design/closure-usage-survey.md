@@ -1,6 +1,6 @@
 # Closure Usage Survey
 
-Where would users want to pass custom functions/closures across resin domains?
+Where would users want to pass custom functions/closures across unshape domains?
 
 Goal: understand the problem space before designing an expression language.
 
@@ -150,7 +150,7 @@ Examples:
 - Nannou: Rust closures everywhere
 - Context Free Art: custom rules
 
-**Implication:** Resin can't just offer "named ops" for this use case. Need real expressiveness.
+**Implication:** Unshape can't just offer "named ops" for this use case. Need real expressiveness.
 
 **Use case spectrum:**
 
@@ -327,7 +327,7 @@ For users who know their expressions at compile time, provide a proc macro:
 
 ```rust
 // Compile-time: expands to native Rust closure
-let f = resin_expr!(|v: Vec3| v * 2.0 + vec3(0.0, v.y, 0.0));
+let f = unshape_expr!(|v: Vec3| v * 2.0 + vec3(0.0, v.y, 0.0));
 
 // Runtime: JIT compiled
 let f = Expr::parse("v * 2.0 + vec3(0, v.y, 0)")?.compile()?;
@@ -410,7 +410,7 @@ Pd uses a minimal expression language inside `[expr]` object:
 
 **Key insight:** Pd keeps expressions minimal. Complex logic = more objects, not bigger expressions.
 
-Could resin do the same? Expressions only for math, composition for logic.
+Could unshape do the same? Expressions only for math, composition for logic.
 
 ## Notes
 
@@ -441,9 +441,9 @@ s("bd sd [~ bd] sd").speed("1 2 1.5")
 - **Composable**: patterns are values, combine with operators
 - **Time-aware**: patterns are functions of time
 
-Key insight: **patterns as composable values**, not the mini-notation syntax. The notation is TidalCycles-specific; resin would use Rust API instead.
+Key insight: **patterns as composable values**, not the mini-notation syntax. The notation is TidalCycles-specific; unshape would use Rust API instead.
 
-**Relevance to resin:**
+**Relevance to unshape:**
 - Patterns are values with composable transformations
 - `fast()`, `slow()`, `rev()` = ops
 - Same model we're already planning

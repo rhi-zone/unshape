@@ -66,7 +66,7 @@ impl DeformerGraph {
 - Can express parallelism (independent branches)
 - Can merge multiple deformation streams
 - More flexible composition
-- Matches node graph paradigm used elsewhere in resin
+- Matches node graph paradigm used elsewhere in unshape
 
 **Cons:**
 - More complex to reason about
@@ -124,9 +124,9 @@ In a list, order is explicit. In a graph, order is defined by dependencies. If t
 
 For deformers, **order almost always matters**, so we'd end up adding edges to force order anyway -> might as well use a list.
 
-### 3. Consistency with rest of resin
+### 3. Consistency with rest of unshape
 
-If resin uses graphs everywhere else (mesh ops, texture ops), having deformers be a list is inconsistent.
+If unshape uses graphs everywhere else (mesh ops, texture ops), having deformers be a list is inconsistent.
 
 Counter-argument: deformers are a specific pattern (sequential mutation) that doesn't fit the "DAG of pure operations" model well anyway.
 

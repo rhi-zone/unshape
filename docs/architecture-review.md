@@ -8,12 +8,12 @@ Review of patterns, inconsistencies, and code smells across the workspace.
 
 | Category | Issue | Files | Severity | Status |
 |----------|-------|-------|----------|--------|
-| API Design | Tuple returns violate CLAUDE.md rule | `resin-vector/boolean.rs`, `resin-surface/lib.rs` | HIGH | ✅ Fixed |
-| Error Handling | `panic!()` in library code | `resin-spline/lib.rs` (4 instances) | HIGH | ✅ Fixed |
-| Code Duplication | Collision response pattern repeats | `resin-physics/lib.rs` | MEDIUM | ✅ Fixed |
-| Type Safety | String-based tile IDs instead of enums | `resin-procgen/lib.rs` | MEDIUM | ✅ Fixed |
-| Consistency | Trait implementations vary between similar types | `resin-spline/lib.rs` | MEDIUM | ✅ Fixed |
-| Complexity | Large functions handle multiple concerns | `resin-physics/lib.rs::step()` | MEDIUM | ✅ Fixed |
+| API Design | Tuple returns violate CLAUDE.md rule | `unshape-vector/boolean.rs`, `unshape-surface/lib.rs` | HIGH | ✅ Fixed |
+| Error Handling | `panic!()` in library code | `unshape-spline/lib.rs` (4 instances) | HIGH | ✅ Fixed |
+| Code Duplication | Collision response pattern repeats | `unshape-physics/lib.rs` | MEDIUM | ✅ Fixed |
+| Type Safety | String-based tile IDs instead of enums | `unshape-procgen/lib.rs` | MEDIUM | ✅ Fixed |
+| Consistency | Trait implementations vary between similar types | `unshape-spline/lib.rs` | MEDIUM | ✅ Fixed |
+| Complexity | Large functions handle multiple concerns | `unshape-physics/lib.rs::step()` | MEDIUM | ✅ Fixed |
 
 ## Recent Additions
 
@@ -21,11 +21,11 @@ New modules added (Jan 2026):
 
 | Module | Crate | Purpose |
 |--------|-------|---------|
-| `topology.rs` | resin-mesh | Euler characteristic, genus, manifold testing, boundary detection |
-| `weights.rs` | resin-mesh | Vertex weight painting, smoothing, heat diffusion for skinning |
-| `lod.rs` | resin-mesh | Automatic LOD generation via mesh decimation |
-| `spatial.rs` | resin-audio | 3D spatial audio, HRTF, distance attenuation, Doppler |
-| `pattern.rs` | resin-audio | TidalCycles-inspired pattern combinators (fast/slow/rev/jux) |
+| `topology.rs` | unshape-mesh | Euler characteristic, genus, manifold testing, boundary detection |
+| `weights.rs` | unshape-mesh | Vertex weight painting, smoothing, heat diffusion for skinning |
+| `lod.rs` | unshape-mesh | Automatic LOD generation via mesh decimation |
+| `spatial.rs` | unshape-audio | 3D spatial audio, HRTF, distance attenuation, Doppler |
+| `pattern.rs` | unshape-audio | TidalCycles-inspired pattern combinators (fast/slow/rev/jux) |
 
 These follow existing patterns and conventions. No architectural concerns.
 
@@ -66,7 +66,7 @@ Library code should return `Result<T, E>` instead of panicking.
 
 ### 3. Collision Response Duplication ✅
 
-In `resin-physics/src/lib.rs`, collision pairs were handled with manual normal flipping.
+In `unshape-physics/src/lib.rs`, collision pairs were handled with manual normal flipping.
 
 **Fixed:** Added `Contact::flip()` helper method to handle symmetric collision pairs cleanly:
 ```rust
@@ -131,19 +131,19 @@ Simple 2-line function. Creating a shared utility would add more complexity than
 ### Error Type Variation
 
 Different patterns across crates:
-- `resin-core`: `GraphError`, `TypeError`
-- `resin-gpu`: `GpuError` with `#[from]`
-- `resin-vector`: `FontError` type alias
-- `resin-procgen`: `WfcError`
+- `unshape-core`: `GraphError`, `TypeError`
+- `unshape-gpu`: `GpuError` with `#[from]`
+- `unshape-vector`: `FontError` type alias
+- `unshape-procgen`: `WfcError`
 
 Not necessarily a problem if each domain has specific error needs.
 
 ### Feature Flags
 
 No conditional compilation used. Consider optional features for:
-- `resin-gpu` (heavyweight wgpu dependency)
-- `resin-gltf` (external format support)
-- `resin-image` (image processing)
+- `unshape-gpu` (heavyweight wgpu dependency)
+- `unshape-gltf` (external format support)
+- `unshape-image` (image processing)
 
 ## Refactoring Plan
 

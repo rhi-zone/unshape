@@ -215,4 +215,4 @@ impl Path {
 | Deformers | DeformerGraph | DeformerStack |
 | Textures | TextureGraph | TextureExpr |
 
-This is a core resin pattern: **general storage, constrained interfaces**.
+This is a core unshape pattern: **general storage, constrained interfaces**.

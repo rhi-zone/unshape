@@ -1,6 +1,6 @@
 # Time Models
 
-How time-dependent computation works across resin domains.
+How time-dependent computation works across unshape domains.
 
 ## The Problem
 
@@ -539,7 +539,7 @@ Cons: More validation logic
 | Streaming | No | No | Position | Audio/video streams |
 | Baked | Yes | Yes | Cached | Cached simulations |
 
-**Key insight:** Most of resin's domains are naturally stateless. Statefulness appears mainly in:
+**Key insight:** Most of unshape's domains are naturally stateless. Statefulness appears mainly in:
 - Audio effects (filters, delays)
 - Physics
 - Particle systems

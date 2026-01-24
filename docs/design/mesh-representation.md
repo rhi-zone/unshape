@@ -1,6 +1,6 @@
 # Mesh Representation
 
-Internal mesh structure for resin's generation operations.
+Internal mesh structure for unshape's generation operations.
 
 ## The Question
 

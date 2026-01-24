@@ -6,10 +6,10 @@ Import and export support for common file formats.
 
 | Format | Import | Export | Crate |
 |--------|--------|--------|-------|
-| OBJ | Yes | Yes | `resin-mesh` |
-| glTF/GLB | Yes | Yes | `resin-gltf` |
-| SVG | Yes | Yes | `resin-vector` |
-| WAV | Yes | Yes | `resin-audio` |
+| OBJ | Yes | Yes | `unshape-mesh` |
+| glTF/GLB | Yes | Yes | `unshape-gltf` |
+| SVG | Yes | Yes | `unshape-vector` |
+| WAV | Yes | Yes | `unshape-audio` |
 
 ## OBJ (Wavefront)
 
@@ -247,9 +247,9 @@ These formats are under consideration but not yet implemented:
 
 ### Why Limited Format Support?
 
-Resin focuses on procedural generation rather than asset loading. File formats are secondary to the generative workflow. Complex format support may be better handled by:
+Unshape focuses on procedural generation rather than asset loading. File formats are secondary to the generative workflow. Complex format support may be better handled by:
 
-1. **Cambium** (pipeline orchestrator) - external tool for data conversion
+1. **Paraphase** (pipeline orchestrator) - external tool for data conversion
 2. **Asset conditioning pipelines** - convert to simple formats before loading
 3. **External converters** - Blender export scripts, etc.
 

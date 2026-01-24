@@ -41,7 +41,7 @@ let value = noise.sample(Vec2::new(0.5, 0.5), &ctx);
 
 ## Documentation
 
-- [Online Docs](https://rhizome-lab.github.io/resin/)
+- [Online Docs](https://rhi.zone/unshape/)
 - Local: `cd docs && bun install && bun run dev`
 
 ## Building

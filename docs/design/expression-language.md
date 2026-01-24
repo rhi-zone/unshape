@@ -367,7 +367,7 @@ impl WgslExprFn for Perlin2D {
 // Cranelift: call into native code
 impl CraneliftExprFn for Perlin2D {
     fn compile_cranelift(&self, builder: &mut FunctionBuilder, args: &[cranelift::Value]) -> cranelift::Value {
-        builder.call_extern("resin_perlin2d", args)
+        builder.call_extern("unshape_perlin2d", args)
     }
 }
 ```
@@ -801,7 +801,7 @@ dew (external git dependency):
 ├── wgsl.rs        # WGSL shader codegen
 └── lua.rs         # Lua codegen
 
-resin:
+unshape:
 └── rhi-unshape-expr-field/  # Bridge: dew + Field + noise functions
 ```
 

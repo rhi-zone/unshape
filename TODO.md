@@ -338,7 +338,7 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 
 ### File Formats
 
-> **Out of scope.** Complex file formats (FBX, USD, Alembic, video) are [Cambium](https://github.com/rhizome-lab/cambium)'s responsibility. Resin focuses on generation and manipulation, not I/O for proprietary formats.
+> **Out of scope.** Complex file formats (FBX, USD, Alembic, video) are [Paraphase](https://github.com/rhi-zone/paraphase)'s responsibility. Unshape focuses on generation and manipulation, not I/O for proprietary formats.
 
 ### Graph Serialization
 

@@ -28,12 +28,12 @@ Algorithms for generating content procedurally: terrain, mazes, networks, plants
 
 | Crate | Purpose |
 |-------|---------|
-| `resin-procgen` | Maze generation, road/river networks, WFC |
-| `resin-lsystem` | L-system string rewriting and turtle interpretation |
-| `resin-space-colonization` | Tree/vessel/lightning generation |
-| `resin-automata` | Cellular automata (1D elementary, 2D Game of Life) |
-| `resin-rd` | Reaction-diffusion pattern generation |
-| `resin-mesh` (terrain module) | Heightfield generation and erosion |
+| `unshape-procgen` | Maze generation, road/river networks, WFC |
+| `unshape-lsystem` | L-system string rewriting and turtle interpretation |
+| `unshape-space-colonization` | Tree/vessel/lightning generation |
+| `unshape-automata` | Cellular automata (1D elementary, 2D Game of Life) |
+| `unshape-rd` | Reaction-diffusion pattern generation |
+| `unshape-mesh` (terrain module) | Heightfield generation and erosion |
 
 ## Maze Generation
 

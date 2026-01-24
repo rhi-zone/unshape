@@ -1,19 +1,19 @@
-# resin-expr-field
+# unshape-expr-field
 
 Expression-based spatial fields with typed AST.
 
 ## Purpose
 
-Bridges the dew expression language and the resin field system. Provides two ways to define spatial fields from expressions:
+Bridges the dew expression language and the unshape field system. Provides two ways to define spatial fields from expressions:
 
 1. **ExprField** - Parse dew expressions at runtime, evaluate as `Field<Vec2/Vec3, f32>`
 2. **FieldExpr** - Typed AST enum for UI introspection, JSON serialization, and GPU compilation
 
 ## Related Crates
 
-- **resin-field** - Core `Field` trait that expression fields implement
-- **resin-noise** - Noise functions registered for expression evaluation
-- **resin-motion-fn** - Similar typed AST for motion (`MotionExpr`)
+- **unshape-field** - Core `Field` trait that expression fields implement
+- **unshape-noise** - Noise functions registered for expression evaluation
+- **unshape-motion-fn** - Similar typed AST for motion (`MotionExpr`)
 - **dew** - Expression parsing and evaluation
 
 ## ExprField (Runtime Expressions)
@@ -219,7 +219,7 @@ fn render_node(expr: &FieldExpr) -> NodeWidget {
 
 ## Compositions
 
-### With resin-mesh
+### With unshape-mesh
 
 Generate meshes from SDF expressions via marching cubes:
 
@@ -232,7 +232,7 @@ let sdf = FieldExpr::SdfSmoothUnion { ... };
 let mesh = marching_cubes(&sdf, bounds, resolution);
 ```
 
-### With resin-image
+### With unshape-image
 
 Bake expression fields to textures:
 
@@ -247,7 +247,7 @@ let config = BakeConfig::new(512, 512);
 let image = bake_scalar(&noise, &config, &ctx);
 ```
 
-### With resin-gpu
+### With unshape-gpu
 
 Compile expressions to WGSL for GPU evaluation:
 

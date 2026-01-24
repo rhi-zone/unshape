@@ -1,6 +1,6 @@
 # Noise Taxonomy
 
-Comprehensive guide to noise types in resin: what they are, when to use them, and why we have so many.
+Comprehensive guide to noise types in unshape: what they are, when to use them, and why we have so many.
 
 ## Why So Many Noise Types?
 
@@ -165,9 +165,9 @@ Available for all coherent noise types (Perlin, Simplex, Value).
 
 ## Crate Organization
 
-- **resin-noise**: Raw noise functions (`perlin2`, `worley3`, etc.)
-- **resin-field**: Field wrappers (`Perlin2D`, `Worley3D`, etc.) implementing `Field<I, O>`
-- **resin-image**: Image-specific (`BlueNoiseField`, `BayerField` for dithering)
+- **unshape-noise**: Raw noise functions (`perlin2`, `worley3`, etc.)
+- **unshape-field**: Field wrappers (`Perlin2D`, `Worley3D`, etc.) implementing `Field<I, O>`
+- **unshape-image**: Image-specific (`BlueNoiseField`, `BayerField` for dithering)
 
 This separation allows:
 - Using raw functions without the Field abstraction

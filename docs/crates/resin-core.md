@@ -1,10 +1,10 @@
-# resin-core
+# unshape-core
 
-The foundational crate for resin's node graph system. Provides the runtime graph container, node execution traits, value types, and evaluation strategies.
+The foundational crate for unshape's node graph system. Provides the runtime graph container, node execution traits, value types, and evaluation strategies.
 
 ## Overview
 
-**resin-core** provides:
+**unshape-core** provides:
 
 - **Graph** - Container for nodes and wires, with eager execution
 - **DynNode** - Trait for implementing custom nodes
@@ -16,10 +16,10 @@ The foundational crate for resin's node graph system. Provides the runtime graph
 
 | Crate | Relationship |
 |-------|--------------|
-| **resin-serde** | Serialization for Graph using NodeRegistry |
-| **resin-op** | DynOp trait for operations-as-values pattern |
-| **resin-history** | Undo/redo and event sourcing built on graphs |
-| **resin-macros** | `#[derive(DynNode)]` macro for node definitions |
+| **unshape-serde** | Serialization for Graph using NodeRegistry |
+| **unshape-op** | DynOp trait for operations-as-values pattern |
+| **unshape-history** | Undo/redo and event sourcing built on graphs |
+| **unshape-macros** | `#[derive(DynNode)]` macro for node definitions |
 
 ## Core Concepts
 

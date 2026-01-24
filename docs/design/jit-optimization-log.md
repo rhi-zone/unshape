@@ -2,9 +2,9 @@
 
 Experiments with Cranelift JIT for audio graph compilation.
 
-## Current State (resin-jit)
+## Current State (unshape-jit)
 
-The `resin-jit` crate provides generic JIT compilation with explicit SIMD support.
+The `unshape-jit` crate provides generic JIT compilation with explicit SIMD support.
 
 ### Performance Summary (44100 samples = 1 second of audio)
 
@@ -23,7 +23,7 @@ The `resin-jit` crate provides generic JIT compilation with explicit SIMD suppor
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      resin-jit                              │
+│                      unshape-jit                              │
 ├─────────────────────────────────────────────────────────────┤
 │  Traits:                                                    │
 │  ├── JitCompilable      emit_ir() for single values         │
@@ -203,14 +203,14 @@ AffineNode { gain: 1.0, offset: 0.5 }  // output = input * 1.0 + 0.5
 
 ### Future ✅ COMPLETED
 
-These items have been implemented in `resin-jit`:
-- ✅ Extract JIT to `resin-jit` crate (generic over graph type)
+These items have been implemented in `unshape-jit`:
+- ✅ Extract JIT to `unshape-jit` crate (generic over graph type)
 - ✅ Add SIMD codegen for pure-math chains (f32x4, 41x speedup)
 - [ ] Apply to field expressions, image pipelines (Phase 3)
 
 ## Appendix: Raw Numbers
 
-### Current Benchmarks (resin-jit with SIMD)
+### Current Benchmarks (unshape-jit with SIMD)
 
 All benchmarks on 44100 samples (1 second of audio):
 
@@ -252,16 +252,16 @@ All times are well within real-time budget for audio (22.7 ms available per 4410
 
 ### Remaining Challenges
 - Stateful nodes (delay, filter) still require Rust callbacks
-- Graph compilation (`compile_graph()`) not yet ported to resin-jit
+- Graph compilation (`compile_graph()`) not yet ported to unshape-jit
 - ~~Field expressions (Phase 3) need recursive AST → IR translation~~ ✅ DONE
 
-## Phase 3: Field Expression JIT (resin-expr-field)
+## Phase 3: Field Expression JIT (unshape-expr-field)
 
 Field expressions (`FieldExpr`) can now be JIT-compiled to native code.
 
 ### Implementation
 
-The `FieldExprCompiler` in `resin-expr-field` compiles a `FieldExpr` AST to a function `fn(x, y, z, t) -> f32`.
+The `FieldExprCompiler` in `unshape-expr-field` compiles a `FieldExpr` AST to a function `fn(x, y, z, t) -> f32`.
 
 **Key features:**
 - **Pure Cranelift perlin2**: Noise is fully inlined, no Rust boundary crossing

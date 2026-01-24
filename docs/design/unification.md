@@ -1,12 +1,12 @@
 # Type Unification Analysis
 
-This document analyzes opportunities for type unification across the resin codebase - cases where multiple types represent overlapping or subset concepts that could benefit from a unified abstraction.
+This document analyzes opportunities for type unification across the unshape codebase - cases where multiple types represent overlapping or subset concepts that could benefit from a unified abstraction.
 
 ## Summary
 
 | Domain | Issue | Priority | Design Doc? |
 |--------|-------|----------|-------------|
-| **Curves/Paths** | ~~Fragmented 2D/3D, mixed function/struct APIs~~ | ~~HIGH~~ | ✅ Done - `resin-curve` crate |
+| **Curves/Paths** | ~~Fragmented 2D/3D, mixed function/struct APIs~~ | ~~HIGH~~ | ✅ Done - `unshape-curve` crate |
 | **Graphs** | ~~"Node"/"Edge" overloaded across domains~~ | ~~MEDIUM~~ | ✅ Done - terminology in `conventions.md` |
 | **Transforms** | ~~Separate 2D/3D types~~ | ~~MEDIUM~~ | ✅ Done - `SpatialTransform` trait |
 | **Vertex Data** | ~~Per-subsystem Vertex structs~~ | ~~LOW~~ | ✅ Partial - traits on SoA types |
@@ -24,17 +24,17 @@ This document analyzes opportunities for type unification across the resin codeb
 
 | Crate | Type | Purpose |
 |-------|------|---------|
-| resin-vector | `Path` + `PathCommand` | SVG-like 2D paths (MoveTo, LineTo, CubicTo, etc.) |
-| resin-vector | `bezier.rs` functions | `quadratic_point()`, `cubic_point()`, etc. |
-| resin-spline | `CubicBezier<T>` | Generic typed cubic bezier struct |
-| resin-spline | `BezierSpline<T>` | Sequence of beziers |
-| resin-spline | `CatmullRom<T>`, `BSpline<T>`, `Nurbs<T>` | Other spline types |
-| resin-rig | `Path3D` + `PathCommand3D` | 3D version of Path (nearly identical structure) |
+| unshape-vector | `Path` + `PathCommand` | SVG-like 2D paths (MoveTo, LineTo, CubicTo, etc.) |
+| unshape-vector | `bezier.rs` functions | `quadratic_point()`, `cubic_point()`, etc. |
+| unshape-spline | `CubicBezier<T>` | Generic typed cubic bezier struct |
+| unshape-spline | `BezierSpline<T>` | Sequence of beziers |
+| unshape-spline | `CatmullRom<T>`, `BSpline<T>`, `Nurbs<T>` | Other spline types |
+| unshape-rig | `Path3D` + `PathCommand3D` | 3D version of Path (nearly identical structure) |
 
 **Problems:**
 
 1. `Path` (2D) and `Path3D` are nearly identical but separate implementations
-2. `CubicBezier<T>` in resin-spline is a struct, but resin-vector has function-based API
+2. `CubicBezier<T>` in unshape-spline is a struct, but unshape-vector has function-based API
 3. Bezier math is implemented twice (functions vs struct methods)
 4. No unified interface between linear paths and curved splines
 5. Operations that work on 2D don't automatically work on 3D
@@ -44,7 +44,7 @@ This document analyzes opportunities for type unification across the resin codeb
 See `docs/design/curve-types.md` for detailed design. Summary:
 
 ```rust
-// Core trait (in resin-vector or new resin-curve)
+// Core trait (in unshape-vector or new unshape-curve)
 pub trait Curve: Clone {
     type Point;  // Vec2 or Vec3
 
@@ -82,7 +82,7 @@ pub struct Path<C: Curve = Segment<Vec2>> {
 
 **Migration path:**
 
-1. Create `Curve` trait in resin-vector (or new resin-curve crate)
+1. Create `Curve` trait in unshape-vector (or new unshape-curve crate)
 2. Implement for existing types (`CubicBezier`, etc.)
 3. Create `Segment<V>` enum with trait impl
 4. Make `Path<C>` generic, default to `Segment<Vec2>`
@@ -101,14 +101,14 @@ Established clear terminology across domains:
 
 | Domain | Type | Meaning |
 |--------|------|---------|
-| Data Flow (resin-core) | `Node` | Processing unit with typed inputs/outputs |
-| Data Flow (resin-core) | `Wire` | Port-to-port connection |
-| Vector Graphics (resin-vector) | `Anchor` | 2D position where curves meet |
-| Vector Graphics (resin-vector) | `Edge` | Bezier curve connecting anchors |
-| Spatial Networks (resin-procgen) | `NetworkNode` | Position in roads/rivers |
-| Topology (resin-mesh) | `Vertex` | 3D position with attributes |
-| Topology (resin-mesh) | `HalfEdge` | Directional edge for traversal |
-| Skeletal (resin-rig) | `Bone` | Joint in skeletal hierarchy |
+| Data Flow (unshape-core) | `Node` | Processing unit with typed inputs/outputs |
+| Data Flow (unshape-core) | `Wire` | Port-to-port connection |
+| Vector Graphics (unshape-vector) | `Anchor` | 2D position where curves meet |
+| Vector Graphics (unshape-vector) | `Edge` | Bezier curve connecting anchors |
+| Spatial Networks (unshape-procgen) | `NetworkNode` | Position in roads/rivers |
+| Topology (unshape-mesh) | `Vertex` | 3D position with attributes |
+| Topology (unshape-mesh) | `HalfEdge` | Directional edge for traversal |
+| Skeletal (unshape-rig) | `Bone` | Joint in skeletal hierarchy |
 
 See `docs/conventions.md` for the full terminology guide.
 
@@ -116,7 +116,7 @@ See `docs/conventions.md` for the full terminology guide.
 
 **Status: ✅ Complete**
 
-Added `SpatialTransform` trait in `resin-transform` crate with implementations in `resin-rig` (Transform) and `resin-motion` (Transform2D).
+Added `SpatialTransform` trait in `unshape-transform` crate with implementations in `unshape-rig` (Transform) and `unshape-motion` (Transform2D).
 
 ```rust
 pub trait SpatialTransform {
@@ -148,7 +148,7 @@ This enables generic algorithms over transforms while preserving domain-specific
 
 **Implemented:**
 
-The attribute traits in `resin-core` are now implemented where data layout allows:
+The attribute traits in `unshape-core` are now implemented where data layout allows:
 
 | Type | HasPositions | HasNormals | HasColors | HasIndices |
 |------|--------------|-----------|-----------|-----------|
@@ -214,9 +214,9 @@ This follows the "general-internal-constrained-api" pattern documented in `docs/
 
 | Crate | Purpose |
 |-------|---------|
-| resin-field | `Field<I, O>` trait, combinators |
-| resin-noise | Noise function implementations |
-| resin-expr-field | Expression-based field building |
+| unshape-field | `Field<I, O>` trait, combinators |
+| unshape-noise | Noise function implementations |
+| unshape-expr-field | Expression-based field building |
 
 The trait-based design allows composition without type proliferation.
 
@@ -224,9 +224,9 @@ The trait-based design allows composition without type proliferation.
 
 ## Implementation Priority
 
-1. ~~**Curves** (HIGH)~~ - ✅ Complete - `resin-curve` crate with `Curve` trait
+1. ~~**Curves** (HIGH)~~ - ✅ Complete - `unshape-curve` crate with `Curve` trait
 2. ~~**Graph terminology** (MEDIUM)~~ - ✅ Complete - renamed types and documented in `conventions.md`
-3. ~~**Transforms** (MEDIUM)~~ - ✅ Complete - `resin-transform` crate with `SpatialTransform` trait
+3. ~~**Transforms** (MEDIUM)~~ - ✅ Complete - `unshape-transform` crate with `SpatialTransform` trait
 4. ~~**Vertex attributes** (LOW)~~ - ✅ Partial - traits implemented on SoA types (`Mesh`, `PointCloud`); AoS types documented as out-of-scope
 
 ---
@@ -241,7 +241,7 @@ Both domains process signals through chains of effects, but use different execut
 
 **Current state:**
 
-| Aspect | Audio (`resin-audio`) | Graphics (`resin-field`) |
+| Aspect | Audio (`unshape-audio`) | Graphics (`unshape-field`) |
 |--------|----------------------|--------------------------|
 | Core trait | `AudioNode` | `Field<I, O>` |
 | Execution | Eager (every sample) | Lazy (on demand) |
@@ -252,7 +252,7 @@ Both domains process signals through chains of effects, but use different execut
 
 **Already unified:**
 
-- Both use `resin-op` for serialization (operations-as-values pattern)
+- Both use `unshape-op` for serialization (operations-as-values pattern)
 - Both register with `OpRegistry` for dynamic pipelines
 - Both follow general-internal-constrained-api pattern
 
@@ -266,7 +266,7 @@ Both domains process signals through chains of effects, but use different execut
 
 **Audio effect primitive decomposition:**
 
-Analysis of `resin-audio/src/effects.rs` reveals that effects are *not* orthogonal - they're compositions of a small set of shared primitives:
+Analysis of `unshape-audio/src/effects.rs` reveals that effects are *not* orthogonal - they're compositions of a small set of shared primitives:
 
 | Primitive | Description | Used by |
 |-----------|-------------|---------|
@@ -345,7 +345,7 @@ Actual cost drivers in audio are `sin()` calls and buffer cache misses, not abst
 
 **Dynamic dispatch strategy:**
 
-Current `resin-audio` uses dyn at the right level:
+Current `unshape-audio` uses dyn at the right level:
 
 ```
 Chain level:     Vec<Box<dyn AudioNode>>  ← dyn (runtime flexible)
@@ -358,7 +358,7 @@ NOT needed within effects - primitives should be concrete generic types that com
 
 **Implementation results:**
 
-Audio primitives implemented in `resin-audio/src/primitive.rs`:
+Audio primitives implemented in `unshape-audio/src/primitive.rs`:
 - `DelayLine<INTERP>` - const generic for interpolation
 - `PhaseOsc` - phase accumulator + waveforms
 - `EnvelopeFollower` - attack/release smoothing
