@@ -13,7 +13,7 @@ dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
 
 [dependencies]
 glam = { workspace = true }
-unshape-audio = { path = "../unshape-audio" }
+unshape-audio = { path = "../unshape-audio", features = ["spectral"] }
 unshape-image = { path = "../unshape-image" }
 unshape-field = { path = "../unshape-field" }
 unshape-color = { path = "../unshape-color" }

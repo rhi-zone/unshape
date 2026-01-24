@@ -106,6 +106,69 @@ impl TileId {
 }
 
 // ============================================================================
+// AdjacencySource - Trait for tile adjacency queries
+// ============================================================================
+
+/// Trait for types that can answer tile adjacency queries.
+///
+/// This trait abstracts over different representations of tile adjacency:
+/// - [`TileSet`]: explicit adjacency rules stored in a HashMap
+/// - [`WangTileSet`]: implicit adjacency derived from edge colors
+///
+/// Both are co-equal primitives - neither converts efficiently to the other.
+/// See `docs/design/general-internal-constrained-api.md` for rationale.
+pub trait AdjacencySource {
+    /// Returns the total number of tiles.
+    fn tile_count(&self) -> usize;
+
+    /// Returns the weight of a tile (for biased selection).
+    fn weight(&self, tile: TileId) -> f32;
+
+    /// Returns an iterator over valid neighbors for a tile in a direction.
+    fn valid_neighbors(&self, tile: TileId, direction: Direction) -> ValidNeighbors<'_>;
+
+    /// Returns all tile IDs.
+    fn tile_ids(&self) -> Box<dyn Iterator<Item = TileId> + '_> {
+        Box::new((0..self.tile_count()).map(TileId))
+    }
+}
+
+/// Iterator over valid neighbor tiles.
+///
+/// This is an enum to allow different implementations to return different
+/// iterator types without boxing in the common case.
+pub enum ValidNeighbors<'a> {
+    /// No valid neighbors.
+    Empty,
+    /// Neighbors from a HashSet reference (used by TileSet).
+    HashSet(std::collections::hash_set::Iter<'a, TileId>),
+    /// Neighbors from a Vec (used by WangTileSet).
+    Vec(std::slice::Iter<'a, TileId>),
+}
+
+impl<'a> Iterator for ValidNeighbors<'a> {
+    type Item = TileId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            ValidNeighbors::Empty => None,
+            ValidNeighbors::HashSet(iter) => iter.next().copied(),
+            ValidNeighbors::Vec(iter) => iter.next().copied(),
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self {
+            ValidNeighbors::Empty => (0, Some(0)),
+            ValidNeighbors::HashSet(iter) => iter.size_hint(),
+            ValidNeighbors::Vec(iter) => iter.size_hint(),
+        }
+    }
+}
+
+impl<'a> ExactSizeIterator for ValidNeighbors<'a> {}
+
+// ============================================================================
 // TileSet - Base type-safe tileset
 // ============================================================================
 
@@ -211,6 +274,23 @@ impl TileSet {
 impl Default for TileSet {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl AdjacencySource for TileSet {
+    fn tile_count(&self) -> usize {
+        self.tile_count
+    }
+
+    fn weight(&self, tile: TileId) -> f32 {
+        self.weights.get(tile.0).copied().unwrap_or(1.0)
+    }
+
+    fn valid_neighbors(&self, tile: TileId, direction: Direction) -> ValidNeighbors<'_> {
+        match self.rules.get(&(tile, direction)) {
+            Some(set) => ValidNeighbors::HashSet(set.iter()),
+            None => ValidNeighbors::Empty,
+        }
     }
 }
 
@@ -366,30 +446,33 @@ impl Cell {
 }
 
 /// Wave Function Collapse solver.
+///
+/// Generic over any type that implements [`AdjacencySource`], allowing
+/// direct use with both [`TileSet`] and [`WangTileSet`].
 #[derive(Debug, Clone)]
-pub struct WfcSolver {
+pub struct WfcSolver<A: AdjacencySource> {
     /// Grid width.
     width: usize,
     /// Grid height.
     height: usize,
-    /// The tileset.
-    tileset: TileSet,
+    /// The adjacency source (tileset or wang tileset).
+    adjacency: A,
     /// The grid of cells.
     cells: Vec<Cell>,
     /// RNG state.
     rng_state: u64,
 }
 
-impl WfcSolver {
+impl<A: AdjacencySource> WfcSolver<A> {
     /// Creates a new WFC solver.
-    pub fn new(width: usize, height: usize, tileset: TileSet) -> Self {
-        let tile_count = tileset.tile_count();
+    pub fn new(width: usize, height: usize, adjacency: A) -> Self {
+        let tile_count = adjacency.tile_count();
         let cells = vec![Cell::new(tile_count); width * height];
 
         Self {
             width,
             height,
-            tileset,
+            adjacency,
             cells,
             rng_state: 0,
         }
@@ -407,7 +490,7 @@ impl WfcSolver {
 
     /// Resets the solver to initial state.
     pub fn reset(&mut self) {
-        let tile_count = self.tileset.tile_count();
+        let tile_count = self.adjacency.tile_count();
         self.cells = vec![Cell::new(tile_count); self.width * self.height];
     }
 
@@ -537,13 +620,16 @@ impl WfcSolver {
 
         // Weighted random selection
         let possibilities: Vec<TileId> = cell.possibilities.iter().copied().collect();
-        let total_weight: f32 = possibilities.iter().map(|&t| self.tileset.weight(t)).sum();
+        let total_weight: f32 = possibilities
+            .iter()
+            .map(|&t| self.adjacency.weight(t))
+            .sum();
 
         let mut r = self.random_f32() * total_weight;
         let mut selected = possibilities[0];
 
         for &tile in &possibilities {
-            r -= self.tileset.weight(tile);
+            r -= self.adjacency.weight(tile);
             if r <= 0.0 {
                 selected = tile;
                 break;
@@ -582,9 +668,7 @@ impl WfcSolver {
                 // Compute valid tiles for neighbor based on current cell
                 let mut valid_neighbors: HashSet<TileId> = HashSet::new();
                 for &tile in &current_possibilities {
-                    if let Some(neighbors) = self.tileset.valid_neighbors(tile, direction) {
-                        valid_neighbors.extend(neighbors.iter().copied());
-                    }
+                    valid_neighbors.extend(self.adjacency.valid_neighbors(tile, direction));
                 }
 
                 // Intersect with neighbor's possibilities
@@ -777,12 +861,26 @@ impl WangTile {
 }
 
 /// A set of Wang tiles that can be used for tiling.
+///
+/// Implements [`AdjacencySource`] for direct use with [`WfcSolver`] without
+/// converting to explicit adjacency rules. Adjacency is computed via edge-color
+/// indices in O(C³) where C is the number of colors, regardless of tile count.
 #[derive(Debug, Clone)]
 pub struct WangTileSet {
     /// The tiles in this set.
     tiles: Vec<WangTile>,
     /// Number of edge colors used.
     num_colors: u8,
+    /// Tile weights for biased selection.
+    weights: Vec<f32>,
+    /// Index: tiles grouped by their west edge color (for right-adjacency queries).
+    west_index: HashMap<EdgeColor, Vec<TileId>>,
+    /// Index: tiles grouped by their north edge color (for down-adjacency queries).
+    north_index: HashMap<EdgeColor, Vec<TileId>>,
+    /// Index: tiles grouped by their east edge color (for left-adjacency queries).
+    east_index: HashMap<EdgeColor, Vec<TileId>>,
+    /// Index: tiles grouped by their south edge color (for up-adjacency queries).
+    south_index: HashMap<EdgeColor, Vec<TileId>>,
 }
 
 impl WangTileSet {
@@ -791,12 +889,18 @@ impl WangTileSet {
         Self {
             tiles: Vec::new(),
             num_colors: 0,
+            weights: Vec::new(),
+            west_index: HashMap::new(),
+            north_index: HashMap::new(),
+            east_index: HashMap::new(),
+            south_index: HashMap::new(),
         }
     }
 
     /// Adds a tile to the set.
     pub fn add_tile(&mut self, tile: WangTile) -> usize {
         let idx = self.tiles.len();
+        let tile_id = TileId(idx);
         let mut tile = tile;
         tile.id = idx;
 
@@ -808,8 +912,35 @@ impl WangTileSet {
             .max(tile.south + 1)
             .max(tile.west + 1);
 
+        // Add to edge-color indices
+        self.west_index.entry(tile.west).or_default().push(tile_id);
+        self.north_index
+            .entry(tile.north)
+            .or_default()
+            .push(tile_id);
+        self.east_index.entry(tile.east).or_default().push(tile_id);
+        self.south_index
+            .entry(tile.south)
+            .or_default()
+            .push(tile_id);
+
         self.tiles.push(tile);
+        self.weights.push(1.0);
         idx
+    }
+
+    /// Adds a tile with a custom weight.
+    pub fn add_tile_weighted(&mut self, tile: WangTile, weight: f32) -> usize {
+        let idx = self.add_tile(tile);
+        self.weights[idx] = weight;
+        idx
+    }
+
+    /// Sets the weight of a tile.
+    pub fn set_weight(&mut self, idx: usize, weight: f32) {
+        if idx < self.tiles.len() {
+            self.weights[idx] = weight;
+        }
     }
 
     /// Returns the number of tiles.
@@ -883,9 +1014,42 @@ impl Default for WangTileSet {
     }
 }
 
+impl AdjacencySource for WangTileSet {
+    fn tile_count(&self) -> usize {
+        self.tiles.len()
+    }
+
+    fn weight(&self, tile: TileId) -> f32 {
+        self.weights.get(tile.0).copied().unwrap_or(1.0)
+    }
+
+    fn valid_neighbors(&self, tile: TileId, direction: Direction) -> ValidNeighbors<'_> {
+        let Some(t) = self.tiles.get(tile.0) else {
+            return ValidNeighbors::Empty;
+        };
+
+        // Find tiles whose opposite-direction edge matches our edge.
+        // e.g., if we're looking Right, we need tiles whose west edge matches our east edge.
+        let (my_edge, index) = match direction {
+            Direction::Right => (t.east, &self.west_index),
+            Direction::Left => (t.west, &self.east_index),
+            Direction::Down => (t.south, &self.north_index),
+            Direction::Up => (t.north, &self.south_index),
+        };
+
+        match index.get(&my_edge) {
+            Some(tiles) => ValidNeighbors::Vec(tiles.iter()),
+            None => ValidNeighbors::Empty,
+        }
+    }
+}
+
 /// Solves a Wang tiling problem using WFC.
 ///
 /// Returns a 2D grid of tile indices, or None if no valid tiling exists.
+///
+/// Uses [`WangTileSet`] directly via the [`AdjacencySource`] trait,
+/// avoiding the O(N²) conversion to explicit rules.
 ///
 /// # Example
 ///
@@ -907,8 +1071,8 @@ pub fn solve_wang_tiling(
     height: usize,
     seed: u64,
 ) -> Option<Vec<Vec<usize>>> {
-    let tileset = tiles.to_tileset();
-    let mut solver = WfcSolver::new(width, height, tileset);
+    // Use WangTileSet directly via AdjacencySource - no O(N²) conversion needed
+    let mut solver = WfcSolver::new(width, height, tiles.clone());
 
     if solver.run(seed).is_ok() {
         let result = solver.get_result();
@@ -1306,5 +1470,55 @@ mod tests {
         let set = wang_presets::three_color();
         assert!(set.tile_count() >= 15);
         assert_eq!(set.num_colors(), 3);
+    }
+
+    #[test]
+    fn test_wang_adjacency_source() {
+        // Test that AdjacencySource returns correct neighbors via edge-color indexing
+        let mut set = WangTileSet::new();
+        // Tile 0: east = 1
+        set.add_tile(WangTile::new(0, 1, 0, 0));
+        // Tile 1: west = 1 (can be to the right of tile 0)
+        set.add_tile(WangTile::new(0, 0, 0, 1));
+        // Tile 2: west = 0 (cannot be to the right of tile 0)
+        set.add_tile(WangTile::new(0, 0, 0, 0));
+
+        use crate::AdjacencySource;
+
+        // Tile 0 looking right should find tile 1 (west=1 matches east=1)
+        let neighbors: Vec<_> = set.valid_neighbors(TileId(0), Direction::Right).collect();
+        assert!(neighbors.contains(&TileId(1)));
+        assert!(!neighbors.contains(&TileId(2)));
+
+        // Tile 2 looking right should find tiles 0 and 2 (west=0 matches east=0)
+        let neighbors: Vec<_> = set.valid_neighbors(TileId(2), Direction::Right).collect();
+        assert!(neighbors.contains(&TileId(0)));
+        assert!(neighbors.contains(&TileId(2)));
+        assert!(!neighbors.contains(&TileId(1)));
+    }
+
+    #[test]
+    fn test_adjacency_source_tile_count() {
+        use crate::AdjacencySource;
+
+        let mut ts = TileSet::new();
+        ts.add_tile();
+        ts.add_tile();
+        assert_eq!(AdjacencySource::tile_count(&ts), 2);
+
+        let set = WangTileSet::complete(2);
+        assert_eq!(AdjacencySource::tile_count(&set), 16);
+    }
+
+    #[test]
+    fn test_adjacency_source_weights() {
+        use crate::AdjacencySource;
+
+        let mut set = WangTileSet::new();
+        set.add_tile(WangTile::new(0, 0, 0, 0));
+        set.add_tile_weighted(WangTile::new(1, 1, 1, 1), 5.0);
+
+        assert_eq!(AdjacencySource::weight(&set, TileId(0)), 1.0);
+        assert_eq!(AdjacencySource::weight(&set, TileId(1)), 5.0);
     }
 }

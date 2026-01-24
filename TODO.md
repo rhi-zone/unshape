@@ -855,7 +855,7 @@ See DECOMPOSITION-AUDIT.md for which are true primitives vs compositions.
 - [ ] `HashLifeGrid::from(CellularAutomaton2D)` - convert from standard grid
 - [ ] Memory management: LRU cache eviction for bounded memory
 
-### WFC AdjacencySource Refactoring
+### WFC AdjacencySource Refactoring ✅
 
 > **Goal:** Make `WangTileSet` a first-class primitive instead of converting to `TileSet`.
 
@@ -863,21 +863,16 @@ See DECOMPOSITION-AUDIT.md for which are true primitives vs compositions.
 
 **Solution:** Co-equal primitives unified by a trait (see `docs/design/general-internal-constrained-api.md`):
 
-- [ ] `AdjacencySource` trait:
-  ```rust
-  trait AdjacencySource {
-      fn tile_count(&self) -> usize;
-      fn valid_neighbors(&self, tile: TileId, dir: Direction) -> impl Iterator<Item = TileId>;
-      fn weight(&self, tile: TileId) -> f32;
-  }
-  ```
-- [ ] Implement `AdjacencySource` for `TileSet` (existing HashMap lookup)
-- [ ] Implement `AdjacencySource` for `WangTileSet`:
-  - Add edge-color index: `west_index: HashMap<EdgeColor, Vec<TileId>>`
+- [x] `AdjacencySource` trait with `tile_count()`, `weight()`, `valid_neighbors()`
+- [x] `ValidNeighbors` enum iterator (HashSet::Iter or slice::Iter, no boxing)
+- [x] Implement `AdjacencySource` for `TileSet` (existing HashMap lookup)
+- [x] Implement `AdjacencySource` for `WangTileSet`:
+  - Edge-color indices: `west_index`, `north_index`, `east_index`, `south_index`
   - Adjacency lookup via index: O(C³) where C = colors
-- [ ] Make `WfcSolver` generic over `AdjacencySource`
-- [ ] Remove `WangTileSet::to_tileset()` (no longer needed)
-- [ ] Update tests and examples
+- [x] Make `WfcSolver<A: AdjacencySource>` generic
+- [x] `solve_wang_tiling()` now uses `WangTileSet` directly (no O(N²) conversion)
+- [x] Keep `to_tileset()` for backwards compatibility (still useful for debugging/serialization)
+- [x] Tests for AdjacencySource implementations
 
 ### Architecture / Future Extraction
 
