@@ -114,8 +114,8 @@ pub fn derive_op(input: TokenStream) -> TokenStream {
         quote! {
             let _: () = input.downcast()?;
             let result = self.apply();
-            ::std::result::Result::Ok(::rhi_unshape_op::OpValue::new(
-                ::rhi_unshape_op::OpType::of::<#output_type>(#output_type_name),
+            ::std::result::Result::Ok(::unshape_op::OpValue::new(
+                ::unshape_op::OpType::of::<#output_type>(#output_type_name),
                 result
             ))
         }
@@ -123,8 +123,8 @@ pub fn derive_op(input: TokenStream) -> TokenStream {
         quote! {
             let value: #input_type = input.downcast()?;
             let result = self.apply(&value);
-            ::std::result::Result::Ok(::rhi_unshape_op::OpValue::new(
-                ::rhi_unshape_op::OpType::of::<#output_type>(#output_type_name),
+            ::std::result::Result::Ok(::unshape_op::OpValue::new(
+                ::unshape_op::OpType::of::<#output_type>(#output_type_name),
                 result
             ))
         }
@@ -132,20 +132,20 @@ pub fn derive_op(input: TokenStream) -> TokenStream {
 
     // Generate the DynOp impl
     let expanded = quote! {
-        impl #impl_generics ::rhi_unshape_op::DynOp for #struct_name #ty_generics #where_clause {
+        impl #impl_generics ::unshape_op::DynOp for #struct_name #ty_generics #where_clause {
             fn type_name(&self) -> &'static str {
                 #type_name_str
             }
 
-            fn input_type(&self) -> ::rhi_unshape_op::OpType {
-                ::rhi_unshape_op::OpType::of::<#input_type>(#input_type_name)
+            fn input_type(&self) -> ::unshape_op::OpType {
+                ::unshape_op::OpType::of::<#input_type>(#input_type_name)
             }
 
-            fn output_type(&self) -> ::rhi_unshape_op::OpType {
-                ::rhi_unshape_op::OpType::of::<#output_type>(#output_type_name)
+            fn output_type(&self) -> ::unshape_op::OpType {
+                ::unshape_op::OpType::of::<#output_type>(#output_type_name)
             }
 
-            fn apply_dyn(&self, input: ::rhi_unshape_op::OpValue) -> ::std::result::Result<::rhi_unshape_op::OpValue, ::rhi_unshape_op::OpError> {
+            fn apply_dyn(&self, input: ::unshape_op::OpValue) -> ::std::result::Result<::unshape_op::OpValue, ::unshape_op::OpError> {
                 #apply_dyn_body
             }
 

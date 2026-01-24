@@ -2,7 +2,7 @@
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use glam::Vec3;
-use rhi_unshape_mesh::{
+use unshape_mesh::{
     DecimateConfig, MarchingCubesConfig, decimate, marching_cubes, subdivide_loop,
     subdivide_loop_n, uv_sphere,
 };

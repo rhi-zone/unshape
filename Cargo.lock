@@ -4110,524 +4110,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rhizome-resin-audio"
-version = "0.1.0"
-dependencies = [
- "cranelift-codegen 0.113.1",
- "cranelift-frontend 0.113.1",
- "cranelift-jit 0.113.1",
- "cranelift-module 0.113.1",
- "cranelift-native 0.113.1",
- "criterion",
- "rhizome-resin-audio-codegen",
- "rhizome-resin-core",
- "rhizome-resin-expr-field",
- "rhizome-resin-jit",
- "rhizome-resin-op",
- "rhizome-resin-spectral",
- "rustfft",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rhizome-resin-audio-codegen"
-version = "0.1.0"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "rhizome-resin-automata"
-version = "0.1.0"
-dependencies = [
- "rhizome-resin-op",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-backend"
-version = "0.1.0"
-dependencies = [
- "rhizome-resin-core",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rhizome-resin-bytes"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
-]
-
-[[package]]
-name = "rhizome-resin-color"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rhizome-resin-easing",
- "serde",
-]
-
-[[package]]
-name = "rhizome-resin-core"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rhizome-resin-macros",
- "serde",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rhizome-resin-crossdomain"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rhizome-resin-audio",
- "rhizome-resin-bytes",
- "rhizome-resin-color",
- "rhizome-resin-field",
- "rhizome-resin-image",
- "rhizome-resin-op",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-curve"
-version = "0.1.0"
-dependencies = [
- "glam",
- "serde",
-]
-
-[[package]]
-name = "rhizome-resin-easing"
-version = "0.1.0"
-dependencies = [
- "glam",
- "serde",
-]
-
-[[package]]
-name = "rhizome-resin-examples"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "glam",
- "rhizome-resin-audio",
- "rhizome-resin-backend",
- "rhizome-resin-core",
- "rhizome-resin-field",
- "rhizome-resin-image",
- "rhizome-resin-lsystem",
- "rhizome-resin-mesh",
- "rhizome-resin-noise",
- "rhizome-resin-op",
- "rhizome-resin-rig",
- "rhizome-resin-vector",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-expr-field"
-version = "0.1.0"
-dependencies = [
- "cranelift-codegen 0.113.1",
- "cranelift-frontend 0.113.1",
- "cranelift-jit 0.113.1",
- "cranelift-module 0.113.1",
- "cranelift-native 0.113.1",
- "criterion",
- "glam",
- "rhizome-dew-core",
- "rhizome-dew-scalar",
- "rhizome-resin-field",
- "rhizome-resin-jit",
- "rhizome-resin-noise",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rhizome-resin-field"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "glam",
- "rhizome-resin-noise",
- "rhizome-resin-op",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-fluid"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rand 0.9.2",
- "rhizome-resin-op",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-geometry"
-version = "0.1.0"
-dependencies = [
- "glam",
-]
-
-[[package]]
-name = "rhizome-resin-gltf"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "glam",
- "gltf",
- "gltf-json",
- "rhizome-resin-mesh",
- "serde_json",
- "tempfile",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rhizome-resin-gpu"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "glam",
- "image",
- "pollster",
- "rhizome-dew-linalg",
- "rhizome-resin-backend",
- "rhizome-resin-core",
- "rhizome-resin-image",
- "rhizome-resin-op",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "wgpu",
-]
-
-[[package]]
-name = "rhizome-resin-history"
-version = "0.1.0"
-dependencies = [
- "rhizome-resin-core",
- "rhizome-resin-serde",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rhizome-resin-image"
-version = "0.1.0"
-dependencies = [
- "glam",
- "image",
- "num-traits",
- "rhizome-dew-core",
- "rhizome-dew-linalg",
- "rhizome-resin-color",
- "rhizome-resin-field",
- "rhizome-resin-op",
- "rhizome-resin-spectral",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rhizome-resin-jit"
-version = "0.1.0"
-dependencies = [
- "cranelift-codegen 0.113.1",
- "cranelift-frontend 0.113.1",
- "cranelift-jit 0.113.1",
- "cranelift-module 0.113.1",
- "cranelift-native 0.113.1",
- "criterion",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rhizome-resin-lsystem"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rhizome-resin-op",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "rhizome-resin-mesh"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "glam",
- "ordered-float",
- "rhizome-resin-geometry",
- "rhizome-resin-op",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rhizome-resin-motion"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rhizome-resin-color",
- "rhizome-resin-easing",
- "rhizome-resin-motion-fn",
- "rhizome-resin-noise",
- "rhizome-resin-transform",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-motion-fn"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rhizome-dew-core",
- "rhizome-dew-scalar",
- "rhizome-resin-easing",
- "rhizome-resin-field",
- "rhizome-resin-noise",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-noise"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "glam",
- "rustfft",
- "serde",
-]
-
-[[package]]
-name = "rhizome-resin-op"
-version = "0.1.0"
-dependencies = [
- "rhizome-resin-op-macros",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rhizome-resin-op-macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "rhizome-resin-particle"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rhizome-resin-noise",
- "rhizome-resin-op",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-physics"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "glam",
- "rhizome-resin-op",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-pointcloud"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "glam",
- "rand 0.9.2",
- "rhizome-resin-field",
- "rhizome-resin-geometry",
- "rhizome-resin-mesh",
- "rhizome-resin-op",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-procgen"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rhizome-resin-op",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rhizome-resin-rd"
-version = "0.1.0"
-dependencies = [
- "rhizome-resin-op",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-rig"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rhizome-resin-curve",
- "rhizome-resin-easing",
- "rhizome-resin-op",
- "rhizome-resin-transform",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rhizome-resin-scatter"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rhizome-resin-op",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-serde"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "rhizome-resin-core",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rhizome-resin-space-colonization"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rhizome-resin-op",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-spatial"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "glam",
- "serde",
-]
-
-[[package]]
-name = "rhizome-resin-spectral"
-version = "0.1.0"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "rhizome-resin-spline"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rhizome-resin-curve",
- "serde",
-]
-
-[[package]]
-name = "rhizome-resin-spring"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rhizome-resin-op",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "rhizome-resin-surface"
-version = "0.1.0"
-dependencies = [
- "glam",
- "serde",
-]
-
-[[package]]
-name = "rhizome-resin-transform"
-version = "0.1.0"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "rhizome-resin-vector"
-version = "0.1.0"
-dependencies = [
- "ab_glyph",
- "glam",
- "rhizome-resin-color",
- "rhizome-resin-core",
- "rhizome-resin-curve",
- "rhizome-resin-op",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rhizome-resin-voxel"
-version = "0.1.0"
-dependencies = [
- "glam",
- "rhizome-resin-field",
- "rhizome-resin-mesh",
- "rhizome-resin-op",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "ron"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5215,6 +4697,524 @@ name = "unicode-xid"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
+
+[[package]]
+name = "unshape-audio"
+version = "0.1.0"
+dependencies = [
+ "cranelift-codegen 0.113.1",
+ "cranelift-frontend 0.113.1",
+ "cranelift-jit 0.113.1",
+ "cranelift-module 0.113.1",
+ "cranelift-native 0.113.1",
+ "criterion",
+ "rustfft",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "unshape-audio-codegen",
+ "unshape-core",
+ "unshape-expr-field",
+ "unshape-jit",
+ "unshape-op",
+ "unshape-spectral",
+]
+
+[[package]]
+name = "unshape-audio-codegen"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "unshape-automata"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-backend"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+ "unshape-core",
+]
+
+[[package]]
+name = "unshape-bytes"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
+name = "unshape-color"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "unshape-easing",
+]
+
+[[package]]
+name = "unshape-core"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "thiserror 2.0.18",
+ "unshape-macros",
+]
+
+[[package]]
+name = "unshape-crossdomain"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "serde_json",
+ "unshape-audio",
+ "unshape-bytes",
+ "unshape-color",
+ "unshape-field",
+ "unshape-image",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-curve"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+]
+
+[[package]]
+name = "unshape-easing"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+]
+
+[[package]]
+name = "unshape-examples"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "glam",
+ "serde_json",
+ "unshape-audio",
+ "unshape-backend",
+ "unshape-core",
+ "unshape-field",
+ "unshape-image",
+ "unshape-lsystem",
+ "unshape-mesh",
+ "unshape-noise",
+ "unshape-op",
+ "unshape-rig",
+ "unshape-vector",
+]
+
+[[package]]
+name = "unshape-expr-field"
+version = "0.1.0"
+dependencies = [
+ "cranelift-codegen 0.113.1",
+ "cranelift-frontend 0.113.1",
+ "cranelift-jit 0.113.1",
+ "cranelift-module 0.113.1",
+ "cranelift-native 0.113.1",
+ "criterion",
+ "glam",
+ "rhizome-dew-core",
+ "rhizome-dew-scalar",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "unshape-field",
+ "unshape-jit",
+ "unshape-noise",
+]
+
+[[package]]
+name = "unshape-field"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "glam",
+ "serde",
+ "serde_json",
+ "unshape-noise",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-fluid"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "rand 0.9.2",
+ "serde",
+ "serde_json",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-geometry"
+version = "0.1.0"
+dependencies = [
+ "glam",
+]
+
+[[package]]
+name = "unshape-gltf"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "glam",
+ "gltf",
+ "gltf-json",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "unshape-mesh",
+]
+
+[[package]]
+name = "unshape-gpu"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glam",
+ "image",
+ "pollster",
+ "rhizome-dew-linalg",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "unshape-backend",
+ "unshape-core",
+ "unshape-image",
+ "unshape-op",
+ "wgpu",
+]
+
+[[package]]
+name = "unshape-history"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "unshape-core",
+ "unshape-serde",
+]
+
+[[package]]
+name = "unshape-image"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "image",
+ "num-traits",
+ "rhizome-dew-core",
+ "rhizome-dew-linalg",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "unshape-color",
+ "unshape-field",
+ "unshape-op",
+ "unshape-spectral",
+]
+
+[[package]]
+name = "unshape-jit"
+version = "0.1.0"
+dependencies = [
+ "cranelift-codegen 0.113.1",
+ "cranelift-frontend 0.113.1",
+ "cranelift-jit 0.113.1",
+ "cranelift-module 0.113.1",
+ "cranelift-native 0.113.1",
+ "criterion",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "unshape-lsystem"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "serde_json",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "unshape-mesh"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "glam",
+ "ordered-float",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "unshape-geometry",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-motion"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "serde_json",
+ "unshape-color",
+ "unshape-easing",
+ "unshape-motion-fn",
+ "unshape-noise",
+ "unshape-transform",
+]
+
+[[package]]
+name = "unshape-motion-fn"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "rhizome-dew-core",
+ "rhizome-dew-scalar",
+ "serde",
+ "serde_json",
+ "unshape-easing",
+ "unshape-field",
+ "unshape-noise",
+]
+
+[[package]]
+name = "unshape-noise"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "glam",
+ "rustfft",
+ "serde",
+]
+
+[[package]]
+name = "unshape-op"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "unshape-op-macros",
+]
+
+[[package]]
+name = "unshape-op-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "unshape-particle"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "serde_json",
+ "unshape-noise",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-physics"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "glam",
+ "serde",
+ "serde_json",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-pointcloud"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "glam",
+ "rand 0.9.2",
+ "serde",
+ "serde_json",
+ "unshape-field",
+ "unshape-geometry",
+ "unshape-mesh",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-procgen"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-rd"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-rig"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "unshape-curve",
+ "unshape-easing",
+ "unshape-op",
+ "unshape-transform",
+]
+
+[[package]]
+name = "unshape-scatter"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "serde_json",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-serde"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "unshape-core",
+]
+
+[[package]]
+name = "unshape-space-colonization"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "serde_json",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-spatial"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "glam",
+ "serde",
+]
+
+[[package]]
+name = "unshape-spectral"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "unshape-spline"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "unshape-curve",
+]
+
+[[package]]
+name = "unshape-spring"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "serde_json",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-surface"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+]
+
+[[package]]
+name = "unshape-transform"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "unshape-vector"
+version = "0.1.0"
+dependencies = [
+ "ab_glyph",
+ "glam",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "unshape-color",
+ "unshape-core",
+ "unshape-curve",
+ "unshape-op",
+]
+
+[[package]]
+name = "unshape-voxel"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "serde_json",
+ "unshape-field",
+ "unshape-mesh",
+ "unshape-op",
+]
 
 [[package]]
 name = "unty"

@@ -3,7 +3,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_vector::{Font, TextLayout, text_to_paths};
+//! use unshape_vector::{Font, TextLayout, text_to_paths};
 //!
 //! let font = Font::from_bytes(include_bytes!("font.ttf")).unwrap();
 //! let paths = text_to_paths("Hello", &font, TextLayout::default());

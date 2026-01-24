@@ -24,7 +24,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_jit::{JitCompiler, JitConfig};
+//! use unshape_jit::{JitCompiler, JitConfig};
 //!
 //! // Create compiler
 //! let mut compiler = JitCompiler::new(JitConfig::default())?;

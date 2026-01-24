@@ -8,7 +8,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_audio::spatial::{SpatialSource, SpatialListener, Spatializer, Vec3};
+//! use unshape_audio::spatial::{SpatialSource, SpatialListener, Spatializer, Vec3};
 //!
 //! let listener = SpatialListener::default();
 //! let source = SpatialSource::at(Vec3::new(1.0, 0.0, 0.0)); // Right of listener
@@ -337,7 +337,7 @@ pub struct SpatialParams {
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = SpatializeInput, output = SpatializeOutput))]
 pub struct Spatialize {
     /// Distance attenuation model.

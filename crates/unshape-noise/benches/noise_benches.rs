@@ -1,7 +1,7 @@
 //! Benchmarks for noise functions.
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
-use rhi_unshape_noise::{
+use unshape_noise::{
     fbm_perlin2, fbm_perlin3, fbm_simplex2, fbm_simplex3, perlin2, perlin3, simplex2, simplex3,
 };
 

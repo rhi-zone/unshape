@@ -14,8 +14,8 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_vector::{circle, rect, path_union, path_intersect, path_subtract};
-//! use rhi_unshape_vector::boolean::FillRule;
+//! use unshape_vector::{circle, rect, path_union, path_intersect, path_subtract};
+//! use unshape_vector::boolean::FillRule;
 //!
 //! let a = circle(Vec2::ZERO, 1.0);
 //! let b = circle(Vec2::new(0.5, 0.0), 1.0);

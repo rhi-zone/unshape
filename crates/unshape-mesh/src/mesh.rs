@@ -1,7 +1,7 @@
 //! Core mesh types.
 
 use glam::{Vec2, Vec3};
-use rhi_unshape_geometry::{HasIndices, HasNormals, HasPositions, HasUVs};
+use unshape_geometry::{HasIndices, HasNormals, HasPositions, HasUVs};
 
 /// A 3D mesh with indexed triangle topology.
 ///

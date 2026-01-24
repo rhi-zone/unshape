@@ -17,7 +17,7 @@ use std::collections::{BinaryHeap, HashMap, HashSet};
 /// to create a navmesh for pathfinding.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Mesh, output = NavMesh))]
 pub struct GenerateNavMesh {
     /// Cell size for rasterization.

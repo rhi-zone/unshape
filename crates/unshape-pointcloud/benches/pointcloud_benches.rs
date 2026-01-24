@@ -2,8 +2,8 @@
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use glam::{Mat4, Vec3};
-use rhi_unshape_mesh::Cuboid;
-use rhi_unshape_pointcloud::{
+use unshape_mesh::Cuboid;
+use unshape_pointcloud::{
     PointCloud, Poisson, RemoveOutliers, crop_to_bounds, estimate_normals, remove_outliers,
     sample_mesh_poisson, sample_mesh_uniform, transform, voxel_downsample,
 };

@@ -19,7 +19,7 @@ pub mod svg;
 mod text;
 
 // Re-export curve types for convenience
-pub use rhi_unshape_curve::{
+pub use unshape_curve::{
     Arc, ArcLengthPath, CubicBezier, Curve, Line, Path as CurvePath, QuadBezier, Segment2D,
     VectorSpace,
 };
@@ -88,7 +88,7 @@ pub use text::{
 ///
 /// Call this to enable deserialization of vector ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<Stroke>("resin::Stroke");
     registry.register_type::<PressureStrokeRender>("resin::PressureStrokeRender");
     registry.register_type::<Trim>("resin::Trim");
@@ -96,7 +96,7 @@ pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
 
 /// Invariant tests for vector operations.
 ///
-/// Run with: cargo test -p rhi-unshape-vector --features invariant-tests
+/// Run with: cargo test -p unshape-vector --features invariant-tests
 #[cfg(all(test, feature = "invariant-tests"))]
 mod invariant_tests {
     use super::*;

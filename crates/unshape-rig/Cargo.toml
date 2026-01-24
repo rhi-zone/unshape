@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-rig"
+name = "unshape-rig"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,14 +7,14 @@ description = "Core types and traits for unshape"
 
 [features]
 serde = ["dep:serde", "glam/serde"]
-dynop = ["dep:rhi-unshape-op", "dep:serde_json", "serde"]
+dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
 
 [dependencies]
 glam.workspace = true
 thiserror.workspace = true
-rhi-unshape-curve = { path = "../unshape-curve" }
-rhi-unshape-easing = { path = "../unshape-easing" }
-rhi-unshape-transform = { path = "../unshape-transform" }
-rhi-unshape-op = { path = "../unshape-op", optional = true }
+unshape-curve = { path = "../unshape-curve" }
+unshape-easing = { path = "../unshape-easing" }
+unshape-transform = { path = "../unshape-transform" }
+unshape-op = { path = "../unshape-op", optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }

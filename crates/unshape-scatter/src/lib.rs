@@ -3,7 +3,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_core::{ScatterConfig, scatter_grid, scatter_random, Instance};
+//! use unshape_core::{ScatterConfig, scatter_grid, scatter_random, Instance};
 //! use glam::Vec3;
 //!
 //! // Random scatter in a box
@@ -92,7 +92,7 @@ impl Instance {
 /// configuration into a single serializable struct.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Vec<Instance>))]
 pub struct Scatter {
     /// Minimum bounds of the scatter volume.
@@ -657,7 +657,7 @@ impl StaggerTiming {
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_scatter::{scatter_circle, stagger_timing, Stagger};
+/// use unshape_scatter::{scatter_circle, stagger_timing, Stagger};
 /// use glam::Vec3;
 ///
 /// let instances = scatter_circle(Vec3::ZERO, 100.0, 8);
@@ -843,7 +843,7 @@ pub fn stagger_spread(count: usize, total_duration: f32) -> Vec<f32> {
 ///
 /// Call this to enable deserialization of scatter ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<Scatter>("resin::Scatter");
 }
 

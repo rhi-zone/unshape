@@ -5,7 +5,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_mesh::{Mesh, UvSphere, geodesic::{compute_geodesic_distance, GeodesicConfig}};
+//! use unshape_mesh::{Mesh, UvSphere, geodesic::{compute_geodesic_distance, GeodesicConfig}};
 //!
 //! // Create a simple mesh
 //! let mesh = UvSphere::new(1.0, 16, 8).apply();

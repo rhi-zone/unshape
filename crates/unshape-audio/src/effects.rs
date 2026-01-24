@@ -27,7 +27,7 @@ use crate::primitive::{DelayLine, Mix, PhaseOsc};
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::effects::{ModulatedDelay, chorus, flanger};
+/// use unshape_audio::effects::{ModulatedDelay, chorus, flanger};
 ///
 /// // Using constructor functions
 /// let mut chorus_effect = chorus(44100.0);
@@ -173,7 +173,7 @@ pub fn flanger(sample_rate: f32) -> ModulatedDelay {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::effects::{AmplitudeMod, tremolo};
+/// use unshape_audio::effects::{AmplitudeMod, tremolo};
 ///
 /// let mut trem = tremolo(44100.0, 5.0, 0.5); // 5Hz, 50% depth
 /// let output = trem.process(1.0);
@@ -253,7 +253,7 @@ use crate::primitive::Allpass1;
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::effects::{AllpassBank, phaser};
+/// use unshape_audio::effects::{AllpassBank, phaser};
 ///
 /// let mut ph = phaser(44100.0);
 /// let output = ph.process(1.0);
@@ -402,8 +402,8 @@ use crate::primitive::{DelayNode, LfoNode, MixNode};
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::effects::tremolo_graph;
-/// use rhi_unshape_audio::graph::AudioContext;
+/// use unshape_audio::effects::tremolo_graph;
+/// use unshape_audio::graph::AudioContext;
 ///
 /// let mut effect = tremolo_graph(44100.0, 5.0, 0.5);
 /// let ctx = AudioContext::new(44100.0);
@@ -437,8 +437,8 @@ pub fn tremolo_graph(sample_rate: f32, rate: f32, depth: f32) -> AudioGraph {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::effects::chorus_graph;
-/// use rhi_unshape_audio::graph::AudioContext;
+/// use unshape_audio::effects::chorus_graph;
+/// use unshape_audio::graph::AudioContext;
 ///
 /// let mut effect = chorus_graph(44100.0);
 /// let ctx = AudioContext::new(44100.0);
@@ -1043,7 +1043,7 @@ impl AudioNode for ConvolutionReverb {
 #[cfg(feature = "spectral")]
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Vec<f32>, output = ConvolutionReverb))]
 pub struct Convolution {
     /// Processing block size (power of 2).
@@ -1181,7 +1181,7 @@ fn simple_hash(x: u32) -> u32 {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::effects::Compressor;
+/// use unshape_audio::effects::Compressor;
 ///
 /// let mut comp = Compressor::new(44100.0);
 /// comp.threshold = -20.0; // dB
@@ -1501,7 +1501,7 @@ impl AudioNode for NoiseGate {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::effects::Bitcrusher;
+/// use unshape_audio::effects::Bitcrusher;
 ///
 /// let mut crusher = Bitcrusher::new(44100.0);
 /// crusher.bits = 8;              // 8-bit audio

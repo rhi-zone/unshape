@@ -2,7 +2,7 @@
 
 use crate::{CurveSegment, Path, PathCommand};
 use glam::Vec2;
-use rhi_unshape_curve::{CubicBezier, Curve, Line, Path as CurvePath, QuadBezier, Segment2D};
+use unshape_curve::{CubicBezier, Curve, Line, Path as CurvePath, QuadBezier, Segment2D};
 
 // ============================================================================
 // CurveSegment implements Curve

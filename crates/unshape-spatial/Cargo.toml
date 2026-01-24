@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-spatial"
+name = "unshape-spatial"
 version = "0.1.0"
 edition = "2024"
 description = "Spatial data structures for efficient queries and collision detection"

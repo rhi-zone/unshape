@@ -3,7 +3,7 @@
 //! Compares JIT-compiled vs interpreted evaluation.
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
-use rhi_unshape_expr_field::FieldExpr;
+use unshape_expr_field::FieldExpr;
 use std::collections::HashMap;
 
 const GRID_SIZE: usize = 100; // 100x100 = 10,000 evaluations
@@ -72,7 +72,7 @@ fn bench_interpreted(c: &mut Criterion) {
 
 #[cfg(feature = "cranelift")]
 fn bench_jit(c: &mut Criterion) {
-    use rhi_unshape_expr_field::jit_impl::FieldExprCompiler;
+    use unshape_expr_field::jit_impl::FieldExprCompiler;
 
     let expr = create_complex_expr();
     let mut compiler = FieldExprCompiler::new().unwrap();
@@ -95,7 +95,7 @@ fn bench_jit(c: &mut Criterion) {
 
 #[cfg(feature = "cranelift")]
 fn bench_jit_trig(c: &mut Criterion) {
-    use rhi_unshape_expr_field::jit_impl::FieldExprCompiler;
+    use unshape_expr_field::jit_impl::FieldExprCompiler;
 
     let expr = create_trig_expr();
     let bindings: HashMap<String, f32> = HashMap::new();
@@ -133,7 +133,7 @@ fn bench_jit_trig(c: &mut Criterion) {
 
 #[cfg(feature = "cranelift")]
 fn bench_jit_sdf(c: &mut Criterion) {
-    use rhi_unshape_expr_field::jit_impl::FieldExprCompiler;
+    use unshape_expr_field::jit_impl::FieldExprCompiler;
 
     let expr = create_sdf_expr();
     let bindings: HashMap<String, f32> = HashMap::new();
@@ -171,7 +171,7 @@ fn bench_jit_sdf(c: &mut Criterion) {
 
 #[cfg(feature = "cranelift")]
 fn bench_compile_time(c: &mut Criterion) {
-    use rhi_unshape_expr_field::jit_impl::FieldExprCompiler;
+    use unshape_expr_field::jit_impl::FieldExprCompiler;
 
     let expr = create_complex_expr();
 

@@ -1,8 +1,8 @@
 //! Transform3D type for skeletal animation.
 
 use glam::{Mat4, Quat, Vec3};
-use rhi_unshape_easing::Lerp;
-use rhi_unshape_transform::SpatialTransform;
+use unshape_easing::Lerp;
+use unshape_transform::SpatialTransform;
 
 /// A 3D transform (translation, rotation, scale).
 #[derive(Debug, Clone, Copy, PartialEq)]

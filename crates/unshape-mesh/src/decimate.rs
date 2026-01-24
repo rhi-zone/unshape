@@ -8,7 +8,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_mesh::{sphere, Decimate};
+//! use unshape_mesh::{sphere, Decimate};
 //!
 //! let high_poly = sphere(32, 16);
 //! let low_poly = Decimate::target_triangles(100).apply(&high_poly);
@@ -28,7 +28,7 @@ use crate::Mesh;
 /// reducing triangle count while preserving mesh shape.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct Decimate {
     /// Target number of triangles. Decimation stops when reached.

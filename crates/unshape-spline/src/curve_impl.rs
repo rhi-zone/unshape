@@ -2,7 +2,7 @@
 
 use crate::{BezierSpline, CubicBezier, Nurbs};
 use glam::{Vec2, Vec3};
-use rhi_unshape_curve::{CubicBezier as CurveCubic, Curve};
+use unshape_curve::{CubicBezier as CurveCubic, Curve};
 
 // ============================================================================
 // CubicBezier<T> implements Curve for Vec2/Vec3

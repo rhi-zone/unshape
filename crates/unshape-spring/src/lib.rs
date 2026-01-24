@@ -5,7 +5,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_spring::{SpringSystem, SpringConfig};
+//! use unshape_spring::{SpringSystem, SpringConfig};
 //! use glam::Vec3;
 //!
 //! // Create a simple rope
@@ -40,7 +40,7 @@ use glam::Vec3;
 ///
 /// Call this to enable deserialization of spring ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<SpringConfig>("resin::SpringConfig");
 }
 
@@ -86,7 +86,7 @@ impl Particle {
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = SpringConfig))]
 pub struct SpringConfig {
     /// Rest length of the spring.
@@ -745,7 +745,7 @@ mod tests {
 
 /// Invariant tests for spring physics.
 ///
-/// Run with: cargo test -p rhi-unshape-spring --features invariant-tests
+/// Run with: cargo test -p unshape-spring --features invariant-tests
 #[cfg(all(test, feature = "invariant-tests"))]
 mod invariant_tests {
     use super::*;

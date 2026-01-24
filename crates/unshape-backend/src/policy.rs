@@ -10,7 +10,7 @@ use crate::backend::BackendKind;
 /// # Examples
 ///
 /// ```
-/// use rhi_unshape_backend::{ExecutionPolicy, BackendKind};
+/// use unshape_backend::{ExecutionPolicy, BackendKind};
 ///
 /// // Let the scheduler decide
 /// let auto = ExecutionPolicy::Auto;

@@ -2,7 +2,7 @@
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use glam::Vec3;
-use rhi_unshape_physics::{Collider, Physics, PhysicsWorld, RigidBody};
+use unshape_physics::{Collider, Physics, PhysicsWorld, RigidBody};
 
 fn bench_world_step(c: &mut Criterion) {
     c.bench_function("physics_step_100_bodies", |b| {

@@ -40,7 +40,7 @@
 //! ```
 
 // Re-export the derive macro
-pub use rhi_unshape_op_macros::Op;
+pub use unshape_op_macros::Op;
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;

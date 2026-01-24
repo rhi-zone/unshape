@@ -106,7 +106,7 @@ pub use wav::{
 ///
 /// Call this to enable deserialization of audio ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     #[cfg(feature = "spectral")]
     registry.register_type::<Convolution>("resin::Convolution");
     registry.register_type::<GranularSynth>("resin::GranularSynth");

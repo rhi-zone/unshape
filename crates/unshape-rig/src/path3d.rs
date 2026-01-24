@@ -5,7 +5,7 @@
 //! for uniform-speed sampling along the path.
 
 use glam::Vec3;
-use rhi_unshape_curve::{ArcLengthPath, CubicBezier, Line, Path, Segment3D};
+use unshape_curve::{ArcLengthPath, CubicBezier, Line, Path, Segment3D};
 
 /// A 3D path with arc-length parameterization.
 ///

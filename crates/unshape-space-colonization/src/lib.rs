@@ -9,7 +9,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_space_colonization::{SpaceColonization, SpaceColonizationConfig};
+//! use unshape_space_colonization::{SpaceColonization, SpaceColonizationConfig};
 //! use glam::Vec3;
 //!
 //! let config = SpaceColonizationConfig {
@@ -44,7 +44,7 @@ use std::collections::{HashMap, HashSet};
 ///
 /// Call this to enable deserialization of space-colonization ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<SpaceColonizationParams>("resin::SpaceColonizationParams");
 }
 
@@ -54,7 +54,7 @@ pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
 /// a [`SpaceColonization`] instance ready for use.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = SpaceColonization))]
 pub struct SpaceColonizationParams {
     /// Distance within which an attraction point influences a node.

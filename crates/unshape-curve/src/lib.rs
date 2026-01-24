@@ -112,7 +112,7 @@ impl Rect {
 /// types. Run with:
 ///
 /// ```sh
-/// cargo test -p rhi-unshape-curve --features invariant-tests
+/// cargo test -p unshape-curve --features invariant-tests
 /// ```
 #[cfg(all(test, feature = "invariant-tests"))]
 mod invariant_tests {

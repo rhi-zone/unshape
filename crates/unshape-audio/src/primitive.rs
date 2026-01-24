@@ -25,7 +25,7 @@ use std::f32::consts::TAU;
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::primitive::DelayLine;
+/// use unshape_audio::primitive::DelayLine;
 ///
 /// // Simple delay (no interpolation)
 /// let mut delay: DelayLine<false> = DelayLine::new(1000);
@@ -136,7 +136,7 @@ impl DelayLine<true> {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::primitive::PhaseOsc;
+/// use unshape_audio::primitive::PhaseOsc;
 ///
 /// let mut osc = PhaseOsc::new();
 /// let phase_inc = 5.0 / 44100.0; // 5 Hz at 44.1kHz
@@ -239,7 +239,7 @@ impl Default for PhaseOsc {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::primitive::EnvelopeFollower;
+/// use unshape_audio::primitive::EnvelopeFollower;
 ///
 /// let mut env = EnvelopeFollower::new(0.01, 0.1, 44100.0);
 ///
@@ -328,7 +328,7 @@ impl EnvelopeFollower {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::primitive::Allpass1;
+/// use unshape_audio::primitive::Allpass1;
 ///
 /// let mut ap = Allpass1::new();
 /// let coeff = 0.5; // Controls notch frequency
@@ -384,7 +384,7 @@ impl Default for Allpass1 {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::primitive::Smoother;
+/// use unshape_audio::primitive::Smoother;
 ///
 /// let mut smooth = Smoother::new(0.01, 44100.0); // 10ms smoothing
 /// smooth.set_target(1.0);

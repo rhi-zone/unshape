@@ -7,8 +7,8 @@
 //! - Replay and debugging
 
 use crate::error::HistoryError;
-use rhi_unshape_core::{Graph, NodeId, Wire};
-use rhi_unshape_serde::NodeRegistry;
+use unshape_core::{Graph, NodeId, Wire};
+use unshape_serde::NodeRegistry;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
@@ -455,7 +455,7 @@ impl Default for EventHistory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rhi_unshape_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType};
+    use unshape_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]

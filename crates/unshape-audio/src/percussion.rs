@@ -8,7 +8,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_audio::percussion::{Membrane, MembraneSynth};
+//! use unshape_audio::percussion::{Membrane, MembraneSynth};
 //!
 //! let config = MembraneSynth::snare();
 //! let mut drum = Membrane::new(config, 44100.0);
@@ -97,7 +97,7 @@ impl Mode {
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = PercussionInput, output = Vec<f32>))]
 pub struct MembraneSynth {
     /// Fundamental frequency in Hz.
@@ -271,7 +271,7 @@ impl Membrane {
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = PercussionInput, output = Vec<f32>))]
 pub struct BarSynth {
     /// Fundamental frequency in Hz.
@@ -467,7 +467,7 @@ impl Bar {
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = PercussionInput, output = Vec<f32>))]
 pub struct PlateSynth {
     /// Fundamental frequency in Hz.

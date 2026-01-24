@@ -9,7 +9,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_mesh::{UvSphere, LodConfig, generate_lod_chain};
+//! use unshape_mesh::{UvSphere, LodConfig, generate_lod_chain};
 //!
 //! let high_poly = UvSphere::new(1.0, 32, 16).apply();
 //! let lod_chain = LodConfig::default().apply(&high_poly);
@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 /// suitable for distance-based rendering optimization.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Mesh, output = LodChain))]
 pub struct GenerateLodChain {
     /// Number of LOD levels to generate (including original).

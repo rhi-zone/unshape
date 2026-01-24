@@ -5,11 +5,11 @@
 //!
 //! Run with: `cargo run --example compute_backends`
 
-use rhi_unshape_backend::{
+use unshape_backend::{
     BackendNodeExecutor, BackendRegistry, ExecutionPolicy, LazyEvaluator, Scheduler,
     backend_evaluator,
 };
-use rhi_unshape_core::{
+use unshape_core::{
     DynNode, EvalContext, Evaluator, Graph, GraphError, PortDescriptor, Value, ValueType,
 };
 use std::any::Any;
@@ -200,7 +200,7 @@ fn main() {
         ("Auto", ExecutionPolicy::Auto),
         (
             "PreferKind(Cpu)",
-            ExecutionPolicy::PreferKind(rhi_unshape_backend::BackendKind::Cpu),
+            ExecutionPolicy::PreferKind(unshape_backend::BackendKind::Cpu),
         ),
         ("MinimizeCost", ExecutionPolicy::MinimizeCost),
     ];

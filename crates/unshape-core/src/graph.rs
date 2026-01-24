@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_core::{Graph, EvalContext};
+//! use unshape_core::{Graph, EvalContext};
 //!
 //! let mut graph = Graph::new();
 //!

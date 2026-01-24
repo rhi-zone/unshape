@@ -3,7 +3,7 @@
 //! Provides physical room modeling with RT60 calculation, room modes,
 //! early reflections via image-source method, and ray tracing.
 
-use rhi_unshape_core::glam::Vec3;
+use unshape_core::glam::Vec3;
 
 /// Room geometry (rectangular box).
 #[derive(Debug, Clone)]

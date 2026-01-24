@@ -15,7 +15,7 @@
 //! and caches results for subsequent evaluations:
 //!
 //! ```ignore
-//! use rhi_unshape_core::{Graph, LazyEvaluator, Evaluator, EvalContext};
+//! use unshape_core::{Graph, LazyEvaluator, Evaluator, EvalContext};
 //!
 //! // Assume graph is built with nodes connected
 //! let graph: Graph = /* ... */;
@@ -38,7 +38,7 @@
 //! The evaluation context provides environment information for node execution:
 //!
 //! ```
-//! use rhi_unshape_core::{EvalContext, CancellationToken};
+//! use unshape_core::{EvalContext, CancellationToken};
 //!
 //! // Basic context
 //! let ctx = EvalContext::new();
@@ -63,7 +63,7 @@
 //! Long-running evaluations can be cancelled cooperatively using [`CancellationToken`]:
 //!
 //! ```
-//! use rhi_unshape_core::CancellationToken;
+//! use unshape_core::CancellationToken;
 //!
 //! let token = CancellationToken::new();
 //! let token_clone = token.clone();
@@ -101,7 +101,7 @@ use crate::value::Value;
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_core::{NodeExecutor, DynNode, Value, EvalContext, GraphError};
+/// use unshape_core::{NodeExecutor, DynNode, Value, EvalContext, GraphError};
 ///
 /// struct LoggingExecutor;
 ///
@@ -599,7 +599,7 @@ pub trait Evaluator {
 /// # Example: Custom Executor
 ///
 /// ```ignore
-/// use rhi_unshape_core::{LazyEvaluator, NodeExecutor, DynNode, Value, EvalContext, GraphError};
+/// use unshape_core::{LazyEvaluator, NodeExecutor, DynNode, Value, EvalContext, GraphError};
 ///
 /// struct CountingExecutor { count: std::cell::Cell<usize> }
 ///

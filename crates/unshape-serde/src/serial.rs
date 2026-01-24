@@ -1,6 +1,6 @@
 //! Serializable intermediate representations of graph structures.
 
-use rhi_unshape_core::{NodeId, Wire};
+use unshape_core::{NodeId, Wire};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 

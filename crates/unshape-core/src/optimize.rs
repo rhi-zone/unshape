@@ -15,7 +15,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_core::optimize::{Optimizer, OptimizerPipeline};
+//! use unshape_core::optimize::{Optimizer, OptimizerPipeline};
 //!
 //! // Define a custom optimizer for your graph type
 //! struct MyGraphOptimizer;
@@ -49,7 +49,7 @@
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_core::optimize::Optimizer;
+/// use unshape_core::optimize::Optimizer;
 ///
 /// struct IdentityEliminator;
 ///
@@ -87,7 +87,7 @@ pub type BoxedOptimizer<G> = Box<dyn Optimizer<G>>;
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_core::optimize::OptimizerPipeline;
+/// use unshape_core::optimize::OptimizerPipeline;
 ///
 /// let mut pipeline = OptimizerPipeline::new()
 ///     .add(ConstantFolder)

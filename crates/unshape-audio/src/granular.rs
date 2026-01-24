@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_audio::{GrainCloud, GrainConfig};
+//! use unshape_audio::{GrainCloud, GrainConfig};
 //!
 //! // Create a grain cloud with a sample buffer
 //! let buffer = vec![0.0f32; 44100]; // 1 second of silence
@@ -44,7 +44,7 @@ pub struct GranularInput {
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = GranularInput, output = Vec<f32>))]
 pub struct GranularSynth {
     /// Grain size in milliseconds.

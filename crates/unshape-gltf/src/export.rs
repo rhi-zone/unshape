@@ -2,7 +2,7 @@
 
 use glam::Vec3;
 use gltf_json as json;
-use rhi_unshape_mesh::Mesh;
+use unshape_mesh::Mesh;
 use std::path::Path;
 
 /// Result type for glTF operations.

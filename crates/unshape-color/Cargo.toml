@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-color"
+name = "unshape-color"
 version = "0.1.0"
 edition = "2024"
 description = "Color types, gradients, and blend modes"
@@ -12,5 +12,5 @@ serde = ["dep:serde"]
 
 [dependencies]
 glam.workspace = true
-rhi-unshape-easing = { path = "../unshape-easing" }
+unshape-easing = { path = "../unshape-easing" }
 serde = { workspace = true, optional = true }

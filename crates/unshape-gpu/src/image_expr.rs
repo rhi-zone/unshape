@@ -8,7 +8,7 @@ use crate::error::{GpuError, GpuResult};
 use crate::texture::{GpuTexture, TextureFormat};
 use bytemuck::{Pod, Zeroable};
 use rhizome_dew_linalg::{Type, wgsl::emit_wgsl};
-use rhi_unshape_image::{ColorExpr, UvExpr};
+use unshape_image::{ColorExpr, UvExpr};
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
@@ -35,8 +35,8 @@ struct ImageUniforms {
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_gpu::{GpuContext, remap_uv_gpu};
-/// use rhi_unshape_image::UvExpr;
+/// use unshape_gpu::{GpuContext, remap_uv_gpu};
+/// use unshape_image::UvExpr;
 ///
 /// let ctx = GpuContext::new()?;
 /// let input = load_texture(&ctx, "image.png")?;
@@ -286,8 +286,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {{
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_gpu::{GpuContext, map_pixels_gpu};
-/// use rhi_unshape_image::ColorExpr;
+/// use unshape_gpu::{GpuContext, map_pixels_gpu};
+/// use unshape_image::ColorExpr;
 ///
 /// let ctx = GpuContext::new()?;
 /// let input = load_texture(&ctx, "image.png")?;

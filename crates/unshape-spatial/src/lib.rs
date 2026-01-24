@@ -13,7 +13,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_spatial::{Quadtree, Aabb2};
+//! use unshape_spatial::{Quadtree, Aabb2};
 //! use glam::Vec2;
 //!
 //! let bounds = Aabb2::new(Vec2::ZERO, Vec2::splat(100.0));
@@ -318,7 +318,7 @@ enum QuadtreeNode<T> {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_spatial::{Quadtree, Aabb2};
+/// use unshape_spatial::{Quadtree, Aabb2};
 /// use glam::Vec2;
 ///
 /// let bounds = Aabb2::new(Vec2::ZERO, Vec2::splat(100.0));
@@ -553,7 +553,7 @@ impl<T> Quadtree<T> {
     /// # Example
     ///
     /// ```
-    /// use rhi_unshape_spatial::{Quadtree, Aabb2};
+    /// use unshape_spatial::{Quadtree, Aabb2};
     /// use glam::Vec2;
     ///
     /// let bounds = Aabb2::new(Vec2::ZERO, Vec2::splat(100.0));
@@ -700,7 +700,7 @@ enum OctreeNode<T> {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_spatial::{Octree, Aabb3};
+/// use unshape_spatial::{Octree, Aabb3};
 /// use glam::Vec3;
 ///
 /// let bounds = Aabb3::new(Vec3::ZERO, Vec3::splat(100.0));
@@ -948,7 +948,7 @@ impl<T> Octree<T> {
     /// # Example
     ///
     /// ```
-    /// use rhi_unshape_spatial::{Octree, Aabb3};
+    /// use unshape_spatial::{Octree, Aabb3};
     /// use glam::Vec3;
     ///
     /// let bounds = Aabb3::new(Vec3::ZERO, Vec3::splat(100.0));
@@ -1147,7 +1147,7 @@ enum BvhNode<T> {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_spatial::{Bvh, Aabb3, Ray};
+/// use unshape_spatial::{Bvh, Aabb3, Ray};
 /// use glam::Vec3;
 ///
 /// // Create primitives with their bounding boxes
@@ -1393,7 +1393,7 @@ impl<T> Bvh<T> {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_spatial::SpatialHash;
+/// use unshape_spatial::SpatialHash;
 /// use glam::Vec3;
 ///
 /// let mut hash = SpatialHash::new(10.0); // 10 unit cell size
@@ -1577,7 +1577,7 @@ impl<T> RtreeNode<T> {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_spatial::{Rtree, Aabb2};
+/// use unshape_spatial::{Rtree, Aabb2};
 /// use glam::Vec2;
 ///
 /// let mut tree = Rtree::new(4); // max 4 entries per node
@@ -1992,7 +1992,7 @@ enum KdNode2D<T> {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_spatial::KdTree2D;
+/// use unshape_spatial::KdTree2D;
 /// use glam::Vec2;
 ///
 /// let points = vec![
@@ -2387,7 +2387,7 @@ enum KdNode3D<T> {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_spatial::KdTree3D;
+/// use unshape_spatial::KdTree3D;
 /// use glam::Vec3;
 ///
 /// let points = vec![
@@ -2781,7 +2781,7 @@ enum BallNode2D<T> {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_spatial::BallTree2D;
+/// use unshape_spatial::BallTree2D;
 /// use glam::Vec2;
 ///
 /// let points = vec![
@@ -3116,7 +3116,7 @@ enum BallNode3D<T> {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_spatial::BallTree3D;
+/// use unshape_spatial::BallTree3D;
 /// use glam::Vec3;
 ///
 /// let points = vec![
@@ -4297,7 +4297,7 @@ mod tests {
 /// data structures. Run with:
 ///
 /// ```sh
-/// cargo test -p rhi-unshape-spatial --features invariant-tests
+/// cargo test -p unshape-spatial --features invariant-tests
 /// ```
 #[cfg(all(test, feature = "invariant-tests"))]
 mod invariant_tests {

@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-motion-fn"
+name = "unshape-motion-fn"
 version = "0.1.0"
 edition = "2024"
 description = "Motion functions for animation (spring, oscillate, wiggle)"
@@ -13,9 +13,9 @@ dew = ["dep:rhizome-dew-scalar", "dep:rhizome-dew-core"]
 
 [dependencies]
 glam.workspace = true
-rhi-unshape-field = { path = "../unshape-field" }
-rhi-unshape-easing = { path = "../unshape-easing" }
-rhi-unshape-noise = { path = "../unshape-noise" }
+unshape-field = { path = "../unshape-field" }
+unshape-easing = { path = "../unshape-easing" }
+unshape-noise = { path = "../unshape-noise" }
 serde = { workspace = true, optional = true }
 rhizome-dew-scalar = { git = "https://github.com/rhizome-lab/dew", optional = true }
 rhizome-dew-core = { git = "https://github.com/rhizome-lab/dew", optional = true }

@@ -2,7 +2,7 @@
 
 use crate::GpuContext;
 use crate::error::{GpuError, GpuResult};
-use rhi_unshape_core::{DataLocation, GraphValue};
+use unshape_core::{DataLocation, GraphValue};
 use std::any::Any;
 
 /// Texture format for GPU output.

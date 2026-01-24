@@ -5,7 +5,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_mesh::{Mesh, repair::{find_boundary_loops, fill_hole_fan}};
+//! use unshape_mesh::{Mesh, repair::{find_boundary_loops, fill_hole_fan}};
 //!
 //! let mut mesh = Mesh::new();
 //! // ... build a mesh with holes ...

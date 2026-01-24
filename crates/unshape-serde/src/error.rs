@@ -23,7 +23,7 @@ pub enum SerdeError {
 
     /// Graph error during reconstruction.
     #[error("graph error: {0}")]
-    Graph(#[from] rhi_unshape_core::GraphError),
+    Graph(#[from] unshape_core::GraphError),
 
     /// Node does not implement SerializableNode.
     #[error("node type '{0}' does not support serialization")]

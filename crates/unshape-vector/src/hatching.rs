@@ -7,7 +7,7 @@
 //!
 //! ```
 //! use glam::Vec2;
-//! use rhi_unshape_vector::{Hatch, hatch_rect, cross_hatch_rect};
+//! use unshape_vector::{Hatch, hatch_rect, cross_hatch_rect};
 //!
 //! // Simple parallel hatching
 //! let config = Hatch { spacing: 5.0, angle: 45.0, ..Hatch::default() };

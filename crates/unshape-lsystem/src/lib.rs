@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_lsystem::{LSystem, Rule, Turtle2D};
+//! use unshape_lsystem::{LSystem, Rule, Turtle2D};
 //!
 //! // Koch curve
 //! let lsystem = LSystem::new("F")
@@ -26,7 +26,7 @@ use glam::{Vec2, Vec3};
 ///
 /// Call this to enable deserialization of lsystem ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<Turtle2D>("resin::Turtle2D");
     registry.register_type::<Turtle3D>("resin::Turtle3D");
 }
@@ -158,7 +158,7 @@ impl LSystem {
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = String, output = Vec<TurtleSegment2D>))]
 pub struct Turtle2D {
     /// Rotation angle in degrees for + and - commands.
@@ -192,7 +192,7 @@ impl Turtle2D {
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = String, output = Vec<TurtleSegment3D>))]
 pub struct Turtle3D {
     /// Rotation angle in degrees for + and - commands.

@@ -164,7 +164,7 @@ pub use weights::{
 ///
 /// Call this to enable deserialization of mesh ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<BakeAo>("resin::BakeAo");
     registry.register_type::<Bevel>("resin::Bevel");
     registry.register_type::<Decimate>("resin::Decimate");
@@ -208,7 +208,7 @@ pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
 /// for mesh primitives and operations. Run with:
 ///
 /// ```sh
-/// cargo test -p rhi-unshape-mesh --features invariant-tests
+/// cargo test -p unshape-mesh --features invariant-tests
 /// ```
 #[cfg(all(test, feature = "invariant-tests"))]
 mod invariant_tests {

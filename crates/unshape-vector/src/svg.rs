@@ -5,8 +5,8 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_vector::{Path, PathBuilder, circle};
-//! use rhi_unshape_vector::svg::{SvgDocument, SvgStyle};
+//! use unshape_vector::{Path, PathBuilder, circle};
+//! use unshape_vector::svg::{SvgDocument, SvgStyle};
 //!
 //! let path = circle(glam::Vec2::new(50.0, 50.0), 40.0);
 //! let mut doc = SvgDocument::new(100.0, 100.0);
@@ -522,7 +522,7 @@ pub type SvgParseResult<T> = Result<T, SvgParseError>;
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_vector::svg::parse_path_data;
+/// use unshape_vector::svg::parse_path_data;
 ///
 /// let path = parse_path_data("M0,0 L100,100 Z").unwrap();
 /// assert!(!path.is_empty());

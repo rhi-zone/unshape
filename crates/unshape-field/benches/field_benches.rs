@@ -1,6 +1,6 @@
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use glam::Vec2;
-use rhi_unshape_field::*;
+use unshape_field::*;
 
 // ============================================================================
 // Noise field sampling

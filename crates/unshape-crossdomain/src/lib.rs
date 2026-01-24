@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_crossdomain::{image_to_audio, audio_to_image, ImageToAudioConfig};
+//! use unshape_crossdomain::{image_to_audio, audio_to_image, ImageToAudioConfig};
 //!
 //! // Convert an image to audio (MetaSynth-style spectral painting)
 //! let config = ImageToAudioConfig::new(44100, 10.0);
@@ -18,10 +18,10 @@
 //! ```
 
 use glam::{Vec2, Vec3};
-use rhi_unshape_audio::spectral::{StftConfig, stft_with_sample_rate};
-use rhi_unshape_color::Rgba;
-use rhi_unshape_field::{EvalContext, Field};
-use rhi_unshape_image::ImageField;
+use unshape_audio::spectral::{StftConfig, stft_with_sample_rate};
+use unshape_color::Rgba;
+use unshape_field::{EvalContext, Field};
+use unshape_image::ImageField;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -189,7 +189,7 @@ impl<'a> PixelView<'a> {
 // ============================================================================
 
 /// Re-export of resin-bytes for raw byte reinterpretation.
-pub use rhi_unshape_bytes as bytes;
+pub use unshape_bytes as bytes;
 
 /// Creates an ImageField from raw bytes interpreted as RGBA pixels.
 ///
@@ -241,7 +241,7 @@ pub fn bytes_to_image_auto(bytes: &[u8]) -> Option<ImageField> {
 /// This is inspired by MetaSynth's "paint with sound" approach.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ImageField, output = Vec<f32>))]
 pub struct ImageToAudio {
     /// Sample rate in Hz.
@@ -343,7 +343,7 @@ pub fn image_to_audio(image: &ImageField, config: &ImageToAudioConfig) -> Vec<f3
 /// with brightness indicating magnitude.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Vec<f32>, output = ImageField))]
 pub struct AudioToImage {
     /// Sample rate of the input audio in Hz.
@@ -679,7 +679,7 @@ where
 ///
 /// Call this to enable deserialization of crossdomain ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<ImageToAudio>("resin::ImageToAudio");
     registry.register_type::<AudioToImage>("resin::AudioToImage");
 }

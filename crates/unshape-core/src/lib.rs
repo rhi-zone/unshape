@@ -12,7 +12,7 @@
 //! # Quick Example
 //!
 //! ```
-//! use rhi_unshape_core::{Graph, EvalContext};
+//! use unshape_core::{Graph, EvalContext};
 //!
 //! // Create a graph and add nodes
 //! let mut graph = Graph::new();
@@ -54,5 +54,5 @@ pub use eval::{
 pub use glam;
 pub use graph::{Graph, NodeId, Wire};
 pub use node::{BoxedNode, DynNode, PortDescriptor};
-pub use rhi_unshape_macros::DynNode as DynNodeDerive;
+pub use unshape_macros::DynNode as DynNodeDerive;
 pub use value::{DataLocation, GraphValue, Value, ValueType};

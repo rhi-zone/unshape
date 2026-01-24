@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 /// ambient occlusion values.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Mesh, output = Vec<f32>))]
 pub struct BakeAo {
     /// Number of rays to cast per sample.

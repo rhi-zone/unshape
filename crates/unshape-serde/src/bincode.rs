@@ -41,7 +41,7 @@ impl GraphFormat for BincodeFormat {
 mod tests {
     use super::*;
     use crate::serial::SerialNode;
-    use rhi_unshape_core::Wire;
+    use unshape_core::Wire;
 
     #[test]
     fn test_bincode_roundtrip() {

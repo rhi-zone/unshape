@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-audio"
+name = "unshape-audio"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,25 +10,25 @@ default = []
 # Enable thorough statistical/invariant tests (slower, for CI)
 invariant-tests = []
 serde = ["dep:serde"]
-dynop = ["dep:rhi-unshape-op", "dep:serde_json", "serde"]
+dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
 # Graph pattern matching and optimization
 optimize = []
 # Spectral analysis (FFT, STFT, time-stretch, pitch-shift)
-spectral = ["dep:rhi-unshape-spectral"]
+spectral = ["dep:unshape-spectral"]
 # Experimental: JIT compilation for audio graphs
-cranelift = ["dep:cranelift", "dep:cranelift-frontend", "dep:cranelift-native", "dep:cranelift-module", "dep:cranelift-jit", "dep:rhi-unshape-jit", "rhi-unshape-jit/cranelift"]
+cranelift = ["dep:cranelift", "dep:cranelift-frontend", "dep:cranelift-native", "dep:cranelift-module", "dep:cranelift-jit", "dep:unshape-jit", "unshape-jit/cranelift"]
 # Build-time codegen (requires serde)
-codegen = ["dep:rhi-unshape-audio-codegen", "serde", "dep:serde_json"]
+codegen = ["dep:unshape-audio-codegen", "serde", "dep:serde_json"]
 # Build-time codegen for benchmarks
 codegen-bench = ["codegen"]
 
 [dependencies]
-rhi-unshape-core = { path = "../unshape-core" }
-rhi-unshape-expr-field = { path = "../unshape-expr-field" }
-rhi-unshape-spectral = { path = "../unshape-spectral", optional = true }
+unshape-core = { path = "../unshape-core" }
+unshape-expr-field = { path = "../unshape-expr-field" }
+unshape-spectral = { path = "../unshape-spectral", optional = true }
 serde = { workspace = true, optional = true }
-rhi-unshape-op = { path = "../unshape-op", optional = true }
-rhi-unshape-audio-codegen = { path = "../unshape-audio-codegen", optional = true }
+unshape-op = { path = "../unshape-op", optional = true }
+unshape-audio-codegen = { path = "../unshape-audio-codegen", optional = true }
 serde_json = { version = "1", optional = true }
 thiserror.workspace = true
 
@@ -38,10 +38,10 @@ cranelift-frontend = { workspace = true, optional = true }
 cranelift-native = { workspace = true, optional = true }
 cranelift-module = { workspace = true, optional = true }
 cranelift-jit = { workspace = true, optional = true }
-rhi-unshape-jit = { workspace = true, optional = true }
+unshape-jit = { workspace = true, optional = true }
 
 [build-dependencies]
-rhi-unshape-audio-codegen = { path = "../unshape-audio-codegen" }
+unshape-audio-codegen = { path = "../unshape-audio-codegen" }
 
 [dev-dependencies]
 criterion.workspace = true

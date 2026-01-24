@@ -4,7 +4,7 @@
 //! allowing smooth color gradients across arbitrary shapes.
 
 use glam::Vec2;
-use rhi_unshape_color::Rgba;
+use unshape_color::Rgba;
 
 /// A vertex in a gradient mesh.
 #[derive(Debug, Clone, Copy, PartialEq)]

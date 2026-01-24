@@ -7,7 +7,7 @@
 //! # Examples
 //!
 //! ```
-//! use rhi_unshape_field::{Field, EvalContext, Perlin2D};
+//! use unshape_field::{Field, EvalContext, Perlin2D};
 //! use glam::Vec2;
 //!
 //! // Create a noise field
@@ -108,7 +108,7 @@ pub trait Field<I, O> {
     ///
     /// # Example
     /// ```
-    /// use rhi_unshape_field::{Field, EvalContext, Constant, Zip};
+    /// use unshape_field::{Field, EvalContext, Constant, Zip};
     ///
     /// let a = Constant::new(1.0_f32);
     /// let b = Constant::new(2.0_f32);
@@ -173,7 +173,7 @@ where
 ///
 /// # Example
 /// ```
-/// use rhi_unshape_field::{Field, EvalContext, Constant, Zip, Map};
+/// use unshape_field::{Field, EvalContext, Constant, Zip, Map};
 /// use std::marker::PhantomData;
 ///
 /// let a = Constant::new(3.0_f32);
@@ -218,7 +218,7 @@ where
 ///
 /// # Example
 /// ```
-/// use rhi_unshape_field::{Field, EvalContext, Constant, Zip3, Map};
+/// use unshape_field::{Field, EvalContext, Constant, Zip3, Map};
 /// use std::marker::PhantomData;
 ///
 /// let a = Constant::new(0.0_f32);
@@ -483,7 +483,7 @@ pub fn zip3<A, B, C>(a: A, b: B, c: C) -> Zip3<A, B, C> {
 ///
 /// # Example
 /// ```
-/// use rhi_unshape_field::{Field, EvalContext, Constant, lerp};
+/// use unshape_field::{Field, EvalContext, Constant, lerp};
 /// use glam::Vec2;
 ///
 /// let a = Constant::new(0.0_f32);
@@ -574,8 +574,8 @@ impl Perlin2D {
 
 impl Field<Vec2, f32> for Perlin2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise2D;
-        rhi_unshape_noise::Perlin2D::with_seed(self.seed).sample(input.x, input.y)
+        use unshape_noise::Noise2D;
+        unshape_noise::Perlin2D::with_seed(self.seed).sample(input.x, input.y)
     }
 }
 
@@ -600,8 +600,8 @@ impl Perlin3D {
 
 impl Field<Vec3, f32> for Perlin3D {
     fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise3D;
-        rhi_unshape_noise::Perlin3D::with_seed(self.seed).sample(input.x, input.y, input.z)
+        use unshape_noise::Noise3D;
+        unshape_noise::Perlin3D::with_seed(self.seed).sample(input.x, input.y, input.z)
     }
 }
 
@@ -626,8 +626,8 @@ impl Simplex2D {
 
 impl Field<Vec2, f32> for Simplex2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise2D;
-        rhi_unshape_noise::Simplex2D::with_seed(self.seed).sample(input.x, input.y)
+        use unshape_noise::Noise2D;
+        unshape_noise::Simplex2D::with_seed(self.seed).sample(input.x, input.y)
     }
 }
 
@@ -652,8 +652,8 @@ impl Simplex3D {
 
 impl Field<Vec3, f32> for Simplex3D {
     fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise3D;
-        rhi_unshape_noise::Simplex3D::with_seed(self.seed).sample(input.x, input.y, input.z)
+        use unshape_noise::Noise3D;
+        unshape_noise::Simplex3D::with_seed(self.seed).sample(input.x, input.y, input.z)
     }
 }
 
@@ -801,8 +801,8 @@ impl Perlin1D {
 
 impl Field<f32, f32> for Perlin1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise1D;
-        rhi_unshape_noise::Perlin1D::with_seed(self.seed).sample(input)
+        use unshape_noise::Noise1D;
+        unshape_noise::Perlin1D::with_seed(self.seed).sample(input)
     }
 }
 
@@ -829,8 +829,8 @@ impl Simplex1D {
 
 impl Field<f32, f32> for Simplex1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise1D;
-        rhi_unshape_noise::Simplex1D::with_seed(self.seed).sample(input)
+        use unshape_noise::Noise1D;
+        unshape_noise::Simplex1D::with_seed(self.seed).sample(input)
     }
 }
 
@@ -858,8 +858,8 @@ impl Value1D {
 
 impl Field<f32, f32> for Value1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise1D;
-        rhi_unshape_noise::Value1D::with_seed(self.seed).sample(input)
+        use unshape_noise::Noise1D;
+        unshape_noise::Value1D::with_seed(self.seed).sample(input)
     }
 }
 
@@ -884,8 +884,8 @@ impl Value2D {
 
 impl Field<Vec2, f32> for Value2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise2D;
-        rhi_unshape_noise::Value2D::with_seed(self.seed).sample(input.x, input.y)
+        use unshape_noise::Noise2D;
+        unshape_noise::Value2D::with_seed(self.seed).sample(input.x, input.y)
     }
 }
 
@@ -910,8 +910,8 @@ impl Value3D {
 
 impl Field<Vec3, f32> for Value3D {
     fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise3D;
-        rhi_unshape_noise::Value3D::with_seed(self.seed).sample(input.x, input.y, input.z)
+        use unshape_noise::Noise3D;
+        unshape_noise::Value3D::with_seed(self.seed).sample(input.x, input.y, input.z)
     }
 }
 
@@ -940,8 +940,8 @@ impl Worley1D {
 
 impl Field<f32, f32> for Worley1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise1D;
-        rhi_unshape_noise::Worley1D::with_seed(self.seed).sample(input)
+        use unshape_noise::Noise1D;
+        unshape_noise::Worley1D::with_seed(self.seed).sample(input)
     }
 }
 
@@ -968,8 +968,8 @@ impl Worley2D {
 
 impl Field<Vec2, f32> for Worley2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise2D;
-        rhi_unshape_noise::Worley2D::with_seed(self.seed).sample(input.x, input.y)
+        use unshape_noise::Noise2D;
+        unshape_noise::Worley2D::with_seed(self.seed).sample(input.x, input.y)
     }
 }
 
@@ -994,8 +994,8 @@ impl Worley3D {
 
 impl Field<Vec3, f32> for Worley3D {
     fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise3D;
-        rhi_unshape_noise::Worley3D::with_seed(self.seed).sample(input.x, input.y, input.z)
+        use unshape_noise::Noise3D;
+        unshape_noise::Worley3D::with_seed(self.seed).sample(input.x, input.y, input.z)
     }
 }
 
@@ -1022,8 +1022,8 @@ impl WorleyF2_2D {
 
 impl Field<Vec2, f32> for WorleyF2_2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::{Noise2D, WorleyReturn};
-        rhi_unshape_noise::Worley2D::with_seed(self.seed)
+        use unshape_noise::{Noise2D, WorleyReturn};
+        unshape_noise::Worley2D::with_seed(self.seed)
             .return_type(WorleyReturn::F2)
             .sample(input.x, input.y)
     }
@@ -1052,8 +1052,8 @@ impl WorleyEdge2D {
 
 impl Field<Vec2, f32> for WorleyEdge2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::{Noise2D, WorleyReturn};
-        rhi_unshape_noise::Worley2D::with_seed(self.seed)
+        use unshape_noise::{Noise2D, WorleyReturn};
+        unshape_noise::Worley2D::with_seed(self.seed)
             .return_type(WorleyReturn::Edge)
             .sample(input.x, input.y)
     }
@@ -1100,8 +1100,8 @@ impl PinkNoise1D {
 
 impl Field<f32, f32> for PinkNoise1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise1D;
-        rhi_unshape_noise::Pink1D::with_seed(self.seed)
+        use unshape_noise::Noise1D;
+        unshape_noise::Pink1D::with_seed(self.seed)
             .octaves(self.octaves)
             .sample(input)
     }
@@ -1147,8 +1147,8 @@ impl PinkNoise2D {
 
 impl Field<Vec2, f32> for PinkNoise2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise2D;
-        rhi_unshape_noise::Pink2D::with_seed(self.seed)
+        use unshape_noise::Noise2D;
+        unshape_noise::Pink2D::with_seed(self.seed)
             .octaves(self.octaves)
             .sample(input.x, input.y)
     }
@@ -1178,8 +1178,8 @@ impl BrownNoise1D {
 
 impl Field<f32, f32> for BrownNoise1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise1D;
-        rhi_unshape_noise::Brown1D::with_seed(self.seed).sample(input)
+        use unshape_noise::Noise1D;
+        unshape_noise::Brown1D::with_seed(self.seed).sample(input)
     }
 }
 
@@ -1206,8 +1206,8 @@ impl BrownNoise2D {
 
 impl Field<Vec2, f32> for BrownNoise2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise2D;
-        rhi_unshape_noise::Brown2D::with_seed(self.seed).sample(input.x, input.y)
+        use unshape_noise::Noise2D;
+        unshape_noise::Brown2D::with_seed(self.seed).sample(input.x, input.y)
     }
 }
 
@@ -1235,8 +1235,8 @@ impl VioletNoise1D {
 
 impl Field<f32, f32> for VioletNoise1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise1D;
-        rhi_unshape_noise::Violet1D::with_seed(self.seed).sample(input)
+        use unshape_noise::Noise1D;
+        unshape_noise::Violet1D::with_seed(self.seed).sample(input)
     }
 }
 
@@ -1268,8 +1268,8 @@ impl GreyNoise1D {
 
 impl Field<f32, f32> for GreyNoise1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise1D;
-        rhi_unshape_noise::Grey1D::with_seed(self.seed).sample(input)
+        use unshape_noise::Noise1D;
+        unshape_noise::Grey1D::with_seed(self.seed).sample(input)
     }
 }
 
@@ -1317,8 +1317,8 @@ impl VelvetNoise1D {
 
 impl Field<f32, f32> for VelvetNoise1D {
     fn sample(&self, input: f32, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise1D;
-        rhi_unshape_noise::Velvet1D::with_seed(self.seed)
+        use unshape_noise::Noise1D;
+        unshape_noise::Velvet1D::with_seed(self.seed)
             .density(self.density)
             .sample(input)
     }
@@ -1540,8 +1540,8 @@ impl Terrain2D {
 
 impl Field<Vec2, f32> for Terrain2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise2D;
-        let noise = rhi_unshape_noise::Simplex2D::with_seed(self.seed);
+        use unshape_noise::Noise2D;
+        let noise = unshape_noise::Simplex2D::with_seed(self.seed);
         let p = input * self.scale;
 
         let mut value = 0.0;
@@ -1600,8 +1600,8 @@ impl RidgedTerrain2D {
 
 impl Field<Vec2, f32> for RidgedTerrain2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise2D;
-        let noise_fn = rhi_unshape_noise::Simplex2D::with_seed(self.seed);
+        use unshape_noise::Noise2D;
+        let noise_fn = unshape_noise::Simplex2D::with_seed(self.seed);
         let p = input * self.scale;
 
         let mut value = 0.0;
@@ -1662,8 +1662,8 @@ impl BillowyTerrain2D {
 
 impl Field<Vec2, f32> for BillowyTerrain2D {
     fn sample(&self, input: Vec2, _ctx: &EvalContext) -> f32 {
-        use rhi_unshape_noise::Noise2D;
-        let noise_fn = rhi_unshape_noise::Simplex2D::with_seed(self.seed);
+        use unshape_noise::Noise2D;
+        let noise_fn = unshape_noise::Simplex2D::with_seed(self.seed);
         let p = input * self.scale;
 
         let mut value = 0.0;
@@ -3078,7 +3078,7 @@ impl Metaball {
 ///
 /// ```
 /// use glam::Vec2;
-/// use rhi_unshape_field::{Field, EvalContext, Metaball, Metaballs2D};
+/// use unshape_field::{Field, EvalContext, Metaball, Metaballs2D};
 ///
 /// let balls = vec![
 ///     Metaball::new_2d(Vec2::new(0.0, 0.0), 1.0),
@@ -3415,7 +3415,7 @@ impl Heightmap {
 /// Hydraulic erosion simulation operation.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Heightmap, output = Heightmap))]
 pub struct HydraulicErosion {
     /// Number of water droplets to simulate.
@@ -3634,7 +3634,7 @@ fn apply_erosion_brush(
 /// Thermal erosion simulation operation.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Heightmap, output = Heightmap))]
 pub struct ThermalErosion {
     /// Number of iterations.
@@ -3965,7 +3965,7 @@ fn sample_path(path: &[Vec2], segment_length: f32) -> Vec<Vec2> {
 /// Road network generation operation.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Network))]
 pub struct RoadNetwork {
     /// Number of cities/intersections.
@@ -4195,7 +4195,7 @@ fn relax_edge_path(
 /// River network generation operation.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Heightmap, output = Network))]
 pub struct RiverNetwork {
     /// Number of river sources.
@@ -4465,7 +4465,7 @@ pub fn compute_flow_accumulation(heightmap: &Heightmap) -> Heightmap {
 ///
 /// Call this to enable deserialization of field ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<HydraulicErosion>("resin::HydraulicErosion");
     registry.register_type::<ThermalErosion>("resin::ThermalErosion");
     registry.register_type::<RoadNetwork>("resin::RoadNetwork");
@@ -5458,7 +5458,7 @@ mod tests {
 /// for all field implementations. Run with:
 ///
 /// ```sh
-/// cargo test -p rhi-unshape-field --features invariant-tests
+/// cargo test -p unshape-field --features invariant-tests
 /// ```
 #[cfg(all(test, feature = "invariant-tests"))]
 mod invariant_tests {

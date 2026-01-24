@@ -25,7 +25,7 @@ pub use softbody::{
 ///
 /// Call this to enable deserialization of physics ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<ClothConfig>("resin::ClothConfig");
     registry.register_type::<SoftBodyConfig>("resin::SoftBodyConfig");
     registry.register_type::<Physics>("resin::Physics");
@@ -531,7 +531,7 @@ impl SpringConstraint {
 /// Configuration for physics simulation.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Physics))]
 pub struct Physics {
     /// Gravity acceleration.
@@ -1906,7 +1906,7 @@ mod tests {
 
 /// Invariant tests for physics simulation.
 ///
-/// Run with: cargo test -p rhi-unshape-physics --features invariant-tests
+/// Run with: cargo test -p unshape-physics --features invariant-tests
 #[cfg(all(test, feature = "invariant-tests"))]
 mod invariant_tests {
     use super::*;

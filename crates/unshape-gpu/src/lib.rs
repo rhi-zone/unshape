@@ -11,12 +11,12 @@
 //!
 //! # Compute Backend
 //!
-//! The [`GpuComputeBackend`] implements the [`ComputeBackend`](rhi_unshape_backend::ComputeBackend)
-//! trait, allowing GPU execution to be selected via [`ExecutionPolicy`](rhi_unshape_backend::ExecutionPolicy).
+//! The [`GpuComputeBackend`] implements the [`ComputeBackend`](unshape_backend::ComputeBackend)
+//! trait, allowing GPU execution to be selected via [`ExecutionPolicy`](unshape_backend::ExecutionPolicy).
 //!
 //! ```ignore
-//! use rhi_unshape_gpu::{GpuComputeBackend, GpuKernel};
-//! use rhi_unshape_backend::BackendRegistry;
+//! use unshape_gpu::{GpuComputeBackend, GpuKernel};
+//! use unshape_backend::BackendRegistry;
 //!
 //! let mut registry = BackendRegistry::with_cpu();
 //! if let Ok(gpu) = GpuComputeBackend::new() {
@@ -27,7 +27,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_gpu::{GpuContext, NoiseType, noise_texture_gpu};
+//! use unshape_gpu::{GpuContext, NoiseType, noise_texture_gpu};
 //!
 //! let ctx = GpuContext::new()?;
 //! let texture = noise_texture_gpu(&ctx, 512, 512, NoiseType::Perlin, 4.0)?;
@@ -61,6 +61,6 @@ pub use image_expr::{map_pixels_gpu, remap_uv_gpu};
 ///
 /// Call this to enable deserialization of GPU ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<NoiseConfig>("resin::NoiseConfig");
 }

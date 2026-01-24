@@ -8,7 +8,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_motion::{Scene, Layer, Transform2D};
+//! use unshape_motion::{Scene, Layer, Transform2D};
 //! use glam::Vec2;
 //!
 //! // Create a scene with nested layers
@@ -29,13 +29,13 @@
 //! ```
 
 use glam::{Mat3, Vec2};
-pub use rhi_unshape_easing::Lerp;
-pub use rhi_unshape_transform::SpatialTransform;
+pub use unshape_easing::Lerp;
+pub use unshape_transform::SpatialTransform;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-pub use rhi_unshape_color::BlendMode;
+pub use unshape_color::BlendMode;
 
 // ============================================================================
 // Transform2D
@@ -546,7 +546,7 @@ impl Scene {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_motion::LinearTransform2D;
+/// use unshape_motion::LinearTransform2D;
 /// use glam::{Vec2, Mat2};
 ///
 /// // Create from rotation + scale
@@ -773,10 +773,10 @@ impl From<glam::Mat2> for LinearTransform2D {
 // Motion implementations for Transform2D
 // ============================================================================
 
-use rhi_unshape_motion_fn::{Eased, Lerp as MotionLerp, Motion, Spring};
+use unshape_motion_fn::{Eased, Lerp as MotionLerp, Motion, Spring};
 
 // Re-export motion types for convenience
-pub use rhi_unshape_motion_fn::{
+pub use unshape_motion_fn::{
     Constant, Delay, Eased as EasedMotion, EasingType, Lerp as LerpMotion, Loop,
     Motion as MotionTrait, Oscillate, PingPong, Spring as SpringMotion, TimeScale, Wiggle,
     Wiggle2D,
@@ -813,7 +813,7 @@ fn spring_value(from: f32, to: f32, stiffness: f32, damping: f32, t: f32) -> f32
     }
 }
 
-// Note: Constant<Transform2D> uses blanket impl from rhi_unshape_motion_fn
+// Note: Constant<Transform2D> uses blanket impl from unshape_motion_fn
 
 // -- MotionLerp<Transform2D> --
 
@@ -916,7 +916,7 @@ impl Motion<Transform2D> for Spring<Transform2D> {
 // Motion implementations for LinearTransform2D
 // ============================================================================
 
-// Note: Constant<LinearTransform2D> uses blanket impl from rhi_unshape_motion_fn
+// Note: Constant<LinearTransform2D> uses blanket impl from unshape_motion_fn
 
 // -- MotionLerp<LinearTransform2D> --
 
@@ -1151,9 +1151,9 @@ impl WiggleTransform2D {
 
 impl Motion<Transform2D> for WiggleTransform2D {
     fn at(&self, t: f32) -> Transform2D {
-        use rhi_unshape_noise::Noise2D;
+        use unshape_noise::Noise2D;
         let perlin = |seed: f32| {
-            rhi_unshape_noise::Perlin2D::with_seed(seed as i32).sample(t * self.frequency, 0.0)
+            unshape_noise::Perlin2D::with_seed(seed as i32).sample(t * self.frequency, 0.0)
                 * 2.0
                 - 1.0
         };
@@ -1221,9 +1221,9 @@ impl WiggleLinearTransform2D {
 
 impl Motion<LinearTransform2D> for WiggleLinearTransform2D {
     fn at(&self, t: f32) -> LinearTransform2D {
-        use rhi_unshape_noise::Noise2D;
+        use unshape_noise::Noise2D;
         let perlin = |seed: f32| {
-            rhi_unshape_noise::Perlin2D::with_seed(seed as i32).sample(t * self.frequency, 0.0)
+            unshape_noise::Perlin2D::with_seed(seed as i32).sample(t * self.frequency, 0.0)
                 * 2.0
                 - 1.0
         };

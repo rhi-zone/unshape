@@ -56,7 +56,7 @@ impl Default for JitConfig {
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_jit::{JitCompiler, JitConfig};
+/// use unshape_jit::{JitCompiler, JitConfig};
 ///
 /// let mut compiler = JitCompiler::new(JitConfig::default())?;
 /// let compiled = compiler.compile(&graph)?;

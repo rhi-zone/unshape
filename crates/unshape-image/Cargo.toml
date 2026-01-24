@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-image"
+name = "unshape-image"
 version = "0.1.0"
 edition = "2024"
 description = "Image-based fields for texture sampling"
@@ -11,7 +11,7 @@ default = []
 # Enable thorough statistical/invariant tests (slower, for CI)
 invariant-tests = []
 serde = ["dep:serde"]
-dynop = ["dep:rhi-unshape-op", "dep:serde_json", "serde"]
+dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
 dew = ["dep:rhizome-dew-core", "dep:rhizome-dew-linalg", "dep:num-traits"]
 cranelift = ["dew", "rhizome-dew-linalg/cranelift"]
 wgsl = ["dew", "rhizome-dew-linalg/wgsl"]
@@ -19,10 +19,10 @@ wgsl = ["dew", "rhizome-dew-linalg/wgsl"]
 [dependencies]
 glam.workspace = true
 image.workspace = true
-rhi-unshape-color = { path = "../unshape-color" }
-rhi-unshape-field = { path = "../unshape-field" }
-rhi-unshape-spectral = { path = "../unshape-spectral" }
-rhi-unshape-op = { path = "../unshape-op", optional = true }
+unshape-color = { path = "../unshape-color" }
+unshape-field = { path = "../unshape-field" }
+unshape-spectral = { path = "../unshape-spectral" }
+unshape-op = { path = "../unshape-op", optional = true }
 rhizome-dew-core = { git = "https://github.com/rhizome-lab/dew", features = ["cond"], optional = true }
 rhizome-dew-linalg = { git = "https://github.com/rhizome-lab/dew", features = ["4d"], optional = true }
 num-traits = { version = "0.2", optional = true }

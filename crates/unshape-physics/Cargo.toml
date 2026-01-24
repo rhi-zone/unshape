@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-physics"
+name = "unshape-physics"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,12 +9,12 @@ description = "Core types and traits for unshape"
 [features]
 default = []
 serde = ["dep:serde", "glam/serde"]
-dynop = ["dep:rhi-unshape-op", "dep:serde_json", "serde"]
+dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
 invariant-tests = []
 
 [dependencies]
 glam = { workspace = true }
-rhi-unshape-op = { path = "../unshape-op", optional = true }
+unshape-op = { path = "../unshape-op", optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
 

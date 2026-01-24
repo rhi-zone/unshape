@@ -5,7 +5,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_audio::physical::{KarplusStrong, PluckSynth};
+//! use unshape_audio::physical::{KarplusStrong, PluckSynth};
 //!
 //! let mut ks = KarplusStrong::new(44100.0);
 //! ks.pluck(440.0, PluckSynth::default());
@@ -37,7 +37,7 @@ pub struct PluckInput {
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = PluckInput, output = Vec<f32>))]
 pub struct PluckSynth {
     /// Initial amplitude (0.0 to 1.0).

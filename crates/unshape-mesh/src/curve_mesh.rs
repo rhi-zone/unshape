@@ -3,7 +3,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_mesh::{extrude_profile, revolve_profile, sweep_profile};
+//! use unshape_mesh::{extrude_profile, revolve_profile, sweep_profile};
 //! use glam::{Vec2, Vec3};
 //!
 //! // Create a profile (2D outline)
@@ -36,7 +36,7 @@ use crate::Mesh;
 /// The profile is placed on the XY plane at the origin, then extruded along the given direction.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Mesh))]
 pub struct ExtrudeProfile {
     /// The 2D profile points to extrude.
@@ -88,7 +88,7 @@ pub type ExtrudeProfileConfig = ExtrudeProfile;
 /// X values represent distance from the axis.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Mesh))]
 pub struct Revolve {
     /// The 2D profile points to revolve.
@@ -323,7 +323,7 @@ fn revolve_profile_impl(profile: &[Vec2], segments: usize, config: &Revolve) -> 
 /// The profile is oriented perpendicular to the path at each point.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Mesh))]
 pub struct Sweep {
     /// The 2D profile points to sweep.

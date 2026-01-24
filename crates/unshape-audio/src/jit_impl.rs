@@ -7,7 +7,7 @@
 
 use cranelift::ir::{InstBuilder, Value, types};
 use cranelift_frontend::FunctionBuilder;
-use rhi_unshape_jit::{JitCategory, JitCompilable, JitContext, SimdCompilable, SimdWidth};
+use unshape_jit::{JitCategory, JitCompilable, JitContext, SimdCompilable, SimdWidth};
 
 use crate::graph::{AffineNode, Clip, Constant, SoftClip};
 
@@ -245,7 +245,7 @@ impl SimdCompilable for Constant {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rhi_unshape_jit::{JitCompiler, JitConfig};
+    use unshape_jit::{JitCompiler, JitConfig};
 
     #[test]
     fn test_affine_category() {

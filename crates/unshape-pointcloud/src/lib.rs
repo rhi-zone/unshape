@@ -9,8 +9,8 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_pointcloud::{PointCloud, sample_mesh_uniform};
-//! use rhi_unshape_mesh::Cuboid;
+//! use unshape_pointcloud::{PointCloud, sample_mesh_uniform};
+//! use unshape_mesh::Cuboid;
 //!
 //! let mesh = Cuboid::unit().apply();
 //! let cloud = sample_mesh_uniform(&mesh, 1000);
@@ -20,9 +20,9 @@
 
 use glam::{Vec3, Vec4};
 use rand::Rng;
-use rhi_unshape_field::{EvalContext, Field};
-use rhi_unshape_geometry::{HasColors, HasNormals, HasPositions};
-use rhi_unshape_mesh::Mesh;
+use unshape_field::{EvalContext, Field};
+use unshape_geometry::{HasColors, HasNormals, HasPositions};
+use unshape_mesh::Mesh;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Call this to enable deserialization of pointcloud ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<Poisson>("resin::Poisson");
     registry.register_type::<RemoveOutliers>("resin::RemoveOutliers");
 }
@@ -361,7 +361,7 @@ pub fn sample_sdf_with_rng<F: Field<Vec3, f32>, R: Rng>(
 /// ensuring minimum distance between points.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Mesh, output = PointCloud))]
 pub struct Poisson {
     /// Minimum distance between points.
@@ -571,7 +571,7 @@ fn orient_normals(positions: &[Vec3], normals: &mut [Vec3]) {
 /// the global mean + std_ratio * std_dev.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = PointCloud, output = PointCloud))]
 pub struct RemoveOutliers {
     /// Number of neighbors to consider.
@@ -794,7 +794,7 @@ pub fn transform(cloud: &PointCloud, matrix: glam::Mat4) -> PointCloud {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rhi_unshape_mesh::Cuboid;
+    use unshape_mesh::Cuboid;
 
     #[test]
     fn test_point_cloud_basic() {
@@ -927,7 +927,7 @@ mod tests {
 
     #[test]
     fn test_has_positions_trait() {
-        use rhi_unshape_geometry::HasPositions;
+        use unshape_geometry::HasPositions;
 
         let mut cloud =
             PointCloud::from_positions(vec![Vec3::ZERO, Vec3::ONE, Vec3::new(2.0, 0.0, 0.0)]);
@@ -943,7 +943,7 @@ mod tests {
 
     #[test]
     fn test_has_normals_trait() {
-        use rhi_unshape_geometry::HasNormals;
+        use unshape_geometry::HasNormals;
 
         let mut cloud =
             PointCloud::from_positions_normals(vec![Vec3::ZERO, Vec3::ONE], vec![Vec3::Y, Vec3::X]);
@@ -958,7 +958,7 @@ mod tests {
 
     #[test]
     fn test_has_colors_trait() {
-        use rhi_unshape_geometry::HasColors;
+        use unshape_geometry::HasColors;
 
         let mut cloud = PointCloud {
             positions: vec![Vec3::ZERO, Vec3::ONE],

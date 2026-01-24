@@ -11,7 +11,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_transform::SpatialTransform;
+//! use unshape_transform::SpatialTransform;
 //!
 //! fn apply_transform<T: SpatialTransform>(transform: &T, points: &[T::Vector]) -> Vec<T::Vector>
 //! where

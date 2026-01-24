@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_core::surface::{NurbsSurface, nurbs_sphere};
+//! use unshape_core::surface::{NurbsSurface, nurbs_sphere};
 //!
 //! // Create a unit sphere
 //! let sphere = nurbs_sphere(glam::Vec3::ZERO, 1.0);

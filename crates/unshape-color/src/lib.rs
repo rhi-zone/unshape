@@ -3,7 +3,7 @@
 //! Provides color spaces, conversions, and gradient interpolation.
 
 use glam::Vec3;
-pub use rhi_unshape_easing::Lerp;
+pub use unshape_easing::Lerp;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};

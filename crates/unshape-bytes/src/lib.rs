@@ -10,7 +10,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_bytes::*;
+//! use unshape_bytes::*;
 //!
 //! // Interpret raw bytes as f32 audio samples
 //! let bytes: Vec<u8> = vec![0, 0, 128, 63, 0, 0, 0, 64]; // 1.0, 2.0 in little-endian
@@ -32,7 +32,7 @@
 ///
 /// # Example
 /// ```
-/// use rhi_unshape_bytes::bytes_as_f32;
+/// use unshape_bytes::bytes_as_f32;
 ///
 /// let jpeg_bytes = std::fs::read("Cargo.toml").unwrap(); // any file works
 /// if let Some(samples) = bytes_as_f32(&jpeg_bytes) {
@@ -235,7 +235,7 @@ pub fn normalize_f32_unsigned(samples: &[f32]) -> Vec<f32> {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_bytes::map_buffer;
+/// use unshape_bytes::map_buffer;
 ///
 /// let samples = [0.5, 1.0, -0.5];
 /// let doubled = map_buffer(&samples, |x| x * 2.0);
@@ -255,7 +255,7 @@ pub fn map_buffer(buffer: &[f32], f: impl Fn(f32) -> f32) -> Vec<f32> {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_bytes::map_buffer_in_place;
+/// use unshape_bytes::map_buffer_in_place;
 ///
 /// let mut samples = vec![0.5, 1.0, -0.5];
 /// map_buffer_in_place(&mut samples, |x| x * 2.0);
@@ -274,7 +274,7 @@ pub fn map_buffer_in_place(buffer: &mut [f32], f: impl Fn(f32) -> f32) {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_bytes::zip_buffers;
+/// use unshape_bytes::zip_buffers;
 ///
 /// let a = [1.0, 2.0, 3.0];
 /// let b = [0.5, 0.5, 0.5];
@@ -299,7 +299,7 @@ pub fn zip_buffers(a: &[f32], b: &[f32], f: impl Fn(f32, f32) -> f32) -> Vec<f32
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_bytes::fold_buffer;
+/// use unshape_bytes::fold_buffer;
 ///
 /// let samples = [1.0, 2.0, 3.0, 4.0];
 ///
@@ -333,7 +333,7 @@ pub fn fold_buffer<T>(buffer: &[f32], init: T, f: impl Fn(T, f32) -> T) -> T {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_bytes::windowed_buffer;
+/// use unshape_bytes::windowed_buffer;
 ///
 /// let samples = [0.0, 1.0, 2.0, 1.0, 0.0];
 ///

@@ -13,7 +13,7 @@ use glam::{Vec2, Vec3};
 mod curve_impl;
 
 // Re-export Curve trait for convenience
-pub use rhi_unshape_curve::Curve;
+pub use unshape_curve::Curve;
 
 /// Trait for types that can be interpolated along a curve.
 pub trait Interpolatable:

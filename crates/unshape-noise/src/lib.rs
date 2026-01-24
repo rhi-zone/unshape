@@ -8,7 +8,7 @@
 //! All noise types are structs that can be configured and sampled:
 //!
 //! ```
-//! use rhi_unshape_noise::{Perlin2D, Noise2D};
+//! use unshape_noise::{Perlin2D, Noise2D};
 //!
 //! let noise = Perlin2D::new();
 //! let value = noise.sample(1.5, 2.5);
@@ -22,7 +22,7 @@
 //! Use [`Fbm`] for fractal Brownian motion:
 //!
 //! ```
-//! use rhi_unshape_noise::{Perlin2D, Fbm, Noise2D};
+//! use unshape_noise::{Perlin2D, Fbm, Noise2D};
 //!
 //! let fbm = Fbm::new(Perlin2D::new())
 //!     .octaves(4)
@@ -936,7 +936,7 @@ impl Noise3D for Worley3D {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_noise::{Fbm, Perlin2D, Noise2D};
+/// use unshape_noise::{Fbm, Perlin2D, Noise2D};
 ///
 /// let fbm = Fbm::new(Perlin2D::new())
 ///     .octaves(4)

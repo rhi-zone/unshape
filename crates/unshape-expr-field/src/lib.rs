@@ -8,8 +8,8 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_expr_field::{ExprField, register_noise, scalar_registry};
-//! use rhi_unshape_field::{Field, EvalContext};
+//! use unshape_expr_field::{ExprField, register_noise, scalar_registry};
+//! use unshape_field::{Field, EvalContext};
 //! use glam::Vec2;
 //!
 //! // Create registry with standard math + noise functions
@@ -30,7 +30,7 @@ pub use jit_impl::{CompiledFieldExpr, FieldExprCompiler, FieldJitError, FieldJit
 use glam::{Vec2, Vec3};
 use rhizome_dew_core::{Expr, ParseError};
 use rhizome_dew_scalar::{FunctionRegistry, ScalarFn};
-use rhi_unshape_field::{EvalContext, Field};
+use unshape_field::{EvalContext, Field};
 use std::collections::{HashMap, HashSet};
 
 #[cfg(feature = "serde")]
@@ -57,9 +57,9 @@ impl ScalarFn<f32> for Noise {
         2
     }
     fn call(&self, args: &[f32]) -> f32 {
-        use rhi_unshape_noise::Noise2D;
+        use unshape_noise::Noise2D;
         let [x, y] = args else { return 0.0 };
-        rhi_unshape_noise::Perlin2D::new().sample(*x, *y)
+        unshape_noise::Perlin2D::new().sample(*x, *y)
     }
 }
 
@@ -73,9 +73,9 @@ impl ScalarFn<f32> for Perlin {
         2
     }
     fn call(&self, args: &[f32]) -> f32 {
-        use rhi_unshape_noise::Noise2D;
+        use unshape_noise::Noise2D;
         let [x, y] = args else { return 0.0 };
-        rhi_unshape_noise::Perlin2D::new().sample(*x, *y)
+        unshape_noise::Perlin2D::new().sample(*x, *y)
     }
 }
 
@@ -89,9 +89,9 @@ impl ScalarFn<f32> for Perlin3 {
         3
     }
     fn call(&self, args: &[f32]) -> f32 {
-        use rhi_unshape_noise::Noise3D;
+        use unshape_noise::Noise3D;
         let [x, y, z] = args else { return 0.0 };
-        rhi_unshape_noise::Perlin3D::new().sample(*x, *y, *z)
+        unshape_noise::Perlin3D::new().sample(*x, *y, *z)
     }
 }
 
@@ -105,9 +105,9 @@ impl ScalarFn<f32> for Simplex {
         2
     }
     fn call(&self, args: &[f32]) -> f32 {
-        use rhi_unshape_noise::Noise2D;
+        use unshape_noise::Noise2D;
         let [x, y] = args else { return 0.0 };
-        rhi_unshape_noise::Simplex2D::new().sample(*x, *y)
+        unshape_noise::Simplex2D::new().sample(*x, *y)
     }
 }
 
@@ -121,9 +121,9 @@ impl ScalarFn<f32> for Simplex3 {
         3
     }
     fn call(&self, args: &[f32]) -> f32 {
-        use rhi_unshape_noise::Noise3D;
+        use unshape_noise::Noise3D;
         let [x, y, z] = args else { return 0.0 };
-        rhi_unshape_noise::Simplex3D::new().sample(*x, *y, *z)
+        unshape_noise::Simplex3D::new().sample(*x, *y, *z)
     }
 }
 
@@ -137,9 +137,9 @@ impl ScalarFn<f32> for Fbm {
         3
     }
     fn call(&self, args: &[f32]) -> f32 {
-        use rhi_unshape_noise::Noise2D;
+        use unshape_noise::Noise2D;
         let [x, y, octaves] = args else { return 0.0 };
-        rhi_unshape_noise::Fbm::new(rhi_unshape_noise::Perlin2D::new())
+        unshape_noise::Fbm::new(unshape_noise::Perlin2D::new())
             .octaves(*octaves as u32)
             .sample(*x, *y)
     }
@@ -247,7 +247,7 @@ impl Field<Vec3, f32> for ExprField {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_expr_field::FieldExpr;
+/// use unshape_expr_field::FieldExpr;
 ///
 /// // Build expression: perlin(x * 4, y * 4) + 0.5 * simplex(x * 8, y * 8)
 /// let expr = FieldExpr::Add(
@@ -566,8 +566,8 @@ impl FieldExpr {
 
             // Noise functions
             Self::Perlin2 { x: ex, y: ey } => {
-                use rhi_unshape_noise::Noise2D;
-                rhi_unshape_noise::Perlin2D::new()
+                use unshape_noise::Noise2D;
+                unshape_noise::Perlin2D::new()
                     .sample(ex.eval(x, y, z, t, vars), ey.eval(x, y, z, t, vars))
             }
             Self::Perlin3 {
@@ -575,16 +575,16 @@ impl FieldExpr {
                 y: ey,
                 z: ez,
             } => {
-                use rhi_unshape_noise::Noise3D;
-                rhi_unshape_noise::Perlin3D::new().sample(
+                use unshape_noise::Noise3D;
+                unshape_noise::Perlin3D::new().sample(
                     ex.eval(x, y, z, t, vars),
                     ey.eval(x, y, z, t, vars),
                     ez.eval(x, y, z, t, vars),
                 )
             }
             Self::Simplex2 { x: ex, y: ey } => {
-                use rhi_unshape_noise::Noise2D;
-                rhi_unshape_noise::Simplex2D::new()
+                use unshape_noise::Noise2D;
+                unshape_noise::Simplex2D::new()
                     .sample(ex.eval(x, y, z, t, vars), ey.eval(x, y, z, t, vars))
             }
             Self::Simplex3 {
@@ -592,8 +592,8 @@ impl FieldExpr {
                 y: ey,
                 z: ez,
             } => {
-                use rhi_unshape_noise::Noise3D;
-                rhi_unshape_noise::Simplex3D::new().sample(
+                use unshape_noise::Noise3D;
+                unshape_noise::Simplex3D::new().sample(
                     ex.eval(x, y, z, t, vars),
                     ey.eval(x, y, z, t, vars),
                     ez.eval(x, y, z, t, vars),
@@ -604,8 +604,8 @@ impl FieldExpr {
                 y: ey,
                 octaves,
             } => {
-                use rhi_unshape_noise::Noise2D;
-                rhi_unshape_noise::Fbm::new(rhi_unshape_noise::Perlin2D::new())
+                use unshape_noise::Noise2D;
+                unshape_noise::Fbm::new(unshape_noise::Perlin2D::new())
                     .octaves(*octaves)
                     .sample(ex.eval(x, y, z, t, vars), ey.eval(x, y, z, t, vars))
             }
@@ -615,8 +615,8 @@ impl FieldExpr {
                 z: ez,
                 octaves,
             } => {
-                use rhi_unshape_noise::Noise3D;
-                rhi_unshape_noise::Fbm::new(rhi_unshape_noise::Perlin3D::new())
+                use unshape_noise::Noise3D;
+                unshape_noise::Fbm::new(unshape_noise::Perlin3D::new())
                     .octaves(*octaves)
                     .sample(
                         ex.eval(x, y, z, t, vars),

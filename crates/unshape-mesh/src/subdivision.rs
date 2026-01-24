@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_mesh::{CatmullClark, Cuboid};
+/// use unshape_mesh::{CatmullClark, Cuboid};
 ///
 /// let cube = Cuboid::default().apply();
 /// let smooth = CatmullClark::new(2).apply(&cube);
@@ -36,7 +36,7 @@ use serde::{Deserialize, Serialize};
 /// With creases:
 ///
 /// ```ignore
-/// use rhi_unshape_mesh::{Mesh, subdivision::CatmullClark, EdgeCreases, Edge};
+/// use unshape_mesh::{Mesh, subdivision::CatmullClark, EdgeCreases, Edge};
 ///
 /// let mut creases = EdgeCreases::new();
 /// creases.set(Edge::new(0, 1), 1.0);  // Keep this edge sharp
@@ -45,7 +45,7 @@ use serde::{Deserialize, Serialize};
 /// ```
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct CatmullClark {
     /// Number of subdivision levels.

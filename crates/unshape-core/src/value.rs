@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_core::{Value, ValueType};
+//! use unshape_core::{Value, ValueType};
 //! use glam::Vec3;
 //!
 //! // Create values
@@ -58,7 +58,7 @@ pub enum DataLocation {
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_core::{GraphValue, DataLocation};
+/// use unshape_core::{GraphValue, DataLocation};
 /// use std::any::Any;
 ///
 /// pub struct Image {

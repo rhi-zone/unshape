@@ -2,7 +2,7 @@
 
 use glam::{Vec2, Vec3};
 use gltf::{Document, Gltf};
-use rhi_unshape_mesh::Mesh;
+use unshape_mesh::Mesh;
 use std::path::Path;
 
 use crate::export::{GltfError, GltfMaterial, GltfMesh, GltfResult};

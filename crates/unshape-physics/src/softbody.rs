@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// Configuration for soft body simulation.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = SoftBodyConfig))]
 pub struct SoftBodyConfig {
     /// Young's modulus (stiffness).

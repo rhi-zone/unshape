@@ -9,7 +9,7 @@ fn main() {
 
 #[cfg(feature = "codegen-bench")]
 fn generate_benchmark_effects() {
-    use rhi_unshape_audio_codegen::{
+    use unshape_audio_codegen::{
         SerialAudioGraph, SerialAudioNode, SerialParamWire, generate_effect, generate_header,
     };
     use std::env;

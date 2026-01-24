@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 /// Converts a triangle mesh to a 3D grid of signed distance values.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Mesh, output = SdfGrid))]
 pub struct GenerateSdf {
     /// Grid resolution in each dimension.

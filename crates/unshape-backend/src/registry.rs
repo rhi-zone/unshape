@@ -1,7 +1,7 @@
 //! Backend registry for managing available backends.
 
 use crate::backend::{BackendKind, ComputeBackend};
-use rhi_unshape_core::DynNode;
+use unshape_core::DynNode;
 use std::sync::Arc;
 
 /// Registry of available compute backends.
@@ -12,7 +12,7 @@ use std::sync::Arc;
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_backend::{BackendRegistry, CpuBackend};
+/// use unshape_backend::{BackendRegistry, CpuBackend};
 /// use std::sync::Arc;
 ///
 /// let mut registry = BackendRegistry::new();

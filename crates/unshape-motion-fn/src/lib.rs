@@ -14,7 +14,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_motion_fn::{Spring, Oscillate, Motion};
+//! use unshape_motion_fn::{Spring, Oscillate, Motion};
 //!
 //! // Spring animation from 0 to 100
 //! let spring = Spring::new(0.0, 100.0, 300.0, 15.0);
@@ -26,7 +26,7 @@
 //! ```
 
 use glam::{Vec2, Vec3};
-use rhi_unshape_field::{EvalContext, Field};
+use unshape_field::{EvalContext, Field};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -189,7 +189,7 @@ pub enum EasingType {
 impl EasingType {
     /// Apply the easing function to a value in 0..1 range.
     pub fn apply(self, t: f32) -> f32 {
-        use rhi_unshape_easing::*;
+        use unshape_easing::*;
         match self {
             Self::Linear => t,
             Self::QuadIn => quad_in(t),
@@ -476,15 +476,15 @@ impl Wiggle {
 
 impl Motion<f32> for Wiggle {
     fn at(&self, t: f32) -> f32 {
-        use rhi_unshape_noise::Noise2D;
+        use unshape_noise::Noise2D;
         let noise = if self.octaves > 1 {
-            rhi_unshape_noise::Fbm::new(rhi_unshape_noise::Perlin2D::with_seed(
+            unshape_noise::Fbm::new(unshape_noise::Perlin2D::with_seed(
                 self.seed as i32,
             ))
             .octaves(self.octaves)
             .sample(t * self.frequency, 0.0)
         } else {
-            rhi_unshape_noise::Perlin2D::with_seed(self.seed as i32)
+            unshape_noise::Perlin2D::with_seed(self.seed as i32)
                 .sample(t * self.frequency, 0.0)
         };
         // Perlin noise returns 0..1, convert to -1..1 then scale
@@ -521,10 +521,10 @@ impl Wiggle2D {
 
 impl Motion<Vec2> for Wiggle2D {
     fn at(&self, t: f32) -> Vec2 {
-        use rhi_unshape_noise::Noise2D;
-        let nx = rhi_unshape_noise::Perlin2D::with_seed(self.seed as i32)
+        use unshape_noise::Noise2D;
+        let nx = unshape_noise::Perlin2D::with_seed(self.seed as i32)
             .sample(t * self.frequency, 0.0);
-        let ny = rhi_unshape_noise::Perlin2D::with_seed((self.seed + 100.0) as i32)
+        let ny = unshape_noise::Perlin2D::with_seed((self.seed + 100.0) as i32)
             .sample(t * self.frequency, 0.0);
         let normalized_x = nx * 2.0 - 1.0;
         let normalized_y = ny * 2.0 - 1.0;
@@ -743,7 +743,7 @@ pub mod dew_functions {
             let [center, amplitude, frequency, seed, t] = args else {
                 return 0.0;
             };
-            let noise = rhi_unshape_noise::perlin2(t * frequency, *seed);
+            let noise = unshape_noise::perlin2(t * frequency, *seed);
             let normalized = noise * 2.0 - 1.0;
             center + amplitude * normalized
         }
@@ -794,7 +794,7 @@ use std::collections::HashMap;
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_motion_fn::MotionExpr;
+/// use unshape_motion_fn::MotionExpr;
 ///
 /// // Build expression: spring(0, 100, 300, 15) + wiggle(0, 5, 2, 42)
 /// let expr = MotionExpr::Add(
@@ -1007,8 +1007,8 @@ impl MotionExpr {
                 frequency,
                 seed,
             } => {
-                use rhi_unshape_noise::Noise2D;
-                let noise = rhi_unshape_noise::Perlin2D::with_seed(*seed as i32)
+                use unshape_noise::Noise2D;
+                let noise = unshape_noise::Perlin2D::with_seed(*seed as i32)
                     .sample(t * frequency, 0.0);
                 let normalized = noise * 2.0 - 1.0;
                 center + amplitude * normalized

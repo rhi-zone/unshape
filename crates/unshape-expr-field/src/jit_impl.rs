@@ -74,23 +74,23 @@ pub struct FieldExprCompiler {
 // Note: perlin2 is now implemented as pure Cranelift IR
 
 extern "C" fn perlin3_wrapper(x: f32, y: f32, z: f32) -> f32 {
-    rhi_unshape_noise::perlin3(x, y, z)
+    unshape_noise::perlin3(x, y, z)
 }
 
 extern "C" fn simplex2_wrapper(x: f32, y: f32) -> f32 {
-    rhi_unshape_noise::simplex2(x, y)
+    unshape_noise::simplex2(x, y)
 }
 
 extern "C" fn simplex3_wrapper(x: f32, y: f32, z: f32) -> f32 {
-    rhi_unshape_noise::simplex3(x, y, z)
+    unshape_noise::simplex3(x, y, z)
 }
 
 extern "C" fn fbm2_wrapper(x: f32, y: f32, octaves: f32) -> f32 {
-    rhi_unshape_noise::fbm_perlin2(x, y, octaves as u32)
+    unshape_noise::fbm_perlin2(x, y, octaves as u32)
 }
 
 extern "C" fn fbm3_wrapper(x: f32, y: f32, z: f32, octaves: f32) -> f32 {
-    rhi_unshape_noise::fbm_perlin3(x, y, z, octaves as u32)
+    unshape_noise::fbm_perlin3(x, y, z, octaves as u32)
 }
 
 impl FieldExprCompiler {
@@ -1401,7 +1401,7 @@ mod tests {
                 let x = i as f32 * 0.2 - 5.0; // Range -5 to 5
                 let y = j as f32 * 0.2 - 5.0;
 
-                let rust_val = rhi_unshape_noise::perlin2(x, y);
+                let rust_val = unshape_noise::perlin2(x, y);
                 let jit_val = compiled.eval(x, y, 0.0, 0.0);
 
                 assert!(

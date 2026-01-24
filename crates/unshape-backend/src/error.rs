@@ -27,5 +27,5 @@ pub enum BackendError {
 
     /// Graph error from core.
     #[error("graph error: {0}")]
-    GraphError(#[from] rhi_unshape_core::GraphError),
+    GraphError(#[from] unshape_core::GraphError),
 }

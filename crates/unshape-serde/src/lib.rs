@@ -44,7 +44,7 @@ pub use crate::json::JsonFormat;
 pub use crate::registry::{NodeRegistry, SerializableNode};
 pub use crate::serial::{SerialGraph, SerialNode};
 
-use rhi_unshape_core::Graph;
+use unshape_core::Graph;
 
 /// Converts a runtime `Graph` to a serializable `SerialGraph`.
 ///
@@ -59,7 +59,7 @@ use rhi_unshape_core::Graph;
 /// `SerializableNode` implementation).
 pub fn graph_to_serial<F>(graph: &Graph, extract_params: F) -> Result<SerialGraph, SerdeError>
 where
-    F: Fn(&dyn rhi_unshape_core::DynNode) -> Option<serde_json::Value>,
+    F: Fn(&dyn unshape_core::DynNode) -> Option<serde_json::Value>,
 {
     let mut serial = SerialGraph {
         nodes: Vec::new(),
@@ -112,7 +112,7 @@ pub fn serialize_graph<F, Fmt>(
     format: &Fmt,
 ) -> Result<Vec<u8>, SerdeError>
 where
-    F: Fn(&dyn rhi_unshape_core::DynNode) -> Option<serde_json::Value>,
+    F: Fn(&dyn unshape_core::DynNode) -> Option<serde_json::Value>,
     Fmt: GraphFormat,
 {
     let serial = graph_to_serial(graph, extract_params)?;
@@ -137,7 +137,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rhi_unshape_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType};
+    use unshape_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]

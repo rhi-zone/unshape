@@ -8,7 +8,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_mesh::{loft, Loft};
+//! use unshape_mesh::{loft, Loft};
 //! use glam::Vec3;
 //!
 //! // Create three circular profiles at different heights
@@ -33,7 +33,7 @@ use crate::Mesh;
 /// All profiles should have the same number of points.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Vec<Vec<Vec3>>, output = Mesh))]
 pub struct Loft {
     /// Whether to close the surface at the start profile.

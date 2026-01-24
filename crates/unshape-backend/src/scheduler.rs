@@ -4,14 +4,14 @@
 //! - [`Scheduler`] - Selects backends for node execution based on policy
 //! - [`BackendNodeExecutor`] - Node executor that routes through backends
 //!
-//! Use `BackendNodeExecutor` with [`LazyEvaluator`](rhi_unshape_core::LazyEvaluator)
+//! Use `BackendNodeExecutor` with [`LazyEvaluator`](unshape_core::LazyEvaluator)
 //! for backend-aware evaluation with caching.
 
 use crate::backend::{ComputeBackend, Cost, WorkloadHint};
 use crate::error::BackendError;
 use crate::policy::ExecutionPolicy;
 use crate::registry::BackendRegistry;
-use rhi_unshape_core::{DynNode, EvalContext, NodeId, Value};
+use unshape_core::{DynNode, EvalContext, NodeId, Value};
 use std::sync::Arc;
 
 /// Scheduler that selects backends for node execution.
@@ -25,7 +25,7 @@ use std::sync::Arc;
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_backend::{Scheduler, BackendRegistry, ExecutionPolicy};
+/// use unshape_backend::{Scheduler, BackendRegistry, ExecutionPolicy};
 ///
 /// let registry = BackendRegistry::with_cpu();
 /// let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
@@ -195,7 +195,7 @@ pub struct BackendEvalResult {
 // Backend Node Executor
 // ============================================================================
 
-use rhi_unshape_core::{GraphError, NodeExecutor};
+use unshape_core::{GraphError, NodeExecutor};
 
 /// Node executor that routes execution through compute backends.
 ///
@@ -205,8 +205,8 @@ use rhi_unshape_core::{GraphError, NodeExecutor};
 /// Use with [`LazyEvaluator`] to get backend-aware evaluation with caching:
 ///
 /// ```ignore
-/// use rhi_unshape_backend::{BackendNodeExecutor, BackendRegistry, ExecutionPolicy, Scheduler};
-/// use rhi_unshape_core::LazyEvaluator;
+/// use unshape_backend::{BackendNodeExecutor, BackendRegistry, ExecutionPolicy, Scheduler};
+/// use unshape_core::LazyEvaluator;
 ///
 /// let registry = BackendRegistry::with_cpu();
 /// let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);
@@ -302,7 +302,7 @@ fn estimate_workload(inputs: &[Value]) -> WorkloadHint {
 mod tests {
     use super::*;
     use crate::backend::BackendKind;
-    use rhi_unshape_core::{GraphError, PortDescriptor, ValueType};
+    use unshape_core::{GraphError, PortDescriptor, ValueType};
 
     struct TestNode;
 
@@ -428,7 +428,7 @@ mod tests {
     // BackendNodeExecutor tests
     // ========================================================================
 
-    use rhi_unshape_core::{Evaluator, Graph, LazyEvaluator};
+    use unshape_core::{Evaluator, Graph, LazyEvaluator};
 
     struct ConstNode(f32);
 
@@ -590,7 +590,7 @@ mod tests {
         // Primitive inputs
         let workload = estimate_workload(&[
             Value::F32(1.0),
-            Value::Vec3(rhi_unshape_core::glam::Vec3::ZERO),
+            Value::Vec3(unshape_core::glam::Vec3::ZERO),
         ]);
         assert_eq!(workload.input_bytes, 4 + 12);
     }

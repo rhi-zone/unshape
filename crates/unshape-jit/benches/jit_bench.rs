@@ -6,7 +6,7 @@ const SAMPLE_COUNT: usize = 44100; // 1 second of audio
 
 #[cfg(feature = "cranelift")]
 fn bench_compile_affine(c: &mut Criterion) {
-    use rhi_unshape_jit::{JitCompiler, JitConfig};
+    use unshape_jit::{JitCompiler, JitConfig};
 
     c.bench_function("compile_affine_scalar", |b| {
         b.iter(|| {
@@ -25,7 +25,7 @@ fn bench_compile_affine(c: &mut Criterion) {
 
 #[cfg(feature = "cranelift")]
 fn bench_execute_scalar(c: &mut Criterion) {
-    use rhi_unshape_jit::{JitCompiler, JitConfig};
+    use unshape_jit::{JitCompiler, JitConfig};
 
     let mut compiler = JitCompiler::new(JitConfig::default()).unwrap();
     let affine = compiler.compile_affine(0.5, 1.0).unwrap();
@@ -43,7 +43,7 @@ fn bench_execute_scalar(c: &mut Criterion) {
 
 #[cfg(feature = "cranelift")]
 fn bench_execute_simd(c: &mut Criterion) {
-    use rhi_unshape_jit::{JitCompiler, JitConfig};
+    use unshape_jit::{JitCompiler, JitConfig};
 
     let mut compiler = JitCompiler::new(JitConfig::default()).unwrap();
     let simd = compiler.compile_affine_simd(0.5, 1.0).unwrap();

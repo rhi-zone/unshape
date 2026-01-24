@@ -9,7 +9,7 @@
 //! across all resin crates. Implementations are provided for common types.
 //!
 //! ```
-//! use rhi_unshape_easing::Lerp;
+//! use unshape_easing::Lerp;
 //! use glam::Vec3;
 //!
 //! let a = Vec3::ZERO;
@@ -34,7 +34,7 @@ use glam::{Quat, Vec2, Vec3, Vec4};
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_easing::Lerp;
+/// use unshape_easing::Lerp;
 ///
 /// struct MyColor { r: f32, g: f32, b: f32 }
 ///
@@ -642,7 +642,7 @@ where
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_easing::{ease_lerp, Easing, Lerp};
+/// use unshape_easing::{ease_lerp, Easing, Lerp};
 /// use glam::Vec3;
 ///
 /// let start = Vec3::ZERO;
@@ -898,7 +898,7 @@ mod tests {
 /// easing functions. Run with:
 ///
 /// ```sh
-/// cargo test -p rhi-unshape-easing --features invariant-tests
+/// cargo test -p unshape-easing --features invariant-tests
 /// ```
 #[cfg(all(test, feature = "invariant-tests"))]
 mod invariant_tests {

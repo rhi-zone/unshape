@@ -8,7 +8,7 @@ use crate::backend::GpuKernel;
 use crate::noise::{NoiseConfig, NoiseType, generate_noise_texture_gpu};
 use crate::texture::GpuTexture;
 use crate::{GpuContext, GpuError};
-use rhi_unshape_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType};
+use unshape_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType};
 use std::any::Any;
 use std::sync::Arc;
 
@@ -33,7 +33,7 @@ use std::sync::Arc;
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_gpu::{NoiseTextureNode, NoiseConfig, NoiseType};
+/// use unshape_gpu::{NoiseTextureNode, NoiseConfig, NoiseType};
 ///
 /// let node = NoiseTextureNode::new(512, 512, NoiseConfig::new(NoiseType::Perlin, 4.0));
 /// ```
@@ -128,7 +128,7 @@ pub struct CpuNoiseData {
     pub data: Vec<f32>,
 }
 
-impl rhi_unshape_core::GraphValue for CpuNoiseData {
+impl unshape_core::GraphValue for CpuNoiseData {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -157,7 +157,7 @@ fn simple_noise(x: f32, y: f32, seed: u32) -> f32 {
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_gpu::{GpuComputeBackend, NoiseTextureNode, NoiseTextureKernel};
+/// use unshape_gpu::{GpuComputeBackend, NoiseTextureNode, NoiseTextureKernel};
 /// use std::sync::Arc;
 ///
 /// let backend = GpuComputeBackend::new()?;
@@ -320,7 +320,7 @@ impl DynNode for ParameterizedNoiseNode {
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_gpu::{GpuComputeBackend, register_kernels};
+/// use unshape_gpu::{GpuComputeBackend, register_kernels};
 ///
 /// let backend = GpuComputeBackend::new()?;
 /// register_kernels(&backend);
@@ -343,7 +343,7 @@ pub fn register_kernels(backend: &crate::GpuComputeBackend) {
 mod image_expr_kernels {
     use super::*;
     use crate::image_expr::{map_pixels_gpu, remap_uv_gpu};
-    use rhi_unshape_image::{ColorExpr, UvExpr};
+    use unshape_image::{ColorExpr, UvExpr};
 
     // ------------------------------------------------------------------------
     // UV Remap Node
@@ -562,7 +562,7 @@ pub use image_expr_kernels::{MapPixelsKernel, MapPixelsNode, RemapUvKernel, Rema
 mod tests {
     use super::*;
     use crate::GpuComputeBackend;
-    use rhi_unshape_backend::ComputeBackend;
+    use unshape_backend::ComputeBackend;
 
     #[test]
     fn test_noise_texture_node_cpu_fallback() {

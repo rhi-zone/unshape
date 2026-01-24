@@ -10,7 +10,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_voxel::{VoxelGrid, fill_sphere};
+//! use unshape_voxel::{VoxelGrid, fill_sphere};
 //! use glam::Vec3;
 //!
 //! let mut grid = VoxelGrid::new(32, 32, 32, false);
@@ -25,8 +25,8 @@
 use serde::{Deserialize, Serialize};
 
 use glam::{IVec3, UVec3, Vec3};
-use rhi_unshape_field::{EvalContext, Field};
-use rhi_unshape_mesh::{Mesh, MeshBuilder};
+use unshape_field::{EvalContext, Field};
+use unshape_mesh::{Mesh, MeshBuilder};
 use std::collections::HashMap;
 
 /// A dense 3D voxel grid with arbitrary data type.
@@ -319,7 +319,7 @@ pub fn sdf_to_density<F: Field<Vec3, f32>>(
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = BinaryVoxelGrid, output = BinaryVoxelGrid))]
 pub struct FillSphere {
     /// Center of the sphere in voxel coordinates.
@@ -371,7 +371,7 @@ pub fn fill_sphere(grid: &mut BinaryVoxelGrid, center: Vec3, radius: f32, value:
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = BinaryVoxelGrid, output = BinaryVoxelGrid))]
 pub struct FillBox {
     /// Minimum corner of the box (inclusive).
@@ -443,7 +443,7 @@ pub fn fill_sphere_sparse(voxels: &mut SparseBinaryVoxels, center: Vec3, radius:
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone, Copy, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = BinaryVoxelGrid, output = BinaryVoxelGrid))]
 pub struct Dilate {
     /// Number of dilation iterations.
@@ -507,7 +507,7 @@ pub fn dilate(grid: &BinaryVoxelGrid) -> BinaryVoxelGrid {
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone, Copy, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = BinaryVoxelGrid, output = BinaryVoxelGrid))]
 pub struct Erode {
     /// Number of erosion iterations.
@@ -591,7 +591,7 @@ const NEIGHBORS_6: [(i32, i32, i32); 6] = [
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = BinaryVoxelGrid, output = Mesh))]
 pub struct VoxelsToMesh {
     /// Size of each voxel in world units.
@@ -725,7 +725,7 @@ fn add_quad(builder: &mut MeshBuilder, v0: Vec3, v1: Vec3, v2: Vec3, v3: Vec3, n
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = SparseBinaryVoxels, output = Mesh))]
 pub struct SparseVoxelsToMesh {
     /// Size of each voxel in world units.
@@ -840,7 +840,7 @@ pub fn count_solid(grid: &BinaryVoxelGrid) -> usize {
 ///
 /// Call this to enable deserialization of voxel ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<Dilate>("resin::Dilate");
     registry.register_type::<Erode>("resin::Erode");
     registry.register_type::<FillBox>("resin::FillBox");
@@ -1003,7 +1003,7 @@ mod tests {
 /// for all voxel implementations. Run with:
 ///
 /// ```sh
-/// cargo test -p rhi-unshape-voxel --features invariant-tests
+/// cargo test -p unshape-voxel --features invariant-tests
 /// ```
 #[cfg(all(test, feature = "invariant-tests"))]
 mod invariant_tests {

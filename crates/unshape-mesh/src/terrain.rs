@@ -9,7 +9,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_mesh::{Heightfield, HydraulicErosion, ThermalErosion};
+//! use unshape_mesh::{Heightfield, HydraulicErosion, ThermalErosion};
 //!
 //! // Create a heightfield
 //! let mut heightfield = Heightfield::new(64, 64);

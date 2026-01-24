@@ -16,7 +16,7 @@ use glam::Vec2;
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_vector::bezier::quadratic_point;
+/// use unshape_vector::bezier::quadratic_point;
 /// use glam::Vec2;
 ///
 /// let start = Vec2::ZERO;
@@ -55,7 +55,7 @@ pub fn quadratic_tangent(p0: Vec2, p1: Vec2, p2: Vec2, t: f32) -> Vec2 {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_vector::bezier::cubic_point;
+/// use unshape_vector::bezier::cubic_point;
 /// use glam::Vec2;
 ///
 /// let p0 = Vec2::ZERO;

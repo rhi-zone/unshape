@@ -71,8 +71,8 @@ fn value_wrap_for(
 /// # Usage
 ///
 /// ```ignore
-/// use rhi_unshape_macros::DynNode;
-/// use rhi_unshape_core::Value;
+/// use unshape_macros::DynNode;
+/// use unshape_core::Value;
 ///
 /// #[derive(DynNode, Default)]
 /// struct AddNode {

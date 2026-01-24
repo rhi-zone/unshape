@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_procgen::network::{RoadNetwork, RoadConfig, RoadType};
+//! use unshape_procgen::network::{RoadNetwork, RoadConfig, RoadType};
 //! use glam::Vec2;
 //!
 //! // Create a road network
@@ -475,7 +475,7 @@ impl Default for RiverConfig {
 /// Takes a seed (u64) and produces a RiverNetwork.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = u64, output = RiverNetwork))]
 pub struct GenerateRiver {
     /// Source position (upstream).
@@ -763,7 +763,7 @@ impl RiverNetwork {
 /// Takes a seed (u64, unused) and produces a RoadNetwork.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = u64, output = RoadNetwork))]
 pub struct GenerateRoadNetworkGrid {
     /// Minimum corner of the bounds.
@@ -795,7 +795,7 @@ impl GenerateRoadNetworkGrid {
 /// Takes a seed (u64) and produces a RoadNetwork.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = u64, output = RoadNetwork))]
 pub struct GenerateRoadNetworkHierarchical {
     /// Minimum corner of the bounds.

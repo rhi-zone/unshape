@@ -18,8 +18,8 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_audio::optimize::{optimize_graph, default_patterns};
-//! use rhi_unshape_audio::graph::AudioGraph;
+//! use unshape_audio::optimize::{optimize_graph, default_patterns};
+//! use unshape_audio::graph::AudioGraph;
 //!
 //! let mut graph = AudioGraph::new();
 //! // ... build graph with LFO modulating gain (tremolo pattern) ...
@@ -29,7 +29,7 @@
 //! ```
 
 use crate::graph::{AudioGraph, AudioNode, NodeIndex};
-use rhi_unshape_core::optimize::Optimizer;
+use unshape_core::optimize::Optimizer;
 use std::any::TypeId;
 use std::collections::HashMap;
 
@@ -142,15 +142,15 @@ impl Optimizer<AudioGraph> for ConstantPropagator {
 
 /// Re-export the generic OptimizerPipeline with default audio passes.
 ///
-/// For custom pipelines, use `rhi_unshape_core::optimize::OptimizerPipeline<AudioGraph>`.
-pub use rhi_unshape_core::optimize::OptimizerPipeline as GenericPipeline;
+/// For custom pipelines, use `unshape_core::optimize::OptimizerPipeline<AudioGraph>`.
+pub use unshape_core::optimize::OptimizerPipeline as GenericPipeline;
 
 /// Audio-specific optimizer pipeline with default passes.
 ///
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_audio::optimize::*;
+/// use unshape_audio::optimize::*;
 ///
 /// let pipeline = OptimizerPipeline::default(); // Standard passes
 /// pipeline.run(&mut graph);

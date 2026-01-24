@@ -41,7 +41,7 @@ use crate::{Mesh, MeshBuilder};
 /// UVs are mapped per-face (0-1 on each face).
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Mesh))]
 pub struct Cuboid {
     /// Size along the X axis.
@@ -191,7 +191,7 @@ impl Cuboid {
 /// distribution, see [`Icosphere`].
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Mesh))]
 pub struct UvSphere {
     /// Radius of the sphere.
@@ -290,7 +290,7 @@ impl UvSphere {
 /// - 6 segments = hexagonal prism
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Mesh))]
 pub struct Cylinder {
     /// Radius of the cylinder.
@@ -438,7 +438,7 @@ impl Cylinder {
 /// - 5 segments = pentagonal pyramid
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Mesh))]
 pub struct Cone {
     /// Radius of the base.
@@ -555,7 +555,7 @@ impl Cone {
 /// The torus lies in the XZ plane with the hole along the Y axis.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Mesh))]
 pub struct Torus {
     /// Distance from center of torus to center of tube.
@@ -654,7 +654,7 @@ impl Torus {
 /// Generates a flat plane mesh in the XZ plane, centered at the origin.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Mesh))]
 pub struct Plane {
     /// Size along the X axis.
@@ -736,7 +736,7 @@ impl Plane {
 /// Produces more uniform triangle distribution than [`UvSphere`].
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Mesh))]
 pub struct Icosphere {
     /// Radius of the sphere.

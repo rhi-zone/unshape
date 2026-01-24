@@ -5,7 +5,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_audio::midi::{MidiMessage, note_to_freq, note_name, Channel};
+//! use unshape_audio::midi::{MidiMessage, note_to_freq, note_name, Channel};
 //!
 //! // Parse a MIDI message
 //! let msg = MidiMessage::from_bytes(&[0x90, 60, 100]);

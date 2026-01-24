@@ -5,8 +5,8 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_image::{ImageField, WrapMode, FilterMode};
-//! use rhi_unshape_field::{Field, EvalContext};
+//! use unshape_image::{ImageField, WrapMode, FilterMode};
+//! use unshape_field::{Field, EvalContext};
 //! use glam::Vec2;
 //!
 //! let field = ImageField::from_file("texture.png")?;
@@ -22,9 +22,9 @@ use std::path::Path;
 use glam::{Mat3, Mat4, Vec2, Vec3, Vec4};
 use image::{DynamicImage, GenericImageView, ImageError};
 
-pub use rhi_unshape_color::BlendMode;
-use rhi_unshape_color::{Rgba, blend_with_alpha};
-use rhi_unshape_field::{EvalContext, Field};
+pub use unshape_color::BlendMode;
+use unshape_color::{Rgba, blend_with_alpha};
+use unshape_field::{EvalContext, Field};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -307,7 +307,7 @@ impl Field<Vec2, f32> for ImageField {
 /// Configuration for texture baking.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = BakeConfig))]
 pub struct BakeConfig {
     /// Output width in pixels.
@@ -357,8 +357,8 @@ impl BakeConfig {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{bake_scalar, BakeConfig};
-/// use rhi_unshape_field::{Perlin2D, Field, EvalContext};
+/// use unshape_image::{bake_scalar, BakeConfig};
+/// use unshape_field::{Perlin2D, Field, EvalContext};
 ///
 /// let noise = Perlin2D::new().scale(4.0);
 /// let config = BakeConfig::new(256, 256);
@@ -412,8 +412,8 @@ pub fn bake_scalar<F: Field<Vec2, f32>>(
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_image::{bake_rgba, BakeConfig};
-/// use rhi_unshape_field::{Field, EvalContext};
+/// use unshape_image::{bake_rgba, BakeConfig};
+/// use unshape_field::{Field, EvalContext};
 ///
 /// let field = MyColorField::new();
 /// let config = BakeConfig::new(512, 512);
@@ -516,8 +516,8 @@ pub fn bake_vec4<F: Field<Vec2, Vec4>>(
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_image::{bake_scalar, BakeConfig, export_png};
-/// use rhi_unshape_field::{Perlin2D, EvalContext};
+/// use unshape_image::{bake_scalar, BakeConfig, export_png};
+/// use unshape_field::{Perlin2D, EvalContext};
 ///
 /// let noise = Perlin2D::new().scale(4.0);
 /// let config = BakeConfig::new(256, 256);
@@ -560,7 +560,7 @@ pub fn export_png<P: AsRef<Path>>(image: &ImageField, path: P) -> Result<(), Ima
 /// Configuration for animation rendering.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = AnimationConfig))]
 pub struct AnimationConfig {
     /// Output width in pixels.
@@ -628,7 +628,7 @@ impl AnimationConfig {
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_image::{render_animation, AnimationConfig};
+/// use unshape_image::{render_animation, AnimationConfig};
 ///
 /// let config = AnimationConfig::new(256, 256, 60).with_fps(30.0);
 /// let frames = render_animation(&my_field, &config);
@@ -916,8 +916,8 @@ impl Kernel {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, Kernel, convolve};
-/// use rhi_unshape_color::Rgba;
+/// use unshape_image::{ImageField, Kernel, convolve};
+/// use unshape_color::Rgba;
 ///
 /// // Create a simple 3x3 test image
 /// let data = vec![
@@ -943,7 +943,7 @@ pub fn convolve(image: &ImageField, kernel: &Kernel) -> ImageField {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, Kernel, Convolve};
+/// use unshape_image::{ImageField, Kernel, Convolve};
 ///
 /// let img = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 9], 3, 3);
 /// let blur = Convolve::new(Kernel::box_blur());
@@ -1014,7 +1014,7 @@ fn convolve_impl(image: &ImageField, kernel: &Kernel) -> ImageField {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, Resize};
+/// use unshape_image::{ImageField, Resize};
 ///
 /// let img = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
 /// let resize = Resize::new(8, 6);
@@ -1050,8 +1050,8 @@ impl Resize {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, Composite};
-/// use rhi_unshape_color::BlendMode;
+/// use unshape_image::{ImageField, Composite};
+/// use unshape_color::BlendMode;
 ///
 /// let base = ImageField::from_raw(vec![[0.2, 0.3, 0.4, 1.0]; 16], 4, 4);
 /// let overlay = ImageField::from_raw(vec![[1.0, 0.0, 0.0, 0.5]; 16], 4, 4);
@@ -1089,7 +1089,7 @@ impl Composite {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, UvExpr, RemapUv};
+/// use unshape_image::{ImageField, UvExpr, RemapUv};
 ///
 /// let img = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
 ///
@@ -1125,7 +1125,7 @@ impl RemapUv {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, ColorExpr, MapPixels};
+/// use unshape_image::{ImageField, ColorExpr, MapPixels};
 ///
 /// let img = ImageField::from_raw(vec![[0.5, 0.3, 0.7, 1.0]; 16], 4, 4);
 ///
@@ -1248,7 +1248,7 @@ pub enum Channel {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, Channel, extract_channel};
+/// use unshape_image::{ImageField, Channel, extract_channel};
 ///
 /// let data = vec![[1.0, 0.5, 0.25, 1.0]; 4];
 /// let img = ImageField::from_raw(data, 2, 2);
@@ -1289,7 +1289,7 @@ pub fn extract_channel(image: &ImageField, channel: Channel) -> ImageField {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, split_channels};
+/// use unshape_image::{ImageField, split_channels};
 ///
 /// let data = vec![[1.0, 0.5, 0.25, 0.75]; 4];
 /// let img = ImageField::from_raw(data, 2, 2);
@@ -1316,7 +1316,7 @@ pub fn split_channels(image: &ImageField) -> (ImageField, ImageField, ImageField
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, merge_channels};
+/// use unshape_image::{ImageField, merge_channels};
 ///
 /// let r = ImageField::from_raw(vec![[1.0, 1.0, 1.0, 1.0]; 4], 2, 2);
 /// let g = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 4], 2, 2);
@@ -1360,7 +1360,7 @@ pub fn merge_channels(
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, Channel, set_channel};
+/// use unshape_image::{ImageField, Channel, set_channel};
 ///
 /// let img = ImageField::from_raw(vec![[0.0, 0.0, 0.0, 1.0]; 4], 2, 2);
 /// let new_red = ImageField::from_raw(vec![[1.0, 1.0, 1.0, 1.0]; 4], 2, 2);
@@ -1408,7 +1408,7 @@ pub fn set_channel(image: &ImageField, channel: Channel, source: &ImageField) ->
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, Channel, map_channel, convolve, Kernel};
+/// use unshape_image::{ImageField, Channel, map_channel, convolve, Kernel};
 ///
 /// let img = ImageField::from_raw(vec![[0.5, 0.3, 0.7, 1.0]; 64], 8, 8);
 ///
@@ -1438,7 +1438,7 @@ pub fn map_channel(
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, Channel, swap_channels};
+/// use unshape_image::{ImageField, Channel, swap_channels};
 ///
 /// let img = ImageField::from_raw(vec![[1.0, 0.5, 0.0, 1.0]; 4], 2, 2);
 /// let swapped = swap_channels(&img, Channel::Red, Channel::Blue);
@@ -1528,7 +1528,7 @@ pub struct ColorspaceChannels {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, Colorspace, decompose_colorspace, reconstruct_colorspace};
+/// use unshape_image::{ImageField, Colorspace, decompose_colorspace, reconstruct_colorspace};
 ///
 /// let image = ImageField::solid_sized(64, 64, [0.8, 0.4, 0.2, 1.0]);
 ///
@@ -1983,7 +1983,7 @@ fn oklch_to_rgb(l: f32, c: f32, h: f32) -> (f32, f32, f32) {
 /// negative offsets push inward.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ImageField, output = ImageField))]
 pub struct ChromaticAberration {
     /// Offset amount for red channel (negative = inward, positive = outward).
@@ -2038,7 +2038,7 @@ pub type ChromaticAberrationConfig = ChromaticAberration;
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, chromatic_aberration, ChromaticAberrationConfig};
+/// use unshape_image::{ImageField, chromatic_aberration, ChromaticAberrationConfig};
 ///
 /// let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
 /// let img = ImageField::from_raw(data, 4, 4);
@@ -2106,7 +2106,7 @@ pub fn chromatic_aberration_simple(image: &ImageField, strength: f32) -> ImageFi
 /// 3. Remap [0, 1] to [output_black, output_white]
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ImageField, output = ImageField))]
 pub struct Levels {
     /// Input black point (values below this become 0). Range: 0-1.
@@ -2170,7 +2170,7 @@ pub type LevelsConfig = Levels;
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, adjust_levels, LevelsConfig};
+/// use unshape_image::{ImageField, adjust_levels, LevelsConfig};
 ///
 /// let data = vec![[0.3, 0.5, 0.7, 1.0]; 4];
 /// let img = ImageField::from_raw(data, 2, 2);
@@ -2224,7 +2224,7 @@ pub fn adjust_levels(image: &ImageField, config: &Levels) -> ImageField {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, adjust_brightness_contrast};
+/// use unshape_image::{ImageField, adjust_brightness_contrast};
 ///
 /// let data = vec![[0.5, 0.5, 0.5, 1.0]; 4];
 /// let img = ImageField::from_raw(data, 2, 2);
@@ -2311,7 +2311,7 @@ impl HslAdjustment {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, adjust_hsl, HslAdjustment};
+/// use unshape_image::{ImageField, adjust_hsl, HslAdjustment};
 ///
 /// let data = vec![[1.0, 0.5, 0.0, 1.0]; 4]; // Orange
 /// let img = ImageField::from_raw(data, 2, 2);
@@ -2320,7 +2320,7 @@ impl HslAdjustment {
 /// let result = adjust_hsl(&img, &HslAdjustment::hue(0.5));
 /// ```
 pub fn adjust_hsl(image: &ImageField, adjustment: &HslAdjustment) -> ImageField {
-    use rhi_unshape_color::{Hsl, LinearRgb};
+    use unshape_color::{Hsl, LinearRgb};
 
     let (width, height) = image.dimensions();
     let mut data = Vec::with_capacity((width * height) as usize);
@@ -3860,7 +3860,7 @@ where
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, composite, BlendMode};
+/// use unshape_image::{ImageField, composite, BlendMode};
 ///
 /// let base = ImageField::solid_sized(100, 100, [0.2, 0.2, 0.2, 1.0]);
 /// let overlay = ImageField::solid_sized(100, 100, [1.0, 0.0, 0.0, 0.5]);
@@ -3974,7 +3974,7 @@ impl DropShadow {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, DropShadow, drop_shadow};
+/// use unshape_image::{ImageField, DropShadow, drop_shadow};
 ///
 /// let image = ImageField::solid_sized(100, 100, [1.0, 0.0, 0.0, 1.0]);
 /// let config = DropShadow::new(5.0, 5.0).with_blur(4).with_color(0.0, 0.0, 0.0, 0.6);
@@ -4081,7 +4081,7 @@ impl Glow {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, Glow, glow};
+/// use unshape_image::{ImageField, Glow, glow};
 ///
 /// let image = ImageField::solid_sized(100, 100, [1.0, 1.0, 1.0, 1.0]);
 /// let config = Glow::new(6).with_intensity(1.5).with_color(1.0, 0.8, 0.2);
@@ -4217,7 +4217,7 @@ impl Bloom {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, Bloom, bloom};
+/// use unshape_image::{ImageField, Bloom, bloom};
 ///
 /// let image = ImageField::solid_sized(100, 100, [1.0, 1.0, 1.0, 1.0]);
 /// let config = Bloom::new(0.7).with_scales(5).with_intensity(0.8);
@@ -4320,7 +4320,7 @@ pub fn bloom(image: &ImageField, config: &Bloom) -> ImageField {
 /// Pincushion distortion (negative strength) makes it pinch inward.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ImageField, output = ImageField))]
 pub struct LensDistortion {
     /// Distortion strength. Positive = barrel, negative = pincushion.
@@ -4415,7 +4415,7 @@ pub type LensDistortionConfig = LensDistortion;
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, lens_distortion, LensDistortionConfig};
+/// use unshape_image::{ImageField, lens_distortion, LensDistortionConfig};
 ///
 /// let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
 /// let img = ImageField::from_raw(data, 4, 4);
@@ -4430,7 +4430,7 @@ pub fn lens_distortion(image: &ImageField, config: &LensDistortion) -> ImageFiel
 /// Applies wave distortion to an image.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ImageField, output = ImageField))]
 pub struct WaveDistortion {
     /// Amplitude in X direction (as fraction of image size).
@@ -4547,7 +4547,7 @@ pub type WaveDistortionConfig = WaveDistortion;
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, wave_distortion, WaveDistortionConfig};
+/// use unshape_image::{ImageField, wave_distortion, WaveDistortionConfig};
 ///
 /// let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
 /// let img = ImageField::from_raw(data, 4, 4);
@@ -4571,7 +4571,7 @@ pub fn wave_distortion(image: &ImageField, config: &WaveDistortion) -> ImageFiel
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, displace};
+/// use unshape_image::{ImageField, displace};
 ///
 /// let img = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
 /// let map = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
@@ -4610,7 +4610,7 @@ pub fn displace(image: &ImageField, displacement_map: &ImageField, strength: f32
 /// Configuration for swirl/twist distortion.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ImageField, output = ImageField))]
 pub struct Swirl {
     /// Maximum rotation in radians at center.
@@ -4703,7 +4703,7 @@ pub fn swirl(image: &ImageField, angle: f32, radius: f32, center: (f32, f32)) ->
 /// Configuration for spherize/bulge effect.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ImageField, output = ImageField))]
 pub struct Spherize {
     /// Bulge strength (positive = bulge out, negative = pinch in).
@@ -4798,7 +4798,7 @@ pub fn spherize(image: &ImageField, strength: f32, center: (f32, f32)) -> ImageF
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, downsample};
+/// use unshape_image::{ImageField, downsample};
 ///
 /// let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
 /// let img = ImageField::from_raw(data, 4, 4);
@@ -4849,7 +4849,7 @@ pub fn downsample(image: &ImageField) -> ImageField {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, upsample};
+/// use unshape_image::{ImageField, upsample};
 ///
 /// let data = vec![[0.5, 0.5, 0.5, 1.0]; 4];
 /// let img = ImageField::from_raw(data, 2, 2);
@@ -4905,7 +4905,7 @@ impl ImagePyramid {
     /// # Example
     ///
     /// ```
-    /// use rhi_unshape_image::{ImageField, ImagePyramid};
+    /// use unshape_image::{ImageField, ImagePyramid};
     ///
     /// let data = vec![[0.5, 0.5, 0.5, 1.0]; 64];
     /// let img = ImageField::from_raw(data, 8, 8);
@@ -5064,7 +5064,7 @@ impl ImagePyramid {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, resize};
+/// use unshape_image::{ImageField, resize};
 ///
 /// let data = vec![[0.5, 0.5, 0.5, 1.0]; 16];
 /// let img = ImageField::from_raw(data, 4, 4);
@@ -5123,7 +5123,7 @@ fn resize_impl(image: &ImageField, new_width: u32, new_height: u32) -> ImageFiel
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, heightfield_to_normal_map};
+/// use unshape_image::{ImageField, heightfield_to_normal_map};
 ///
 /// // Create a simple gradient heightfield
 /// let data: Vec<_> = (0..16).map(|i| {
@@ -5798,7 +5798,7 @@ impl Default for PixelSort {
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_image::{pixel_sort, PixelSort, SortBy};
+/// use unshape_image::{pixel_sort, PixelSort, SortBy};
 ///
 /// let config = PixelSort {
 ///     sort_by: SortBy::Brightness,
@@ -6292,7 +6292,7 @@ impl Datamosh {
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_image::{datamosh, Datamosh, MotionPattern};
+/// use unshape_image::{datamosh, Datamosh, MotionPattern};
 ///
 /// // Basic datamosh with default settings
 /// let glitched = datamosh(&image, &Datamosh::default());
@@ -6507,7 +6507,7 @@ fn update_motion_vectors(
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_image::{datamosh_frames, Datamosh};
+/// use unshape_image::{datamosh_frames, Datamosh};
 ///
 /// let glitched = datamosh_frames(&frame1, &frame2, &Datamosh::default());
 /// ```
@@ -6805,7 +6805,7 @@ fn quantize_block(block: &[f32; 64], quant_table: &[f32; 64], quality: u8) -> [f
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, JpegArtifacts, jpeg_artifacts};
+/// use unshape_image::{ImageField, JpegArtifacts, jpeg_artifacts};
 ///
 /// let image = ImageField::solid_sized(64, 64, [0.5, 0.3, 0.7, 1.0]);
 /// let config = JpegArtifacts::new(5); // Very low quality = heavy artifacts
@@ -7002,7 +7002,7 @@ impl BitManip {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, BitManip, BitOperation, bit_manip};
+/// use unshape_image::{ImageField, BitManip, BitOperation, bit_manip};
 ///
 /// let image = ImageField::solid_sized(64, 64, [0.5, 0.3, 0.7, 1.0]);
 ///
@@ -7118,7 +7118,7 @@ impl ByteCorrupt {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, ByteCorrupt, CorruptMode, byte_corrupt};
+/// use unshape_image::{ImageField, ByteCorrupt, CorruptMode, byte_corrupt};
 ///
 /// let image = ImageField::solid_sized(64, 64, [0.5, 0.3, 0.7, 1.0]);
 /// let config = ByteCorrupt::new(0.05).with_mode(CorruptMode::Random);
@@ -7484,7 +7484,7 @@ impl SetBitPlane {
 // Frequency Domain Operations
 // =============================================================================
 
-use rhi_unshape_spectral::{Complex, dct2d, fft_shift, fft2d, idct2d, ifft2d};
+use unshape_spectral::{Complex, dct2d, fft_shift, fft2d, idct2d, ifft2d};
 
 /// 2D Fast Fourier Transform.
 ///
@@ -7927,7 +7927,7 @@ impl QuantizeWithBias {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, color_matrix};
+/// use unshape_image::{ImageField, color_matrix};
 /// use glam::Mat4;
 ///
 /// let image = ImageField::from_raw(vec![[1.0, 0.5, 0.25, 1.0]; 16], 4, 4);
@@ -8069,7 +8069,7 @@ impl TransformConfig {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, TransformConfig, transform_image};
+/// use unshape_image::{ImageField, TransformConfig, transform_image};
 ///
 /// let image = ImageField::from_raw(vec![[1.0, 0.0, 0.0, 1.0]; 64 * 64], 64, 64);
 ///
@@ -8180,7 +8180,7 @@ impl Lut1D {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, Lut1D, apply_lut_1d};
+/// use unshape_image::{ImageField, Lut1D, apply_lut_1d};
 ///
 /// let image = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
 /// let lut = Lut1D::gamma(256, 2.2);
@@ -8296,7 +8296,7 @@ impl Lut3D {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, Lut3D, apply_lut_3d};
+/// use unshape_image::{ImageField, Lut3D, apply_lut_3d};
 ///
 /// let image = ImageField::from_raw(vec![[0.5, 0.3, 0.7, 1.0]; 16], 4, 4);
 /// let lut = Lut3D::identity(17); // Standard .cube LUT size
@@ -8318,7 +8318,7 @@ pub fn apply_lut_3d(image: &ImageField, lut: &Lut3D) -> ImageField {
 ///
 /// Call this to enable deserialization of image ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<BakeConfig>("resin::BakeConfig");
     registry.register_type::<AnimationConfig>("resin::AnimationConfig");
     registry.register_type::<ChromaticAberration>("resin::ChromaticAberration");
@@ -8347,7 +8347,7 @@ pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, UvExpr, remap_uv};
+/// use unshape_image::{ImageField, UvExpr, remap_uv};
 ///
 /// let image = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
 ///
@@ -8776,7 +8776,7 @@ impl UvExpr {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, ColorExpr, map_pixels};
+/// use unshape_image::{ImageField, ColorExpr, map_pixels};
 ///
 /// let image = ImageField::from_raw(vec![[0.5, 0.3, 0.7, 1.0]; 16], 4, 4);
 ///
@@ -9531,7 +9531,7 @@ impl ColorExpr {
 ///
 /// ```ignore
 /// use rhizome_dew_linalg::{linalg_registry, eval, Value};
-/// use rhi_unshape_image::register_colorspace;
+/// use unshape_image::register_colorspace;
 ///
 /// let mut registry = linalg_registry();
 /// register_colorspace(&mut registry);
@@ -9652,7 +9652,7 @@ pub use colorspace_dew::register_colorspace;
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, UvExpr, remap_uv};
+/// use unshape_image::{ImageField, UvExpr, remap_uv};
 ///
 /// let image = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
 ///
@@ -9708,7 +9708,7 @@ fn remap_uv_impl(image: &ImageField, expr: &UvExpr) -> ImageField {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, ColorExpr, map_pixels};
+/// use unshape_image::{ImageField, ColorExpr, map_pixels};
 ///
 /// let image = ImageField::from_raw(vec![[0.5, 0.3, 0.7, 1.0]; 16], 4, 4);
 ///
@@ -9760,7 +9760,7 @@ fn map_pixels_impl(image: &ImageField, expr: &ColorExpr) -> ImageField {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_image::{ImageField, remap_uv_fn};
+/// use unshape_image::{ImageField, remap_uv_fn};
 ///
 /// let image = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0]; 16], 4, 4);
 ///
@@ -12196,10 +12196,10 @@ mod invariant_tests {
 
     /// Compute 2D autocorrelation at a given (dx, dy) pixel offset
     fn autocorrelation_2d(image: &ImageField, dx: i32, dy: i32) -> f32 {
-        use rhi_unshape_field::Field;
+        use unshape_field::Field;
 
         let (width, height) = image.dimensions();
-        let ctx = rhi_unshape_field::EvalContext::default();
+        let ctx = unshape_field::EvalContext::default();
 
         let mut sum_product = 0.0f32;
         let mut sum_sq = 0.0f32;
@@ -12326,11 +12326,11 @@ mod invariant_tests {
 
     #[test]
     fn test_blue_noise_2d_uniform_distribution() {
-        use rhi_unshape_field::Field;
+        use unshape_field::Field;
 
         let noise = generate_blue_noise_2d(32);
         let (width, height) = noise.dimensions();
-        let ctx = rhi_unshape_field::EvalContext::default();
+        let ctx = unshape_field::EvalContext::default();
 
         let mut values = Vec::new();
         for y in 0..height {
@@ -12390,7 +12390,7 @@ mod invariant_tests {
 
     #[test]
     fn test_blur_preserves_uniform_image() {
-        use rhi_unshape_field::Field;
+        use unshape_field::Field;
 
         // Blurring a uniform image should not change it
         let uniform_value = 0.42f32;
@@ -12398,7 +12398,7 @@ mod invariant_tests {
         let img = ImageField::from_raw(data, 5, 5);
 
         let blurred = convolve(&img, &Kernel::gaussian_blur_3x3());
-        let ctx = rhi_unshape_field::EvalContext::default();
+        let ctx = unshape_field::EvalContext::default();
 
         // Check center pixel using normalized UV
         let center: Rgba = blurred.sample(Vec2::new(0.5, 0.5), &ctx);
@@ -12423,11 +12423,11 @@ mod invariant_tests {
         let img = ImageField::from_raw(data, 8, 8);
 
         let blurred = blur(&img, 3);
-        let ctx = rhi_unshape_field::EvalContext::default();
+        let ctx = unshape_field::EvalContext::default();
 
         // Compute variance of original and blurred using normalized UVs
-        fn compute_variance(img: &ImageField, ctx: &rhi_unshape_field::EvalContext) -> f32 {
-            use rhi_unshape_field::Field;
+        fn compute_variance(img: &ImageField, ctx: &unshape_field::EvalContext) -> f32 {
+            use unshape_field::Field;
             let (w, h) = img.dimensions();
             let mut values = Vec::new();
             for y in 0..h {
@@ -12458,7 +12458,7 @@ mod invariant_tests {
 
     #[test]
     fn test_dither_preserves_average_brightness() {
-        use rhi_unshape_field::Field;
+        use unshape_field::Field;
 
         // Dithering should approximately preserve average brightness
         // Using a 16x16 gray image to get better sampling of Bayer pattern
@@ -12468,7 +12468,7 @@ mod invariant_tests {
         let bayer = BayerField::bayer4x4();
 
         let dithered = QuantizeWithThreshold::new(img.clone(), bayer, 2);
-        let ctx = rhi_unshape_field::EvalContext::default();
+        let ctx = unshape_field::EvalContext::default();
 
         // BayerField uses UV * 1000, so 0.001 UV step = 1 Bayer pixel
         // Sample at UV coords that align with Bayer pattern
@@ -12496,7 +12496,7 @@ mod invariant_tests {
 
     #[test]
     fn test_dither_produces_binary_output() {
-        use rhi_unshape_field::Field;
+        use unshape_field::Field;
 
         // Quantize to 2 levels should produce only 0 or 1
         let data: Vec<[f32; 4]> = (0..64)
@@ -12509,7 +12509,7 @@ mod invariant_tests {
         let bayer = BayerField::bayer4x4();
 
         let dithered = QuantizeWithThreshold::new(img, bayer, 2);
-        let ctx = rhi_unshape_field::EvalContext::default();
+        let ctx = unshape_field::EvalContext::default();
 
         for y in 0..8 {
             for x in 0..8 {
@@ -12528,12 +12528,12 @@ mod invariant_tests {
 
     #[test]
     fn test_bayer_field_range() {
-        use rhi_unshape_field::Field;
+        use unshape_field::Field;
 
         // Bayer field values should be in [0, 1)
         // BayerField tiles at UV * 1000.0, so sample at small UV steps
         let bayer = BayerField::bayer8x8();
-        let ctx = rhi_unshape_field::EvalContext::default();
+        let ctx = unshape_field::EvalContext::default();
 
         for y in 0..8 {
             for x in 0..8 {
@@ -12554,12 +12554,12 @@ mod invariant_tests {
 
     #[test]
     fn test_bayer_field_unique_values() {
-        use rhi_unshape_field::Field;
+        use unshape_field::Field;
 
         // Each value in an nxn Bayer matrix should be unique within the tile
         // BayerField converts UV to pixels via * 1000, then mods by size
         let bayer = BayerField::bayer4x4();
-        let ctx = rhi_unshape_field::EvalContext::default();
+        let ctx = unshape_field::EvalContext::default();
 
         let mut values: Vec<f32> = Vec::new();
         for y in 0..4 {
@@ -12587,7 +12587,7 @@ mod invariant_tests {
 
     #[test]
     fn test_grayscale_idempotent() {
-        use rhi_unshape_field::Field;
+        use unshape_field::Field;
 
         // Applying grayscale twice should give the same result
         let data = vec![
@@ -12601,7 +12601,7 @@ mod invariant_tests {
         let gray1 = grayscale(&img);
         let gray2 = grayscale(&gray1);
 
-        let ctx = rhi_unshape_field::EvalContext::default();
+        let ctx = unshape_field::EvalContext::default();
         for y in 0..2 {
             for x in 0..2 {
                 let uv = Vec2::new((x as f32 + 0.5) / 2.0, (y as f32 + 0.5) / 2.0);
@@ -12619,7 +12619,7 @@ mod invariant_tests {
 
     #[test]
     fn test_invert_is_involution() {
-        use rhi_unshape_field::Field;
+        use unshape_field::Field;
 
         // Inverting twice should give the original
         let data = vec![
@@ -12633,7 +12633,7 @@ mod invariant_tests {
         let inv1 = invert(&img);
         let inv2 = invert(&inv1);
 
-        let ctx = rhi_unshape_field::EvalContext::default();
+        let ctx = unshape_field::EvalContext::default();
         for y in 0..2 {
             for x in 0..2 {
                 let uv = Vec2::new((x as f32 + 0.5) / 2.0, (y as f32 + 0.5) / 2.0);

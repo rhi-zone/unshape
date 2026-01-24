@@ -57,7 +57,7 @@ pub enum CapStyle {
 /// Operation for converting strokes to filled path outlines.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Path, output = Path))]
 pub struct Stroke {
     /// Width of the stroke.
@@ -968,7 +968,7 @@ impl Default for PressureStroke {
 /// Operation for pressure-sensitive stroke rendering.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = PressureStroke, output = Path))]
 pub struct PressureStrokeRender {
     /// Minimum stroke width (at pressure 0).
@@ -1026,7 +1026,7 @@ pub type PressureStrokeConfig = PressureStrokeRender;
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_vector::stroke::{PressureStroke, PressureStrokeConfig, pressure_stroke_to_path};
+/// use unshape_vector::stroke::{PressureStroke, PressureStrokeConfig, pressure_stroke_to_path};
 /// use glam::Vec2;
 ///
 /// let mut stroke = PressureStroke::new();
@@ -1198,7 +1198,7 @@ pub fn simulate_natural_pressure(path: &Path, taper_start: f32, taper_end: f32) 
 /// a path is drawn from 0% to 100% over time.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Path, output = Path))]
 pub struct Trim {
     /// Start position (0.0 to 1.0).
@@ -1271,7 +1271,7 @@ pub struct TrimResult {
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_vector::{circle, stroke::trim_path};
+/// use unshape_vector::{circle, stroke::trim_path};
 /// use glam::Vec2;
 ///
 /// let path = circle(Vec2::ZERO, 100.0);

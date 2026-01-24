@@ -6,7 +6,7 @@
 ///
 /// Call this to enable deserialization of rig ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<Gait>("resin::Gait");
     registry.register_type::<Ik>("resin::Ik");
     registry.register_type::<MotionMatching>("resin::MotionMatching");
@@ -42,7 +42,7 @@ pub use motion_matching::{
     blend_frames, compute_match_cost, find_best_match,
 };
 pub use path3d::{Path3D, Path3DBuilder, Path3DExt, PathSample, line3d, polyline3d};
-pub use rhi_unshape_transform::SpatialTransform;
+pub use unshape_transform::SpatialTransform;
 pub use secondary::{
     Drag, FollowThrough, JiggleBone, JiggleChain, JiggleMesh, OverlappingAction,
     RotationFollowThrough, Secondary, SecondaryConfig, SecondaryMotion, WindForce,

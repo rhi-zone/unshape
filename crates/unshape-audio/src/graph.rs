@@ -20,7 +20,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::graph::AtomicF32;
+/// use unshape_audio::graph::AtomicF32;
 ///
 /// let param = AtomicF32::new(0.5);
 ///
@@ -84,7 +84,7 @@ impl Clone for AtomicF32 {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::graph::AtomicParams;
+/// use unshape_audio::graph::AtomicParams;
 ///
 /// let mut params = AtomicParams::new();
 /// params.add("cutoff", 1000.0);
@@ -269,7 +269,7 @@ pub trait AudioNode: Send {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::graph::{BlockProcessor, AudioContext, Chain, AffineNode};
+/// use unshape_audio::graph::{BlockProcessor, AudioContext, Chain, AffineNode};
 ///
 /// fn apply_effect<P: BlockProcessor>(effect: &mut P, audio: &mut [f32], sample_rate: f32) {
 ///     let mut output = vec![0.0; audio.len()];
@@ -527,8 +527,8 @@ struct NodeExecInfo {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::graph::{AffineNode, AudioGraph, AudioContext};
-/// use rhi_unshape_audio::primitive::LfoNode;
+/// use unshape_audio::graph::{AffineNode, AudioGraph, AudioContext};
+/// use unshape_audio::primitive::LfoNode;
 ///
 /// let mut graph = AudioGraph::new();
 ///
@@ -982,7 +982,7 @@ impl AudioNode for AudioGraph {
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_audio::graph::{SwappableGraph, AudioGraph, AudioContext};
+/// use unshape_audio::graph::{SwappableGraph, AudioGraph, AudioContext};
 ///
 /// // Create initial graph
 /// let graph1 = AudioGraph::new();
@@ -1240,7 +1240,7 @@ impl AudioNode for Oscillator {
 ///
 /// Affine nodes compose naturally via `then()`:
 /// ```
-/// # use rhi_unshape_audio::graph::AffineNode;
+/// # use unshape_audio::graph::AffineNode;
 /// let a = AffineNode::gain(2.0);      // y = 2x
 /// let b = AffineNode::offset(1.0);    // z = y + 1
 /// let c = a.then(b);                  // z = 2x + 1

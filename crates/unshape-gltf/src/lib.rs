@@ -5,8 +5,8 @@
 //! # Export Example
 //!
 //! ```ignore
-//! use rhi_unshape_mesh::{Mesh, uv_sphere};
-//! use rhi_unshape_gltf::{GltfExporter, ExportFormat};
+//! use unshape_mesh::{Mesh, uv_sphere};
+//! use unshape_gltf::{GltfExporter, ExportFormat};
 //!
 //! let mesh = uv_sphere(32, 16);
 //! let exporter = GltfExporter::new().with_mesh("sphere", mesh);
@@ -16,7 +16,7 @@
 //! # Import Example
 //!
 //! ```ignore
-//! use rhi_unshape_gltf::import_gltf;
+//! use unshape_gltf::import_gltf;
 //!
 //! let scene = import_gltf("model.glb").unwrap();
 //! let mesh = scene.first_mesh().unwrap();

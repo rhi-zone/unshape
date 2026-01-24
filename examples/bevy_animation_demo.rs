@@ -9,7 +9,7 @@ use bevy::{
     prelude::*,
     render::mesh::{Indices, PrimitiveTopology},
 };
-use rhi_unshape_rig::{
+use unshape_rig::{
     Bone, BoneId, IkChain, IkConfig, Pose, Skeleton, Transform3D as ResinTransform, solve_fabrik,
 };
 

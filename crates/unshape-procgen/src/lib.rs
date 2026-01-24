@@ -8,7 +8,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_procgen::maze::{Maze, MazeAlgorithm, generate_maze};
+//! use unshape_procgen::maze::{Maze, MazeAlgorithm, generate_maze};
 //!
 //! // Generate a maze using recursive backtracker
 //! let maze = generate_maze(10, 10, MazeAlgorithm::RecursiveBacktracker, 12345);
@@ -31,7 +31,7 @@ pub use network::{GenerateRiver, GenerateRoadNetworkGrid, GenerateRoadNetworkHie
 ///
 /// Call this to enable deserialization of procgen ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<GenerateMaze>("resin::GenerateMaze");
     registry.register_type::<GenerateRiver>("resin::GenerateRiver");
     registry.register_type::<GenerateRoadNetworkGrid>("resin::GenerateRoadNetworkGrid");
@@ -118,7 +118,7 @@ impl TileId {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_procgen::{TileSet, TileId, Direction};
+/// use unshape_procgen::{TileSet, TileId, Direction};
 ///
 /// let mut ts = TileSet::new();
 /// let grass = ts.add_tile();
@@ -226,7 +226,7 @@ impl Default for TileSet {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_procgen::{NamedTileSet, Direction};
+/// use unshape_procgen::{NamedTileSet, Direction};
 ///
 /// let mut ts = NamedTileSet::new();
 /// ts.add_tile("grass");

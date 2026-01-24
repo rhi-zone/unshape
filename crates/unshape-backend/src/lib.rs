@@ -15,7 +15,7 @@
 //! # Quick Start
 //!
 //! ```
-//! use rhi_unshape_backend::{backend_evaluator, ExecutionPolicy};
+//! use unshape_backend::{backend_evaluator, ExecutionPolicy};
 //!
 //! // Create evaluator with CPU backend and auto policy
 //! let mut evaluator = backend_evaluator(ExecutionPolicy::Auto);
@@ -29,7 +29,7 @@
 //! For custom backend registration (e.g., GPU):
 //!
 //! ```
-//! use rhi_unshape_backend::{BackendRegistry, BackendNodeExecutor, Scheduler, ExecutionPolicy, LazyEvaluator};
+//! use unshape_backend::{BackendRegistry, BackendNodeExecutor, Scheduler, ExecutionPolicy, LazyEvaluator};
 //!
 //! let registry = BackendRegistry::with_cpu();
 //! // registry.register(Arc::new(gpu_backend));  // Add GPU if available
@@ -54,7 +54,7 @@ pub use registry::BackendRegistry;
 pub use scheduler::{BackendEvalResult, BackendNodeExecutor, Scheduler};
 
 // Re-export core types for convenience
-pub use rhi_unshape_core::{
+pub use unshape_core::{
     DataLocation, DynNode, EvalContext, GraphValue, LazyEvaluator, Value,
 };
 
@@ -64,8 +64,8 @@ pub use rhi_unshape_core::{
 /// build the components manually:
 ///
 /// ```
-/// use rhi_unshape_backend::{BackendRegistry, BackendNodeExecutor, Scheduler, ExecutionPolicy};
-/// use rhi_unshape_core::LazyEvaluator;
+/// use unshape_backend::{BackendRegistry, BackendNodeExecutor, Scheduler, ExecutionPolicy};
+/// use unshape_core::LazyEvaluator;
 ///
 /// let registry = BackendRegistry::with_cpu();
 /// let scheduler = Scheduler::new(registry, ExecutionPolicy::Auto);

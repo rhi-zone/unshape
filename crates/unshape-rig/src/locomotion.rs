@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// locomotion of bipeds and quadrupeds.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Gait))]
 pub struct Gait {
     /// Length of a single stride.

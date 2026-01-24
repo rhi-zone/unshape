@@ -5,8 +5,8 @@
 //!
 //! Run with: `cargo run --example pipeline_roundtrip --features dynop`
 
-use rhi_unshape_mesh::{Cuboid, Mesh};
-use rhi_unshape_op::{DynOp, OpRegistry, OpValue};
+use unshape_mesh::{Cuboid, Mesh};
+use unshape_op::{DynOp, OpRegistry, OpValue};
 
 fn main() {
     println!("=== Pipeline Serialization Round-Trip ===\n");
@@ -20,9 +20,9 @@ fn main() {
     );
 
     // Step 2: Build a pipeline of operations
-    let smooth = rhi_unshape_mesh::Smooth::new(0.5, 3);
-    let decimate = rhi_unshape_mesh::Decimate::target_ratio(0.5);
-    let extrude = rhi_unshape_mesh::Extrude::new(0.2);
+    let smooth = unshape_mesh::Smooth::new(0.5, 3);
+    let decimate = unshape_mesh::Decimate::target_ratio(0.5);
+    let extrude = unshape_mesh::Extrude::new(0.2);
 
     println!("\nPipeline:");
     println!(
@@ -49,7 +49,7 @@ fn main() {
 
     // Step 4: Create registry and register mesh ops
     let mut registry = OpRegistry::new();
-    rhi_unshape_mesh::register_ops(&mut registry);
+    unshape_mesh::register_ops(&mut registry);
 
     // Step 5: Deserialize and execute the pipeline
     println!("\nExecuting deserialized pipeline...");
@@ -62,7 +62,7 @@ fn main() {
             .expect("Failed to deserialize op");
 
         // Execute it
-        let input = OpValue::new(rhi_unshape_op::OpType::of::<Mesh>("Mesh"), current_mesh);
+        let input = OpValue::new(unshape_op::OpType::of::<Mesh>("Mesh"), current_mesh);
         let output = op.apply_dyn(input).expect("Failed to execute op");
         current_mesh = output.downcast::<Mesh>().expect("Wrong output type");
 

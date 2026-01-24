@@ -9,7 +9,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_mesh::{UvSphere, VertexWeights, smooth_weights};
+//! use unshape_mesh::{UvSphere, VertexWeights, smooth_weights};
 //!
 //! let sphere = UvSphere::new(1.0, 16, 8).apply();
 //! let mut weights = VertexWeights::new(sphere.vertex_count(), 2);

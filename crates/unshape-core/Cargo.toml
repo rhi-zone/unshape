@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-core"
+name = "unshape-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,5 +12,5 @@ serde = ["dep:serde", "glam/serde"]
 [dependencies]
 glam.workspace = true
 thiserror.workspace = true
-rhi-unshape-macros = { path = "../unshape-macros" }
+unshape-macros = { path = "../unshape-macros" }
 serde = { version = "1", features = ["derive"], optional = true }

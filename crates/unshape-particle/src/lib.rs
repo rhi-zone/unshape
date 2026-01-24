@@ -238,7 +238,7 @@ impl ParticleSystem {
 /// Emits particles from a single point.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = PointEmitter))]
 pub struct PointEmitter {
     /// Emission position.
@@ -316,7 +316,7 @@ impl Emitter for PointEmitter {
 /// Emits particles from a sphere surface or volume.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = SphereEmitter))]
 pub struct SphereEmitter {
     /// Center position.
@@ -389,7 +389,7 @@ impl Emitter for SphereEmitter {
 /// Emits particles in a cone shape.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = ConeEmitter))]
 pub struct ConeEmitter {
     /// Cone apex position.
@@ -490,7 +490,7 @@ fn rotate_to_direction(v: Vec3, dir: Vec3) -> Vec3 {
 /// Constant directional force (like gravity).
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Gravity))]
 pub struct Gravity {
     /// Acceleration vector (units per second squared).
@@ -522,7 +522,7 @@ impl Force for Gravity {
 /// Constant wind force.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Wind))]
 pub struct Wind {
     /// Wind velocity (target velocity particles are pushed toward).
@@ -558,7 +558,7 @@ impl Force for Wind {
 /// Drag force that slows particles.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Drag))]
 pub struct Drag {
     /// Drag coefficient (0 = no drag, higher = more drag).
@@ -589,7 +589,7 @@ impl Force for Drag {
 /// Attractor/repulsor force.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Attractor))]
 pub struct Attractor {
     /// Attractor position.
@@ -633,7 +633,7 @@ impl Force for Attractor {
 /// Vortex force that creates spinning motion.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Vortex))]
 pub struct Vortex {
     /// Vortex axis origin.
@@ -689,7 +689,7 @@ impl Force for Vortex {
 /// Turbulence force using noise.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Turbulence))]
 pub struct Turbulence {
     /// Strength of the turbulence.
@@ -736,8 +736,8 @@ impl Turbulence {
 
 impl Force for Turbulence {
     fn apply(&self, particle: &mut Particle, dt: f32) {
-        use rhi_unshape_noise::Noise3D;
-        let noise = rhi_unshape_noise::Simplex3D::new();
+        use unshape_noise::Noise3D;
+        let noise = unshape_noise::Simplex3D::new();
 
         let p = particle.position * self.frequency;
 
@@ -754,7 +754,7 @@ impl Force for Turbulence {
 /// Curl noise force for divergence-free turbulence.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = CurlNoise))]
 pub struct CurlNoise {
     /// Strength of the force.
@@ -793,8 +793,8 @@ impl CurlNoise {
 
 impl Force for CurlNoise {
     fn apply(&self, particle: &mut Particle, dt: f32) {
-        use rhi_unshape_noise::Noise3D;
-        let noise = rhi_unshape_noise::Simplex3D::new();
+        use unshape_noise::Noise3D;
+        let noise = unshape_noise::Simplex3D::new();
 
         let p = particle.position * self.frequency;
         let e = self.epsilon;
@@ -825,7 +825,7 @@ impl Force for CurlNoise {
 ///
 /// Call this to enable deserialization of particle ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<PointEmitter>("resin::PointEmitter");
     registry.register_type::<SphereEmitter>("resin::SphereEmitter");
     registry.register_type::<ConeEmitter>("resin::ConeEmitter");
@@ -1038,7 +1038,7 @@ mod tests {
 
 /// Invariant tests for particle systems.
 ///
-/// Run with: cargo test -p rhi-unshape-particle --features invariant-tests
+/// Run with: cargo test -p unshape-particle --features invariant-tests
 #[cfg(all(test, feature = "invariant-tests"))]
 mod invariant_tests {
     use super::*;

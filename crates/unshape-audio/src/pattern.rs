@@ -9,7 +9,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_audio::pattern::{Pattern, fast, slow, rev, cat};
+//! use unshape_audio::pattern::{Pattern, fast, slow, rev, cat};
 //!
 //! // Create a simple pattern
 //! let kicks = Pattern::from_events(vec![
@@ -27,7 +27,7 @@
 //! let both = cat(vec![kicks, reversed]);
 //! ```
 
-use rhi_unshape_expr_field::FieldExpr;
+use unshape_expr_field::FieldExpr;
 use std::collections::HashMap;
 use std::sync::Arc as StdArc;
 
@@ -218,7 +218,7 @@ impl<T: Clone + Send + Sync + 'static> Pattern<T> {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::pattern::Continuous;
+/// use unshape_audio::pattern::Continuous;
 /// use std::f64::consts::PI;
 ///
 /// // Sine wave LFO (1 cycle per beat)
@@ -650,7 +650,7 @@ fn hash_to_f64(hash: u64) -> f64 {
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_audio::pattern::{rand, Pattern, pure};
+/// use unshape_audio::pattern::{rand, Pattern, pure};
 ///
 /// let random_values = rand(42); // Pattern of random f64 values
 /// ```
@@ -687,7 +687,7 @@ pub fn rand(seed: u64) -> Pattern<f64> {
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_audio::pattern::{choose, pure, Pattern};
+/// use unshape_audio::pattern::{choose, pure, Pattern};
 ///
 /// let kick = pure("kick");
 /// let snare = pure("snare");
@@ -734,7 +734,7 @@ pub fn choose<T: Clone + Send + Sync + 'static>(patterns: &[Pattern<T>], seed: u
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_audio::pattern::{shuffle, cat, pure, Pattern};
+/// use unshape_audio::pattern::{shuffle, cat, pure, Pattern};
 ///
 /// let sequence = cat(vec![Pattern::pure("a"), Pattern::pure("b"), Pattern::pure("c"), Pattern::pure("d")]);
 /// let shuffled = shuffle(42, sequence); // Random permutation each cycle
@@ -914,7 +914,7 @@ fn lcm(a: u32, b: u32) -> u32 {
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::pattern::{polymeter, Pattern};
+/// use unshape_audio::pattern::{polymeter, Pattern};
 ///
 /// // 3-over-4 polyrhythm
 /// let threes = Pattern::from_events(vec![(0.0, 0.33, "x"), (0.33, 0.33, "x"), (0.66, 0.34, "x")]);
@@ -925,7 +925,7 @@ fn lcm(a: u32, b: u32) -> u32 {
 /// let poly = polymeter(vec![(threes, 3), (fours, 4)]);
 ///
 /// // Query the first 12 beats (one full polymetric cycle)
-/// let events = poly.query(rhi_unshape_audio::pattern::TimeArc::new(0.0, 12.0));
+/// let events = poly.query(unshape_audio::pattern::TimeArc::new(0.0, 12.0));
 /// // Contains 4 repetitions of threes (4*3=12) and 3 repetitions of fours (3*4=12)
 /// ```
 pub fn polymeter<T: Clone + Send + Sync + 'static>(patterns: Vec<(Pattern<T>, u32)>) -> Pattern<T> {
@@ -1008,7 +1008,7 @@ pub fn polymeter<T: Clone + Send + Sync + 'static>(patterns: Vec<(Pattern<T>, u3
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::pattern::{polyrhythm, TimeArc};
+/// use unshape_audio::pattern::{polyrhythm, TimeArc};
 ///
 /// // Classic 3-over-4 polyrhythm
 /// let poly = polyrhythm(3, 4, ("x", "o"));
@@ -1097,8 +1097,8 @@ pub fn polyrhythm<T: Clone + Send + Sync + 'static, U: Clone + Send + Sync + 'st
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::pattern::{Pattern, Warp};
-/// use rhi_unshape_expr_field::FieldExpr;
+/// use unshape_audio::pattern::{Pattern, Warp};
+/// use unshape_expr_field::FieldExpr;
 ///
 /// let pattern = Pattern::from_events(vec![(0.25, 0.5, "hit")]);
 ///

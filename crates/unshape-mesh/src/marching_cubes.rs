@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_mesh::{marching_cubes, MarchingCubes, SdfGrid};
+//! use unshape_mesh::{marching_cubes, MarchingCubes, SdfGrid};
 //! use glam::Vec3;
 //!
 //! // Define a sphere SDF
@@ -32,7 +32,7 @@ use crate::{Mesh, SdfGrid};
 /// the `marching_cubes` function for closures.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = SdfGrid, output = Mesh))]
 pub struct MarchingCubes {
     /// Bounds of the sampling volume (min corner).

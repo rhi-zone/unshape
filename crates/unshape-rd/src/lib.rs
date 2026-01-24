@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_rd::{ReactionDiffusion, GrayScottPreset};
+//! use unshape_rd::{ReactionDiffusion, GrayScottPreset};
 //!
 //! // Create a 100x100 simulation with coral preset
 //! let mut rd = ReactionDiffusion::new(100, 100);
@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Call this to enable deserialization of rd ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<Step>("resin::Step");
     registry.register_type::<SeedCircle>("resin::SeedCircle");
     registry.register_type::<SeedRect>("resin::SeedRect");
@@ -461,7 +461,7 @@ impl GrayScottParams {
 /// Advances the simulation by a number of steps.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ReactionDiffusion, output = ReactionDiffusion))]
 pub struct Step {
     /// Number of simulation steps to advance.
@@ -491,7 +491,7 @@ impl Step {
 /// Adds a circular seed of chemical V.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ReactionDiffusion, output = ReactionDiffusion))]
 pub struct SeedCircle {
     /// Center X coordinate.
@@ -519,7 +519,7 @@ impl SeedCircle {
 /// Adds a rectangular seed of chemical V.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ReactionDiffusion, output = ReactionDiffusion))]
 pub struct SeedRect {
     /// Left X coordinate.
@@ -549,7 +549,7 @@ impl SeedRect {
 /// Adds random seeds across the grid.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ReactionDiffusion, output = ReactionDiffusion))]
 pub struct SeedRandom {
     /// Number of random seeds to add.
@@ -581,7 +581,7 @@ impl SeedRandom {
 /// Clears the simulation to initial state (U=1, V=0).
 #[derive(Debug, Clone, Copy, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ReactionDiffusion, output = ReactionDiffusion))]
 pub struct Clear;
 
@@ -602,7 +602,7 @@ impl Clear {
 /// Sets the feed rate parameter.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ReactionDiffusion, output = ReactionDiffusion))]
 pub struct SetFeed {
     /// The feed rate to set.
@@ -626,7 +626,7 @@ impl SetFeed {
 /// Sets the kill rate parameter.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ReactionDiffusion, output = ReactionDiffusion))]
 pub struct SetKill {
     /// The kill rate to set.
@@ -650,7 +650,7 @@ impl SetKill {
 /// Applies a preset to the simulation.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ReactionDiffusion, output = ReactionDiffusion))]
 pub struct ApplyPreset {
     /// The preset to apply.

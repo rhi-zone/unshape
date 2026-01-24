@@ -1,13 +1,13 @@
 //! Benchmarks for audio effects.
 //!
-//! Run with: cargo bench -p rhi-unshape-audio
+//! Run with: cargo bench -p unshape-audio
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
-use rhi_unshape_audio::effects::{
+use unshape_audio::effects::{
     Bitcrusher, Compressor, Distortion, Limiter, NoiseGate, Reverb, chorus, chorus_graph, flanger,
     flanger_graph, phaser, tremolo, tremolo_graph,
 };
-use rhi_unshape_audio::graph::AudioContext;
+use unshape_audio::graph::AudioContext;
 
 const SAMPLE_RATE: f32 = 44100.0;
 const ONE_SECOND: usize = 44100;
@@ -207,8 +207,8 @@ fn bench_flanger_graph(c: &mut Criterion) {
 
 #[cfg(feature = "optimize")]
 fn bench_tremolo_optimized(c: &mut Criterion) {
-    use rhi_unshape_audio::graph::AudioNode;
-    use rhi_unshape_audio::optimize::TremoloOptimized;
+    use unshape_audio::graph::AudioNode;
+    use unshape_audio::optimize::TremoloOptimized;
 
     let signal = test_signal(ONE_SECOND);
     let ctx = AudioContext::new(SAMPLE_RATE);
@@ -226,8 +226,8 @@ fn bench_tremolo_optimized(c: &mut Criterion) {
 
 #[cfg(feature = "optimize")]
 fn bench_chorus_optimized(c: &mut Criterion) {
-    use rhi_unshape_audio::graph::AudioNode;
-    use rhi_unshape_audio::optimize::ChorusOptimized;
+    use unshape_audio::graph::AudioNode;
+    use unshape_audio::optimize::ChorusOptimized;
 
     let signal = test_signal(ONE_SECOND);
     let ctx = AudioContext::new(SAMPLE_RATE);
@@ -245,8 +245,8 @@ fn bench_chorus_optimized(c: &mut Criterion) {
 
 #[cfg(feature = "optimize")]
 fn bench_flanger_optimized(c: &mut Criterion) {
-    use rhi_unshape_audio::graph::AudioNode;
-    use rhi_unshape_audio::optimize::FlangerOptimized;
+    use unshape_audio::graph::AudioNode;
+    use unshape_audio::optimize::FlangerOptimized;
 
     let signal = test_signal(ONE_SECOND);
     let ctx = AudioContext::new(SAMPLE_RATE);
@@ -268,8 +268,8 @@ fn bench_flanger_optimized(c: &mut Criterion) {
 
 #[cfg(feature = "cranelift")]
 fn bench_tremolo_jit(c: &mut Criterion) {
-    use rhi_unshape_audio::jit::JitCompiler;
-    use rhi_unshape_audio::primitive::PhaseOsc;
+    use unshape_audio::jit::JitCompiler;
+    use unshape_audio::primitive::PhaseOsc;
 
     let signal = test_signal(ONE_SECOND);
 
@@ -291,7 +291,7 @@ fn bench_tremolo_jit(c: &mut Criterion) {
 
 #[cfg(feature = "cranelift")]
 fn bench_gain_jit(c: &mut Criterion) {
-    use rhi_unshape_audio::jit::JitCompiler;
+    use unshape_audio::jit::JitCompiler;
 
     let signal = test_signal(ONE_SECOND);
 
@@ -324,8 +324,8 @@ fn bench_gain_rust(c: &mut Criterion) {
 // Block-based JIT compilation benchmark
 #[cfg(all(feature = "cranelift", feature = "optimize"))]
 fn bench_gain_jit_block(c: &mut Criterion) {
-    use rhi_unshape_audio::graph::{AffineNode, AudioGraph, BlockProcessor};
-    use rhi_unshape_audio::jit::JitCompiler;
+    use unshape_audio::graph::{AffineNode, AudioGraph, BlockProcessor};
+    use unshape_audio::jit::JitCompiler;
 
     let signal = test_signal(ONE_SECOND);
     let mut output = vec![0.0; ONE_SECOND];
@@ -355,7 +355,7 @@ fn bench_gain_jit_block(c: &mut Criterion) {
 // ============================================================================
 
 fn bench_gain_block(c: &mut Criterion) {
-    use rhi_unshape_audio::graph::{AffineNode, BlockProcessor};
+    use unshape_audio::graph::{AffineNode, BlockProcessor};
 
     let signal = test_signal(ONE_SECOND);
     let mut output = vec![0.0; ONE_SECOND];
@@ -373,7 +373,7 @@ fn bench_gain_block(c: &mut Criterion) {
 }
 
 fn bench_chain_block(c: &mut Criterion) {
-    use rhi_unshape_audio::graph::{AffineNode, BlockProcessor, Chain};
+    use unshape_audio::graph::{AffineNode, BlockProcessor, Chain};
 
     let signal = test_signal(ONE_SECOND);
     let mut output = vec![0.0; ONE_SECOND];
@@ -405,7 +405,7 @@ mod codegen_bench {
 #[cfg(feature = "codegen-bench")]
 fn bench_tremolo_codegen(c: &mut Criterion) {
     use codegen_bench::GeneratedTremolo;
-    use rhi_unshape_audio::graph::AudioNode;
+    use unshape_audio::graph::AudioNode;
 
     let signal = test_signal(ONE_SECOND);
     let ctx = AudioContext::new(SAMPLE_RATE);
@@ -423,7 +423,7 @@ fn bench_tremolo_codegen(c: &mut Criterion) {
 #[cfg(feature = "codegen-bench")]
 fn bench_chorus_codegen(c: &mut Criterion) {
     use codegen_bench::GeneratedChorus;
-    use rhi_unshape_audio::graph::AudioNode;
+    use unshape_audio::graph::AudioNode;
 
     let signal = test_signal(ONE_SECOND);
     let ctx = AudioContext::new(SAMPLE_RATE);
@@ -441,7 +441,7 @@ fn bench_chorus_codegen(c: &mut Criterion) {
 #[cfg(feature = "codegen-bench")]
 fn bench_flanger_codegen(c: &mut Criterion) {
     use codegen_bench::GeneratedFlanger;
-    use rhi_unshape_audio::graph::AudioNode;
+    use unshape_audio::graph::AudioNode;
 
     let signal = test_signal(ONE_SECOND);
     let ctx = AudioContext::new(SAMPLE_RATE);

@@ -11,7 +11,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_procgen::maze::{Maze, MazeAlgorithm, generate_maze};
+//! use unshape_procgen::maze::{Maze, MazeAlgorithm, generate_maze};
 //!
 //! let maze = generate_maze(10, 10, MazeAlgorithm::RecursiveBacktracker, 12345);
 //!
@@ -569,7 +569,7 @@ fn sidewinder(width: usize, height: usize, seed: u64) -> Maze {
 /// Takes a seed (u64) and produces a Maze.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = u64, output = Maze))]
 pub struct GenerateMaze {
     /// Width in cells.

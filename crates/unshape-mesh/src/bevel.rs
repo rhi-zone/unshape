@@ -25,7 +25,7 @@ use std::collections::{HashMap, HashSet};
 /// Adjacent faces are adjusted to maintain a watertight mesh.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = HalfEdgeMesh, output = HalfEdgeMesh))]
 pub struct Bevel {
     /// The amount to bevel (distance from original edge/vertex).

@@ -9,7 +9,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_mesh::{Cuboid, Remesh};
+//! use unshape_mesh::{Cuboid, Remesh};
 //!
 //! let mesh = Cuboid::default().apply();
 //! let remeshed = Remesh::default().apply(&mesh);
@@ -27,7 +27,7 @@ use std::collections::HashMap;
 /// a more uniform mesh topology.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct Remesh {
     /// Target edge length.
@@ -335,7 +335,7 @@ fn find_boundary_vertices(mesh: &Mesh) -> std::collections::HashSet<u32> {
 /// Pairs adjacent triangles with similar normals to form quad faces.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Mesh, output = QuadMesh))]
 pub struct Quadify {
     /// Maximum angle difference for merging triangles (degrees).

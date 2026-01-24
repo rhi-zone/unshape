@@ -5,7 +5,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_automata::{ElementaryCA, GameOfLife};
+//! use unshape_automata::{ElementaryCA, GameOfLife};
 //!
 //! // 1D: Rule 30
 //! let mut ca = ElementaryCA::new(100, 30);
@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Call this to enable deserialization of automata ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<ElementaryCAConfig>("resin::ElementaryCAConfig");
     registry.register_type::<CellularAutomaton2DConfig>("resin::CellularAutomaton2DConfig");
     registry.register_type::<StepElementaryCA>("resin::StepElementaryCA");
@@ -423,7 +423,7 @@ impl SimpleRng {
 /// Use a seed for reproducible random initialization, or None for empty state.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = ElementaryCA))]
 pub struct ElementaryCAConfig {
     /// Width of the automaton (number of cells).
@@ -472,7 +472,7 @@ impl Default for ElementaryCAConfig {
 /// and birth/survival rules. Use a seed and density for random initialization.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = CellularAutomaton2D))]
 pub struct CellularAutomaton2DConfig {
     /// Width of the grid.
@@ -545,7 +545,7 @@ impl Default for CellularAutomaton2DConfig {
 /// Takes an `ElementaryCA` and returns it after advancing the specified number of steps.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ElementaryCA, output = ElementaryCA))]
 pub struct StepElementaryCA {
     /// Number of steps to advance.
@@ -577,7 +577,7 @@ impl Default for StepElementaryCA {
 /// Takes a `CellularAutomaton2D` and returns it after advancing the specified number of steps.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = CellularAutomaton2D, output = CellularAutomaton2D))]
 pub struct StepCellularAutomaton2D {
     /// Number of steps to advance.
@@ -609,7 +609,7 @@ impl Default for StepCellularAutomaton2D {
 /// Runs the CA for multiple generations and returns all states as a 2D grid.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = ElementaryCA, output = Vec<Vec<bool>>))]
 pub struct GeneratePattern {
     /// Number of generations to produce.

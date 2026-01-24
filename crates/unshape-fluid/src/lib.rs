@@ -18,7 +18,7 @@ use std::f32::consts::PI;
 /// Configuration for grid-based fluid simulation.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Fluid))]
 pub struct Fluid {
     /// Diffusion rate (viscosity).
@@ -839,7 +839,7 @@ fn set_bnd_3d(b: i32, x: &mut [f32], width: usize, height: usize, depth: usize) 
 /// Configuration for SPH simulation.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Sph))]
 pub struct Sph {
     /// Rest density of the fluid.
@@ -1118,7 +1118,7 @@ impl SphParticle3D {
 /// Configuration for 3D SPH simulation.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = SphParams3D))]
 pub struct SphParams3D {
     /// Rest density of the fluid.
@@ -1337,7 +1337,7 @@ impl Sph3D {
 /// Configuration for smoke simulation.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Smoke))]
 pub struct Smoke {
     /// Diffusion rate for velocity.
@@ -1891,7 +1891,7 @@ impl SmokeGrid3D {
 ///
 /// Call this to enable deserialization of fluid ops from saved pipelines.
 #[cfg(feature = "dynop")]
-pub fn register_ops(registry: &mut rhi_unshape_op::OpRegistry) {
+pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<Fluid>("resin::Fluid");
     registry.register_type::<Sph>("resin::Sph");
     registry.register_type::<SphParams3D>("resin::SphParams3D");

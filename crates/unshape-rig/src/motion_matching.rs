@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// for the motion matching algorithm.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = MotionMatching))]
 pub struct MotionMatching {
     /// Weight for bone position matching.

@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-particle"
+name = "unshape-particle"
 version = "0.1.0"
 edition = "2024"
 description = "Particle systems with forces and emitters"
@@ -8,12 +8,12 @@ repository = "https://github.com/rhizome-lab/resin"
 
 [features]
 serde = ["dep:serde", "glam/serde"]
-dynop = ["dep:rhi-unshape-op", "dep:serde_json", "serde"]
+dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
 invariant-tests = []
 
 [dependencies]
 glam.workspace = true
-rhi-unshape-noise = { path = "../unshape-noise" }
-rhi-unshape-op = { path = "../unshape-op", optional = true }
+unshape-noise = { path = "../unshape-noise" }
+unshape-op = { path = "../unshape-op", optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }

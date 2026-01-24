@@ -58,30 +58,30 @@ bevy = { version = "0.15", default-features = false, features = [
 ] }
 
 # Resin crates
-rhi-unshape-core = { path = "crates/unshape-core" }
-rhi-unshape-backend = { path = "crates/unshape-backend" }
-rhi-unshape-mesh = { path = "crates/unshape-mesh" }
-rhi-unshape-audio = { path = "crates/unshape-audio" }
-rhi-unshape-vector = { path = "crates/unshape-vector" }
-rhi-unshape-rig = { path = "crates/unshape-rig" }
-rhi-unshape-gltf = { path = "crates/unshape-gltf" }
-rhi-unshape-fluid = { path = "crates/unshape-fluid" }
-rhi-unshape-physics = { path = "crates/unshape-physics" }
-rhi-unshape-noise = { path = "crates/unshape-noise" }
-rhi-unshape-field = { path = "crates/unshape-field" }
-rhi-unshape-image = { path = "crates/unshape-image" }
-rhi-unshape-lsystem = { path = "crates/unshape-lsystem" }
-rhi-unshape-op = { path = "crates/unshape-op" }
-rhi-unshape-op-macros = { path = "crates/unshape-op-macros" }
-rhi-unshape-motion-fn = { path = "crates/unshape-motion-fn" }
-rhi-unshape-curve = { path = "crates/unshape-curve" }
-rhi-unshape-audio-codegen = { path = "crates/unshape-audio-codegen" }
-rhi-unshape-jit = { path = "crates/unshape-jit" }
-rhi-unshape-gpu = { path = "crates/unshape-gpu" }
-rhi-unshape-spectral = { path = "crates/unshape-spectral" }
+unshape-core = { path = "crates/unshape-core" }
+unshape-backend = { path = "crates/unshape-backend" }
+unshape-mesh = { path = "crates/unshape-mesh" }
+unshape-audio = { path = "crates/unshape-audio" }
+unshape-vector = { path = "crates/unshape-vector" }
+unshape-rig = { path = "crates/unshape-rig" }
+unshape-gltf = { path = "crates/unshape-gltf" }
+unshape-fluid = { path = "crates/unshape-fluid" }
+unshape-physics = { path = "crates/unshape-physics" }
+unshape-noise = { path = "crates/unshape-noise" }
+unshape-field = { path = "crates/unshape-field" }
+unshape-image = { path = "crates/unshape-image" }
+unshape-lsystem = { path = "crates/unshape-lsystem" }
+unshape-op = { path = "crates/unshape-op" }
+unshape-op-macros = { path = "crates/unshape-op-macros" }
+unshape-motion-fn = { path = "crates/unshape-motion-fn" }
+unshape-curve = { path = "crates/unshape-curve" }
+unshape-audio-codegen = { path = "crates/unshape-audio-codegen" }
+unshape-jit = { path = "crates/unshape-jit" }
+unshape-gpu = { path = "crates/unshape-gpu" }
+unshape-spectral = { path = "crates/unshape-spectral" }
 
 [package]
-name = "rhi-unshape-examples"
+name = "unshape-examples"
 version.workspace = true
 edition.workspace = true
 publish = false
@@ -89,25 +89,25 @@ publish = false
 [features]
 default = []
 dynop = [
-    "rhi-unshape-mesh/dynop",
-    "rhi-unshape-audio/dynop",
-    "dep:rhi-unshape-op",
+    "unshape-mesh/dynop",
+    "unshape-audio/dynop",
+    "dep:unshape-op",
     "dep:serde_json",
 ]
 
 [dependencies]
 bevy = { workspace = true }
-rhi-unshape-core = { workspace = true }
-rhi-unshape-backend = { workspace = true }
-rhi-unshape-mesh = { workspace = true }
-rhi-unshape-audio = { workspace = true }
-rhi-unshape-vector = { workspace = true }
-rhi-unshape-rig = { workspace = true }
-rhi-unshape-noise = { workspace = true }
-rhi-unshape-field = { workspace = true }
-rhi-unshape-image = { workspace = true }
-rhi-unshape-lsystem = { workspace = true }
-rhi-unshape-op = { workspace = true, optional = true }
+unshape-core = { workspace = true }
+unshape-backend = { workspace = true }
+unshape-mesh = { workspace = true }
+unshape-audio = { workspace = true }
+unshape-vector = { workspace = true }
+unshape-rig = { workspace = true }
+unshape-noise = { workspace = true }
+unshape-field = { workspace = true }
+unshape-image = { workspace = true }
+unshape-lsystem = { workspace = true }
+unshape-op = { workspace = true, optional = true }
 glam = { workspace = true }
 serde_json = { version = "1", optional = true }
 

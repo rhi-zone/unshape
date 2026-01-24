@@ -2,7 +2,7 @@
 
 use crate::backend::{BackendCapabilities, BackendKind, ComputeBackend, Cost, WorkloadHint};
 use crate::error::BackendError;
-use rhi_unshape_core::{DynNode, EvalContext, Value};
+use unshape_core::{DynNode, EvalContext, Value};
 
 /// Default CPU backend.
 ///
@@ -19,7 +19,7 @@ use rhi_unshape_core::{DynNode, EvalContext, Value};
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_backend::{CpuBackend, ComputeBackend, BackendKind};
+/// use unshape_backend::{CpuBackend, ComputeBackend, BackendKind};
 ///
 /// let backend = CpuBackend;
 /// assert_eq!(backend.name(), "cpu");
@@ -98,14 +98,14 @@ mod tests {
             "DummyNode"
         }
 
-        fn inputs(&self) -> Vec<rhi_unshape_core::PortDescriptor> {
+        fn inputs(&self) -> Vec<unshape_core::PortDescriptor> {
             vec![]
         }
 
-        fn outputs(&self) -> Vec<rhi_unshape_core::PortDescriptor> {
-            vec![rhi_unshape_core::PortDescriptor::new(
+        fn outputs(&self) -> Vec<unshape_core::PortDescriptor> {
+            vec![unshape_core::PortDescriptor::new(
                 "out",
-                rhi_unshape_core::ValueType::F32,
+                unshape_core::ValueType::F32,
             )]
         }
 
@@ -113,7 +113,7 @@ mod tests {
             &self,
             _inputs: &[Value],
             _ctx: &EvalContext,
-        ) -> Result<Vec<Value>, rhi_unshape_core::GraphError> {
+        ) -> Result<Vec<Value>, unshape_core::GraphError> {
             Ok(vec![Value::F32(42.0)])
         }
 

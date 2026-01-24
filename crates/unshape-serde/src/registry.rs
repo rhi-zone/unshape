@@ -1,7 +1,7 @@
 //! Node registry for type-based deserialization.
 
 use crate::error::SerdeError;
-use rhi_unshape_core::{BoxedNode, DynNode};
+use unshape_core::{BoxedNode, DynNode};
 use serde::de::DeserializeOwned;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
@@ -123,7 +123,7 @@ impl Default for NodeRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rhi_unshape_core::{EvalContext, GraphError, PortDescriptor, Value, ValueType};
+    use unshape_core::{EvalContext, GraphError, PortDescriptor, Value, ValueType};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -4,8 +4,8 @@
 //! Simple and reliable, trading storage space for simplicity.
 
 use crate::error::HistoryError;
-use rhi_unshape_core::{DynNode, Graph};
-use rhi_unshape_serde::{NodeRegistry, SerialGraph, graph_to_serial, serial_to_graph};
+use unshape_core::{DynNode, Graph};
+use unshape_serde::{NodeRegistry, SerialGraph, graph_to_serial, serial_to_graph};
 
 /// Configuration for snapshot history.
 #[derive(Debug, Clone)]
@@ -176,7 +176,7 @@ impl Default for SnapshotHistory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rhi_unshape_core::{EvalContext, GraphError, PortDescriptor, Value, ValueType};
+    use unshape_core::{EvalContext, GraphError, PortDescriptor, Value, ValueType};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]

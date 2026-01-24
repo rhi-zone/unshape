@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-motion"
+name = "unshape-motion"
 version = "0.1.0"
 edition = "2024"
 description = "2D motion graphics scene graph with transforms, layers, and hierarchy"
@@ -8,15 +8,15 @@ repository = "https://github.com/rhizome-lab/resin"
 
 [features]
 default = []
-serde = ["dep:serde", "glam/serde", "rhi-unshape-color/serde"]
+serde = ["dep:serde", "glam/serde", "unshape-color/serde"]
 
 [dependencies]
 glam.workspace = true
-rhi-unshape-color = { path = "../unshape-color" }
-rhi-unshape-easing = { path = "../unshape-easing" }
-rhi-unshape-motion-fn = { path = "../unshape-motion-fn" }
-rhi-unshape-noise = { path = "../unshape-noise" }
-rhi-unshape-transform = { path = "../unshape-transform" }
+unshape-color = { path = "../unshape-color" }
+unshape-easing = { path = "../unshape-easing" }
+unshape-motion-fn = { path = "../unshape-motion-fn" }
+unshape-noise = { path = "../unshape-noise" }
+unshape-transform = { path = "../unshape-transform" }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]

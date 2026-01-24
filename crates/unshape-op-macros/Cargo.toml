@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-op-macros"
+name = "unshape-op-macros"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

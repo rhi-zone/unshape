@@ -52,7 +52,7 @@ impl GraphFormat for JsonFormat {
 mod tests {
     use super::*;
     use crate::serial::SerialNode;
-    use rhi_unshape_core::Wire;
+    use unshape_core::Wire;
 
     #[test]
     fn test_json_roundtrip() {

@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-bytes"
+name = "unshape-bytes"
 version = "0.1.0"
 edition = "2024"
 description = "Raw byte reinterpretation utilities for glitch-art style domain crossing"

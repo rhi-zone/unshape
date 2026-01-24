@@ -9,7 +9,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_mesh::{UvSphere, analyze_topology};
+//! use unshape_mesh::{UvSphere, analyze_topology};
 //!
 //! let sphere = UvSphere::new(1.0, 16, 8).apply();
 //! let topo = analyze_topology(&sphere);

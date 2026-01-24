@@ -7,11 +7,11 @@ use thiserror::Error;
 pub enum HistoryError {
     /// Serialization error from resin-serde.
     #[error("serialization error: {0}")]
-    Serde(#[from] rhi_unshape_serde::SerdeError),
+    Serde(#[from] unshape_serde::SerdeError),
 
     /// Graph operation error.
     #[error("graph error: {0}")]
-    Graph(#[from] rhi_unshape_core::GraphError),
+    Graph(#[from] unshape_core::GraphError),
 
     /// No more undo steps available.
     #[error("nothing to undo")]

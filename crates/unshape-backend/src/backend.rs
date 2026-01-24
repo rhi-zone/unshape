@@ -1,7 +1,7 @@
 //! Core backend trait and types.
 
 use crate::error::BackendError;
-use rhi_unshape_core::{DynNode, EvalContext, Value};
+use unshape_core::{DynNode, EvalContext, Value};
 
 /// A compute backend that can execute nodes.
 ///
@@ -12,7 +12,7 @@ use rhi_unshape_core::{DynNode, EvalContext, Value};
 /// # Implementing a Backend
 ///
 /// ```ignore
-/// use rhi_unshape_backend::*;
+/// use unshape_backend::*;
 ///
 /// pub struct MyGpuBackend {
 ///     // GPU-specific state

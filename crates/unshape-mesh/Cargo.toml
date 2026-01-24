@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-mesh"
+name = "unshape-mesh"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,7 +8,7 @@ description = "Core types and traits for unshape"
 [features]
 default = []
 serde = ["dep:serde", "glam/serde"]
-dynop = ["dep:rhi-unshape-op", "dep:serde_json", "serde"]
+dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
 # Enable thorough statistical/invariant tests (slower, for CI)
 invariant-tests = []
 
@@ -16,8 +16,8 @@ invariant-tests = []
 glam.workspace = true
 ordered-float.workspace = true
 thiserror.workspace = true
-rhi-unshape-geometry = { path = "../unshape-geometry" }
-rhi-unshape-op = { path = "../unshape-op", optional = true }
+unshape-geometry = { path = "../unshape-geometry" }
+unshape-op = { path = "../unshape-op", optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
 

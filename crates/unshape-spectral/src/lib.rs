@@ -10,7 +10,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_spectral::{fft, ifft, hann_window};
+//! use unshape_spectral::{fft, ifft, hann_window};
 //!
 //! // Generate a simple signal
 //! let n = 1024;

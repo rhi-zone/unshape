@@ -17,7 +17,7 @@ use crate::Mesh;
 /// their normals, then connecting old and new vertices with side faces.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct Extrude {
     /// Distance to extrude (positive = outward, negative = inward).
@@ -165,7 +165,7 @@ pub fn solidify(mesh: &Mesh, thickness: f32) -> Mesh {
 /// Creates a new inner face for each triangle, connected by bridge faces.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct Inset {
     /// Inset amount (0.0 = no change, 1.0 = shrink to center).
@@ -487,7 +487,7 @@ pub fn recalculate_normals(mesh: &Mesh, mode: NormalMode) -> Mesh {
 /// a smoother surface. Multiple iterations increase the smoothing effect.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct Smooth {
     /// Smoothing factor per iteration (0.0 = no change, 1.0 = move to average).
@@ -536,7 +536,7 @@ pub type SmoothConfig = Smooth;
 /// # Example
 ///
 /// ```ignore
-/// use rhi_unshape_mesh::{Cuboid, smooth};
+/// use unshape_mesh::{Cuboid, smooth};
 ///
 /// let cube = Cuboid::default().apply();
 /// let smoothed = smooth(&cube, 0.5, 3);
@@ -983,7 +983,7 @@ mod tests {
 mod dynop_tests {
     use super::*;
     use crate::Cuboid;
-    use rhi_unshape_op::{DynOp, OpRegistry, OpType, OpValue};
+    use unshape_op::{DynOp, OpRegistry, OpType, OpValue};
 
     #[test]
     fn test_smooth_dynop_roundtrip() {
@@ -1068,7 +1068,7 @@ mod dynop_tests {
 
     #[test]
     fn test_pipeline_execution() {
-        use rhi_unshape_op::Pipeline;
+        use unshape_op::Pipeline;
 
         let mut registry = OpRegistry::new();
         crate::register_ops(&mut registry);

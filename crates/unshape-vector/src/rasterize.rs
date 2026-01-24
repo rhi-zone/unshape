@@ -5,8 +5,8 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_vector::rasterize::{Rasterizer, FillRule};
-//! use rhi_unshape_vector::polygon;
+//! use unshape_vector::rasterize::{Rasterizer, FillRule};
+//! use unshape_vector::polygon;
 //! use glam::Vec2;
 //!
 //! // Create a triangle path

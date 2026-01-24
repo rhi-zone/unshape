@@ -27,7 +27,7 @@ pub enum NoiseType {
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = NoiseConfig))]
 pub struct NoiseConfig {
     /// Type of noise.

@@ -9,7 +9,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_audio::spectral::{fft, ifft, hann_window};
+//! use unshape_audio::spectral::{fft, ifft, hann_window};
 //!
 //! // Generate a simple signal
 //! let n = 1024;
@@ -30,7 +30,7 @@ use std::f32::consts::PI;
 use serde::{Deserialize, Serialize};
 
 // Re-export core spectral primitives from unshape-spectral
-pub use rhi_unshape_spectral::{
+pub use unshape_spectral::{
     // Complex number type
     Complex,
     // Workspace
@@ -60,7 +60,7 @@ pub use rhi_unshape_spectral::{
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Vec<f32>, output = StftResult))]
 pub struct Stft {
     /// FFT window size (must be power of 2).
@@ -400,7 +400,7 @@ pub fn spectral_flatness(magnitudes: &[f32]) -> f32 {
 /// See `docs/design/ops-as-values.md`.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = Vec<f32>, output = Vec<f32>))]
 pub struct TimeStretch {
     /// FFT window size (must be power of 2).
@@ -461,7 +461,7 @@ pub type TimeStretchConfig = TimeStretch;
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::spectral::{TimeStretch, TimeStretchWorkspace, time_stretch_with_workspace};
+/// use unshape_audio::spectral::{TimeStretch, TimeStretchWorkspace, time_stretch_with_workspace};
 ///
 /// let config = TimeStretch::with_factor(1.5);
 /// let mut workspace = TimeStretchWorkspace::new(config.window_size);
@@ -633,7 +633,7 @@ pub fn time_stretch_with_workspace(
 /// # Example
 ///
 /// ```
-/// use rhi_unshape_audio::spectral::{time_stretch, TimeStretch};
+/// use unshape_audio::spectral::{time_stretch, TimeStretch};
 ///
 /// let audio: Vec<f32> = (0..8192).map(|i| (i as f32 * 0.1).sin()).collect();
 ///

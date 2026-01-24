@@ -87,7 +87,7 @@ pub fn triangle(phase: f32) -> f32 {
 ///
 /// # Example
 /// ```
-/// use rhi_unshape_audio::osc::{freq_to_phase, sine};
+/// use unshape_audio::osc::{freq_to_phase, sine};
 ///
 /// let frequency = 440.0; // A4
 /// let time = 0.001; // 1ms

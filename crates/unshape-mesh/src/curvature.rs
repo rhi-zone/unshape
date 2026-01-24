@@ -8,7 +8,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_mesh::{UvSphere, gaussian_curvature, mean_curvature};
+//! use unshape_mesh::{UvSphere, gaussian_curvature, mean_curvature};
 //!
 //! let mesh = UvSphere::default().apply();
 //! let k_values = gaussian_curvature(&mesh);

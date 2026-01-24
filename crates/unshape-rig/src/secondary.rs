@@ -9,7 +9,7 @@
 //! # Example
 //!
 //! ```
-//! use rhi_unshape_rig::secondary::{JiggleBone, SecondaryMotion, SecondaryConfig};
+//! use unshape_rig::secondary::{JiggleBone, SecondaryMotion, SecondaryConfig};
 //! use glam::Vec3;
 //!
 //! // Create a jiggle bone for hair
@@ -40,7 +40,7 @@ use serde::{Deserialize, Serialize};
 /// like hair, clothing, and soft body deformation.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(rhi_unshape_op::Op))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Secondary))]
 pub struct Secondary {
     /// Spring stiffness (higher = snappier return to rest).

@@ -9,7 +9,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use rhi_unshape_mesh::{Cuboid, export_obj, import_obj};
+//! use unshape_mesh::{Cuboid, export_obj, import_obj};
 //!
 //! let cube = Cuboid::default().apply();
 //! let obj_string = export_obj(&cube);

@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-expr-field"
+name = "unshape-expr-field"
 version = "0.1.0"
 edition = "2024"
 description = "Bridge between expressions and fields"
@@ -9,10 +9,10 @@ repository = "https://github.com/rhizome-lab/resin"
 [features]
 default = []
 serde = ["dep:serde", "glam/serde"]
-cranelift = ["dep:rhi-unshape-jit", "rhi-unshape-jit/cranelift", "dep:cranelift", "dep:cranelift-frontend", "dep:cranelift-jit", "dep:cranelift-module", "dep:cranelift-native"]
+cranelift = ["dep:unshape-jit", "unshape-jit/cranelift", "dep:cranelift", "dep:cranelift-frontend", "dep:cranelift-jit", "dep:cranelift-module", "dep:cranelift-native"]
 
 [dependencies]
-rhi-unshape-jit = { path = "../unshape-jit", optional = true }
+unshape-jit = { path = "../unshape-jit", optional = true }
 cranelift = { workspace = true, optional = true }
 cranelift-frontend = { workspace = true, optional = true }
 cranelift-jit = { workspace = true, optional = true }
@@ -22,8 +22,8 @@ thiserror.workspace = true
 glam.workspace = true
 rhizome-dew-core = { git = "https://github.com/rhizome-lab/dew" }
 rhizome-dew-scalar = { git = "https://github.com/rhizome-lab/dew" }
-rhi-unshape-field = { path = "../unshape-field" }
-rhi-unshape-noise = { path = "../unshape-noise" }
+unshape-field = { path = "../unshape-field" }
+unshape-noise = { path = "../unshape-noise" }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]

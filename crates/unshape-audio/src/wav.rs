@@ -5,7 +5,7 @@
 //! # Example
 //!
 //! ```no_run
-//! use rhi_unshape_audio::wav::{WavFile, WavFormat};
+//! use unshape_audio::wav::{WavFile, WavFormat};
 //!
 //! // Read a WAV file
 //! let wav = WavFile::load("input.wav").unwrap();

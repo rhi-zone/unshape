@@ -1,5 +1,5 @@
 [package]
-name = "rhi-unshape-crossdomain"
+name = "unshape-crossdomain"
 version = "0.1.0"
 edition = "2024"
 description = "Cross-domain data interpretation and conversion utilities"
@@ -9,15 +9,15 @@ repository = "https://github.com/rhizome-lab/resin"
 [features]
 default = []
 serde = ["dep:serde"]
-dynop = ["dep:rhi-unshape-op", "dep:serde_json", "serde"]
+dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
 
 [dependencies]
 glam = { workspace = true }
-rhi-unshape-audio = { path = "../unshape-audio" }
-rhi-unshape-image = { path = "../unshape-image" }
-rhi-unshape-field = { path = "../unshape-field" }
-rhi-unshape-color = { path = "../unshape-color" }
-rhi-unshape-bytes = { path = "../unshape-bytes" }
-rhi-unshape-op = { path = "../unshape-op", optional = true }
+unshape-audio = { path = "../unshape-audio" }
+unshape-image = { path = "../unshape-image" }
+unshape-field = { path = "../unshape-field" }
+unshape-color = { path = "../unshape-color" }
+unshape-bytes = { path = "../unshape-bytes" }
+unshape-op = { path = "../unshape-op", optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }

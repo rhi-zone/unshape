@@ -1,10 +1,10 @@
 //! GPU compute backend implementation.
 
 use crate::{GpuContext, GpuError};
-use rhi_unshape_backend::{
+use unshape_backend::{
     BackendCapabilities, BackendError, BackendKind, ComputeBackend, Cost, WorkloadHint,
 };
-use rhi_unshape_core::{DynNode, EvalContext, Value};
+use unshape_core::{DynNode, EvalContext, Value};
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -17,7 +17,7 @@ use std::sync::{Arc, RwLock};
 /// # Registering Kernels
 ///
 /// ```ignore
-/// use rhi_unshape_gpu::{GpuComputeBackend, GpuKernel};
+/// use unshape_gpu::{GpuComputeBackend, GpuKernel};
 ///
 /// struct MyNoiseKernel;
 ///
@@ -189,7 +189,7 @@ pub trait GpuKernel: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rhi_unshape_core::{PortDescriptor, ValueType};
+    use unshape_core::{PortDescriptor, ValueType};
 
     // Test node for kernel registration
     struct TestGpuNode;
@@ -211,7 +211,7 @@ mod tests {
             &self,
             _inputs: &[Value],
             _ctx: &EvalContext,
-        ) -> Result<Vec<Value>, rhi_unshape_core::GraphError> {
+        ) -> Result<Vec<Value>, unshape_core::GraphError> {
             Ok(vec![Value::F32(1.0)])
         }
 

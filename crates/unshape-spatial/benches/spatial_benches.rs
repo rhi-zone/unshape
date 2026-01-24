@@ -2,7 +2,7 @@
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use glam::{Vec2, Vec3};
-use rhi_unshape_spatial::{Aabb2, Aabb3, Bvh, Octree, Quadtree, Ray, Rtree, SpatialHash};
+use unshape_spatial::{Aabb2, Aabb3, Bvh, Octree, Quadtree, Ray, Rtree, SpatialHash};
 
 // ============================================================================
 // Quadtree Benchmarks
