@@ -313,6 +313,13 @@ Track progress auditing each crate for decomposition opportunities.
 
 **Key Insight:** All constraints follow same pattern: compute_error → solve_jacobian → apply_correction
 
+**Ops-as-Values:** ✅ Added `ConstraintSolver` trait unifying all constraint types with:
+- `compute_error(&self, bodies) -> Option<ConstraintError>` - compute position/angular error
+- `apply_correction(&self, bodies, stiffness)` - apply corrections to bodies
+- `stiffness(&self) -> f32` - get constraint stiffness
+
+Implemented for: `DistanceConstraint`, `PointConstraint`, `HingeConstraint`, `Constraint` enum. Enables custom constraints and explicit solver pattern.
+
 ---
 
 ### resin-curve (done)
