@@ -362,6 +362,8 @@ Track progress auditing each crate for decomposition opportunities.
 - All `*_out(t)` = `1 - *_in(1-t)`
 - All `*_in_out(t)` = piecewise `*_in` scaled
 
+**Implementation:** ✅ Easing expression builders now live in `unshape-expr-field::easing` module. These return `FieldExpr` AST nodes (e.g., `quad_in(t)` returns `Mul(t, t)`) enabling constant folding by the optimizer.
+
 **Three-Layer Architecture:**
 1. **Primitives**: dew's `+`, `*`, `sin`, `cos`, `pow`, `sqrt`
 2. **Ergonomics**: `quad_in(t)` constructs the expression `t * t`
