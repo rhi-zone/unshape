@@ -2,8 +2,8 @@
 
 use crate::GpuContext;
 use crate::error::{GpuError, GpuResult};
-use unshape_core::{DataLocation, GraphValue};
 use std::any::Any;
+use unshape_core::{DataLocation, GraphValue};
 
 /// Texture format for GPU output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

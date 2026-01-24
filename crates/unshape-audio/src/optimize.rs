@@ -29,9 +29,9 @@
 //! ```
 
 use crate::graph::{AudioGraph, AudioNode, NodeIndex};
-use unshape_core::optimize::Optimizer;
 use std::any::TypeId;
 use std::collections::HashMap;
+use unshape_core::optimize::Optimizer;
 
 // ============================================================================
 // GraphOptimizer Trait

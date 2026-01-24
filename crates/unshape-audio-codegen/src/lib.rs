@@ -155,9 +155,7 @@ impl SerialAudioNode {
     /// Returns the initialization expression for this node.
     fn init_code(&self, sample_rate: &str) -> String {
         match self {
-            SerialAudioNode::Lfo { .. } => {
-                "unshape_audio::primitive::PhaseOsc::new()".to_string()
-            }
+            SerialAudioNode::Lfo { .. } => "unshape_audio::primitive::PhaseOsc::new()".to_string(),
             SerialAudioNode::Gain { gain } => format!("{gain}_f32"),
             SerialAudioNode::Delay { max_samples, .. } => {
                 format!("unshape_audio::primitive::DelayLine::new({max_samples})")

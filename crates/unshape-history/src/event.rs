@@ -7,10 +7,10 @@
 //! - Replay and debugging
 
 use crate::error::HistoryError;
-use unshape_core::{Graph, NodeId, Wire};
-use unshape_serde::NodeRegistry;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use unshape_core::{Graph, NodeId, Wire};
+use unshape_serde::NodeRegistry;
 
 /// Events that modify a graph.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -455,8 +455,8 @@ impl Default for EventHistory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use unshape_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType};
     use serde::{Deserialize, Serialize};
+    use unshape_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct TestNode {

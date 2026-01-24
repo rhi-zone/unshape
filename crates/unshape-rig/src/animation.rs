@@ -4,8 +4,8 @@
 
 use crate::Transform3D;
 use glam::Vec3;
-pub use unshape_easing::Lerp;
 use std::collections::HashMap;
+pub use unshape_easing::Lerp;
 
 /// Interpolation method between keyframes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

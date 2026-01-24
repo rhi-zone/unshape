@@ -137,8 +137,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use unshape_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType};
     use serde::{Deserialize, Serialize};
+    use unshape_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct ConstNode {

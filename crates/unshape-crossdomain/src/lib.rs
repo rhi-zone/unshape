@@ -18,12 +18,12 @@
 //! ```
 
 use glam::{Vec2, Vec3};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use unshape_audio::spectral::{StftConfig, stft_with_sample_rate};
 use unshape_color::Rgba;
 use unshape_field::{EvalContext, Field};
 use unshape_image::ImageField;
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 
 // ============================================================================
 // Buffer Reinterpretation

@@ -9,12 +9,12 @@ fn main() {
 
 #[cfg(feature = "codegen-bench")]
 fn generate_benchmark_effects() {
-    use unshape_audio_codegen::{
-        SerialAudioGraph, SerialAudioNode, SerialParamWire, generate_effect, generate_header,
-    };
     use std::env;
     use std::fs;
     use std::path::Path;
+    use unshape_audio_codegen::{
+        SerialAudioGraph, SerialAudioNode, SerialParamWire, generate_effect, generate_header,
+    };
 
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("codegen_bench.rs");

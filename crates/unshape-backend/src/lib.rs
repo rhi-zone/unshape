@@ -54,9 +54,7 @@ pub use registry::BackendRegistry;
 pub use scheduler::{BackendEvalResult, BackendNodeExecutor, Scheduler};
 
 // Re-export core types for convenience
-pub use unshape_core::{
-    DataLocation, DynNode, EvalContext, GraphValue, LazyEvaluator, Value,
-};
+pub use unshape_core::{DataLocation, DynNode, EvalContext, GraphValue, LazyEvaluator, Value};
 
 /// Creates a backend-aware evaluator with CPU backend and the given policy.
 ///

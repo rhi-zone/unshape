@@ -27,9 +27,9 @@
 //! let both = cat(vec![kicks, reversed]);
 //! ```
 
-use unshape_expr_field::FieldExpr;
 use std::collections::HashMap;
 use std::sync::Arc as StdArc;
+use unshape_expr_field::FieldExpr;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};

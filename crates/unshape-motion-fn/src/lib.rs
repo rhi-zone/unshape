@@ -478,14 +478,11 @@ impl Motion<f32> for Wiggle {
     fn at(&self, t: f32) -> f32 {
         use unshape_noise::Noise2D;
         let noise = if self.octaves > 1 {
-            unshape_noise::Fbm::new(unshape_noise::Perlin2D::with_seed(
-                self.seed as i32,
-            ))
-            .octaves(self.octaves)
-            .sample(t * self.frequency, 0.0)
-        } else {
-            unshape_noise::Perlin2D::with_seed(self.seed as i32)
+            unshape_noise::Fbm::new(unshape_noise::Perlin2D::with_seed(self.seed as i32))
+                .octaves(self.octaves)
                 .sample(t * self.frequency, 0.0)
+        } else {
+            unshape_noise::Perlin2D::with_seed(self.seed as i32).sample(t * self.frequency, 0.0)
         };
         // Perlin noise returns 0..1, convert to -1..1 then scale
         let normalized = noise * 2.0 - 1.0;
@@ -522,8 +519,8 @@ impl Wiggle2D {
 impl Motion<Vec2> for Wiggle2D {
     fn at(&self, t: f32) -> Vec2 {
         use unshape_noise::Noise2D;
-        let nx = unshape_noise::Perlin2D::with_seed(self.seed as i32)
-            .sample(t * self.frequency, 0.0);
+        let nx =
+            unshape_noise::Perlin2D::with_seed(self.seed as i32).sample(t * self.frequency, 0.0);
         let ny = unshape_noise::Perlin2D::with_seed((self.seed + 100.0) as i32)
             .sample(t * self.frequency, 0.0);
         let normalized_x = nx * 2.0 - 1.0;
@@ -1008,8 +1005,8 @@ impl MotionExpr {
                 seed,
             } => {
                 use unshape_noise::Noise2D;
-                let noise = unshape_noise::Perlin2D::with_seed(*seed as i32)
-                    .sample(t * frequency, 0.0);
+                let noise =
+                    unshape_noise::Perlin2D::with_seed(*seed as i32).sample(t * frequency, 0.0);
                 let normalized = noise * 2.0 - 1.0;
                 center + amplitude * normalized
             }

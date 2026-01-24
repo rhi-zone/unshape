@@ -1,13 +1,13 @@
 //! GPU compute backend implementation.
 
 use crate::{GpuContext, GpuError};
+use std::any::TypeId;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use unshape_backend::{
     BackendCapabilities, BackendError, BackendKind, ComputeBackend, Cost, WorkloadHint,
 };
 use unshape_core::{DynNode, EvalContext, Value};
-use std::any::TypeId;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 
 /// GPU compute backend using wgpu.
 ///
