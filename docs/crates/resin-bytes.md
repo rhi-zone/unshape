@@ -1,4 +1,4 @@
-# resin-bytes
+# unshape-bytes
 
 Raw byte reinterpretation utilities for glitch-art style domain crossing.
 
@@ -10,7 +10,7 @@ This is a minimal crate with only `bytemuck` as a dependency.
 
 ## Related Crates
 
-- **resin-crossdomain** - Re-exports this crate and adds `bytes_to_image` bridge
+- **unshape-crossdomain** - Re-exports this crate and adds `bytes_to_image` bridge
 
 ## Use Cases
 

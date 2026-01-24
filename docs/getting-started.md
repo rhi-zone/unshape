@@ -156,4 +156,4 @@ bun install
 bun run dev
 ```
 
-Opens at `http://localhost:5173/resin/`
+Opens at `http://localhost:5173/unshape/`

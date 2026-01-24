@@ -1,4 +1,4 @@
-# resin-image
+# unshape-image
 
 Image-based fields and processing operations.
 
@@ -10,10 +10,10 @@ Also provides common image processing operations: convolution, color adjustments
 
 ## Related Crates
 
-- **resin-field** - Core field abstraction that `ImageField` implements
-- **resin-color** - Color types (`Rgba`, `Hsl`) used throughout
-- **resin-noise** - Procedural noise fields that compose with images
-- **resin-texture** - Higher-level texture nodes (checkerboard, voronoi, etc.)
+- **unshape-field** - Core field abstraction that `ImageField` implements
+- **unshape-color** - Color types (`Rgba`, `Hsl`) used throughout
+- **unshape-noise** - Procedural noise fields that compose with images
+- **unshape-texture** - Higher-level texture nodes (checkerboard, voronoi, etc.)
 
 ## Use Cases
 
@@ -70,7 +70,7 @@ let filled = inpaint_patchmatch(&image, &mask, &config);
 
 ## Compositions
 
-### With resin-noise
+### With unshape-noise
 Combine procedural noise with image textures:
 ```rust
 // Distort texture UVs with noise
@@ -78,21 +78,21 @@ let noise = Simplex2D::new().scale(4.0);
 // Use noise output as displacement map input
 ```
 
-### With resin-mesh
+### With unshape-mesh
 Bake textures for 3D meshes, generate normal maps from heightfields:
 ```rust
 // Heightfield -> mesh via marching cubes
 // Same heightfield -> normal map for material
 ```
 
-### With resin-vector
+### With unshape-vector
 Rasterize vector paths to images, or use images as fill patterns:
 ```rust
 // Rasterize SVG path to image
 // Use image as texture source for gradient mesh
 ```
 
-### With resin-audio (cross-domain)
+### With unshape-audio (cross-domain)
 Interpret images as spectrograms (MetaSynth-style):
 ```rust
 // Image brightness -> frequency amplitude

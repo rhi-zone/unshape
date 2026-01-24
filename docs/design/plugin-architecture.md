@@ -1,10 +1,10 @@
 # Plugin Architecture
 
-How third-party code extends resin with custom operations.
+How third-party code extends unshape with custom operations.
 
 ## Principle
 
-**Resin defines the contract. Host handles loading.**
+**Unshape defines the contract. Host handles loading.**
 
 Unshape is a library, not a framework. Different hosts have different needs:
 - Game engine: no user plugins, just built-in ops
@@ -22,11 +22,11 @@ Forcing a plugin system on everyone would conflict with our modular philosophy.
 ├─────────────────────────────────────────────────┤
 │  Optional: rhi-unshape-wasm-plugins / rhi-unshape-lua / ... │  ← adapters
 ├─────────────────────────────────────────────────┤
-│  rhi-unshape-core: traits + serialization contract    │  ← resin provides
+│  rhi-unshape-core: traits + serialization contract    │  ← unshape provides
 └─────────────────────────────────────────────────┘
 ```
 
-## What Resin Provides
+## What Unshape Provides
 
 ### 1. Op Traits
 
@@ -53,7 +53,7 @@ Ops must be serializable to/from a common format (JSON, MessagePack, etc.).
 pub trait MeshOp: erased_serde::Serialize + Send + Sync {
     fn apply(&self, mesh: &Mesh) -> Mesh;
 
-    /// Unique type identifier, e.g. "resin::mesh::Subdivide"
+    /// Unique type identifier, e.g. "unshape::mesh::Subdivide"
     fn type_name(&self) -> &'static str;
 }
 
@@ -65,7 +65,7 @@ pub struct Subdivide {
 
 impl MeshOp for Subdivide {
     fn apply(&self, mesh: &Mesh) -> Mesh { ... }
-    fn type_name(&self) -> &'static str { "resin::mesh::Subdivide" }
+    fn type_name(&self) -> &'static str { "unshape::mesh::Subdivide" }
 }
 ```
 
@@ -201,8 +201,8 @@ Graphs reference ops by type name:
 ```json
 {
   "nodes": [
-    { "id": 1, "op": "resin::mesh::Cube", "params": { "size": [1, 1, 1] } },
-    { "id": 2, "op": "resin::mesh::Subdivide", "params": { "levels": 2 } },
+    { "id": 1, "op": "unshape::mesh::Cube", "params": { "size": [1, 1, 1] } },
+    { "id": 2, "op": "unshape::mesh::Subdivide", "params": { "levels": 2 } },
     { "id": 3, "op": "myplugin::CustomBevel", "params": { "amount": 0.1 } }
   ],
   "edges": [[1, 2], [2, 3]]
@@ -218,7 +218,7 @@ If a type name isn't registered, deserialization fails with clear error ("unknow
 | Component | Responsibility |
 |-----------|----------------|
 | rhi-unshape-core | Op traits, serialization format, registry interface |
-| resin-*-plugins | Optional adapters for common plugin models |
+| unshape-*-plugins | Optional adapters for common plugin models |
 | Host application | Plugin discovery, loading, sandboxing |
 
-This keeps resin focused and lets hosts make appropriate choices for their context.
+This keeps unshape focused and lets hosts make appropriate choices for their context.

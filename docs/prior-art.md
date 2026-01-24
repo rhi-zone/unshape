@@ -1,6 +1,6 @@
 # Prior Art
 
-Existing tools and techniques that inform Resin's design.
+Existing tools and techniques that inform Unshape's design.
 
 ## Mesh & Texture Generation
 
@@ -82,7 +82,7 @@ Image-based audio synthesis (used in Dune, Inception, The Matrix):
 
 Key insight: **representation is transferable**. The same structure (2D field) can be an image OR a spectrogram. The "domain" (visual/audio) is just how you render it.
 
-**Relevance to Resin**: We have `ImageField` + spectral audio. Natural connection: procedural textures → spectral content. Noise fields as timbral control. Reaction-diffusion as evolving spectra.
+**Relevance to Unshape**: We have `ImageField` + spectral audio. Natural connection: procedural textures → spectral content. Noise fields as timbral control. Reaction-diffusion as evolving spectra.
 
 ## Cross-Domain Reinterpretation
 
@@ -97,7 +97,7 @@ Intentionally "wrong" interpretation of data:
 
 Key insight: **format is convention, not truth**. The same bytes are simultaneously valid (if weird) audio, image, mesh data. There's no "correct" interpretation - just useful ones.
 
-**Relevance to Resin**:
+**Relevance to Unshape**:
 - Raw buffer reinterpretation as creative tool (`&[f32]` → audio samples OR vertex positions)
 - Intentional format mismatches (mesh normals as RGB, audio as heightfield)
 - "Wrong" mappings that produce interesting results
@@ -117,7 +117,7 @@ Structure (graph, field, buffer)
   Mesh
 ```
 
-The structure is the real thing. Domain-specific outputs are just projections. This aligns with resin's core idea: everything is procedurally describable, and the "output format" is a rendering choice.
+The structure is the real thing. Domain-specific outputs are just projections. This aligns with unshape's core idea: everything is procedurally describable, and the "output format" is a rendering choice.
 
 ### TidalCycles / Strudel
 
@@ -134,7 +134,7 @@ s("bd sd [~ bd] sd").speed("1 2 1.5")
 - **Patterns as values**: composable, higher-order
 - **Time is fundamental**: patterns are functions of time
 
-Key insight: **patterns as composable values**. The mini-notation is TidalCycles-specific; the real insight is that pattern transformations (`fast`, `slow`, `rev`) are composable ops - same model as resin.
+Key insight: **patterns as composable values**. The mini-notation is TidalCycles-specific; the real insight is that pattern transformations (`fast`, `slow`, `rev`) are composable ops - same model as unshape.
 
 ## Image Processing
 
@@ -167,7 +167,7 @@ Key insight: **algorithm inversion**. Flipping who "owns" the error (absorb vs s
 
 Key insight: **self-similarity enables LOD**. Fractal properties of Bayer matrices allow seamless density transitions - dots only appear when zooming in, only vanish when zooming out.
 
-Note: This is a rendering/shader technique, not 2D image processing - out of scope for resin-image but interesting for 3D applications.
+Note: This is a rendering/shader technique, not 2D image processing - out of scope for unshape-image but interesting for 3D applications.
 
 #### Ditherpunk (Surma)
 
@@ -203,7 +203,7 @@ yield* all(
 
 Key insight: generators turn imperative code into a timeline. Animation is just "what happens when this code runs."
 
-**Relevance to Resin**: The generator model could work for animation sequencing. Less relevant for spatial generation (meshes, textures) but interesting for rigging/animation domain.
+**Relevance to Unshape**: The generator model could work for animation sequencing. Less relevant for spatial generation (meshes, textures) but interesting for rigging/animation domain.
 
 ### Manim
 
@@ -226,7 +226,7 @@ class Example(Scene):
 
 Key insight: scenes as composable units, transformations as first-class animations.
 
-**Relevance to Resin**: Mobject concept maps to our generators. Transform animations relevant for morphing (mesh blend shapes, path morphing). Scene model less relevant - we're a library, not a framework.
+**Relevance to Unshape**: Mobject concept maps to our generators. Transform animations relevant for morphing (mesh blend shapes, path morphing). Scene model less relevant - we're a library, not a framework.
 
 ## Node-Based Workflows
 
@@ -249,10 +249,10 @@ Node-based interface for generative AI:
 
 Key insight: unified node graph across different media types. Workflows are shareable artifacts.
 
-**Relevance to Resin**:
+**Relevance to Unshape**:
 - Strong validation that node graphs work for multi-domain media
 - "Portable workflows" as serializable artifacts - worth considering
-- Difference: ComfyUI is UI-first, resin is library-first
+- Difference: ComfyUI is UI-first, unshape is library-first
 
 ### LiteGraph.js
 
@@ -311,7 +311,7 @@ Key insight: static typing + generics gives full type safety with flexibility. S
 LiteGraph (strings) < Baklava (static) < maki (static + generics)
 ```
 
-**Relevance to Resin**:
+**Relevance to Unshape**:
 Typed slots solve "different data types in same graph":
 
 | Approach | Extensible | Type-safe | Generics |
@@ -332,7 +332,7 @@ AI-powered knowledge canvas:
 - **Knowledge graph**: connections between ideas
 - **Context-aware AI**: LLM with graph context
 
-**Relevance to Resin**: Limited. It's a note-taking tool, not media generation. The canvas/graph UI pattern is common but not novel. Mentioned for completeness.
+**Relevance to Unshape**: Limited. It's a note-taking tool, not media generation. The canvas/graph UI pattern is common but not novel. Mentioned for completeness.
 
 ## Compute Abstraction
 
@@ -355,7 +355,7 @@ fn add_kernel(a: &Tensor<f32>, b: &Tensor<f32>, out: &mut Tensor<f32>) {
 
 Key insight: abstract compute kernels over backends. No need to choose CPU vs GPU - support both.
 
-**Relevance to Resin**:
+**Relevance to Unshape**:
 - Texture operations (blur, noise, blend) are embarrassingly parallel
 - Mesh operations less so (topology is tricky on GPU)
 - Audio: typically CPU (real-time constraints, small blocks)

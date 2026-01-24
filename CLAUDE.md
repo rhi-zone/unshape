@@ -83,7 +83,7 @@ Do not:
 - AudioGraph internally, Chain for linear pipelines
 - See `docs/design/general-internal-constrained-api.md`
 
-**Generative mindset.** Everything in resin should be describable procedurally:
+**Generative mindset.** Everything in unshape should be describable procedurally:
 - Prefer node graphs / expression trees over baked data
 - Parameters > presets
 - Composition > inheritance
@@ -164,24 +164,24 @@ See `docs/design/ops-as-values.md` for full rationale.
 
 ### Core Crates
 
-**resin-core** - Node graph system:
+**unshape-core** - Node graph system:
 - `Graph`, `NodeId`, `Wire` - node graph container and execution
 - `DynNode` trait - dynamic node execution with type-erased inputs/outputs
 - `Value` - runtime value type for graph data flow
 
-**resin-geometry** - Geometry attribute traits:
+**unshape-geometry** - Geometry attribute traits:
 - `HasPositions`, `HasPositions2D` - vertex positions (3D/2D)
 - `HasNormals`, `HasUVs`, `HasColors`, `HasIndices` - other vertex attributes
 - `Geometry`, `FullGeometry` - composite trait bounds
 
-**resin-op** - Operations as values (dynop system):
+**unshape-op** - Operations as values (dynop system):
 - `DynOp` trait, `OpRegistry`, `Pipeline` - for serializable operations
 - `#[derive(Op)]` macro - derive for domain ops
 
-**resin-serde** - Graph serialization:
+**unshape-serde** - Graph serialization:
 - `SerialGraph`, `NodeRegistry` - JSON/bincode graph format
 
-**resin-field** - Lazy evaluation:
+**unshape-field** - Lazy evaluation:
 - `Field<I, O>` trait - composable function abstraction for noise, SDFs, textures
 
 ### Updating CLAUDE.md

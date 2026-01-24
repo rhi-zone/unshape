@@ -1,4 +1,4 @@
-# resin-spatial
+# unshape-spatial
 
 Spatial data structures for efficient queries and collision detection.
 
@@ -16,9 +16,9 @@ Provides data structures for organizing objects in space to enable fast queries.
 
 ## Related Crates
 
-- **resin-physics** - Uses spatial structures for collision detection
-- **resin-mesh** - Uses BVH for ray-mesh intersection (AO baking)
-- **resin-pointcloud** - Point clouds can use octrees for neighbor queries
+- **unshape-physics** - Uses spatial structures for collision detection
+- **unshape-mesh** - Uses BVH for ray-mesh intersection (AO baking)
+- **unshape-pointcloud** - Point clouds can use octrees for neighbor queries
 
 ## Use Cases
 
@@ -64,18 +64,18 @@ let under_cursor = rtree.query_point(mouse_pos);
 
 ## Compositions
 
-### With resin-physics
+### With unshape-physics
 Replace linear collision checks with spatial acceleration:
 - Use SpatialHash for uniform particle distributions
 - Use BVH for complex scene geometry
 
-### With resin-mesh
+### With unshape-mesh
 Use BVH for operations requiring ray-mesh intersection:
 - Ambient occlusion baking
 - Ray casting for selection
 - Collision detection
 
-### With resin-scatter
+### With unshape-scatter
 Accelerate Poisson disk sampling with spatial lookups:
 - Use Quadtree/Octree to find existing points
 - Reject new points based on nearest neighbor distance

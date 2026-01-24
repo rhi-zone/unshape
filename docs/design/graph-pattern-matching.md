@@ -282,7 +282,7 @@ PatternNode { node_type: NodeType::Allpass, repeat: 2..=6 }
 ```
 
 ### 3. Cross-domain patterns
-Same architecture could optimize `resin-core` Graph, mesh processing pipelines, etc.
+Same architecture could optimize `unshape-core` Graph, mesh processing pipelines, etc.
 
 ### 4. Learned patterns
 Profile graph execution, automatically identify hot subgraphs worth optimizing.

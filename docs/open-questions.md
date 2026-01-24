@@ -19,7 +19,7 @@ Single source of truth for design decisions. Updated as we resolve questions.
 | Portable workflows | ✅ Resolved | Yes. JSON (human-readable) + optional binary. Versioned files, ops declare compatibility. External refs via IDs, optional asset embedding for full portability. |
 | Parameter system | ✅ Resolved | Yes, first-class across all domains |
 | Modularity | ✅ Resolved | Very modular, bevy philosophy. Plugin crates for optional features. |
-| Bevy integration | ✅ Resolved | Low priority. Separate adapter crate if needed. Must not affect core design - resin is standalone first. |
+| Bevy integration | ✅ Resolved | Low priority. Separate adapter crate if needed. Must not affect core design - unshape is standalone first. |
 | Evaluation strategy | ✅ Resolved | Evaluator trait. Lazy default, others as needed. See [evaluation-strategy](./design/evaluation-strategy.md) |
 | Time models | ✅ Resolved | EvalContext for time, explicit baking, numeric rates + explicit conversion, block = audio iteration, hybrid nodes = feedback edges, determinism = best effort + strict mode. See [time-models](./design/time-models.md) |
 

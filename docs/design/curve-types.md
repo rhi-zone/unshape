@@ -1,12 +1,12 @@
 # Curve Types: Trait-Based Design
 
-> **Status:** ✅ Implemented in `resin-curve` crate
+> **Status:** ✅ Implemented in `unshape-curve` crate
 
 Evaluating whether traits can elegantly support multiple curve types (cubic Bézier, quadratic, arcs, NURBS) without "more code paths in every operation."
 
 ## Implementation Summary
 
-The design was implemented in `crates/resin-curve/` with the following structure:
+The design was implemented in `crates/unshape-curve/` with the following structure:
 
 | Component | Location | Description |
 |-----------|----------|-------------|
@@ -19,9 +19,9 @@ The design was implemented in `crates/resin-curve/` with the following structure
 | `ArcLengthPath<C>` | `path.rs` | Arc-length parameterized wrapper |
 
 **Integrations:**
-- `resin-spline`: `Curve` impl for `CubicBezier<V>`, `BezierSpline<V>`, `Nurbs<V>`
-- `resin-vector`: `Curve` impl for `CurveSegment`, conversions to/from `Segment2D`
-- `resin-rig`: `Path3D` replaced with `ArcLengthPath<Segment3D>`
+- `unshape-spline`: `Curve` impl for `CubicBezier<V>`, `BezierSpline<V>`, `Nurbs<V>`
+- `unshape-vector`: `Curve` impl for `CurveSegment`, conversions to/from `Segment2D`
+- `unshape-rig`: `Path3D` replaced with `ArcLengthPath<Segment3D>`
 
 ## Current State
 
@@ -29,14 +29,14 @@ Before designing the future, document what exists:
 
 | Crate | Type | Dimension | Notes |
 |-------|------|-----------|-------|
-| resin-vector | `Path`, `PathCommand` | 2D only | SVG-like command enum |
-| resin-vector | `CurveSegment` (stroke.rs) | 2D only | Line/Quad/Cubic enum |
-| resin-vector | `bezier.rs` functions | 2D only | `cubic_point()`, `cubic_tangent()`, etc. |
-| resin-spline | `CubicBezier<T>` | Generic | Via `Interpolatable` trait |
-| resin-spline | `BSpline<T>`, `Nurbs<T>` | Generic | Full spline support |
-| resin-rig | `Path3D`, `PathCommand3D` | 3D only | Arc-length parameterized |
+| unshape-vector | `Path`, `PathCommand` | 2D only | SVG-like command enum |
+| unshape-vector | `CurveSegment` (stroke.rs) | 2D only | Line/Quad/Cubic enum |
+| unshape-vector | `bezier.rs` functions | 2D only | `cubic_point()`, `cubic_tangent()`, etc. |
+| unshape-spline | `CubicBezier<T>` | Generic | Via `Interpolatable` trait |
+| unshape-spline | `BSpline<T>`, `Nurbs<T>` | Generic | Full spline support |
+| unshape-rig | `Path3D`, `PathCommand3D` | 3D only | Arc-length parameterized |
 
-**Existing generics:** resin-spline uses `Interpolatable` trait:
+**Existing generics:** unshape-spline uses `Interpolatable` trait:
 
 ```rust
 pub trait Interpolatable: Clone + Copy + Add + Sub + Mul<f32> {}
@@ -57,7 +57,7 @@ pub enum CurveSegment {
 }
 ```
 
-**Key insight:** The generic infrastructure exists in resin-spline. The gap is that resin-vector is 2D-only and resin-rig reimplements 3D separately.
+**Key insight:** The generic infrastructure exists in unshape-spline. The gap is that unshape-vector is 2D-only and unshape-rig reimplements 3D separately.
 
 ## The Concern
 
@@ -164,7 +164,7 @@ impl<V: Interpolatable> Curve for CubicBezier<V> {
     fn tangent_at(&self, t: f32) -> V { /* derivative of above */ }
 
     fn split(&self, t: f32) -> (Self, Self) {
-        // De Casteljau subdivision (already in resin-spline)
+        // De Casteljau subdivision (already in unshape-spline)
     }
 
     fn to_cubics(&self) -> Vec<CubicBezier<V>> { vec![self.clone()] }
@@ -241,7 +241,7 @@ impl Curve for Arc {
 }
 ```
 
-**Alternative: NURBS for exact arcs.** resin-spline's `Nurbs<V>` can represent circles/arcs exactly via rational weights. For interchange formats (SVG, fonts), cubic approximation is standard. For internal precision, NURBS may be preferred. Design should support both.
+**Alternative: NURBS for exact arcs.** unshape-spline's `Nurbs<V>` can represent circles/arcs exactly via rational weights. For interchange formats (SVG, fonts), cubic approximation is standard. For internal precision, NURBS may be preferred. Design should support both.
 
 ## Where Traits Work Well
 
@@ -409,7 +409,7 @@ trait Curve3DExt: Curve<Point = Vec3> {
 
 ```rust
 // ═══════════════════════════════════════════════════════════════════════════
-// Core Traits (in resin-curve)
+// Core Traits (in unshape-curve)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Vector operations needed for arc length calculation.
@@ -444,7 +444,7 @@ pub struct Line<V> { pub start: V, pub end: V }
 /// Quadratic Bézier curve
 pub struct QuadBezier<V> { pub p0: V, pub p1: V, pub p2: V }
 
-/// Cubic Bézier curve (already exists in resin-spline)
+/// Cubic Bézier curve (already exists in unshape-spline)
 pub struct CubicBezier<V> { pub p0: V, pub p1: V, pub p2: V, pub p3: V }
 
 /// Elliptical arc (2D only)
@@ -563,8 +563,8 @@ impl<C: Curve> ArcLengthPath<C> {
 
 ### Phase 1: Add Trait, Implement for Existing Types
 
-1. **Add `Curve` trait to resin-vector** (or create resin-curve crate)
-2. **Implement for resin-spline types:**
+1. **Add `Curve` trait to unshape-vector** (or create unshape-curve crate)
+2. **Implement for unshape-spline types:**
    - `CubicBezier<V>` already has `evaluate()` → rename to `position_at()`
    - `BezierSpline<V>`, `CatmullRom<V>`, `BSpline<V>`, `Nurbs<V>`
 3. **Add missing concrete types:**
@@ -583,25 +583,25 @@ impl<C: Curve> ArcLengthPath<C> {
 ### Phase 3: Unify Path Types
 
 1. **Make `Path<C>` generic** with default `C = Segment2D`
-2. **Delete `resin-rig::Path3D`** → replace with `Path<Segment3D>`
+2. **Delete `unshape-rig::Path3D`** → replace with `Path<Segment3D>`
 3. **Update path operations** to use trait bounds instead of concrete types
 
 ### Phase 4: Migrate Consumers
 
-1. **Update resin-vector operations** (offset, boolean, stroke) to use trait
-2. **Update resin-rig path constraint** to use generic path
+1. **Update unshape-vector operations** (offset, boolean, stroke) to use trait
+2. **Update unshape-rig path constraint** to use generic path
 3. **Consolidate bezier.rs functions** into `CubicBezier<Vec2>` methods
 4. **Remove duplicate implementations**
 5. **Delete `PathCommand` enum** - replace with direct `Segment2D` construction
 
 ## Design Decisions
 
-1. **Crate location:** New `resin-curve` crate for clean separation.
+1. **Crate location:** New `unshape-curve` crate for clean separation.
 
 2. **NURBS integration:** Yes, `Nurbs<V>` implements `Curve`. Convenient for users even though `to_cubics()` is approximate.
 
 3. **Arc-length parameterization:** Separate `ArcLengthPath<C>` wrapper. Keeps `Path<C>` simple, opt-in overhead.
 
-4. **Method naming:** `position_at()` - matches resin-rig's existing API.
+4. **Method naming:** `position_at()` - matches unshape-rig's existing API.
 
 5. **Vector bounds:** Separate `VectorSpace` trait with `length()` and `normalize()`. The `Curve` trait bounds on `Point: Interpolatable + VectorSpace`. Trivial for Vec2/Vec3.

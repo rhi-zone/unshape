@@ -1,12 +1,12 @@
 # Conventions
 
-This document describes conventions used across the resin codebase.
+This document describes conventions used across the unshape codebase.
 
 ## Coordinate Systems
 
 Different domains use different coordinate conventions, matching their traditional usage:
 
-### 2D Image/Raster (resin-image)
+### 2D Image/Raster (unshape-image)
 
 **Screen coordinates:**
 - Origin `(0, 0)` at **top-left**
@@ -16,7 +16,7 @@ Different domains use different coordinate conventions, matching their tradition
 
 This matches standard image formats (PNG, JPEG) and screen rendering conventions.
 
-### 2D Vector (resin-vector)
+### 2D Vector (unshape-vector)
 
 **Math coordinates:**
 - Origin `(0, 0)` at **bottom-left** (or center, depending on context)
@@ -26,7 +26,7 @@ This matches standard image formats (PNG, JPEG) and screen rendering conventions
 
 This matches SVG, mathematical conventions, and most vector graphics software.
 
-### 3D Mesh (resin-mesh)
+### 3D Mesh (unshape-mesh)
 
 **Right-handed, Y-up:**
 - Origin `(0, 0, 0)` at center
@@ -46,7 +46,7 @@ This matches Blender, glTF, and most 3D modeling software.
    +Z (toward viewer)
 ```
 
-### Audio (resin-audio)
+### Audio (unshape-audio)
 
 - Time is in **seconds** (f32)
 - Sample indices are 0-based
@@ -95,7 +95,7 @@ Unless otherwise documented, these units are assumed:
 
 Different crates use graph-like structures for different purposes. To avoid confusion, each domain uses distinct terminology:
 
-### Data Flow Domain (resin-core)
+### Data Flow Domain (unshape-core)
 
 For node-based procedural graphs where data flows between processing units:
 
@@ -111,7 +111,7 @@ For node-based procedural graphs where data flows between processing units:
 let wire = Wire { from: (node_a, 0), to: (node_b, 1) };
 ```
 
-### Vector Domain (resin-vector)
+### Vector Domain (unshape-vector)
 
 For 2D vector graphics networks where curves connect spatial positions:
 
@@ -128,7 +128,7 @@ For 2D vector graphics networks where curves connect spatial positions:
 let anchor = Anchor { position: Vec2::new(10.0, 20.0), handle_style: HandleStyle::Smooth };
 ```
 
-### Spatial Network Domain (resin-procgen)
+### Spatial Network Domain (unshape-procgen)
 
 For procedural road/river networks:
 
@@ -138,7 +138,7 @@ For procedural road/river networks:
 | **NetworkEdge** | Connection between positions |
 | **NodeType** | Role: Source, Sink, Junction, Waypoint |
 
-### Mesh Topology Domain (resin-mesh)
+### Mesh Topology Domain (unshape-mesh)
 
 For 3D mesh topology traversal:
 
@@ -151,7 +151,7 @@ For 3D mesh topology traversal:
 | **Face** | Polygon bounded by edges |
 | **FaceId** | Identifier for a face |
 
-### Skeletal Domain (resin-rig)
+### Skeletal Domain (unshape-rig)
 
 For character rigging and animation:
 
@@ -161,7 +161,7 @@ For character rigging and animation:
 | **BoneId** | Identifier for a bone |
 | **Skeleton** | Tree of bones with parent-child relationships |
 
-### Branching Domain (resin-space-colonization)
+### Branching Domain (unshape-space-colonization)
 
 For procedural tree/branching structures:
 

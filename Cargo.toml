@@ -57,7 +57,7 @@ bevy = { version = "0.15", default-features = false, features = [
     "tonemapping_luts",
 ] }
 
-# Resin crates
+# Unshape crates
 unshape-core = { path = "crates/unshape-core" }
 unshape-backend = { path = "crates/unshape-backend" }
 unshape-mesh = { path = "crates/unshape-mesh" }

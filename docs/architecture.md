@@ -3,9 +3,9 @@
 ## Crate Structure
 
 ```
-resin/
+unshape/
 ├── crates/
-│   ├── resin/           # umbrella, re-exports all domain crates
+│   ├── unshape/           # umbrella, re-exports all domain crates
 │   ├── rhi-unshape-core/      # shared types, traits, math utilities
 │   ├── rhi-unshape-mesh/      # 3D mesh generation and manipulation
 │   ├── rhi-unshape-audio/     # audio synthesis and processing
@@ -65,8 +65,8 @@ Alternatives considered:
 Types implement standard conversion traits:
 
 ```rust
-// resin mesh -> bevy mesh
-let bevy_mesh: bevy::render::mesh::Mesh = resin_mesh.into();
+// unshape mesh -> bevy mesh
+let bevy_mesh: bevy::render::mesh::Mesh = unshape_mesh.into();
 
 // glam types used directly (shared with bevy)
 let pos: glam::Vec3 = vertex.position;

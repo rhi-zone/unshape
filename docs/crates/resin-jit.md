@@ -1,4 +1,4 @@
-# resin-jit
+# unshape-jit
 
 Generic JIT compilation infrastructure using Cranelift.
 
@@ -82,8 +82,8 @@ impl JitCompilable for MyNode {
 
 ## Related Crates
 
-- `resin-audio` - Implements `JitCompilable` for audio nodes
-- `resin-core` - Graph types that can be compiled
+- `unshape-audio` - Implements `JitCompilable` for audio nodes
+- `unshape-core` - Graph types that can be compiled
 
 ## Feature Flags
 

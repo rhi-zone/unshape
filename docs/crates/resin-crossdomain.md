@@ -1,4 +1,4 @@
-# resin-crossdomain
+# unshape-crossdomain
 
 Cross-domain data interpretation and conversion utilities.
 
@@ -13,11 +13,11 @@ This crate provides utilities for:
 
 ## Related Crates
 
-- **resin-bytes** - Raw byte casting (re-exported as `bytes` module)
-- **resin-image** - Image fields used for spectral conversions
-- **resin-audio** - Audio types and spectral analysis (FFT, STFT)
-- **resin-field** - Field trait for sampling noise/procedural content
-- **resin-color** - Color types used in conversions
+- **unshape-bytes** - Raw byte casting (re-exported as `bytes` module)
+- **unshape-image** - Image fields used for spectral conversions
+- **unshape-audio** - Audio types and spectral analysis (FFT, STFT)
+- **unshape-field** - Field trait for sampling noise/procedural content
+- **unshape-color** - Color types used in conversions
 
 ## Use Cases
 
@@ -107,7 +107,7 @@ let displacement = field_to_displacement(&heightfield, 256, 256);
 
 ## Compositions
 
-### With resin-noise
+### With unshape-noise
 Sample noise fields for any domain:
 ```rust
 // Use same noise as texture, audio modulation, and displacement
@@ -117,23 +117,23 @@ let audio_mod = field_to_audio(&noise.map(|v| v * 0.5), 44100, 1.0);
 let displacement = field_to_displacement(&noise, 64, 64);
 ```
 
-### With resin-audio
+### With unshape-audio
 Create spectrograms for visualization or debugging:
 ```rust
 let synth_output = synth.generate(44100);
 let visualization = audio_to_image(&synth_output, 44100, &AudioToImageConfig::new(800, 200));
 ```
 
-### With resin-image
+### With unshape-image
 Paint audio in an image editor, then sonify:
 ```rust
 let painted = ImageField::from_file("audio_painting.png")?;
 let sound = image_to_audio(&painted, &ImageToAudioConfig::new(44100, 5.0));
 ```
 
-## Raw Byte Casting (via resin-bytes)
+## Raw Byte Casting (via unshape-bytes)
 
-Raw byte utilities are provided by `resin-bytes`, re-exported as the `bytes` module:
+Raw byte utilities are provided by `unshape-bytes`, re-exported as the `bytes` module:
 
 ```rust
 use rhi_unshape_crossdomain::bytes::*;

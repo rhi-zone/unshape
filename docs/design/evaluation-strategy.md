@@ -648,7 +648,7 @@ Decisions we're not 100% on, may revisit:
 
 **Choice:** Start with `std::sync::mpsc` and `Arc<AtomicBool>` for channels/cancellation.
 
-**Tradeoff:** Less ergonomic than `flume`/`tokio-util`, but zero additional dependencies in resin-core.
+**Tradeoff:** Less ergonomic than `flume`/`tokio-util`, but zero additional dependencies in unshape-core.
 
 **Revisit if:** The simple versions cause pain points (e.g., need `select!` across multiple channels).
 

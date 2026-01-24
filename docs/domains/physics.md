@@ -28,9 +28,9 @@ Physical simulation systems for rigid bodies, fluids, cloth, and soft bodies.
 
 | Crate | Purpose |
 |-------|---------|
-| `resin-physics` | Rigid body dynamics, cloth, soft body FEM |
-| `resin-fluid` | Grid-based and particle-based fluid simulation |
-| `resin-spring` | Position-based dynamics, Verlet integration |
+| `unshape-physics` | Rigid body dynamics, cloth, soft body FEM |
+| `unshape-fluid` | Grid-based and particle-based fluid simulation |
+| `unshape-spring` | Position-based dynamics, Verlet integration |
 
 ## Rigid Body Physics
 

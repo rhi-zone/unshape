@@ -1,6 +1,6 @@
 # Pattern System Primitives
 
-Design decisions for the rhythmic pattern system in `resin-audio`.
+Design decisions for the rhythmic pattern system in `unshape-audio`.
 
 ## Goals
 
@@ -152,7 +152,7 @@ impl Warp {
 }
 ```
 
-~15 lines. Requires `resin-expr-field` dependency.
+~15 lines. Requires `unshape-expr-field` dependency.
 
 ## Summary
 
