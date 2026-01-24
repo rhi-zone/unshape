@@ -205,6 +205,56 @@ impl Path {
 }
 ```
 
+## Exception: Co-Equal Primitives
+
+Sometimes conversion between representations is **not viable**:
+- O(N²) space/time explosion
+- Lossy conversion
+- Fundamentally different performance characteristics
+
+In these cases, we use **co-equal primitives unified by a trait** instead of general/constrained:
+
+### Example: WFC Adjacency
+
+| Representation | Storage | Adjacency Lookup |
+|---------------|---------|------------------|
+| `TileSet` (explicit rules) | O(R) where R = rules | O(1) HashMap |
+| `WangTileSet` (edge colors) | O(N) where N = tiles | O(C³) where C = colors |
+
+Converting 1000 Wang tiles to explicit rules = **1,000,000 rule entries**. Not viable.
+
+**Solution:** Both implement `AdjacencySource` trait:
+
+```rust
+trait AdjacencySource {
+    fn tile_count(&self) -> usize;
+    fn valid_neighbors(&self, tile: TileId, dir: Direction) -> impl Iterator<Item = TileId>;
+    fn weight(&self, tile: TileId) -> f32;
+}
+
+// WfcSolver is generic over the trait
+struct WfcSolver<A: AdjacencySource> {
+    adjacency: A,
+    // ...
+}
+```
+
+### When to Use Co-Equal Primitives
+
+Use this pattern when:
+1. **Conversion is O(N²) or worse** - Wang tiles → explicit rules
+2. **Representations optimize for different operations** - neither subsumes the other
+3. **Both are genuinely useful** - not just a convenience wrapper
+
+Do NOT use this pattern when:
+1. One representation can efficiently derive the other
+2. It's just a "simpler API" - use general/constrained instead
+3. The difference is syntactic, not semantic
+
+### Key Insight
+
+The **trait is the abstraction**. Concrete types are interchangeable implementations with different trade-offs. This is distinct from general/constrained where one type wraps another.
+
 ## Summary
 
 | Domain | General | Constrained |
@@ -215,4 +265,8 @@ impl Path {
 | Deformers | DeformerGraph | DeformerStack |
 | Textures | TextureGraph | TextureExpr |
 
-This is a core unshape pattern: **general storage, constrained interfaces**.
+| Domain | Co-Equal Primitives | Unifying Trait |
+|--------|---------------------|----------------|
+| WFC | TileSet, WangTileSet | AdjacencySource |
+
+This is a core unshape pattern: **general storage, constrained interfaces** — with the exception of co-equal primitives when conversion is not viable.

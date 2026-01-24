@@ -125,6 +125,7 @@ impl Maze {
     /// Returns the maze as a 2D grid of booleans.
     ///
     /// True = passage, False = wall.
+    #[allow(clippy::needless_range_loop)]
     pub fn to_grid(&self) -> Vec<Vec<bool>> {
         let mut result = vec![vec![false; self.grid_width]; self.grid_height];
         for y in 0..self.grid_height {
@@ -233,7 +234,7 @@ impl Rng {
     }
 
     fn coin_flip(&mut self) -> bool {
-        self.next() % 2 == 0
+        self.next().is_multiple_of(2)
     }
 }
 
@@ -421,6 +422,7 @@ pub fn kruskal(width: usize, height: usize, seed: u64) -> Maze {
 }
 
 /// Generates a maze using Eller's algorithm.
+#[allow(clippy::needless_range_loop)]
 pub fn eller(width: usize, height: usize, seed: u64) -> Maze {
     let mut maze = Maze::new(width, height);
     let mut rng = Rng::new(seed);

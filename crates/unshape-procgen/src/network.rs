@@ -977,6 +977,7 @@ pub fn generate_road_network_hierarchical(
 }
 
 /// Generates a grid-based road network.
+#[allow(clippy::needless_range_loop)]
 pub fn generate_road_network_grid(bounds_min: Vec2, bounds_max: Vec2, spacing: f32) -> RoadNetwork {
     let config = RoadConfig {
         grid_snap: spacing,
