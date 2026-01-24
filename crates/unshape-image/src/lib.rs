@@ -1260,26 +1260,20 @@ pub enum Channel {
 /// assert_eq!(green.get_pixel(0, 0)[0], 0.5);
 /// ```
 pub fn extract_channel(image: &ImageField, channel: Channel) -> ImageField {
-    let (width, height) = image.dimensions();
-    let mut data = Vec::with_capacity((width * height) as usize);
-
-    let idx = match channel {
-        Channel::Red => 0,
-        Channel::Green => 1,
-        Channel::Blue => 2,
-        Channel::Alpha => 3,
+    // Use ColorExpr to extract channel as grayscale
+    let ch = match channel {
+        Channel::Red => ColorExpr::R,
+        Channel::Green => ColorExpr::G,
+        Channel::Blue => ColorExpr::B,
+        Channel::Alpha => ColorExpr::A,
     };
-
-    for y in 0..height {
-        for x in 0..width {
-            let v = image.get_pixel(x, y)[idx];
-            data.push([v, v, v, 1.0]);
-        }
-    }
-
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
+    let expr = ColorExpr::Vec4 {
+        r: Box::new(ch.clone()),
+        g: Box::new(ch.clone()),
+        b: Box::new(ch),
+        a: Box::new(ColorExpr::Constant(1.0)),
+    };
+    map_pixels(image, &expr)
 }
 
 /// Splits an image into separate R, G, B, A grayscale images.
@@ -1447,33 +1441,42 @@ pub fn map_channel(
 /// assert_eq!(swapped.get_pixel(0, 0)[2], 1.0);  // Was red
 /// ```
 pub fn swap_channels(image: &ImageField, a: Channel, b: Channel) -> ImageField {
-    let (width, height) = image.dimensions();
-    let mut data = Vec::with_capacity((width * height) as usize);
-
-    let idx_a = match a {
-        Channel::Red => 0,
-        Channel::Green => 1,
-        Channel::Blue => 2,
-        Channel::Alpha => 3,
-    };
-    let idx_b = match b {
-        Channel::Red => 0,
-        Channel::Green => 1,
-        Channel::Blue => 2,
-        Channel::Alpha => 3,
-    };
-
-    for y in 0..height {
-        for x in 0..width {
-            let mut pixel = image.get_pixel(x, y);
-            pixel.swap(idx_a, idx_b);
-            data.push(pixel);
+    // Build channel expressions, swapping a and b
+    let channel_expr = |ch: Channel| -> ColorExpr {
+        if ch == a {
+            // Use b's value for a's position
+            match b {
+                Channel::Red => ColorExpr::R,
+                Channel::Green => ColorExpr::G,
+                Channel::Blue => ColorExpr::B,
+                Channel::Alpha => ColorExpr::A,
+            }
+        } else if ch == b {
+            // Use a's value for b's position
+            match a {
+                Channel::Red => ColorExpr::R,
+                Channel::Green => ColorExpr::G,
+                Channel::Blue => ColorExpr::B,
+                Channel::Alpha => ColorExpr::A,
+            }
+        } else {
+            // Keep original
+            match ch {
+                Channel::Red => ColorExpr::R,
+                Channel::Green => ColorExpr::G,
+                Channel::Blue => ColorExpr::B,
+                Channel::Alpha => ColorExpr::A,
+            }
         }
-    }
+    };
 
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
+    let expr = ColorExpr::Vec4 {
+        r: Box::new(channel_expr(Channel::Red)),
+        g: Box::new(channel_expr(Channel::Green)),
+        b: Box::new(channel_expr(Channel::Blue)),
+        a: Box::new(channel_expr(Channel::Alpha)),
+    };
+    map_pixels(image, &expr)
 }
 
 // ============================================================================

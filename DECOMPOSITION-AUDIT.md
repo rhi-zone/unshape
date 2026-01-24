@@ -106,7 +106,9 @@ Track progress auditing each crate for decomposition opportunities.
 - ~~`AdjustHsl` duplicates ColorExpr colorspace logic~~ ✅ Fixed: Added `ColorExpr::AdjustHsl` and `ColorExpr::AdjustHsv` variants with convenience constructors (`hsl_adjust`, `hue_shift`, `saturate`, `lighten`, `hsv_adjust`). The `adjust_hsl()` function now delegates to `ColorExpr`.
 - ~~`AdjustBrightnessContrast` duplicates per-pixel math~~ ✅ Fixed: Added `ColorExpr::AdjustBrightnessContrast` variant with `brightness_contrast()` convenience constructor. The `adjust_brightness_contrast()` function now delegates to `ColorExpr`.
 - ~~`color_matrix` duplicates per-pixel math~~ ✅ Fixed: Added `ColorExpr::Matrix` variant with `matrix()` convenience constructor. The `color_matrix()` function now delegates to `ColorExpr`.
-- Channel operations duplicate sampling patterns
+- ~~Channel operations duplicate sampling patterns~~ ✅ Partially fixed:
+  - `extract_channel` and `swap_channels` now use `map_pixels` + `ColorExpr`
+  - `set_channel` and `merge_channels` need multi-image input support (future: extend ColorExpr or use Composite ops)
 
 ---
 
@@ -1010,7 +1012,7 @@ Recognizes common patterns and emits optimal code:
 - [x] **Refactor resin-image to ops-as-values** - Convolve, Resize, Composite, RemapUv, MapPixels now structs
 - [x] Add `Zip<A, B>` and `Zip3<A, B, C>` combinators to resin-field
 - [x] Expose Integrator trait in resin-particle
-- [ ] Fix code duplication in resin-image colorspace ops
+- [x] Fix code duplication in resin-image colorspace ops (AdjustHsl, brightness/contrast, color_matrix, channel ops now use ColorExpr)
 
 ### Medium Priority
 - [x] Refactor emitters to CompositeEmitter pattern
