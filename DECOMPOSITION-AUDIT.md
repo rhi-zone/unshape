@@ -787,7 +787,7 @@ Implemented for: `DistanceConstraint`, `PointConstraint`, `HingeConstraint`, `Co
 
 ### Field (5)
 `Map`, `Zip`, `Zip3`, `FnField`, `{Twist, Bend, Repeat}`
-*(Add/Mul/Lerp/Mix removed - all are Zip/Zip3 + expression, provided as ergonomic helpers)*
+*(Add/Mul/Lerp/Mix removed - all are Zip/Zip3 + expression, provided as ergonomic helpers)* ✅ Implemented: `Add`, `Mul`, `Mix` structs deprecated; `add()`, `mul()`, `sub()`, `div()`, `mix()`, `lerp()` helper functions added
 
 ### Mesh (7)
 `Poke`, `SplitEdge`, `RipVertex`, `TransformVertex`, `Linear/Loop/CatmullClark Subdivision`
