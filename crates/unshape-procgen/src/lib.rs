@@ -448,6 +448,7 @@ impl WfcSolver {
     }
 
     /// Gets the result grid as tile IDs.
+    #[allow(clippy::needless_range_loop)]
     pub fn get_result(&self) -> Vec<Vec<Option<TileId>>> {
         let mut result = vec![vec![None; self.width]; self.height];
 
@@ -598,10 +599,8 @@ impl WfcSolver {
                 }
 
                 // If possibilities changed, add to queue
-                if new_count < old_count {
-                    if !queue.contains(&(nx, ny)) {
-                        queue.push_back((nx, ny));
-                    }
+                if new_count < old_count && !queue.contains(&(nx, ny)) {
+                    queue.push_back((nx, ny));
                 }
             }
         }
@@ -707,6 +706,287 @@ pub fn maze_tileset() -> NamedTileSet {
     ts.add_rule("wall", Direction::Right, "floor");
 
     ts
+}
+
+// ============================================================================
+// Wang Tiles
+// ============================================================================
+
+/// Edge color for Wang tiles.
+///
+/// Wang tiles have colored edges, and tiles can only be placed adjacent
+/// if their touching edges have matching colors.
+pub type EdgeColor = u8;
+
+/// A Wang tile with colored edges.
+///
+/// Wang tiles are square tiles with colored edges (North, East, South, West).
+/// Adjacent tiles must have matching edge colors where they touch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct WangTile {
+    /// North edge color.
+    pub north: EdgeColor,
+    /// East edge color.
+    pub east: EdgeColor,
+    /// South edge color.
+    pub south: EdgeColor,
+    /// West edge color.
+    pub west: EdgeColor,
+    /// Tile identifier (for associating with textures/data).
+    pub id: usize,
+}
+
+impl WangTile {
+    /// Creates a new Wang tile with the given edge colors.
+    pub fn new(north: EdgeColor, east: EdgeColor, south: EdgeColor, west: EdgeColor) -> Self {
+        Self {
+            north,
+            east,
+            south,
+            west,
+            id: 0,
+        }
+    }
+
+    /// Creates a Wang tile with an explicit ID.
+    pub fn with_id(
+        id: usize,
+        north: EdgeColor,
+        east: EdgeColor,
+        south: EdgeColor,
+        west: EdgeColor,
+    ) -> Self {
+        Self {
+            north,
+            east,
+            south,
+            west,
+            id,
+        }
+    }
+
+    /// Returns the edge color for the given direction.
+    pub fn edge(&self, direction: Direction) -> EdgeColor {
+        match direction {
+            Direction::Up => self.north,
+            Direction::Right => self.east,
+            Direction::Down => self.south,
+            Direction::Left => self.west,
+        }
+    }
+}
+
+/// A set of Wang tiles that can be used for tiling.
+#[derive(Debug, Clone)]
+pub struct WangTileSet {
+    /// The tiles in this set.
+    tiles: Vec<WangTile>,
+    /// Number of edge colors used.
+    num_colors: u8,
+}
+
+impl WangTileSet {
+    /// Creates a new empty Wang tile set.
+    pub fn new() -> Self {
+        Self {
+            tiles: Vec::new(),
+            num_colors: 0,
+        }
+    }
+
+    /// Adds a tile to the set.
+    pub fn add_tile(&mut self, tile: WangTile) -> usize {
+        let idx = self.tiles.len();
+        let mut tile = tile;
+        tile.id = idx;
+
+        // Track max color
+        self.num_colors = self
+            .num_colors
+            .max(tile.north + 1)
+            .max(tile.east + 1)
+            .max(tile.south + 1)
+            .max(tile.west + 1);
+
+        self.tiles.push(tile);
+        idx
+    }
+
+    /// Returns the number of tiles.
+    pub fn tile_count(&self) -> usize {
+        self.tiles.len()
+    }
+
+    /// Returns the number of edge colors.
+    pub fn num_colors(&self) -> u8 {
+        self.num_colors
+    }
+
+    /// Returns a tile by index.
+    pub fn get(&self, idx: usize) -> Option<&WangTile> {
+        self.tiles.get(idx)
+    }
+
+    /// Converts this Wang tile set to a WFC TileSet.
+    ///
+    /// Adjacency rules are automatically generated based on edge color matching.
+    pub fn to_tileset(&self) -> TileSet {
+        let mut ts = TileSet::new();
+
+        // Add all tiles
+        for _ in &self.tiles {
+            ts.add_tile();
+        }
+
+        // Add rules based on edge color matching
+        for (i, tile_a) in self.tiles.iter().enumerate() {
+            for (j, tile_b) in self.tiles.iter().enumerate() {
+                // Check if tile_b can be to the right of tile_a
+                if tile_a.east == tile_b.west {
+                    ts.add_rule(TileId(i), Direction::Right, TileId(j));
+                }
+
+                // Check if tile_b can be below tile_a
+                if tile_a.south == tile_b.north {
+                    ts.add_rule(TileId(i), Direction::Down, TileId(j));
+                }
+            }
+        }
+
+        ts
+    }
+
+    /// Generates a complete Wang tile set with all combinations of the given number of colors.
+    ///
+    /// For n colors, this creates n^4 tiles (one for each edge combination).
+    pub fn complete(num_colors: u8) -> Self {
+        let mut set = Self::new();
+        let n = num_colors;
+
+        for north in 0..n {
+            for east in 0..n {
+                for south in 0..n {
+                    for west in 0..n {
+                        set.add_tile(WangTile::new(north, east, south, west));
+                    }
+                }
+            }
+        }
+
+        set
+    }
+}
+
+impl Default for WangTileSet {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Solves a Wang tiling problem using WFC.
+///
+/// Returns a 2D grid of tile indices, or None if no valid tiling exists.
+///
+/// # Example
+///
+/// ```
+/// use unshape_procgen::{WangTile, WangTileSet, solve_wang_tiling};
+///
+/// let mut tiles = WangTileSet::new();
+/// tiles.add_tile(WangTile::new(0, 0, 0, 0)); // All edges color 0
+/// tiles.add_tile(WangTile::new(0, 1, 0, 1)); // Alternating
+/// tiles.add_tile(WangTile::new(1, 0, 1, 0)); // Alternating other way
+/// tiles.add_tile(WangTile::new(1, 1, 1, 1)); // All edges color 1
+///
+/// let result = solve_wang_tiling(&tiles, 5, 5, 12345);
+/// assert!(result.is_some());
+/// ```
+pub fn solve_wang_tiling(
+    tiles: &WangTileSet,
+    width: usize,
+    height: usize,
+    seed: u64,
+) -> Option<Vec<Vec<usize>>> {
+    let tileset = tiles.to_tileset();
+    let mut solver = WfcSolver::new(width, height, tileset);
+
+    if solver.run(seed).is_ok() {
+        let result = solver.get_result();
+        // Convert Vec<Vec<Option<TileId>>> to Vec<Vec<usize>>
+        let converted: Option<Vec<Vec<usize>>> = result
+            .into_iter()
+            .map(|row| {
+                row.into_iter()
+                    .map(|cell| cell.map(|t| t.0))
+                    .collect::<Option<Vec<usize>>>()
+            })
+            .collect();
+        converted
+    } else {
+        None
+    }
+}
+
+/// Common Wang tile set presets.
+pub mod wang_presets {
+    use super::{WangTile, WangTileSet};
+
+    /// Creates a minimal 2-color corner tile set.
+    ///
+    /// Uses 2 colors with tiles designed for interesting patterns.
+    pub fn two_color_corners() -> WangTileSet {
+        let mut set = WangTileSet::new();
+
+        // Basic tiles that create interesting corner patterns
+        set.add_tile(WangTile::new(0, 0, 0, 0)); // All 0
+        set.add_tile(WangTile::new(1, 1, 1, 1)); // All 1
+        set.add_tile(WangTile::new(0, 0, 1, 1)); // NE corner
+        set.add_tile(WangTile::new(1, 1, 0, 0)); // SW corner
+        set.add_tile(WangTile::new(0, 1, 1, 0)); // SE corner
+        set.add_tile(WangTile::new(1, 0, 0, 1)); // NW corner
+        set.add_tile(WangTile::new(0, 1, 0, 1)); // Vertical stripe
+        set.add_tile(WangTile::new(1, 0, 1, 0)); // Horizontal stripe
+
+        set
+    }
+
+    /// Creates a 2-color blob tile set.
+    ///
+    /// Designed for creating blob/cave-like patterns.
+    pub fn blob_tiles() -> WangTileSet {
+        // Complete 2-color set gives all possible blob shapes
+        WangTileSet::complete(2)
+    }
+
+    /// Creates a 3-color tile set for more complex patterns.
+    pub fn three_color() -> WangTileSet {
+        let mut set = WangTileSet::new();
+
+        // Solid tiles
+        set.add_tile(WangTile::new(0, 0, 0, 0));
+        set.add_tile(WangTile::new(1, 1, 1, 1));
+        set.add_tile(WangTile::new(2, 2, 2, 2));
+
+        // Transition tiles (0-1)
+        set.add_tile(WangTile::new(0, 1, 0, 1));
+        set.add_tile(WangTile::new(1, 0, 1, 0));
+        set.add_tile(WangTile::new(0, 0, 1, 1));
+        set.add_tile(WangTile::new(1, 1, 0, 0));
+
+        // Transition tiles (1-2)
+        set.add_tile(WangTile::new(1, 2, 1, 2));
+        set.add_tile(WangTile::new(2, 1, 2, 1));
+        set.add_tile(WangTile::new(1, 1, 2, 2));
+        set.add_tile(WangTile::new(2, 2, 1, 1));
+
+        // Transition tiles (0-2)
+        set.add_tile(WangTile::new(0, 2, 0, 2));
+        set.add_tile(WangTile::new(2, 0, 2, 0));
+        set.add_tile(WangTile::new(0, 0, 2, 2));
+        set.add_tile(WangTile::new(2, 2, 0, 0));
+
+        set
+    }
 }
 
 #[cfg(test)]
@@ -886,5 +1166,145 @@ mod tests {
 
         // Initially all cells have max entropy (2 possibilities)
         assert_eq!(solver.get_entropy(0, 0), 2);
+    }
+
+    // Wang tiles tests
+
+    #[test]
+    fn test_wang_tile_creation() {
+        let tile = WangTile::new(0, 1, 2, 3);
+        assert_eq!(tile.north, 0);
+        assert_eq!(tile.east, 1);
+        assert_eq!(tile.south, 2);
+        assert_eq!(tile.west, 3);
+        assert_eq!(tile.id, 0);
+    }
+
+    #[test]
+    fn test_wang_tile_with_id() {
+        let tile = WangTile::with_id(42, 0, 1, 2, 3);
+        assert_eq!(tile.id, 42);
+        assert_eq!(tile.north, 0);
+    }
+
+    #[test]
+    fn test_wang_tile_edge() {
+        let tile = WangTile::new(0, 1, 2, 3);
+        assert_eq!(tile.edge(Direction::Up), 0);
+        assert_eq!(tile.edge(Direction::Right), 1);
+        assert_eq!(tile.edge(Direction::Down), 2);
+        assert_eq!(tile.edge(Direction::Left), 3);
+    }
+
+    #[test]
+    fn test_wang_tileset_creation() {
+        let mut set = WangTileSet::new();
+        assert_eq!(set.tile_count(), 0);
+
+        let idx = set.add_tile(WangTile::new(0, 1, 0, 1));
+        assert_eq!(idx, 0);
+        assert_eq!(set.tile_count(), 1);
+        assert_eq!(set.num_colors(), 2);
+    }
+
+    #[test]
+    fn test_wang_tileset_complete() {
+        let set = WangTileSet::complete(2);
+        // 2^4 = 16 tiles for 2 colors
+        assert_eq!(set.tile_count(), 16);
+        assert_eq!(set.num_colors(), 2);
+
+        let set3 = WangTileSet::complete(3);
+        // 3^4 = 81 tiles for 3 colors
+        assert_eq!(set3.tile_count(), 81);
+    }
+
+    #[test]
+    fn test_wang_tileset_to_tileset() {
+        let mut set = WangTileSet::new();
+        // Two tiles that can connect horizontally
+        set.add_tile(WangTile::new(0, 1, 0, 0)); // Tile 0: east = 1
+        set.add_tile(WangTile::new(0, 0, 0, 1)); // Tile 1: west = 1
+
+        let ts = set.to_tileset();
+        assert_eq!(ts.tile_count(), 2);
+
+        // Tile 0 can have tile 1 to its right (east=1 matches west=1)
+        let neighbors = ts.valid_neighbors(TileId(0), Direction::Right).unwrap();
+        assert!(neighbors.contains(&TileId(1)));
+    }
+
+    #[test]
+    fn test_solve_wang_tiling() {
+        let set = wang_presets::two_color_corners();
+        let result = solve_wang_tiling(&set, 4, 4, 12345);
+
+        assert!(result.is_some());
+        let grid = result.unwrap();
+        assert_eq!(grid.len(), 4);
+        assert_eq!(grid[0].len(), 4);
+
+        // All tiles should be valid indices
+        for row in &grid {
+            for &tile_id in row {
+                assert!(tile_id < set.tile_count());
+            }
+        }
+    }
+
+    #[test]
+    fn test_wang_tiling_edge_consistency() {
+        let set = wang_presets::two_color_corners();
+        let result = solve_wang_tiling(&set, 3, 3, 42);
+        assert!(result.is_some());
+
+        let grid = result.unwrap();
+
+        // Verify horizontal adjacency (east matches west)
+        for row in &grid {
+            for x in 0..row.len() - 1 {
+                let left_tile = set.get(row[x]).unwrap();
+                let right_tile = set.get(row[x + 1]).unwrap();
+                assert_eq!(
+                    left_tile.east, right_tile.west,
+                    "Horizontal edge mismatch at ({}, {})",
+                    x, 0
+                );
+            }
+        }
+
+        // Verify vertical adjacency (south matches north)
+        for y in 0..grid.len() - 1 {
+            for x in 0..grid[0].len() {
+                let top_tile = set.get(grid[y][x]).unwrap();
+                let bottom_tile = set.get(grid[y + 1][x]).unwrap();
+                assert_eq!(
+                    top_tile.south, bottom_tile.north,
+                    "Vertical edge mismatch at ({}, {})",
+                    x, y
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_wang_presets_two_color_corners() {
+        let set = wang_presets::two_color_corners();
+        assert_eq!(set.tile_count(), 8);
+        assert_eq!(set.num_colors(), 2);
+    }
+
+    #[test]
+    fn test_wang_presets_blob_tiles() {
+        let set = wang_presets::blob_tiles();
+        assert_eq!(set.tile_count(), 16); // 2^4
+        assert_eq!(set.num_colors(), 2);
+    }
+
+    #[test]
+    fn test_wang_presets_three_color() {
+        let set = wang_presets::three_color();
+        assert!(set.tile_count() >= 15);
+        assert_eq!(set.num_colors(), 3);
     }
 }

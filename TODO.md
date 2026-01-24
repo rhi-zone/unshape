@@ -801,56 +801,51 @@ See DECOMPOSITION-AUDIT.md for which are true primitives vs compositions.
 - Auditable: implementations can validate against schema
 - Tooling: editors, visualizers, converters
 
-### Cellular Automata Extensions
+### Cellular Automata Extensions (2025-01-25) ✅
 
 > **Goal:** Expand unshape-automata with custom neighborhoods, new CA types, and advanced algorithms.
 
 **Foundation:**
-- [ ] `Neighborhood` trait - abstract neighborhood shape (Moore, VonNeumann, Hexagonal, Custom)
+- [x] `Neighborhood2D` / `Neighborhood3D` traits - abstract neighborhood shapes
   - `fn offsets(&self) -> &[(i32, i32)]` for 2D, `&[(i32, i32, i32)]` for 3D
-  - Implementations: `Moore`, `VonNeumann`, `Hexagonal`, `Custom(Vec<_>)`
-  - Refactor `CellularAutomaton2D::count_neighbors` to use trait
+  - Implementations: `Moore`, `VonNeumann`, `Hexagonal`, `ExtendedMoore`, `CustomNeighborhood2D`
+  - `CellularAutomaton2D` refactored to use `Neighborhood2D` trait
 
 **Larger than Life (LtL):**
-- [ ] `LtlRules` - range-based birth/survive rules with configurable radius
-  - `radius: u32` - neighborhood radius (1 = standard Moore, 2+ = larger)
-  - `birth: Range<u32>` - birth if neighbor count in range
-  - `survive: Range<u32>` - survive if neighbor count in range
-- [ ] `LargerThanLife` struct - generalization of `CellularAutomaton2D`
-- [ ] Presets: Bugs, Bosco's Rule, Waffle, etc.
+- [x] `LtlRules` - range-based birth/survive rules with configurable radius
+- [x] `LargerThanLife` struct - generalization with extended Moore neighborhoods
+- [x] Presets: BUGS, WAFFLE, GLOBE, MAJORITY, MAJORITY_SMOOTH
 
 **3D Cellular Automata:**
-- [ ] `CellularAutomaton3D` - 3D grid with B/S rules
-  - 26-neighbor Moore or 6-neighbor von Neumann
-  - Uses `Neighborhood3D` trait
-- [ ] `LargerThanLife3D` - 3D LtL variant
-- [ ] Presets: 3D Life variants (445, 678, etc.)
+- [x] `CellularAutomaton3D` - 3D grid with B/S rules
+  - `Moore3D` (26-neighbor) and `VonNeumann3D` (6-neighbor) neighborhoods
+  - `CustomNeighborhood3D` for arbitrary 3D offsets
+- [x] Presets: LIFE_3D_445, LIFE_3D_4555, LIFE_3D_AMOEBA, CLOUDS_3D, PYROCLASTIC_3D, CRYSTAL_3D
 
 **Turmites / Langton's Ant:**
-- [ ] `LangtonsAnt` - classic 2-state ant with "RL" rule
-  - Position, direction, grid state
-  - `step()` advances ant
-- [ ] `Turmite` - generalized multi-state ant
-  - State machine: `(cell_color, ant_state) -> (new_color, turn, new_state)`
-  - Rule table representation
-- [ ] Presets: classic RL, LLRR, Fibonacci, etc.
+- [x] `LangtonsAnt` - classic multi-state ant with turn rules
+- [x] `Turmite` - generalized multi-state ant with state machine
+  - `TurmiteRule`: `(cell_color, ant_state) -> (new_color, turn, new_state)`
+- [x] Presets: classic RL, LLRR, LRRRRRLLR, Fibonacci, Cardioid
 
 **SmoothLife:**
-- [ ] `SmoothLife` - continuous-space, continuous-state Life
-  - `f32` state values (0.0-1.0) instead of bool
-  - Inner/outer disk radii for neighbor counting
-  - Smooth sigmoid transition function
-  - Uses FFT convolution for efficient neighbor sums
-- [ ] `SmoothLifeConfig` - birth/death thresholds, sigmoid steepness, radii
-- [ ] Integration with `Field` trait? (continuous evaluation)
+- [x] `SmoothLife` - continuous-space, continuous-state Life
+  - `f32` state values (0.0-1.0) with smooth sigmoid transitions
+  - Inner/outer disk radii for neighbor computation
+- [x] `SmoothLifeConfig` - birth/death thresholds, sigmoid steepness, radii
+- [x] Presets: `standard()`, `fluid()`, `slow()`
 
-**Wang Tiles:**
-- [ ] `WangTile` - tile with colored edges (N/E/S/W)
-- [ ] `WangTileSet` - collection of tiles with edge constraints
-- [ ] `solve_wang_tiling(tileset, width, height)` - wrapper around `WfcSolver`
-  - Converts edge constraints to WFC adjacency rules
-  - Returns tile grid or None if unsatisfiable
-- [ ] Presets: 2-color edge sets, corner variants
+**Wang Tiles (in unshape-procgen):**
+- [x] `WangTile` - tile with colored edges (N/E/S/W)
+- [x] `WangTileSet` - collection with `to_tileset()` conversion to WFC
+- [x] `solve_wang_tiling(tileset, width, height, seed)` - wrapper around `WfcSolver`
+- [x] Presets: `two_color_corners`, `blob_tiles`, `three_color`
+
+**HashLife:**
+- [x] `HashLife` - quadtree-based universe for Conway's Game of Life
+  - Structural sharing (hash-consed nodes)
+  - Arbitrary coordinate support (including negative)
+  - Population tracking and bounds computation
 
 **HashLife (Optimization):**
 - [ ] `HashLifeGrid` - quadtree representation with memoization
@@ -860,14 +855,29 @@ See DECOMPOSITION-AUDIT.md for which are true primitives vs compositions.
 - [ ] `HashLifeGrid::from(CellularAutomaton2D)` - convert from standard grid
 - [ ] Memory management: LRU cache eviction for bounded memory
 
-**Priority order:**
-1. Neighborhood trait (unlocks everything)
-2. LtL (small change, big expressiveness)
-3. Turmites (new primitive, interesting behavior)
-4. 3D CA (natural extension)
-5. SmoothLife (continuous relaxation)
-6. Wang tiles (WFC wrapper, easy)
-7. HashLife (optimization, specialized)
+### WFC AdjacencySource Refactoring
+
+> **Goal:** Make `WangTileSet` a first-class primitive instead of converting to `TileSet`.
+
+**Problem:** Converting 1000 Wang tiles → TileSet = 1,000,000 adjacency rules (O(N²)). Not viable.
+
+**Solution:** Co-equal primitives unified by a trait (see `docs/design/general-internal-constrained-api.md`):
+
+- [ ] `AdjacencySource` trait:
+  ```rust
+  trait AdjacencySource {
+      fn tile_count(&self) -> usize;
+      fn valid_neighbors(&self, tile: TileId, dir: Direction) -> impl Iterator<Item = TileId>;
+      fn weight(&self, tile: TileId) -> f32;
+  }
+  ```
+- [ ] Implement `AdjacencySource` for `TileSet` (existing HashMap lookup)
+- [ ] Implement `AdjacencySource` for `WangTileSet`:
+  - Add edge-color index: `west_index: HashMap<EdgeColor, Vec<TileId>>`
+  - Adjacency lookup via index: O(C³) where C = colors
+- [ ] Make `WfcSolver` generic over `AdjacencySource`
+- [ ] Remove `WangTileSet::to_tileset()` (no longer needed)
+- [ ] Update tests and examples
 
 ### Architecture / Future Extraction
 

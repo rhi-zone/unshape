@@ -83,6 +83,12 @@ Do not:
 - AudioGraph internally, Chain for linear pipelines
 - See `docs/design/general-internal-constrained-api.md`
 
+**Exception: Multiple co-equal primitives.** When conversion between representations is not viable (O(N²) explosion, lossy, fundamentally different trade-offs), multiple concrete types can be co-equal primitives unified by a trait:
+- `TileSet` (explicit adjacency) vs `WangTileSet` (edge-color indexed) - both implement `AdjacencySource`
+- Converting 1000 Wang tiles → TileSet = 1M rules, not viable
+- The *trait* is the abstraction; concrete types are interchangeable primitives
+- This is NOT the same as "convenience wrappers" - these are genuinely different representations for different use cases
+
 **Generative mindset.** Everything in unshape should be describable procedurally:
 - Prefer node graphs / expression trees over baked data
 - Parameters > presets

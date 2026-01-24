@@ -1,3 +1,5 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.18s
+     Running `target/debug/extract-ops --names`
 # Ops Index
 
 155 ops across 20 crates.
