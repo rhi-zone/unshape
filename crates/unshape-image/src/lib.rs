@@ -2236,34 +2236,7 @@ pub fn adjust_brightness_contrast(
     brightness: f32,
     contrast: f32,
 ) -> ImageField {
-    let (width, height) = image.dimensions();
-    let mut data = Vec::with_capacity((width * height) as usize);
-
-    // Convert contrast to multiplier: 0 = 1x, 1 = 2x, -1 = 0x
-    let contrast_factor = (1.0 + contrast).max(0.0);
-
-    for y in 0..height {
-        for x in 0..width {
-            let pixel = image.get_pixel(x, y);
-
-            let adjust = |v: f32| -> f32 {
-                // Apply contrast around midpoint, then brightness
-                let contrasted = (v - 0.5) * contrast_factor + 0.5;
-                (contrasted + brightness).clamp(0.0, 1.0)
-            };
-
-            data.push([
-                adjust(pixel[0]),
-                adjust(pixel[1]),
-                adjust(pixel[2]),
-                pixel[3],
-            ]);
-        }
-    }
-
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
+    map_pixels(image, &ColorExpr::brightness_contrast(brightness, contrast))
 }
 
 /// Configuration for HSL adjustments.
@@ -7935,23 +7908,10 @@ impl QuantizeWithBias {
 /// let result = color_matrix(&image, grayscale);
 /// ```
 pub fn color_matrix(image: &ImageField, matrix: Mat4) -> ImageField {
-    let data: Vec<[f32; 4]> = image
-        .data
-        .iter()
-        .map(|pixel| {
-            let v = Vec4::from_array(*pixel);
-            let transformed = matrix * v;
-            transformed.to_array()
-        })
-        .collect();
-
-    ImageField {
-        data,
-        width: image.width,
-        height: image.height,
-        wrap_mode: image.wrap_mode,
-        filter_mode: image.filter_mode,
-    }
+    // Convert column-major Mat4 to row-major [[f32; 4]; 4] for ColorExpr
+    // transpose() + to_cols_array_2d() gives us the rows as arrays
+    let m = matrix.transpose().to_cols_array_2d();
+    map_pixels(image, &ColorExpr::matrix(m))
 }
 
 /// Configuration for image position transformation.
@@ -8942,6 +8902,28 @@ pub enum ColorExpr {
         saturation: f32,
         value: f32,
     },
+
+    /// Adjust brightness and contrast.
+    ///
+    /// - `brightness`: Additive brightness offset (-1 to +1, 0 = no change)
+    /// - `contrast`: Contrast adjustment (-1 to +1, 0 = no change)
+    ///
+    /// Formula: `result = (value - 0.5) * (1 + contrast) + 0.5 + brightness`
+    AdjustBrightnessContrast {
+        input: Box<ColorExpr>,
+        brightness: f32,
+        contrast: f32,
+    },
+
+    /// Apply a 4x4 color matrix transform.
+    ///
+    /// The matrix transforms RGBA values: `[r', g', b', a'] = matrix * [r, g, b, a]`.
+    /// Row-major layout: `matrix[row][col]`.
+    Matrix {
+        input: Box<ColorExpr>,
+        /// Row-major 4x4 matrix.
+        matrix: [[f32; 4]; 4],
+    },
 }
 
 impl ColorExpr {
@@ -9251,6 +9233,37 @@ impl ColorExpr {
                 let (nr, ng, nb) = hsv_to_rgb(new_h, new_s, new_v);
                 [nr, ng, nb, ia]
             }
+
+            // Brightness/contrast adjustment
+            Self::AdjustBrightnessContrast {
+                input,
+                brightness,
+                contrast,
+            } => {
+                let [ir, ig, ib, ia] = input.eval(r, g, b, a);
+                // Convert contrast to multiplier: 0 = 1x, 1 = 2x, -1 = 0x
+                let contrast_factor = (1.0 + contrast).max(0.0);
+
+                let adjust = |v: f32| -> f32 {
+                    // Apply contrast around midpoint, then brightness
+                    let contrasted = (v - 0.5) * contrast_factor + 0.5;
+                    (contrasted + brightness).clamp(0.0, 1.0)
+                };
+
+                [adjust(ir), adjust(ig), adjust(ib), ia]
+            }
+
+            // Matrix transform
+            Self::Matrix { input, matrix } => {
+                let [ir, ig, ib, ia] = input.eval(r, g, b, a);
+                let m = matrix;
+                [
+                    m[0][0] * ir + m[0][1] * ig + m[0][2] * ib + m[0][3] * ia,
+                    m[1][0] * ir + m[1][1] * ig + m[1][2] * ib + m[1][3] * ia,
+                    m[2][0] * ir + m[2][1] * ig + m[2][2] * ib + m[2][3] * ia,
+                    m[3][0] * ir + m[3][1] * ig + m[3][2] * ib + m[3][3] * ia,
+                ]
+            }
         }
     }
 
@@ -9458,6 +9471,47 @@ impl ColorExpr {
         }
     }
 
+    /// Creates a brightness/contrast adjustment expression.
+    ///
+    /// # Arguments
+    ///
+    /// * `brightness` - Additive brightness offset (-1 to +1, 0 = no change)
+    /// * `contrast` - Contrast adjustment (-1 to +1, 0 = no change)
+    ///
+    /// Formula: `result = (value - 0.5) * (1 + contrast) + 0.5 + brightness`
+    pub fn brightness_contrast(brightness: f32, contrast: f32) -> Self {
+        Self::AdjustBrightnessContrast {
+            input: Box::new(Self::Rgba),
+            brightness,
+            contrast,
+        }
+    }
+
+    /// Creates a 4x4 color matrix transform expression.
+    ///
+    /// The matrix transforms RGBA values: `[r', g', b', a'] = matrix * [r, g, b, a]`.
+    /// Row-major layout: `matrix[row][col]`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use unshape_image::ColorExpr;
+    ///
+    /// // Grayscale matrix
+    /// let gray = ColorExpr::matrix([
+    ///     [0.299, 0.587, 0.114, 0.0],
+    ///     [0.299, 0.587, 0.114, 0.0],
+    ///     [0.299, 0.587, 0.114, 0.0],
+    ///     [0.0,   0.0,   0.0,   1.0],
+    /// ]);
+    /// ```
+    pub fn matrix(matrix: [[f32; 4]; 4]) -> Self {
+        Self::Matrix {
+            input: Box::new(Self::Rgba),
+            matrix,
+        }
+    }
+
     /// Converts this expression to a Dew AST for JIT/WGSL compilation.
     ///
     /// The resulting AST expects an `rgba` Vec4 variable and returns Vec4.
@@ -9660,6 +9714,30 @@ impl ColorExpr {
                     Ast::Num(*value as f64),
                 ],
             ),
+
+            Self::AdjustBrightnessContrast {
+                input,
+                brightness,
+                contrast,
+            } => Ast::Call(
+                "adjust_brightness_contrast".into(),
+                vec![
+                    input.to_dew_ast(),
+                    Ast::Num(*brightness as f64),
+                    Ast::Num(*contrast as f64),
+                ],
+            ),
+
+            Self::Matrix { input, matrix } => {
+                // Emit matrix as a flat 16-element call: color_matrix(input, m00, m01, ..., m33)
+                let mut args = vec![input.to_dew_ast()];
+                for row in matrix {
+                    for val in row {
+                        args.push(Ast::Num(*val as f64));
+                    }
+                }
+                Ast::Call("color_matrix".into(), args)
+            }
         }
     }
 }
@@ -11700,6 +11778,31 @@ mod tests {
     }
 
     #[test]
+    fn test_color_expr_brightness_contrast() {
+        // No change: brightness=0, contrast=0
+        let expr = ColorExpr::brightness_contrast(0.0, 0.0);
+        let result = expr.eval(0.5, 0.5, 0.5, 1.0);
+        assert!((result[0] - 0.5).abs() < 1e-6);
+
+        // Brightness only: add 0.2 to each channel
+        let expr = ColorExpr::brightness_contrast(0.2, 0.0);
+        let result = expr.eval(0.5, 0.5, 0.5, 1.0);
+        assert!((result[0] - 0.7).abs() < 1e-6);
+
+        // Contrast only: midpoint unchanged, edges amplified
+        // contrast = 0.5 means factor = 1.5
+        // (0.25 - 0.5) * 1.5 + 0.5 = -0.375 + 0.5 = 0.125
+        let expr = ColorExpr::brightness_contrast(0.0, 0.5);
+        let result = expr.eval(0.25, 0.5, 0.75, 1.0);
+        assert!((result[0] - 0.125).abs() < 1e-6);
+        assert!((result[1] - 0.5).abs() < 1e-6); // midpoint unchanged
+        assert!((result[2] - 0.875).abs() < 1e-6);
+
+        // Alpha should be preserved
+        assert!((result[3] - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
     fn test_color_expr_posterize() {
         let expr = ColorExpr::posterize(4); // 4 levels: 0, 0.33, 0.67, 1.0
         // formula: floor(color * factor) / factor, where factor = 3
@@ -11710,6 +11813,75 @@ mod tests {
         assert!((result[0] - 0.333).abs() < 0.1);
         assert!((result[1] - 0.333).abs() < 0.1);
         assert!((result[2] - 0.667).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_color_expr_matrix() {
+        // Identity matrix - no change
+        let identity = ColorExpr::matrix([
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+        let result = identity.eval(0.5, 0.3, 0.8, 1.0);
+        assert!((result[0] - 0.5).abs() < 1e-6);
+        assert!((result[1] - 0.3).abs() < 1e-6);
+        assert!((result[2] - 0.8).abs() < 1e-6);
+        assert!((result[3] - 1.0).abs() < 1e-6);
+
+        // Grayscale matrix (luminance)
+        let gray = ColorExpr::matrix([
+            [0.299, 0.587, 0.114, 0.0],
+            [0.299, 0.587, 0.114, 0.0],
+            [0.299, 0.587, 0.114, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+        let result = gray.eval(1.0, 0.0, 0.0, 1.0);
+        assert!((result[0] - 0.299).abs() < 1e-6);
+        assert!((result[1] - 0.299).abs() < 1e-6);
+        assert!((result[2] - 0.299).abs() < 1e-6);
+
+        // Channel swap: RGB -> BGR
+        let swap = ColorExpr::matrix([
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+        let result = swap.eval(0.2, 0.5, 0.8, 1.0);
+        assert!((result[0] - 0.8).abs() < 1e-6); // B -> R
+        assert!((result[1] - 0.5).abs() < 1e-6); // G -> G
+        assert!((result[2] - 0.2).abs() < 1e-6); // R -> B
+    }
+
+    #[test]
+    fn test_color_matrix_function() {
+        use glam::Mat4;
+
+        let data = vec![[1.0, 0.5, 0.25, 1.0]; 4];
+        let img = ImageField::from_raw(data, 2, 2);
+
+        // Identity matrix
+        let result = color_matrix(&img, Mat4::IDENTITY);
+        let pixel = result.get_pixel(0, 0);
+        assert!((pixel[0] - 1.0).abs() < 1e-6);
+        assert!((pixel[1] - 0.5).abs() < 1e-6);
+        assert!((pixel[2] - 0.25).abs() < 1e-6);
+
+        // Grayscale using Mat4
+        let grayscale = Mat4::from_cols_array(&[
+            0.299, 0.299, 0.299, 0.0, // column 0
+            0.587, 0.587, 0.587, 0.0, // column 1
+            0.114, 0.114, 0.114, 0.0, // column 2
+            0.0, 0.0, 0.0, 1.0, // column 3
+        ]);
+        let result = color_matrix(&img, grayscale);
+        let pixel = result.get_pixel(0, 0);
+        let expected_lum = 0.299 * 1.0 + 0.587 * 0.5 + 0.114 * 0.25;
+        assert!((pixel[0] - expected_lum).abs() < 1e-5);
+        assert!((pixel[1] - expected_lum).abs() < 1e-5);
+        assert!((pixel[2] - expected_lum).abs() < 1e-5);
     }
 
     #[test]
