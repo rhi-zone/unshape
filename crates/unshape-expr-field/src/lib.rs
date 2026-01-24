@@ -21,6 +21,8 @@
 //! let value: f32 = field.sample(Vec2::new(0.5, 0.5), &ctx);
 //! ```
 
+pub mod easing;
+
 #[cfg(feature = "cranelift")]
 pub mod jit_impl;
 
