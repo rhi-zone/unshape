@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: "Resin"
+  name: "Unshape"
   text: "Constructive media generation"
   tagline: "Procedural meshes, audio, textures, vector art, and rigging in Rust."
   actions:

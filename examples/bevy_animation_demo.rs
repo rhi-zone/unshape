@@ -1,6 +1,6 @@
 //! Bevy integration demo: Skeletal animation and IK.
 //!
-//! Demonstrates using resin-rig for bones, skeletons, poses, and IK
+//! Demonstrates using unshape-rig for bones, skeletons, poses, and IK
 //! in a Bevy application.
 //!
 //! Run with: `cargo run --example bevy_animation_demo`
@@ -9,7 +9,7 @@ use bevy::{
     prelude::*,
     render::mesh::{Indices, PrimitiveTopology},
 };
-use rhizome_resin_rig::{
+use rhi_unshape_rig::{
     Bone, BoneId, IkChain, IkConfig, Pose, Skeleton, Transform3D as ResinTransform, solve_fabrik,
 };
 

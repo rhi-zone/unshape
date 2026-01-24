@@ -39,7 +39,7 @@
 ### Indexed Mesh
 
 ```rust
-use rhizome_resin_mesh::{Mesh, MeshBuilder};
+use rhi_unshape_mesh::{Mesh, MeshBuilder};
 
 // Create mesh with builder
 let mesh = MeshBuilder::new()
@@ -59,7 +59,7 @@ let uvs = mesh.uvs();
 ### Half-Edge Mesh
 
 ```rust
-use rhizome_resin_mesh::{HalfEdgeMesh, halfedge_from_mesh};
+use rhi_unshape_mesh::{HalfEdgeMesh, halfedge_from_mesh};
 
 // Convert for topology operations
 let he_mesh = halfedge_from_mesh(&mesh);
@@ -76,7 +76,7 @@ let mesh = he_mesh.to_mesh();
 ## Primitives
 
 ```rust
-use rhizome_resin_mesh::*;
+use rhi_unshape_mesh::*;
 
 // Basic shapes
 let cube = box_mesh();
@@ -97,7 +97,7 @@ let cylinder = cylinder_mesh_with_caps(1.0, 2.0, 32, true, true);
 ### Transform
 
 ```rust
-use rhizome_resin_mesh::{transform, translate, rotate, scale};
+use rhi_unshape_mesh::{transform, translate, rotate, scale};
 
 let mesh = transform(&mesh, Mat4::from_rotation_y(PI / 4.0));
 let mesh = translate(&mesh, Vec3::new(0.0, 1.0, 0.0));
@@ -108,7 +108,7 @@ let mesh = scale(&mesh, Vec3::splat(2.0));
 ### Normals
 
 ```rust
-use rhizome_resin_mesh::{compute_normals, compute_smooth_normals};
+use rhi_unshape_mesh::{compute_normals, compute_smooth_normals};
 
 // Flat shading (per-face normals)
 let mesh = compute_normals(&mesh);
@@ -120,7 +120,7 @@ let mesh = compute_smooth_normals(&mesh);
 ### Merge and Combine
 
 ```rust
-use rhizome_resin_mesh::{merge_meshes, weld_vertices};
+use rhi_unshape_mesh::{merge_meshes, weld_vertices};
 
 // Combine multiple meshes
 let combined = merge_meshes(&[mesh1, mesh2, mesh3]);
@@ -134,7 +134,7 @@ let welded = weld_vertices(&mesh, threshold: 0.001);
 ### Extrude
 
 ```rust
-use rhizome_resin_mesh::{extrude_faces, extrude_along_normals};
+use rhi_unshape_mesh::{extrude_faces, extrude_along_normals};
 
 // Extrude selected faces
 let mesh = extrude_faces(&mesh, &face_indices, distance: 1.0);
@@ -146,7 +146,7 @@ let mesh = extrude_along_normals(&mesh, &face_indices, distance: 0.5);
 ### Inset
 
 ```rust
-use rhizome_resin_mesh::inset_faces;
+use rhi_unshape_mesh::inset_faces;
 
 let mesh = inset_faces(&mesh, &face_indices, amount: 0.2);
 ```
@@ -154,7 +154,7 @@ let mesh = inset_faces(&mesh, &face_indices, amount: 0.2);
 ### Bevel
 
 ```rust
-use rhizome_resin_mesh::{bevel_edges, bevel_vertices, BevelConfig};
+use rhi_unshape_mesh::{bevel_edges, bevel_vertices, BevelConfig};
 
 let config = BevelConfig {
     amount: 0.1,
@@ -168,7 +168,7 @@ let mesh = bevel_vertices(&mesh, &vertex_indices, &config);
 ### Edge Loops
 
 ```rust
-use rhizome_resin_mesh::{select_edge_loop, select_edge_ring, loop_cut};
+use rhi_unshape_mesh::{select_edge_loop, select_edge_ring, loop_cut};
 
 // Select connected edges
 let loop_edges = select_edge_loop(&mesh, start_edge);
@@ -181,7 +181,7 @@ let mesh = loop_cut(&mesh, &edge_indices, position: 0.5);
 ## Subdivision
 
 ```rust
-use rhizome_resin_mesh::{subdivide_catmull_clark, subdivide_loop, subdivide_simple};
+use rhi_unshape_mesh::{subdivide_catmull_clark, subdivide_loop, subdivide_simple};
 
 // Catmull-Clark (quads)
 let smooth = subdivide_catmull_clark(&mesh, iterations: 2);
@@ -196,7 +196,7 @@ let subdivided = subdivide_simple(&mesh, iterations: 1);
 ## Decimation
 
 ```rust
-use rhizome_resin_mesh::{decimate, DecimateConfig};
+use rhi_unshape_mesh::{decimate, DecimateConfig};
 
 let config = DecimateConfig {
     target_ratio: 0.5,       // Keep 50% of triangles
@@ -210,7 +210,7 @@ let simplified = decimate(&mesh, &config);
 ## Mesh Repair
 
 ```rust
-use rhizome_resin_mesh::{
+use rhi_unshape_mesh::{
     find_boundary_loops, fill_hole_fan, fill_hole_ear_clip,
     fill_hole_minimum_area, remove_degenerate_faces
 };
@@ -234,7 +234,7 @@ let mesh = remove_degenerate_faces(&mesh, area_threshold: 0.0001);
 ## Boolean Operations
 
 ```rust
-use rhizome_resin_mesh::{boolean_union, boolean_subtract, boolean_intersect};
+use rhi_unshape_mesh::{boolean_union, boolean_subtract, boolean_intersect};
 
 let result = boolean_union(&mesh_a, &mesh_b);
 let result = boolean_subtract(&mesh_a, &mesh_b);
@@ -244,7 +244,7 @@ let result = boolean_intersect(&mesh_a, &mesh_b);
 ## Smoothing
 
 ```rust
-use rhizome_resin_mesh::{smooth, smooth_taubin, SmoothConfig};
+use rhi_unshape_mesh::{smooth, smooth_taubin, SmoothConfig};
 
 // Laplacian smoothing
 let config = SmoothConfig {
@@ -261,7 +261,7 @@ let smoothed = smooth_taubin(&mesh, iterations: 10, lambda: 0.5, mu: -0.53);
 ## Remeshing
 
 ```rust
-use rhizome_resin_mesh::{isotropic_remesh, quadify, RemeshConfig};
+use rhi_unshape_mesh::{isotropic_remesh, quadify, RemeshConfig};
 
 // Isotropic remeshing (uniform triangles)
 let config = RemeshConfig {
@@ -277,7 +277,7 @@ let quad_mesh = quadify(&mesh);
 ## UV Projection
 
 ```rust
-use rhizome_resin_mesh::{uv_project_planar, uv_project_cylindrical, uv_project_spherical, uv_project_box};
+use rhi_unshape_mesh::{uv_project_planar, uv_project_cylindrical, uv_project_spherical, uv_project_box};
 
 let mesh = uv_project_planar(&mesh, normal: Vec3::Y, scale: 1.0);
 let mesh = uv_project_cylindrical(&mesh, axis: Vec3::Y);
@@ -290,7 +290,7 @@ let mesh = uv_project_box(&mesh, scale: 1.0);
 ### Extrude Profile
 
 ```rust
-use rhizome_resin_mesh::{extrude_profile, revolve_profile, sweep_profile};
+use rhi_unshape_mesh::{extrude_profile, revolve_profile, sweep_profile};
 
 // Extrude 2D profile along axis
 let profile = vec![Vec2::new(0.0, 0.0), Vec2::new(1.0, 0.0), Vec2::new(1.0, 1.0)];
@@ -307,7 +307,7 @@ let mesh = sweep_profile(&profile, &path, twist: 0.0);
 ### Lofting
 
 ```rust
-use rhizome_resin_mesh::{loft, loft_along_path};
+use rhi_unshape_mesh::{loft, loft_along_path};
 
 // Loft between profiles
 let profiles = vec![profile1, profile2, profile3];
@@ -322,7 +322,7 @@ let mesh = loft_along_path(&profiles, &path);
 ### Marching Cubes
 
 ```rust
-use rhizome_resin_mesh::{marching_cubes, MarchingCubesConfig};
+use rhi_unshape_mesh::{marching_cubes, MarchingCubesConfig};
 
 let config = MarchingCubesConfig {
     resolution: 64,
@@ -341,7 +341,7 @@ let mesh = marching_cubes_field(&sdf_field, &config);
 ### Mesh to SDF
 
 ```rust
-use rhizome_resin_mesh::{mesh_to_sdf, mesh_to_sdf_fast};
+use rhi_unshape_mesh::{mesh_to_sdf, mesh_to_sdf_fast};
 
 // Accurate but slower
 let sdf = mesh_to_sdf(&mesh, resolution: 64);
@@ -356,7 +356,7 @@ let distance = sdf.sample(point);
 ## Navigation Meshes
 
 ```rust
-use rhizome_resin_mesh::{NavMesh, find_path, smooth_path};
+use rhi_unshape_mesh::{NavMesh, find_path, smooth_path};
 
 // Generate navmesh from walkable geometry
 let navmesh = NavMesh::from_mesh(&mesh, agent_radius: 0.5, agent_height: 2.0);
@@ -371,7 +371,7 @@ let smooth = smooth_path(&navmesh, &path);
 ## Geodesic Distance
 
 ```rust
-use rhizome_resin_mesh::{geodesic_distance, geodesic_path, find_mesh_center};
+use rhi_unshape_mesh::{geodesic_distance, geodesic_path, find_mesh_center};
 
 // Distance from source vertex to all others
 let distances = geodesic_distance(&mesh, source_vertex);
@@ -386,7 +386,7 @@ let center_vertex = find_mesh_center(&mesh);
 ## Lattice Deformation (FFD)
 
 ```rust
-use rhizome_resin_mesh::{Lattice, LatticeConfig};
+use rhi_unshape_mesh::{Lattice, LatticeConfig};
 
 let config = LatticeConfig {
     divisions: UVec3::new(4, 4, 4),
@@ -405,7 +405,7 @@ let deformed = lattice.deform(&mesh);
 ## Ambient Occlusion Baking
 
 ```rust
-use rhizome_resin_mesh::{bake_ao_vertices, bake_ao_texture, AoConfig};
+use rhi_unshape_mesh::{bake_ao_vertices, bake_ao_texture, AoConfig};
 
 let config = AoConfig {
     rays: 64,
@@ -422,7 +422,7 @@ let ao_texture = bake_ao_texture(&mesh, resolution: 1024, &config);
 ## Point Clouds
 
 ```rust
-use rhizome_resin_pointcloud::{PointCloud, sample_mesh_uniform, sample_mesh_weighted};
+use rhi_unshape_pointcloud::{PointCloud, sample_mesh_uniform, sample_mesh_weighted};
 
 // Sample from mesh
 let cloud = sample_mesh_uniform(&mesh, count: 10000);
@@ -444,7 +444,7 @@ let neighbors = cloud.k_nearest(point, k: 10);
 ## Voxels
 
 ```rust
-use rhizome_resin_voxel::{VoxelGrid, SparseVoxels, fill_sphere, fill_box};
+use rhi_unshape_voxel::{VoxelGrid, SparseVoxels, fill_sphere, fill_box};
 
 // Dense grid
 let mut grid = VoxelGrid::new(64, 64, 64, false);
@@ -472,7 +472,7 @@ let grid = sdf_to_voxels(&sdf, resolution: 64, bounds);
 ## Terrain
 
 ```rust
-use rhizome_resin_mesh::{Heightfield, HydraulicErosion, ThermalErosion};
+use rhi_unshape_mesh::{Heightfield, HydraulicErosion, ThermalErosion};
 
 // Create heightfield
 let mut hf = Heightfield::new(256, 256);
@@ -490,7 +490,7 @@ let normal_map = hf.to_normal_map();
 ## File I/O
 
 ```rust
-use rhizome_resin_mesh::{import_obj, export_obj, import_gltf, export_gltf};
+use rhi_unshape_mesh::{import_obj, export_obj, import_gltf, export_gltf};
 
 // OBJ
 let mesh = import_obj("model.obj")?;
@@ -504,7 +504,7 @@ export_gltf(&mesh, "output.glb")?;  // Binary GLB
 ## NURBS Surfaces
 
 ```rust
-use rhizome_resin_surface::{NurbsSurface, nurbs_sphere, nurbs_cylinder, nurbs_torus};
+use rhi_unshape_surface::{NurbsSurface, nurbs_sphere, nurbs_cylinder, nurbs_torus};
 
 // Primitives
 let sphere = nurbs_sphere(Vec3::ZERO, radius: 1.0);

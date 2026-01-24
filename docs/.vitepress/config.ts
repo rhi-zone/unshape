@@ -31,16 +31,16 @@ export default withMermaid(
         include: ['mermaid'],
       },
     },
-    title: 'Resin',
+    title: 'Unshape',
     description: 'Constructive media generation and manipulation',
 
-    base: '/resin/',
+    base: '/unshape/',
 
     themeConfig: {
       nav: [
         { text: 'Guide', link: '/introduction' },
         { text: 'Design', link: '/philosophy' },
-        { text: 'Rhizome', link: 'https://rhizome-lab.github.io/' },
+        { text: 'Rhizome', link: 'https://rhi-zone.github.io/' },
       ],
 
       sidebar: {
@@ -82,7 +82,7 @@ export default withMermaid(
       },
 
       socialLinks: [
-        { icon: 'github', link: 'https://github.com/rhizome-lab/resin' }
+        { icon: 'github', link: 'https://github.com/rhi-zone/unshape' }
       ],
 
       search: {
@@ -90,7 +90,7 @@ export default withMermaid(
       },
 
       editLink: {
-        pattern: 'https://github.com/rhizome-lab/resin/edit/master/docs/:path',
+        pattern: 'https://github.com/rhi-zone/unshape/edit/master/docs/:path',
         text: 'Edit this page on GitHub'
       },
     },

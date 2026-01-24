@@ -136,8 +136,8 @@ let sound = image_to_audio(&painted, &ImageToAudioConfig::new(44100, 5.0));
 Raw byte utilities are provided by `resin-bytes`, re-exported as the `bytes` module:
 
 ```rust
-use rhizome_resin_crossdomain::bytes::*;
-use rhizome_resin_crossdomain::bytes_to_image_auto;
+use rhi_unshape_crossdomain::bytes::*;
+use rhi_unshape_crossdomain::bytes_to_image_auto;
 
 // Load any file and interpret as audio
 let jpeg_bytes = std::fs::read("photo.jpg")?;

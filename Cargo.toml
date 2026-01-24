@@ -7,7 +7,7 @@ exclude = ["fuzz"]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/pterror/resin"
+repository = "https://github.com/rhi-zone/unshape"
 
 [workspace.dependencies]
 # Math (bevy-compatible)
@@ -58,30 +58,30 @@ bevy = { version = "0.15", default-features = false, features = [
 ] }
 
 # Resin crates
-rhizome-resin-core = { path = "crates/resin-core" }
-rhizome-resin-backend = { path = "crates/resin-backend" }
-rhizome-resin-mesh = { path = "crates/resin-mesh" }
-rhizome-resin-audio = { path = "crates/resin-audio" }
-rhizome-resin-vector = { path = "crates/resin-vector" }
-rhizome-resin-rig = { path = "crates/resin-rig" }
-rhizome-resin-gltf = { path = "crates/resin-gltf" }
-rhizome-resin-fluid = { path = "crates/resin-fluid" }
-rhizome-resin-physics = { path = "crates/resin-physics" }
-rhizome-resin-noise = { path = "crates/resin-noise" }
-rhizome-resin-field = { path = "crates/resin-field" }
-rhizome-resin-image = { path = "crates/resin-image" }
-rhizome-resin-lsystem = { path = "crates/resin-lsystem" }
-rhizome-resin-op = { path = "crates/resin-op" }
-rhizome-resin-op-macros = { path = "crates/resin-op-macros" }
-rhizome-resin-motion-fn = { path = "crates/resin-motion-fn" }
-rhizome-resin-curve = { path = "crates/resin-curve" }
-rhizome-resin-audio-codegen = { path = "crates/resin-audio-codegen" }
-rhizome-resin-jit = { path = "crates/resin-jit" }
-rhizome-resin-gpu = { path = "crates/resin-gpu" }
-rhizome-resin-spectral = { path = "crates/resin-spectral" }
+rhi-unshape-core = { path = "crates/unshape-core" }
+rhi-unshape-backend = { path = "crates/unshape-backend" }
+rhi-unshape-mesh = { path = "crates/unshape-mesh" }
+rhi-unshape-audio = { path = "crates/unshape-audio" }
+rhi-unshape-vector = { path = "crates/unshape-vector" }
+rhi-unshape-rig = { path = "crates/unshape-rig" }
+rhi-unshape-gltf = { path = "crates/unshape-gltf" }
+rhi-unshape-fluid = { path = "crates/unshape-fluid" }
+rhi-unshape-physics = { path = "crates/unshape-physics" }
+rhi-unshape-noise = { path = "crates/unshape-noise" }
+rhi-unshape-field = { path = "crates/unshape-field" }
+rhi-unshape-image = { path = "crates/unshape-image" }
+rhi-unshape-lsystem = { path = "crates/unshape-lsystem" }
+rhi-unshape-op = { path = "crates/unshape-op" }
+rhi-unshape-op-macros = { path = "crates/unshape-op-macros" }
+rhi-unshape-motion-fn = { path = "crates/unshape-motion-fn" }
+rhi-unshape-curve = { path = "crates/unshape-curve" }
+rhi-unshape-audio-codegen = { path = "crates/unshape-audio-codegen" }
+rhi-unshape-jit = { path = "crates/unshape-jit" }
+rhi-unshape-gpu = { path = "crates/unshape-gpu" }
+rhi-unshape-spectral = { path = "crates/unshape-spectral" }
 
 [package]
-name = "rhizome-resin-examples"
+name = "rhi-unshape-examples"
 version.workspace = true
 edition.workspace = true
 publish = false
@@ -89,25 +89,25 @@ publish = false
 [features]
 default = []
 dynop = [
-    "rhizome-resin-mesh/dynop",
-    "rhizome-resin-audio/dynop",
-    "dep:rhizome-resin-op",
+    "rhi-unshape-mesh/dynop",
+    "rhi-unshape-audio/dynop",
+    "dep:rhi-unshape-op",
     "dep:serde_json",
 ]
 
 [dependencies]
 bevy = { workspace = true }
-rhizome-resin-core = { workspace = true }
-rhizome-resin-backend = { workspace = true }
-rhizome-resin-mesh = { workspace = true }
-rhizome-resin-audio = { workspace = true }
-rhizome-resin-vector = { workspace = true }
-rhizome-resin-rig = { workspace = true }
-rhizome-resin-noise = { workspace = true }
-rhizome-resin-field = { workspace = true }
-rhizome-resin-image = { workspace = true }
-rhizome-resin-lsystem = { workspace = true }
-rhizome-resin-op = { workspace = true, optional = true }
+rhi-unshape-core = { workspace = true }
+rhi-unshape-backend = { workspace = true }
+rhi-unshape-mesh = { workspace = true }
+rhi-unshape-audio = { workspace = true }
+rhi-unshape-vector = { workspace = true }
+rhi-unshape-rig = { workspace = true }
+rhi-unshape-noise = { workspace = true }
+rhi-unshape-field = { workspace = true }
+rhi-unshape-image = { workspace = true }
+rhi-unshape-lsystem = { workspace = true }
+rhi-unshape-op = { workspace = true, optional = true }
 glam = { workspace = true }
 serde_json = { version = "1", optional = true }
 

@@ -1,0 +1,35 @@
+[package]
+name = "rhi-unshape-expr-field"
+version = "0.1.0"
+edition = "2024"
+description = "Bridge between expressions and fields"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rhizome-lab/resin"
+
+[features]
+default = []
+serde = ["dep:serde", "glam/serde"]
+cranelift = ["dep:rhi-unshape-jit", "rhi-unshape-jit/cranelift", "dep:cranelift", "dep:cranelift-frontend", "dep:cranelift-jit", "dep:cranelift-module", "dep:cranelift-native"]
+
+[dependencies]
+rhi-unshape-jit = { path = "../unshape-jit", optional = true }
+cranelift = { workspace = true, optional = true }
+cranelift-frontend = { workspace = true, optional = true }
+cranelift-jit = { workspace = true, optional = true }
+cranelift-module = { workspace = true, optional = true }
+cranelift-native = { workspace = true, optional = true }
+thiserror.workspace = true
+glam.workspace = true
+rhizome-dew-core = { git = "https://github.com/rhizome-lab/dew" }
+rhizome-dew-scalar = { git = "https://github.com/rhizome-lab/dew" }
+rhi-unshape-field = { path = "../unshape-field" }
+rhi-unshape-noise = { path = "../unshape-noise" }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = "1"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "field_expr_bench"
+harness = false

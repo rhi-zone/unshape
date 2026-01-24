@@ -287,7 +287,7 @@ The perlin2 noise function is implemented entirely in Cranelift IR:
 
 **Perm table access**: Uses direct pointer to the static `PERM` array (safe because it's program-lifetime).
 
-**Parity**: Verified exact match with `rhizome_resin_noise::perlin2()` across 2500 test points.
+**Parity**: Verified exact match with `rhi_unshape_noise::perlin2()` across 2500 test points.
 
 ### Polynomial Transcendentals
 

@@ -16,7 +16,7 @@ The compute backends system is fully implemented:
 
 **Quick start (simple):**
 ```rust
-use rhizome_resin_backend::{backend_evaluator, ExecutionPolicy};
+use rhi_unshape_backend::{backend_evaluator, ExecutionPolicy};
 
 // One-liner: CPU backend with auto policy
 let mut evaluator = backend_evaluator(ExecutionPolicy::Auto);
@@ -25,8 +25,8 @@ let result = evaluator.evaluate(&graph, &[output_node], &ctx)?;
 
 **Quick start (with GPU):**
 ```rust
-use rhizome_resin_backend::{BackendRegistry, BackendNodeExecutor, Scheduler, ExecutionPolicy, LazyEvaluator};
-use rhizome_resin_gpu::{GpuComputeBackend, register_kernels};
+use rhi_unshape_backend::{BackendRegistry, BackendNodeExecutor, Scheduler, ExecutionPolicy, LazyEvaluator};
+use rhi_unshape_gpu::{GpuComputeBackend, register_kernels};
 
 // Setup registry with CPU (always) and GPU (if available)
 let mut registry = BackendRegistry::with_cpu();

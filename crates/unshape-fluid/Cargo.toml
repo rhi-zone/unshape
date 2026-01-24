@@ -1,0 +1,20 @@
+[package]
+name = "rhi-unshape-fluid"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core types and traits for unshape"
+
+[features]
+serde = ["dep:serde", "glam/serde"]
+dynop = ["dep:rhi-unshape-op", "dep:serde_json", "serde"]
+
+[dependencies]
+glam = { workspace = true }
+rand = { workspace = true }
+rhi-unshape-op = { path = "../unshape-op", optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { version = "1", optional = true }
+
+[dev-dependencies]

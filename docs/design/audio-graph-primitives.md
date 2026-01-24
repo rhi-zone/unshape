@@ -483,7 +483,7 @@ The codegen is generic (topological sort + node processing) rather than pattern-
 **Example `build.rs`:**
 
 ```rust
-use rhizome_resin_audio_codegen::{
+use rhi_unshape_audio_codegen::{
     SerialAudioGraph, SerialAudioNode, SerialParamWire, generate_effect, generate_header,
 };
 use std::env;
@@ -529,7 +529,7 @@ mod generated {
 }
 
 use generated::MyTremolo;
-use rhizome_resin_audio::graph::{AudioContext, AudioNode};
+use rhi_unshape_audio::graph::{AudioContext, AudioNode};
 
 let mut tremolo = MyTremolo::new(44100.0);
 let output = tremolo.process(input, &ctx);

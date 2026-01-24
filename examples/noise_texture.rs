@@ -6,8 +6,8 @@
 //! Run with: `cargo run --example noise_texture`
 
 use glam::Vec2;
-use rhizome_resin_field::{EvalContext, Fbm2D, Field, Perlin2D};
-use rhizome_resin_image::{ImageField, export_png};
+use rhi_unshape_field::{EvalContext, Fbm2D, Field, Perlin2D};
+use rhi_unshape_image::{ImageField, export_png};
 
 fn main() {
     println!("Generating noise texture...");

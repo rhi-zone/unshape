@@ -6,12 +6,12 @@
 resin/
 ├── crates/
 │   ├── resin/           # umbrella, re-exports all domain crates
-│   ├── rhizome-resin-core/      # shared types, traits, math utilities
-│   ├── rhizome-resin-mesh/      # 3D mesh generation and manipulation
-│   ├── rhizome-resin-audio/     # audio synthesis and processing
-│   ├── rhizome-resin-texture/   # procedural texture generation
-│   ├── rhizome-resin-vector/    # 2D vector graphics
-│   └── rhizome-resin-rig/       # rigging and animation
+│   ├── rhi-unshape-core/      # shared types, traits, math utilities
+│   ├── rhi-unshape-mesh/      # 3D mesh generation and manipulation
+│   ├── rhi-unshape-audio/     # audio synthesis and processing
+│   ├── rhi-unshape-texture/   # procedural texture generation
+│   ├── rhi-unshape-vector/    # 2D vector graphics
+│   └── rhi-unshape-rig/       # rigging and animation
 └── docs/                # VitePress documentation
 ```
 

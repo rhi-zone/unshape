@@ -1,0 +1,16 @@
+[package]
+name = "rhi-unshape-color"
+version = "0.1.0"
+edition = "2024"
+description = "Color types, gradients, and blend modes"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rhizome-lab/resin"
+
+[features]
+default = []
+serde = ["dep:serde"]
+
+[dependencies]
+glam.workspace = true
+rhi-unshape-easing = { path = "../unshape-easing" }
+serde = { workspace = true, optional = true }

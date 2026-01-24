@@ -1,4 +1,4 @@
-# Resin
+# Unshape
 
 Constructive generation and manipulation of media in Rust.
 
@@ -17,16 +17,16 @@ Constructive generation and manipulation of media in Rust.
 
 ```toml
 [dependencies]
-rhizome-resin-core = "0.1"
-rhizome-resin-mesh = "0.1"
-rhizome-resin-audio = "0.1"
-rhizome-resin-vector = "0.1"
-rhizome-resin-rig = "0.1"
+rhi-unshape-core = "0.1"
+rhi-unshape-mesh = "0.1"
+rhi-unshape-audio = "0.1"
+rhi-unshape-vector = "0.1"
+rhi-unshape-rig = "0.1"
 ```
 
 ```rust
-use rhizome_resin_mesh::{Cuboid, Icosphere};
-use rhizome_resin_core::{Field, Perlin2D, EvalContext};
+use rhi_unshape_mesh::{Cuboid, Icosphere};
+use rhi_unshape_core::{Field, Perlin2D, EvalContext};
 use glam::Vec2;
 
 // Mesh primitives

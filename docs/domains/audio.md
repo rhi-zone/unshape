@@ -48,7 +48,7 @@ Audio synthesis and processing for procedural sound generation.
 ## Basic Oscillators
 
 ```rust
-use rhizome_resin_audio::{SineOsc, SawOsc, SquareOsc, TriangleOsc, NoiseOsc};
+use rhi_unshape_audio::{SineOsc, SawOsc, SquareOsc, TriangleOsc, NoiseOsc};
 
 // Create oscillators at sample rate
 let sample_rate = 44100.0;
@@ -70,7 +70,7 @@ let buffer: Vec<f32> = (0..44100).map(|_| sine.tick()).collect();
 ## Filters
 
 ```rust
-use rhizome_resin_audio::{LowPassFilter, HighPassFilter, BiquadFilter, BiquadType};
+use rhi_unshape_audio::{LowPassFilter, HighPassFilter, BiquadFilter, BiquadType};
 
 // Simple one-pole filters
 let mut lpf = LowPassFilter::new(1000.0, sample_rate);
@@ -103,7 +103,7 @@ let output = biquad.process(input);
 ### ADSR
 
 ```rust
-use rhizome_resin_audio::{Adsr, AdsrConfig};
+use rhi_unshape_audio::{Adsr, AdsrConfig};
 
 let config = AdsrConfig {
     attack: 0.01,   // 10ms attack
@@ -127,7 +127,7 @@ let output = oscillator.tick() * amplitude;
 ### LFO
 
 ```rust
-use rhizome_resin_audio::{Lfo, LfoShape};
+use rhi_unshape_audio::{Lfo, LfoShape};
 
 let mut lfo = Lfo::new(5.0, sample_rate);  // 5 Hz
 lfo.set_shape(LfoShape::Sine);
@@ -147,7 +147,7 @@ filter.set_frequency(base_freq + mod_value * mod_depth);
 ### Delay
 
 ```rust
-use rhizome_resin_audio::{Delay, FeedbackDelay};
+use rhi_unshape_audio::{Delay, FeedbackDelay};
 
 // Simple delay
 let mut delay = Delay::new(0.5, sample_rate);  // 500ms delay
@@ -161,7 +161,7 @@ let output = fb_delay.process(input);
 ### Reverb
 
 ```rust
-use rhizome_resin_audio::{Reverb, ReverbConfig};
+use rhi_unshape_audio::{Reverb, ReverbConfig};
 
 let config = ReverbConfig {
     room_size: 0.8,
@@ -178,7 +178,7 @@ let (left, right) = reverb.process_stereo(input_left, input_right);
 ### Modulation Effects
 
 ```rust
-use rhizome_resin_audio::{Chorus, Phaser, Flanger};
+use rhi_unshape_audio::{Chorus, Phaser, Flanger};
 
 // Chorus
 let mut chorus = Chorus::new(sample_rate);
@@ -202,7 +202,7 @@ flanger.set_feedback(0.5);
 ### Distortion
 
 ```rust
-use rhizome_resin_audio::{Distortion, DistortionType};
+use rhi_unshape_audio::{Distortion, DistortionType};
 
 let mut dist = Distortion::new(DistortionType::SoftClip);
 dist.set_drive(2.0);
@@ -214,7 +214,7 @@ let output = dist.process(input);
 ### Compressor
 
 ```rust
-use rhizome_resin_audio::{Compressor, CompressorConfig};
+use rhi_unshape_audio::{Compressor, CompressorConfig};
 
 let config = CompressorConfig {
     threshold: -20.0,  // dB
@@ -231,7 +231,7 @@ let output = comp.process(input);
 ## FM Synthesis
 
 ```rust
-use rhizome_resin_audio::{FmOsc, FmSynth, FmAlgorithm};
+use rhi_unshape_audio::{FmOsc, FmSynth, FmAlgorithm};
 
 // Simple 2-operator FM
 let mut fm = FmOsc::new(sample_rate);
@@ -256,7 +256,7 @@ let brass = FmSynth::brass(sample_rate);
 ## Wavetable Synthesis
 
 ```rust
-use rhizome_resin_audio::{Wavetable, WavetableOsc, WavetableBank};
+use rhi_unshape_audio::{Wavetable, WavetableOsc, WavetableBank};
 
 // Create wavetable from function
 let sine_table = Wavetable::from_fn(2048, |phase| (phase * 2.0 * PI).sin());
@@ -284,7 +284,7 @@ let sample = bank.tick();
 ## Granular Synthesis
 
 ```rust
-use rhizome_resin_audio::{GrainCloud, GrainConfig, GrainScheduler};
+use rhi_unshape_audio::{GrainCloud, GrainConfig, GrainScheduler};
 
 // Load or create source buffer
 let buffer: Vec<f32> = load_sample("voice.wav");
@@ -312,7 +312,7 @@ scheduler.schedule_grain(start_time, config);
 ### Karplus-Strong Strings
 
 ```rust
-use rhizome_resin_audio::{KarplusStrong, PluckConfig, PolyStrings};
+use rhi_unshape_audio::{KarplusStrong, PluckConfig, PolyStrings};
 
 // Single string
 let config = PluckConfig {
@@ -338,7 +338,7 @@ let sample = strings.tick();
 ### Percussion (Modal Synthesis)
 
 ```rust
-use rhizome_resin_audio::percussion::{Membrane, Bar, Plate, MembraneConfig};
+use rhi_unshape_audio::percussion::{Membrane, Bar, Plate, MembraneConfig};
 
 // Drum membrane
 let config = MembraneConfig::snare();  // Preset
@@ -363,7 +363,7 @@ let sample = drum.process() + cymbal.process();
 ### Convolution Reverb
 
 ```rust
-use rhizome_resin_audio::{ConvolutionReverb, generate_room_ir};
+use rhi_unshape_audio::{ConvolutionReverb, generate_room_ir};
 
 // Load impulse response
 let ir = load_wav("hall.wav");
@@ -379,7 +379,7 @@ let output = reverb.process(input);
 ### Room Simulation
 
 ```rust
-use rhizome_resin_audio::{RoomAcoustics, RoomConfig};
+use rhi_unshape_audio::{RoomAcoustics, RoomConfig};
 
 let config = RoomConfig {
     dimensions: Vec3::new(10.0, 3.0, 8.0),  // Room size in meters
@@ -402,7 +402,7 @@ let ir = room.generate_ir(sample_rate, length_seconds: 2.0);
 ### FFT
 
 ```rust
-use rhizome_resin_audio::{fft, ifft, Complex, window};
+use rhi_unshape_audio::{fft, ifft, Complex, window};
 
 // Apply window
 let windowed: Vec<f32> = window::hann(&samples);
@@ -420,7 +420,7 @@ let reconstructed: Vec<f32> = ifft(&spectrum);
 ### STFT (Short-Time Fourier Transform)
 
 ```rust
-use rhizome_resin_audio::{stft, istft, StftConfig};
+use rhi_unshape_audio::{stft, istft, StftConfig};
 
 let config = StftConfig {
     fft_size: 2048,
@@ -440,7 +440,7 @@ let output = istft(&result);
 ## Vocoder
 
 ```rust
-use rhizome_resin_audio::{Vocoder, FilterbankVocoder};
+use rhi_unshape_audio::{Vocoder, FilterbankVocoder};
 
 // FFT-based vocoder
 let mut vocoder = Vocoder::new(2048, sample_rate);
@@ -456,7 +456,7 @@ let output = fb_vocoder.process(carrier, modulator);
 ## Audio Graph
 
 ```rust
-use rhizome_resin_audio::{Chain, Mixer, AudioGraph};
+use rhi_unshape_audio::{Chain, Mixer, AudioGraph};
 
 // Simple chain
 let mut chain = Chain::new(sample_rate);
@@ -477,7 +477,7 @@ let output = mixer.tick();
 ## Synthesizer Patches
 
 ```rust
-use rhizome_resin_audio::{SynthPatch, PatchBank, ModRouting};
+use rhi_unshape_audio::{SynthPatch, PatchBank, ModRouting};
 
 // Create patch
 let mut patch = SynthPatch::new("Lead");
@@ -504,7 +504,7 @@ let bank = PatchBank::load("my_patches.json");
 ## MIDI
 
 ```rust
-use rhizome_resin_audio::midi::{MidiMessage, note_to_freq, freq_to_note};
+use rhi_unshape_audio::midi::{MidiMessage, note_to_freq, freq_to_note};
 
 // Parse MIDI message
 let msg = MidiMessage::parse(&[0x90, 60, 100]);
@@ -530,7 +530,7 @@ let note = freq_to_note(440.0);  // 69
 ## WAV Files
 
 ```rust
-use rhizome_resin_audio::{WavFile, WavFormat};
+use rhi_unshape_audio::{WavFile, WavFormat};
 
 // Load
 let wav = WavFile::load("sample.wav")?;
@@ -552,7 +552,7 @@ WavFormat::Float32
 ## Example: Complete Synth
 
 ```rust
-use rhizome_resin_audio::*;
+use rhi_unshape_audio::*;
 
 // Build a simple subtractive synth
 let sample_rate = 44100.0;

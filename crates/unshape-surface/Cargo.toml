@@ -1,0 +1,16 @@
+[package]
+name = "rhi-unshape-surface"
+version = "0.1.0"
+edition = "2024"
+description = "NURBS surfaces and tensor product surfaces"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rhizome-lab/resin"
+
+[features]
+default = []
+# Serialization support
+serde = ["dep:serde", "glam/serde"]
+
+[dependencies]
+glam.workspace = true
+serde = { workspace = true, optional = true }

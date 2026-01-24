@@ -1,0 +1,23 @@
+[package]
+name = "rhi-unshape-motion"
+version = "0.1.0"
+edition = "2024"
+description = "2D motion graphics scene graph with transforms, layers, and hierarchy"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rhizome-lab/resin"
+
+[features]
+default = []
+serde = ["dep:serde", "glam/serde", "rhi-unshape-color/serde"]
+
+[dependencies]
+glam.workspace = true
+rhi-unshape-color = { path = "../unshape-color" }
+rhi-unshape-easing = { path = "../unshape-easing" }
+rhi-unshape-motion-fn = { path = "../unshape-motion-fn" }
+rhi-unshape-noise = { path = "../unshape-noise" }
+rhi-unshape-transform = { path = "../unshape-transform" }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = "1"

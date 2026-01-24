@@ -37,7 +37,7 @@ Physical simulation systems for rigid bodies, fluids, cloth, and soft bodies.
 ### Core Types
 
 ```rust
-use rhizome_resin_physics::{RigidBody, Collider, PhysicsWorld};
+use rhi_unshape_physics::{RigidBody, Collider, PhysicsWorld};
 
 // Create collider shapes
 let sphere = Collider::sphere(1.0);
@@ -80,7 +80,7 @@ body.angular_damping = 0.05; // Rotational damping
 ### Constraints
 
 ```rust
-use rhizome_resin_physics::{DistanceConstraint, HingeConstraint, SpringConstraint};
+use rhi_unshape_physics::{DistanceConstraint, HingeConstraint, SpringConstraint};
 
 // Distance constraint (rigid connection)
 let distance = DistanceConstraint::new(body_a, body_b, 2.0);
@@ -97,7 +97,7 @@ let spring = SpringConstraint::new(body_a, body_b, stiffness, damping);
 ### Verlet Integration
 
 ```rust
-use rhizome_resin_spring::{SpringSystem, SpringConfig};
+use rhi_unshape_spring::{SpringSystem, SpringConfig};
 
 let mut system = SpringSystem::new();
 
@@ -123,7 +123,7 @@ system.step(0.016);  // 60 FPS timestep
 ### Preset Shapes
 
 ```rust
-use rhizome_resin_spring::{create_rope, create_cloth, create_soft_sphere};
+use rhi_unshape_spring::{create_rope, create_cloth, create_soft_sphere};
 
 // Rope: chain of particles
 let rope = create_rope(
@@ -156,7 +156,7 @@ let ball = create_soft_sphere(
 ### High-Level API
 
 ```rust
-use rhizome_resin_physics::{Cloth, ClothConfig};
+use rhi_unshape_physics::{Cloth, ClothConfig};
 
 let config = ClothConfig {
     structural_stiffness: 0.9,
@@ -179,7 +179,7 @@ cloth.step(dt, gravity);
 ### Cloth-Object Collision
 
 ```rust
-use rhizome_resin_physics::{ClothCollider, query_collision, solve_self_collision};
+use rhi_unshape_physics::{ClothCollider, query_collision, solve_self_collision};
 
 // Create collider for cloth to interact with
 let sphere_collider = ClothCollider::sphere(center, radius);
@@ -196,7 +196,7 @@ solve_self_collision(&mut cloth, grid_cell_size);
 Finite Element Method deformation for volumetric soft bodies.
 
 ```rust
-use rhizome_resin_physics::{
+use rhi_unshape_physics::{
     SoftBody, SoftBodyConfig, LameParameters, tetrahedralize_surface
 };
 
@@ -225,7 +225,7 @@ soft.step(dt);
 Best for: smoke, fire, contained liquids, real-time effects.
 
 ```rust
-use rhizome_resin_fluid::{FluidGrid2D, FluidConfig};
+use rhi_unshape_fluid::{FluidGrid2D, FluidConfig};
 
 let config = FluidConfig {
     diffusion: 0.0001,  // Viscosity
@@ -252,7 +252,7 @@ let v = fluid.velocity(x, y);
 ### 3D Grid Fluids
 
 ```rust
-use rhizome_resin_fluid::FluidGrid3D;
+use rhi_unshape_fluid::FluidGrid3D;
 
 let mut fluid = FluidGrid3D::new(64, 64, 64, config);
 fluid.add_density(32, 32, 32, 100.0);
@@ -265,7 +265,7 @@ fluid.step();
 Best for: splashing liquids, free-surface flows, interactions.
 
 ```rust
-use rhizome_resin_fluid::{Sph2D, SphConfig};
+use rhi_unshape_fluid::{Sph2D, SphConfig};
 
 let config = SphConfig {
     rest_density: 1000.0,    // Water density
@@ -291,7 +291,7 @@ let positions = sph.positions();
 ### 3D SPH
 
 ```rust
-use rhizome_resin_fluid::Sph3D;
+use rhi_unshape_fluid::Sph3D;
 
 let mut sph = Sph3D::new(config);
 sph.add_particle(Vec3::new(0.0, 1.0, 0.0));
@@ -301,7 +301,7 @@ sph.step(dt);
 ## Smoke/Gas Simulation
 
 ```rust
-use rhizome_resin_fluid::{SmokeGrid2D, SmokeConfig};
+use rhi_unshape_fluid::{SmokeGrid2D, SmokeConfig};
 
 let config = SmokeConfig {
     diffusion: 0.0001,

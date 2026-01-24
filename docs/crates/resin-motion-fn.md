@@ -102,7 +102,7 @@ let pingpong = PingPong::new(motion, 1.0);
 For UI introspection and serialization, use `MotionExpr` instead of runtime structs:
 
 ```rust
-use rhizome_resin_motion_fn::MotionExpr;
+use rhi_unshape_motion_fn::MotionExpr;
 
 // Build expression tree
 let expr = MotionExpr::Add(

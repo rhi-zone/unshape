@@ -3,7 +3,7 @@
 Serializable expressions that replace closures for transforms.
 
 > **Implementation:** Expressions are provided by [dew](https://github.com/rhizome-lab/dew), a separate expression library.
-> The `rhizome-resin-expr-field` crate bridges dew to the Field system.
+> The `rhi-unshape-expr-field` crate bridges dew to the Field system.
 
 ## The Problem
 
@@ -38,11 +38,11 @@ let result = eval(expr.ast(), &vars, &scalar_registry()).unwrap();
 
 ### Using with Fields
 
-The `rhizome-resin-expr-field` crate provides `ExprField` which bridges dew to the Field system:
+The `rhi-unshape-expr-field` crate provides `ExprField` which bridges dew to the Field system:
 
 ```rust
-use rhizome_resin_expr_field::{ExprField, register_noise, scalar_registry};
-use rhizome_resin_field::{Field, EvalContext};
+use rhi_unshape_expr_field::{ExprField, register_noise, scalar_registry};
+use rhi_unshape_field::{Field, EvalContext};
 use glam::Vec2;
 
 // Create registry with standard math + noise functions
@@ -116,12 +116,12 @@ pub trait ScalarFn<T>: Send + Sync {
 }
 ```
 
-### Resin Noise Functions
+### Unshape Noise Functions
 
-The `rhizome-resin-expr-field` crate provides noise functions:
+The `rhi-unshape-expr-field` crate provides noise functions:
 
 ```rust
-use rhizome_resin_expr_field::{register_noise, scalar_registry};
+use rhi_unshape_expr_field::{register_noise, scalar_registry};
 
 let mut registry = scalar_registry();  // Standard math (sin, cos, etc.)
 register_noise(&mut registry);         // Adds: noise, perlin, perlin3, simplex, simplex3, fbm
@@ -164,19 +164,19 @@ registry.register(MyFunction);
 Backend crates define extension traits for native compilation. Functions that don't implement an extension trait fall back to `decompose()` or `interpret()`.
 
 ```rust
-// In rhizome-resin-expr-wgsl crate
+// In rhi-unshape-expr-wgsl crate
 pub trait WgslExprFn: ExprFn {
     /// Generate WGSL code for this function call
     fn compile_wgsl(&self, args: &[&str]) -> String;
 }
 
-// In rhizome-resin-expr-cranelift crate
+// In rhi-unshape-expr-cranelift crate
 pub trait CraneliftExprFn: ExprFn {
     /// Generate Cranelift IR for this function call
     fn compile_cranelift(&self, builder: &mut FunctionBuilder, args: &[cranelift::Value]) -> cranelift::Value;
 }
 
-// In rhizome-resin-expr-lua crate (potential future backend)
+// In rhi-unshape-expr-lua crate (potential future backend)
 pub trait LuaExprFn: ExprFn {
     /// Generate Lua code for this function call
     fn compile_lua(&self, args: &[&str]) -> String;
@@ -208,7 +208,7 @@ impl FunctionRegistry {
 Backend crates wrap the registry with their extension trait downcasting:
 
 ```rust
-// In rhizome-resin-expr-wgsl:
+// In rhi-unshape-expr-wgsl:
 impl WgslCompiler {
     fn compile_call(&self, name: &str, args: &[Expr]) -> Result<String> {
         let func = self.registry.get(name).ok_or(UnknownFunction(name))?;
@@ -239,12 +239,12 @@ impl WgslCompiler {
 | Complex functions (noise) | Implement backend extension traits |
 | String -> function lookup | Single registry, backends downcast |
 
-### Standard Library (`rhizome-resin-expr-std`)
+### Standard Library (`rhi-unshape-expr-std`)
 
 Standard math functions live in a separate crate. This keeps core minimal and allows users to customize or replace the stdlib.
 
 ```rust
-// In rhizome-resin-expr-std crate
+// In rhi-unshape-expr-std crate
 
 /// Sine function
 pub struct Sin;
@@ -332,7 +332,7 @@ impl ExprFn for InverseLerp {
 Functions that can't decompose need backend-specific implementations:
 
 ```rust
-// In rhizome-resin-noise crate
+// In rhi-unshape-noise crate
 pub struct Perlin2D;
 
 impl ExprFn for Perlin2D {
@@ -349,7 +349,7 @@ impl ExprFn for Perlin2D {
     fn interpret(&self, args: &[Value]) -> Result<Value> {
         let x = args[0].as_f32()?;
         let y = args[1].as_f32()?;
-        Ok(Value::F32(rhizome_resin_core::noise::perlin2(x, y)))
+        Ok(Value::F32(rhi_unshape_core::noise::perlin2(x, y)))
     }
 }
 
@@ -546,7 +546,7 @@ Three ways to build expressions:
 Operator overloading + named constructors:
 
 ```rust
-use rhizome_resin_expr::prelude::*;
+use rhi_unshape_expr::prelude::*;
 
 // Builds Expr AST via operators
 let e = (position() + 1.0) * sin(time());
@@ -571,7 +571,7 @@ pub fn sin(x: impl Into<Expr>) -> Expr {
 ### 2. Proc Macro (compile-time parsing)
 
 ```rust
-use rhizome_resin_expr::expr;
+use rhi_unshape_expr::expr;
 
 // Parsed at compile time, produces Expr AST
 let e = expr!(sin(position * 2.0) + time);
@@ -592,7 +592,7 @@ let e = expr!(if uv.x > 0.5 { 1.0 } else { 0.0 });
 **Implementation sketch:**
 
 ```rust
-// rhizome-resin-expr-macros crate
+// rhi-unshape-expr-macros crate
 #[proc_macro]
 pub fn expr(input: TokenStream) -> TokenStream {
     let parsed = parse_expr_syntax(input);
@@ -604,7 +604,7 @@ pub fn expr(input: TokenStream) -> TokenStream {
 ### 3. Runtime Parser (for loaded files, user input)
 
 ```rust
-use rhizome_resin_expr::parse;
+use rhi_unshape_expr::parse;
 
 // Parsed at runtime
 let source = "sin(position * 2.0) + time";
@@ -802,12 +802,12 @@ dew (external git dependency):
 └── lua.rs         # Lua codegen
 
 resin:
-└── rhizome-resin-expr-field/  # Bridge: dew + Field + noise functions
+└── rhi-unshape-expr-field/  # Bridge: dew + Field + noise functions
 ```
 
-### Resin Expression Crate
+### Unshape Expression Crate
 
-**rhizome-resin-expr-field** provides:
+**rhi-unshape-expr-field** provides:
 - `ExprField`: evaluates expressions as spatial fields (implements `Field<Vec2, f32>` and `Field<Vec3, f32>`)
 - Noise functions: `noise`, `perlin`, `perlin3`, `simplex`, `simplex3`, `fbm`
 - Re-exports of key dew types for convenience
@@ -815,18 +815,18 @@ resin:
 **Dependencies:**
 
 ```
-rhizome-resin-expr-field
+rhi-unshape-expr-field
 ├── rhizome-dew-core      # Parsing, AST
 ├── rhizome-dew-scalar    # FunctionRegistry, eval, scalar_registry
-├── rhizome-resin-field   # Field trait, EvalContext
-└── rhizome-resin-noise   # Noise implementations
+├── rhi-unshape-field   # Field trait, EvalContext
+└── rhi-unshape-noise   # Noise implementations
 ```
 
 ## Decisions
 
 1. **Matrix operations** - `*` operator works on matrices (like WGSL). Type inference dispatches: scalar×scalar, vec×vec (component-wise), mat×vec, mat×mat. No AST change needed.
 
-2. **Constant folding** - Separate `rhizome-resin-expr-opt` crate. AST -> AST transformation, not part of core.
+2. **Constant folding** - Separate `rhi-unshape-expr-opt` crate. AST -> AST transformation, not part of core.
 
 3. **Square matrices only** - Mat2/3/4, no Mat3x4. Convert at domain boundaries.
 
@@ -847,7 +847,7 @@ rhizome-resin-expr-field
 | Loops | No (use graph recurrence) |
 | Functions | All functions are `ScalarFn<T>` plugins |
 | Standard library | `dew-scalar::scalar_registry()` provides math functions |
-| Noise functions | `rhizome-resin-expr-field::register_noise()` |
+| Noise functions | `rhi-unshape-expr-field::register_noise()` |
 | Backends | WGSL, Cranelift, Lua (in dew crate) |
-| Field integration | `ExprField` in `rhizome-resin-expr-field` |
+| Field integration | `ExprField` in `rhi-unshape-expr-field` |
 | Type system | Generic over float type via `ScalarFn<T>` |

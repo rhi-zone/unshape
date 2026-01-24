@@ -42,8 +42,8 @@ Graphs reference external assets by ID/path. Context resolves them. Allows:
 **Likely answer**: Separate adapter crate(s), minimal feature flags in core.
 
 ```
-rhizome-resin-core       # no bevy dependency
-rhizome-resin-bevy       # From/Into impls, bevy asset loader, etc.
+rhi-unshape-core       # no bevy dependency
+rhi-unshape-bevy       # From/Into impls, bevy asset loader, etc.
 ```
 
 Pattern:

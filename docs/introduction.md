@@ -1,10 +1,10 @@
-# Resin
+# Unshape
 
 Constructive generation and manipulation of media.
 
-## What is Resin?
+## What is Unshape?
 
-Resin is a Rust library for procedural generation and manipulation of media assets:
+Unshape is a Rust library for procedural generation and manipulation of media assets:
 
 - **3D Meshes** - geometry generation, primitives, indexed mesh representation
 - **2D Vector Art** - paths, shapes, bezier curves
@@ -24,7 +24,7 @@ Resin is a Rust library for procedural generation and manipulation of media asse
 ### Mesh Generation
 
 ```rust
-use rhizome_resin_mesh::{Cuboid, UvSphere};
+use rhi_unshape_mesh::{Cuboid, UvSphere};
 
 // Unit box centered at origin
 let cube = Cuboid::unit().apply();
@@ -36,7 +36,7 @@ let ball = UvSphere::new(1.0, 32, 16).apply();
 ### Noise Fields
 
 ```rust
-use rhizome_resin_core::{Field, Perlin2D, EvalContext};
+use rhi_unshape_core::{Field, Perlin2D, EvalContext};
 use glam::Vec2;
 
 // Lazy field - describes computation
@@ -50,7 +50,7 @@ let value = noise.sample(Vec2::new(0.5, 0.5), &ctx);
 ### Audio Oscillators
 
 ```rust
-use rhizome_resin_audio::{sine, saw, freq_to_phase};
+use rhi_unshape_audio::{sine, saw, freq_to_phase};
 
 let time = 0.5;  // seconds
 let freq = 440.0;  // Hz
@@ -62,7 +62,7 @@ let sample = sine(phase);  // -1.0 to 1.0
 ### 2D Paths
 
 ```rust
-use rhizome_resin_vector::{circle, rect, star, PathBuilder};
+use rhi_unshape_vector::{circle, rect, star, PathBuilder};
 use glam::Vec2;
 
 let c = circle(Vec2::ZERO, 1.0);
@@ -73,7 +73,7 @@ let s = star(Vec2::ZERO, 1.0, 0.5, 5);
 ### Skeletal Rigging
 
 ```rust
-use rhizome_resin_rig::{Skeleton, Bone, Transform};
+use rhi_unshape_rig::{Skeleton, Bone, Transform};
 use glam::Vec3;
 
 let mut skel = Skeleton::new();
@@ -89,11 +89,11 @@ let arm = skel.add_bone(
 
 ```toml
 [dependencies]
-rhizome-resin-core = "0.1"
-rhizome-resin-mesh = "0.1"
-rhizome-resin-audio = "0.1"
-rhizome-resin-vector = "0.1"
-rhizome-resin-rig = "0.1"
+rhi-unshape-core = "0.1"
+rhi-unshape-mesh = "0.1"
+rhi-unshape-audio = "0.1"
+rhi-unshape-vector = "0.1"
+rhi-unshape-rig = "0.1"
 ```
 
 See [Getting Started](./getting-started.md) for detailed setup instructions.

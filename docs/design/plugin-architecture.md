@@ -6,7 +6,7 @@ How third-party code extends resin with custom operations.
 
 **Resin defines the contract. Host handles loading.**
 
-Resin is a library, not a framework. Different hosts have different needs:
+Unshape is a library, not a framework. Different hosts have different needs:
 - Game engine: no user plugins, just built-in ops
 - DAW: existing Lua scripting system
 - Standalone tool: WASM sandbox for security
@@ -20,9 +20,9 @@ Forcing a plugin system on everyone would conflict with our modular philosophy.
 ┌─────────────────────────────────────────────────┐
 │  Host Application (DAW, modeler, game, etc.)    │
 ├─────────────────────────────────────────────────┤
-│  Optional: rhizome-resin-wasm-plugins / rhizome-resin-lua / ... │  ← adapters
+│  Optional: rhi-unshape-wasm-plugins / rhi-unshape-lua / ... │  ← adapters
 ├─────────────────────────────────────────────────┤
-│  rhizome-resin-core: traits + serialization contract    │  ← resin provides
+│  rhi-unshape-core: traits + serialization contract    │  ← resin provides
 └─────────────────────────────────────────────────┘
 ```
 
@@ -149,7 +149,7 @@ Works with `typetag` for automatic registration if all code is statically linked
 ### WASM Plugins (optional adapter)
 
 ```rust
-// rhizome-resin-wasm-plugins crate
+// rhi-unshape-wasm-plugins crate
 pub struct WasmPluginHost {
     engine: wasmtime::Engine,
     registry: OpRegistry<dyn MeshOp>,
@@ -167,7 +167,7 @@ impl WasmPluginHost {
 ### Lua Scripting (optional adapter)
 
 ```rust
-// rhizome-rhizome-resin-lua-plugins crate
+// rhizome-rhi-unshape-lua-plugins crate
 pub struct LuaPluginHost {
     lua: mlua::Lua,
     registry: OpRegistry<dyn MeshOp>,
@@ -217,7 +217,7 @@ If a type name isn't registered, deserialization fails with clear error ("unknow
 
 | Component | Responsibility |
 |-----------|----------------|
-| rhizome-resin-core | Op traits, serialization format, registry interface |
+| rhi-unshape-core | Op traits, serialization format, registry interface |
 | resin-*-plugins | Optional adapters for common plugin models |
 | Host application | Plugin discovery, loading, sandboxing |
 
