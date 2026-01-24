@@ -206,6 +206,116 @@ pub trait VelocityProvider { fn sample(&self, pos: Vec3, rng: &mut Rng) -> Vec3;
 
 This makes the primitive pattern explicit and enables custom implementations.
 
+## Complete Reference by Crate
+
+### unshape-image
+
+**Primitives (Layer 1):**
+| Struct | Purpose |
+|--------|---------|
+| `Convolve` | Spatial filtering with arbitrary kernel |
+| `Resize` | Scale image to new dimensions |
+| `Composite` | Blend images with blend modes |
+| `RemapUv` | Arbitrary UV coordinate transformation |
+| `MapPixels` | Per-pixel color transformation via `ColorExpr` |
+
+**Helpers (Layer 2):**
+| Function | Decomposes To |
+|----------|---------------|
+| `blur()` | `Convolve { gaussian_kernel }` |
+| `sharpen()` | `Convolve { sharpen_kernel }` |
+| `grayscale()` | `MapPixels { ColorExpr::grayscale() }` |
+| `invert()` | `MapPixels { ColorExpr::invert() }` |
+| `adjust_brightness_contrast()` | `MapPixels { ColorExpr::brightness_contrast() }` |
+| `adjust_hsl()` | `MapPixels { ColorExpr::hsl_adjust() }` |
+| `color_matrix()` | `MapPixels { ColorExpr::matrix() }` |
+| `extract_channel()` | `MapPixels { ColorExpr::Vec4 { ch, ch, ch, 1 } }` |
+| `swap_channels()` | `MapPixels { ColorExpr::Vec4 { swapped } }` |
+
+### unshape-field
+
+**Primitives (Layer 1):**
+| Struct | Purpose |
+|--------|---------|
+| `Map` | Transform field output |
+| `Zip` | Combine two fields into tuple |
+| `Zip3` | Combine three fields into tuple |
+| `FnField` | Wrap a function as field |
+| `Scale`, `Translate`, `Rotate` | Input coordinate transforms |
+
+**Helpers (Layer 2):**
+| Function | Decomposes To |
+|----------|---------------|
+| `add(a, b)` | `Zip(a, b).map(\|(x, y)\| x + y)` |
+| `mul(a, b)` | `Zip(a, b).map(\|(x, y)\| x * y)` |
+| `sub(a, b)` | `Zip(a, b).map(\|(x, y)\| x - y)` |
+| `div(a, b)` | `Zip(a, b).map(\|(x, y)\| x / y)` |
+| `lerp(a, b, t)` | `Zip3(a, b, t).map(\|(a, b, t)\| a*(1-t) + b*t)` |
+| `mix(a, b, t)` | Alias for `lerp` |
+
+### unshape-particle
+
+**Primitives (Layer 1):**
+| Trait/Struct | Purpose |
+|--------------|---------|
+| `PositionProvider` | Generate spawn positions |
+| `VelocityProvider` | Generate initial velocities |
+| `LifetimeProvider` | Generate lifetimes |
+| `AttributeProvider` | Generate size/color attributes |
+| `Integrator` | Time integration algorithm |
+
+**Implementations:**
+- `FixedPosition`, `SpherePosition`, `BoxPosition`
+- `ConeVelocity`, `RadialVelocity`
+- `LifetimeRange`, `FixedAttributes`
+- `EulerIntegrator`, `SemiImplicitEulerIntegrator`
+
+**Helpers (Layer 2):**
+| Struct | Decomposes To |
+|--------|---------------|
+| `CompositeEmitter<P,V,L,A>` | Combines provider traits |
+| `PointEmitter` | `CompositeEmitter<FixedPosition, ...>` |
+| `SphereEmitter` | `CompositeEmitter<SpherePosition, ...>` |
+
+### unshape-physics
+
+**Primitives (Layer 1):**
+| Trait/Struct | Purpose |
+|--------------|---------|
+| `ConstraintSolver` | Unified constraint interface |
+| `PointConstraint` | Fix point in world space |
+| `DistanceConstraint` | Maintain distance between bodies |
+| `HingeConstraint` | Rotational joint |
+
+All constraints implement `ConstraintSolver`:
+- `compute_error()` → position/angular deviation
+- `apply_correction()` → adjust bodies
+- `stiffness()` → constraint strength
+
+### unshape-rig
+
+**Primitives (Layer 1):**
+| Struct | Purpose |
+|--------|---------|
+| `SolveCcd` | CCD IK algorithm |
+| `SolveFabrik` | FABRIK IK algorithm |
+| `AnimationClip` | Keyframe animation data |
+
+IK solvers are irreducible - different algorithms for the same problem.
+
+### unshape-expr-field (Easing)
+
+**Primitives (Layer 1):** None - all easing uses dew's arithmetic primitives (`+`, `*`, `pow`, `sin`, `cos`).
+
+**Helpers (Layer 2):**
+| Function | Returns AST |
+|----------|-------------|
+| `quad_in(t)` | `Mul(t, t)` |
+| `cubic_in(t)` | `Mul(Mul(t, t), t)` |
+| `smoothstep(t)` | `Mul(t², Sub(3, Mul(2, t)))` |
+
+Easing functions are expression builders, not runtime computations.
+
 ## See Also
 
 - [ops-as-values.md](./ops-as-values.md) - Op struct patterns
