@@ -1020,7 +1020,7 @@ Recognizes common patterns and emits optimal code:
 - [x] Remove trivial wrappers - upsample deprecated (same as Resize), downsample kept (distinct box filter algorithm)
 
 ### Low Priority (Documentation)
-- [ ] Document which ops are compositions vs primitives
+- [x] Document which ops are compositions vs primitives (see `docs/design/primitive-decomposition.md`)
 - [x] Add pattern-matching optimizer for common compositions
   - **Expression-level optimization**: dew handles AST optimization (constant folding, identity elimination, algebraic simplification). ColorExpr converts to dew AST via `to_dew_ast()`.
   - **Operation-level optimization**: unshape-audio has `OptimizerPipeline` for audio graphs. Image would need an `ImagePipeline` type first to enable similar optimization.
