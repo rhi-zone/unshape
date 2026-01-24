@@ -103,7 +103,7 @@ Track progress auditing each crate for decomposition opportunities.
 | Upsample | `Resize { w*2, h*2 }` - trivial wrapper |
 
 **Issues Found:**
-- `AdjustHsl` duplicates ColorExpr colorspace logic
+- ~~`AdjustHsl` duplicates ColorExpr colorspace logic~~ ✅ Fixed: Added `ColorExpr::AdjustHsl` and `ColorExpr::AdjustHsv` variants with convenience constructors (`hsl_adjust`, `hue_shift`, `saturate`, `lighten`, `hsv_adjust`). The `adjust_hsl()` function now delegates to `ColorExpr`.
 - `AdjustBrightnessContrast` duplicates per-pixel math
 - Channel operations duplicate sampling patterns
 
