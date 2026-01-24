@@ -104,7 +104,8 @@ Track progress auditing each crate for decomposition opportunities.
 
 **Issues Found:**
 - ~~`AdjustHsl` duplicates ColorExpr colorspace logic~~ ✅ Fixed: Added `ColorExpr::AdjustHsl` and `ColorExpr::AdjustHsv` variants with convenience constructors (`hsl_adjust`, `hue_shift`, `saturate`, `lighten`, `hsv_adjust`). The `adjust_hsl()` function now delegates to `ColorExpr`.
-- `AdjustBrightnessContrast` duplicates per-pixel math
+- ~~`AdjustBrightnessContrast` duplicates per-pixel math~~ ✅ Fixed: Added `ColorExpr::AdjustBrightnessContrast` variant with `brightness_contrast()` convenience constructor. The `adjust_brightness_contrast()` function now delegates to `ColorExpr`.
+- ~~`color_matrix` duplicates per-pixel math~~ ✅ Fixed: Added `ColorExpr::Matrix` variant with `matrix()` convenience constructor. The `color_matrix()` function now delegates to `ColorExpr`.
 - Channel operations duplicate sampling patterns
 
 ---
