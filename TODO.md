@@ -801,6 +801,74 @@ See DECOMPOSITION-AUDIT.md for which are true primitives vs compositions.
 - Auditable: implementations can validate against schema
 - Tooling: editors, visualizers, converters
 
+### Cellular Automata Extensions
+
+> **Goal:** Expand unshape-automata with custom neighborhoods, new CA types, and advanced algorithms.
+
+**Foundation:**
+- [ ] `Neighborhood` trait - abstract neighborhood shape (Moore, VonNeumann, Hexagonal, Custom)
+  - `fn offsets(&self) -> &[(i32, i32)]` for 2D, `&[(i32, i32, i32)]` for 3D
+  - Implementations: `Moore`, `VonNeumann`, `Hexagonal`, `Custom(Vec<_>)`
+  - Refactor `CellularAutomaton2D::count_neighbors` to use trait
+
+**Larger than Life (LtL):**
+- [ ] `LtlRules` - range-based birth/survive rules with configurable radius
+  - `radius: u32` - neighborhood radius (1 = standard Moore, 2+ = larger)
+  - `birth: Range<u32>` - birth if neighbor count in range
+  - `survive: Range<u32>` - survive if neighbor count in range
+- [ ] `LargerThanLife` struct - generalization of `CellularAutomaton2D`
+- [ ] Presets: Bugs, Bosco's Rule, Waffle, etc.
+
+**3D Cellular Automata:**
+- [ ] `CellularAutomaton3D` - 3D grid with B/S rules
+  - 26-neighbor Moore or 6-neighbor von Neumann
+  - Uses `Neighborhood3D` trait
+- [ ] `LargerThanLife3D` - 3D LtL variant
+- [ ] Presets: 3D Life variants (445, 678, etc.)
+
+**Turmites / Langton's Ant:**
+- [ ] `LangtonsAnt` - classic 2-state ant with "RL" rule
+  - Position, direction, grid state
+  - `step()` advances ant
+- [ ] `Turmite` - generalized multi-state ant
+  - State machine: `(cell_color, ant_state) -> (new_color, turn, new_state)`
+  - Rule table representation
+- [ ] Presets: classic RL, LLRR, Fibonacci, etc.
+
+**SmoothLife:**
+- [ ] `SmoothLife` - continuous-space, continuous-state Life
+  - `f32` state values (0.0-1.0) instead of bool
+  - Inner/outer disk radii for neighbor counting
+  - Smooth sigmoid transition function
+  - Uses FFT convolution for efficient neighbor sums
+- [ ] `SmoothLifeConfig` - birth/death thresholds, sigmoid steepness, radii
+- [ ] Integration with `Field` trait? (continuous evaluation)
+
+**Wang Tiles:**
+- [ ] `WangTile` - tile with colored edges (N/E/S/W)
+- [ ] `WangTileSet` - collection of tiles with edge constraints
+- [ ] `solve_wang_tiling(tileset, width, height)` - wrapper around `WfcSolver`
+  - Converts edge constraints to WFC adjacency rules
+  - Returns tile grid or None if unsatisfiable
+- [ ] Presets: 2-color edge sets, corner variants
+
+**HashLife (Optimization):**
+- [ ] `HashLifeGrid` - quadtree representation with memoization
+  - `Node` = hash of (NW, NE, SW, SE) children
+  - Result cache: `HashMap<Node, Node>` for 2^k generation jumps
+- [ ] `step_pow2(log2_generations)` - advance 2^n generations in ~O(1)
+- [ ] `HashLifeGrid::from(CellularAutomaton2D)` - convert from standard grid
+- [ ] Memory management: LRU cache eviction for bounded memory
+
+**Priority order:**
+1. Neighborhood trait (unlocks everything)
+2. LtL (small change, big expressiveness)
+3. Turmites (new primitive, interesting behavior)
+4. 3D CA (natural extension)
+5. SmoothLife (continuous relaxation)
+6. Wang tiles (WFC wrapper, easy)
+7. HashLife (optimization, specialized)
+
 ### Architecture / Future Extraction
 
 - [ ] Scene graph generalization - evaluate if resin-motion's scene graph should be extracted to resin-scene for general use
