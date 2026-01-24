@@ -1025,3 +1025,77 @@ Recognizes common patterns and emits optimal code:
   - **Expression-level optimization**: dew handles AST optimization (constant folding, identity elimination, algebraic simplification). ColorExpr converts to dew AST via `to_dew_ast()`.
   - **Operation-level optimization**: unshape-audio has `OptimizerPipeline` for audio graphs. Image would need an `ImagePipeline` type first to enable similar optimization.
   - See `docs/design/primitive-decomposition.md` for Layer 3 architecture.
+
+### Remaining Candidates
+- [ ] **`adjust_levels`** - Has inline pixel iteration. Could be `ColorExpr::AdjustLevels { input_black, input_white, gamma, output_black, output_white }`. Formula: normalize → gamma → remap output.
+
+---
+
+## Verification Approach
+
+### Ops Reference (Auto-Generated)
+
+Run `cargo run -p extract-ops -- --md > docs/ops-reference.md` to generate the ops reference.
+
+This tool parses all crates and extracts structs with `apply` methods (the ops-as-values pattern), including:
+- Struct name and documentation
+- Field names, types, and docs
+- Input/output types from `apply` signature
+- Source file and line number
+
+The generated `docs/ops-reference.md` is the authoritative list of all ops.
+
+### Finding Non-Decomposed Code
+
+To find functions that could use expression-based decomposition but don't:
+
+### Pattern 1: Pixel Iteration Without ColorExpr
+
+Functions with `for y in 0..height { for x in 0..width` that apply per-pixel transforms should use `map_pixels` + `ColorExpr`.
+
+**Grep command:**
+```bash
+rg "for y in 0\.\.height" --type rust crates/unshape-image/src/ -B5 | grep "pub fn"
+```
+
+### Pattern 2: Functions Returning ImageField Without Delegation
+
+Functions that return `ImageField` and have inline pixel manipulation instead of delegating to a primitive:
+
+```bash
+rg "pub fn.*ImageField" --type rust crates/unshape-image/src/ -A20 | grep -E "(for.*0\.\.|\.push\()"
+```
+
+### Pattern 3: Missing Op Struct
+
+Free functions without corresponding op structs violate ops-as-values:
+
+```bash
+# Find public functions that don't have a matching struct
+rg "^pub fn \w+" --type rust crates/unshape-image/src/lib.rs -o | sort > /tmp/fns.txt
+rg "^pub struct \w+" --type rust crates/unshape-image/src/lib.rs -o | sort > /tmp/structs.txt
+comm -23 /tmp/fns.txt /tmp/structs.txt
+```
+
+### Exceptions (Not Candidates)
+
+Some inline iteration is legitimate:
+- **Convolution** - requires neighbor access, not expressible as per-pixel ColorExpr
+- **FFT/spectral ops** - complex algorithms, not per-pixel
+- **Dithering** - error diffusion requires state between pixels
+- **Inpainting** - iterative diffusion algorithm
+- **Multi-pass effects** - blue noise, datamosh, etc. with algorithmic complexity
+
+### CI Integration (Future)
+
+A lint could flag new functions with pixel iteration patterns that don't use `map_pixels`:
+
+```bash
+# In CI script
+if rg "for y in 0\.\.height" --type rust crates/unshape-image/src/lib.rs | \
+   grep -v "// PRIMITIVE:" > /dev/null; then
+  echo "Warning: New pixel iteration found. Consider using map_pixels + ColorExpr."
+fi
+```
+
+Functions that legitimately need pixel iteration should have a `// PRIMITIVE:` comment explaining why.
