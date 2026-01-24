@@ -1,6 +1,24 @@
 //! Inverse Kinematics solvers.
 //!
 //! Provides CCD and FABRIK algorithms for positioning bone chains.
+//!
+//! # Ops-as-Values
+//!
+//! The [`SolveCcd`] and [`SolveFabrik`] structs wrap the IK algorithms as
+//! serializable operations, enabling:
+//! - Project file storage
+//! - Node graph integration
+//! - Animation pipeline composition
+//!
+//! ```ignore
+//! use unshape_rig::{SolveCcd, IkConfig};
+//!
+//! // Create a reusable solver
+//! let solver = SolveCcd::new(IkConfig::default());
+//!
+//! // Use in animation loop
+//! let result = solver.apply(&skeleton, &mut pose, &chain, target);
+//! ```
 
 use crate::{BoneId, Pose, Skeleton, Transform3D};
 use glam::{Quat, Vec3};
@@ -351,6 +369,139 @@ fn apply_positions_to_pose(
                 ..current_transform
             },
         );
+    }
+}
+
+// ============================================================================
+// IK Solver Op Structs
+// ============================================================================
+
+/// CCD (Cyclic Coordinate Descent) IK solver as an op struct.
+///
+/// This wraps the CCD algorithm in a serializable struct for use in
+/// animation pipelines and node graphs.
+///
+/// # Example
+///
+/// ```ignore
+/// use unshape_rig::{SolveCcd, IkConfig, IkChain, Skeleton, Pose};
+/// use glam::Vec3;
+///
+/// let solver = SolveCcd::new(IkConfig::default());
+/// let result = solver.apply(&skeleton, &mut pose, &chain, Vec3::new(1.0, 1.0, 0.0));
+/// println!("Reached target: {}", result.reached);
+/// ```
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct SolveCcd {
+    /// IK solver configuration.
+    pub config: IkConfig,
+}
+
+impl SolveCcd {
+    /// Creates a new CCD solver with the given configuration.
+    pub fn new(config: IkConfig) -> Self {
+        Self { config }
+    }
+
+    /// Creates a CCD solver with default configuration.
+    pub fn default_config() -> Self {
+        Self {
+            config: IkConfig::default(),
+        }
+    }
+
+    /// Solves IK for the given chain to reach the target position.
+    ///
+    /// This mutates the pose in place and returns the solve result.
+    pub fn apply(
+        &self,
+        skeleton: &Skeleton,
+        pose: &mut Pose,
+        chain: &IkChain,
+        target: Vec3,
+    ) -> IkResult {
+        solve_ccd(skeleton, pose, chain, target, &self.config)
+    }
+}
+
+impl Default for SolveCcd {
+    fn default() -> Self {
+        Self::default_config()
+    }
+}
+
+/// FABRIK (Forward And Backward Reaching Inverse Kinematics) solver as an op struct.
+///
+/// FABRIK is often faster than CCD and produces smoother results for
+/// longer chains.
+///
+/// # Example
+///
+/// ```ignore
+/// use unshape_rig::{SolveFabrik, IkConfig, IkChain, Skeleton, Pose};
+/// use glam::Vec3;
+///
+/// let solver = SolveFabrik::with_tolerance(0.01);
+/// let result = solver.apply(&skeleton, &mut pose, &chain, Vec3::new(2.0, 0.0, 0.0));
+/// ```
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct SolveFabrik {
+    /// IK solver configuration.
+    pub config: IkConfig,
+}
+
+impl SolveFabrik {
+    /// Creates a new FABRIK solver with the given configuration.
+    pub fn new(config: IkConfig) -> Self {
+        Self { config }
+    }
+
+    /// Creates a FABRIK solver with default configuration.
+    pub fn default_config() -> Self {
+        Self {
+            config: IkConfig::default(),
+        }
+    }
+
+    /// Creates a FABRIK solver with custom tolerance.
+    pub fn with_tolerance(tolerance: f32) -> Self {
+        Self {
+            config: IkConfig {
+                tolerance,
+                ..IkConfig::default()
+            },
+        }
+    }
+
+    /// Creates a FABRIK solver with custom iteration limit.
+    pub fn with_max_iterations(max_iterations: u32) -> Self {
+        Self {
+            config: IkConfig {
+                max_iterations,
+                ..IkConfig::default()
+            },
+        }
+    }
+
+    /// Solves IK for the given chain to reach the target position.
+    ///
+    /// This mutates the pose in place and returns the solve result.
+    pub fn apply(
+        &self,
+        skeleton: &Skeleton,
+        pose: &mut Pose,
+        chain: &IkChain,
+        target: Vec3,
+    ) -> IkResult {
+        solve_fabrik(skeleton, pose, chain, target, &self.config)
+    }
+}
+
+impl Default for SolveFabrik {
+    fn default() -> Self {
+        Self::default_config()
     }
 }
 

@@ -637,10 +637,12 @@ Track progress auditing each crate for decomposition opportunities.
 2. `Pose` - per-bone transforms relative to rest pose
 3. `Transform3D` - TRS composition with lerp via quaternion slerp
 4. `Skin` - linear blend skinning (weighted bone transforms)
-5. `solve_ccd` - Cyclic Coordinate Descent IK
-6. `solve_fabrik` - Forward And Backward Reaching IK
+5. `SolveCcd` - Cyclic Coordinate Descent IK ✅
+6. `SolveFabrik` - Forward And Backward Reaching IK ✅
 7. `JiggleBone` - spring-damper physics for soft body
 8. `Track<T>` - keyframe storage with interpolation
+
+**Ops-as-Values:** ✅ IK solvers wrapped as op structs (`SolveCcd`, `SolveFabrik`) with serializable config.
 
 **Decompositions Found:**
 
