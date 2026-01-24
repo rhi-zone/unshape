@@ -1009,12 +1009,12 @@ Recognizes common patterns and emits optimal code:
 ### High Priority
 - [x] **Refactor resin-image to ops-as-values** - Convolve, Resize, Composite, RemapUv, MapPixels now structs
 - [x] Add `Zip<A, B>` and `Zip3<A, B, C>` combinators to resin-field
-- [ ] Expose Integrator trait in resin-particle
+- [x] Expose Integrator trait in resin-particle
 - [ ] Fix code duplication in resin-image colorspace ops
 
 ### Medium Priority
-- [ ] Refactor emitters to CompositeEmitter pattern
-- [ ] Unify constraint solvers to common pattern
+- [x] Refactor emitters to CompositeEmitter pattern
+- [x] Unify constraint solvers to common pattern
 - [x] Remove trivial wrappers - upsample deprecated (same as Resize), downsample kept (distinct box filter algorithm)
 
 ### Low Priority (Documentation)
