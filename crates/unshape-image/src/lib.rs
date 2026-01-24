@@ -2320,34 +2320,14 @@ impl HslAdjustment {
 /// let result = adjust_hsl(&img, &HslAdjustment::hue(0.5));
 /// ```
 pub fn adjust_hsl(image: &ImageField, adjustment: &HslAdjustment) -> ImageField {
-    use unshape_color::{Hsl, LinearRgb};
-
-    let (width, height) = image.dimensions();
-    let mut data = Vec::with_capacity((width * height) as usize);
-
-    for y in 0..height {
-        for x in 0..width {
-            let pixel = image.get_pixel(x, y);
-
-            // Convert to HSL
-            let rgb = LinearRgb::new(pixel[0], pixel[1], pixel[2]);
-            let hsl = rgb.to_hsl();
-
-            // Apply adjustments
-            let new_h = (hsl.h + adjustment.hue_shift).rem_euclid(1.0);
-            let new_s = (hsl.s * (1.0 + adjustment.saturation)).clamp(0.0, 1.0);
-            let new_l = (hsl.l + adjustment.lightness).clamp(0.0, 1.0);
-
-            // Convert back
-            let new_rgb = Hsl::new(new_h, new_s, new_l).to_rgb();
-
-            data.push([new_rgb.r, new_rgb.g, new_rgb.b, pixel[3]]);
-        }
-    }
-
-    ImageField::from_raw(data, width, height)
-        .with_wrap_mode(image.wrap_mode)
-        .with_filter_mode(image.filter_mode)
+    // Convert HslAdjustment to ColorExpr parameters:
+    // - saturation in HslAdjustment is additive (-1 to +1) but ColorExpr uses multiplicative
+    // - So we convert: saturation_mult = 1.0 + adjustment.saturation
+    let saturation_mult = 1.0 + adjustment.saturation;
+    map_pixels(
+        image,
+        &ColorExpr::hsl_adjust(adjustment.hue_shift, saturation_mult, adjustment.lightness),
+    )
 }
 
 /// Converts an image to grayscale using luminance.
@@ -8933,6 +8913,35 @@ pub enum ColorExpr {
     RgbToYcbcr(Box<ColorExpr>),
     /// Convert YCbCr to RGB.
     YcbcrToRgb(Box<ColorExpr>),
+
+    // === HSL/HSV adjustments ===
+    // These perform colorspace conversion, adjustment, and conversion back in one step.
+    /// Adjust hue, saturation, and lightness.
+    ///
+    /// This is more efficient than manual RGB→HSL→adjust→RGB because it's
+    /// a single operation that can be optimized.
+    ///
+    /// - `hue_shift`: Hue adjustment in [0, 1] range (wraps around)
+    /// - `saturation`: Saturation multiplier (1.0 = no change, 0.0 = grayscale)
+    /// - `lightness`: Lightness offset (-1 to +1)
+    AdjustHsl {
+        input: Box<ColorExpr>,
+        hue_shift: f32,
+        saturation: f32,
+        lightness: f32,
+    },
+
+    /// Adjust hue, saturation, and value.
+    ///
+    /// - `hue_shift`: Hue adjustment in [0, 1] range (wraps around)
+    /// - `saturation`: Saturation multiplier (1.0 = no change)
+    /// - `value`: Value multiplier (1.0 = no change)
+    AdjustHsv {
+        input: Box<ColorExpr>,
+        hue_shift: f32,
+        saturation: f32,
+        value: f32,
+    },
 }
 
 impl ColorExpr {
@@ -9212,6 +9221,36 @@ impl ColorExpr {
                 let (r, g, b) = ycbcr_to_rgb(ey, ecb, ecr);
                 [r, g, b, ea]
             }
+
+            // HSL/HSV adjustments
+            Self::AdjustHsl {
+                input,
+                hue_shift,
+                saturation,
+                lightness,
+            } => {
+                let [ir, ig, ib, ia] = input.eval(r, g, b, a);
+                let (h, s, l) = rgb_to_hsl(ir, ig, ib);
+                let new_h = (h + hue_shift).rem_euclid(1.0);
+                let new_s = (s * saturation).clamp(0.0, 1.0);
+                let new_l = (l + lightness).clamp(0.0, 1.0);
+                let (nr, ng, nb) = hsl_to_rgb(new_h, new_s, new_l);
+                [nr, ng, nb, ia]
+            }
+            Self::AdjustHsv {
+                input,
+                hue_shift,
+                saturation,
+                value,
+            } => {
+                let [ir, ig, ib, ia] = input.eval(r, g, b, a);
+                let (h, s, v) = rgb_to_hsv(ir, ig, ib);
+                let new_h = (h + hue_shift).rem_euclid(1.0);
+                let new_s = (s * saturation).clamp(0.0, 1.0);
+                let new_v = (v * value).clamp(0.0, 1.0);
+                let (nr, ng, nb) = hsv_to_rgb(new_h, new_s, new_v);
+                [nr, ng, nb, ia]
+            }
         }
     }
 
@@ -9351,6 +9390,71 @@ impl ColorExpr {
                 Box::new(Self::Constant(tint_b)),
             )),
             a: Box::new(Self::A),
+        }
+    }
+
+    /// Creates an HSL adjustment expression.
+    ///
+    /// # Arguments
+    ///
+    /// * `hue_shift` - Hue shift in [0, 1] range (wraps around the color wheel)
+    /// * `saturation` - Saturation multiplier (1.0 = no change, 0.0 = grayscale)
+    /// * `lightness` - Lightness offset (-1 to +1)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use unshape_image::{ImageField, ColorExpr, map_pixels};
+    ///
+    /// let data = vec![[1.0, 0.0, 0.0, 1.0]; 4]; // Red
+    /// let img = ImageField::from_raw(data, 2, 2);
+    ///
+    /// // Shift hue by 180 degrees (to cyan)
+    /// let result = map_pixels(&img, &ColorExpr::hsl_adjust(0.5, 1.0, 0.0));
+    /// ```
+    pub fn hsl_adjust(hue_shift: f32, saturation: f32, lightness: f32) -> Self {
+        Self::AdjustHsl {
+            input: Box::new(Self::Rgba),
+            hue_shift,
+            saturation,
+            lightness,
+        }
+    }
+
+    /// Creates a hue shift expression.
+    ///
+    /// Shorthand for `hsl_adjust(hue_shift, 1.0, 0.0)`.
+    pub fn hue_shift(amount: f32) -> Self {
+        Self::hsl_adjust(amount, 1.0, 0.0)
+    }
+
+    /// Creates a saturation adjustment expression.
+    ///
+    /// Shorthand for `hsl_adjust(0.0, multiplier, 0.0)`.
+    pub fn saturate(multiplier: f32) -> Self {
+        Self::hsl_adjust(0.0, multiplier, 0.0)
+    }
+
+    /// Creates a lightness adjustment expression.
+    ///
+    /// Shorthand for `hsl_adjust(0.0, 1.0, offset)`.
+    pub fn lighten(offset: f32) -> Self {
+        Self::hsl_adjust(0.0, 1.0, offset)
+    }
+
+    /// Creates an HSV adjustment expression.
+    ///
+    /// # Arguments
+    ///
+    /// * `hue_shift` - Hue shift in [0, 1] range (wraps around)
+    /// * `saturation` - Saturation multiplier (1.0 = no change)
+    /// * `value` - Value multiplier (1.0 = no change)
+    pub fn hsv_adjust(hue_shift: f32, saturation: f32, value: f32) -> Self {
+        Self::AdjustHsv {
+            input: Box::new(Self::Rgba),
+            hue_shift,
+            saturation,
+            value,
         }
     }
 
@@ -9526,6 +9630,36 @@ impl ColorExpr {
             Self::OklchToRgb(e) => Ast::Call("oklch_to_rgb".into(), vec![e.to_dew_ast()]),
             Self::RgbToYcbcr(e) => Ast::Call("rgb_to_ycbcr".into(), vec![e.to_dew_ast()]),
             Self::YcbcrToRgb(e) => Ast::Call("ycbcr_to_rgb".into(), vec![e.to_dew_ast()]),
+
+            // HSL/HSV adjustments
+            Self::AdjustHsl {
+                input,
+                hue_shift,
+                saturation,
+                lightness,
+            } => Ast::Call(
+                "adjust_hsl".into(),
+                vec![
+                    input.to_dew_ast(),
+                    Ast::Num(*hue_shift as f64),
+                    Ast::Num(*saturation as f64),
+                    Ast::Num(*lightness as f64),
+                ],
+            ),
+            Self::AdjustHsv {
+                input,
+                hue_shift,
+                saturation,
+                value,
+            } => Ast::Call(
+                "adjust_hsv".into(),
+                vec![
+                    input.to_dew_ast(),
+                    Ast::Num(*hue_shift as f64),
+                    Ast::Num(*saturation as f64),
+                    Ast::Num(*value as f64),
+                ],
+            ),
         }
     }
 }
