@@ -285,8 +285,10 @@ Track progress auditing each crate for decomposition opportunities.
 | CurlNoise | `NoisePerturbation + CurlOperator` |
 
 **Issues Found:**
-- Integrator hardcoded to Euler (should be trait)
-- All emitters duplicate attribute initialization
+- ~~Integrator hardcoded to Euler (should be trait)~~ ✅ Fixed: Added `Integrator` trait with `EulerIntegrator` and `SemiImplicitEulerIntegrator` implementations
+- ~~All emitters duplicate attribute initialization~~ ✅ Fixed: Added composable provider traits (`PositionProvider`, `VelocityProvider`, `LifetimeProvider`, `AttributeProvider`) and `CompositeEmitter`
+
+**Ops-as-Values:** ✅ Provider traits for composable emission: `FixedPosition`, `SpherePosition`, `BoxPosition`, `ConeVelocity`, `RadialVelocity`, `LifetimeRange`, `FixedAttributes`. `CompositeEmitter<P,V,L,A>` combines these.
 
 ---
 

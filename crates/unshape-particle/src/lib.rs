@@ -72,6 +72,448 @@ pub trait Emitter: Send + Sync {
     fn emit(&self, rng: &mut ParticleRng) -> Particle;
 }
 
+// ============================================================================
+// Emission Providers - Composable primitives for particle emission
+// ============================================================================
+
+/// Provides initial positions for emitted particles.
+pub trait PositionProvider: Send + Sync {
+    /// Returns a random starting position.
+    fn sample(&self, rng: &mut ParticleRng) -> Vec3;
+}
+
+/// Provides initial velocities for emitted particles.
+pub trait VelocityProvider: Send + Sync {
+    /// Returns a random starting velocity, possibly dependent on position.
+    fn sample(&self, position: Vec3, rng: &mut ParticleRng) -> Vec3;
+}
+
+/// Provides lifetime values for emitted particles.
+pub trait LifetimeProvider: Send + Sync {
+    /// Returns a random lifetime value.
+    fn sample(&self, rng: &mut ParticleRng) -> f32;
+}
+
+/// Provides visual attributes (size, color) for emitted particles.
+pub trait AttributeProvider: Send + Sync {
+    /// Returns size and color for a particle.
+    fn sample(&self, rng: &mut ParticleRng) -> (f32, [f32; 4]);
+}
+
+// ============================================================================
+// Position Providers
+// ============================================================================
+
+/// Fixed position emission.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct FixedPosition {
+    /// The emission position.
+    pub position: Vec3,
+}
+
+impl FixedPosition {
+    /// Creates a new fixed position at the origin.
+    pub fn origin() -> Self {
+        Self {
+            position: Vec3::ZERO,
+        }
+    }
+
+    /// Creates a new fixed position at the given point.
+    pub fn at(position: Vec3) -> Self {
+        Self { position }
+    }
+}
+
+impl Default for FixedPosition {
+    fn default() -> Self {
+        Self::origin()
+    }
+}
+
+impl PositionProvider for FixedPosition {
+    fn sample(&self, _rng: &mut ParticleRng) -> Vec3 {
+        self.position
+    }
+}
+
+/// Emission from sphere surface or volume.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct SpherePosition {
+    /// Center of the sphere.
+    pub center: Vec3,
+    /// Radius of the sphere.
+    pub radius: f32,
+    /// If true, emit from volume; if false, emit from surface.
+    pub volume: bool,
+}
+
+impl SpherePosition {
+    /// Creates a sphere position provider at the origin.
+    pub fn new(radius: f32) -> Self {
+        Self {
+            center: Vec3::ZERO,
+            radius,
+            volume: false,
+        }
+    }
+
+    /// Creates a sphere volume position provider.
+    pub fn volume(radius: f32) -> Self {
+        Self {
+            center: Vec3::ZERO,
+            radius,
+            volume: true,
+        }
+    }
+
+    /// Sets the center position.
+    pub fn centered_at(mut self, center: Vec3) -> Self {
+        self.center = center;
+        self
+    }
+}
+
+impl Default for SpherePosition {
+    fn default() -> Self {
+        Self::new(1.0)
+    }
+}
+
+impl PositionProvider for SpherePosition {
+    fn sample(&self, rng: &mut ParticleRng) -> Vec3 {
+        let dir = rng.unit_sphere();
+        let dist = if self.volume {
+            self.radius * rng.next_f32().powf(1.0 / 3.0)
+        } else {
+            self.radius
+        };
+        self.center + dir * dist
+    }
+}
+
+/// Emission from box surface or volume.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct BoxPosition {
+    /// Center of the box.
+    pub center: Vec3,
+    /// Half-extents of the box.
+    pub half_extents: Vec3,
+}
+
+impl BoxPosition {
+    /// Creates a unit box at the origin.
+    pub fn unit() -> Self {
+        Self {
+            center: Vec3::ZERO,
+            half_extents: Vec3::splat(0.5),
+        }
+    }
+
+    /// Creates a box with given half-extents.
+    pub fn new(half_extents: Vec3) -> Self {
+        Self {
+            center: Vec3::ZERO,
+            half_extents,
+        }
+    }
+
+    /// Sets the center position.
+    pub fn centered_at(mut self, center: Vec3) -> Self {
+        self.center = center;
+        self
+    }
+}
+
+impl Default for BoxPosition {
+    fn default() -> Self {
+        Self::unit()
+    }
+}
+
+impl PositionProvider for BoxPosition {
+    fn sample(&self, rng: &mut ParticleRng) -> Vec3 {
+        Vec3::new(
+            self.center.x + rng.range(-self.half_extents.x, self.half_extents.x),
+            self.center.y + rng.range(-self.half_extents.y, self.half_extents.y),
+            self.center.z + rng.range(-self.half_extents.z, self.half_extents.z),
+        )
+    }
+}
+
+// ============================================================================
+// Velocity Providers
+// ============================================================================
+
+/// Velocity in a random direction within a cone.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ConeVelocity {
+    /// Center direction of the cone.
+    pub direction: Vec3,
+    /// Cone half-angle in radians.
+    pub angle: f32,
+    /// Minimum speed.
+    pub speed_min: f32,
+    /// Maximum speed.
+    pub speed_max: f32,
+}
+
+impl ConeVelocity {
+    /// Creates a cone velocity with given direction and angle.
+    pub fn new(direction: Vec3, angle: f32) -> Self {
+        Self {
+            direction: direction.normalize_or_zero(),
+            angle,
+            speed_min: 1.0,
+            speed_max: 2.0,
+        }
+    }
+
+    /// Sets the speed range.
+    pub fn with_speed(mut self, min: f32, max: f32) -> Self {
+        self.speed_min = min;
+        self.speed_max = max;
+        self
+    }
+}
+
+impl Default for ConeVelocity {
+    fn default() -> Self {
+        Self::new(Vec3::Y, 0.5)
+    }
+}
+
+impl VelocityProvider for ConeVelocity {
+    fn sample(&self, _position: Vec3, rng: &mut ParticleRng) -> Vec3 {
+        let dir = if self.angle > 0.0 {
+            let random_dir = rng.unit_sphere();
+            let spread_amount = rng.next_f32() * self.angle / std::f32::consts::PI;
+            self.direction.lerp(random_dir, spread_amount).normalize()
+        } else {
+            self.direction
+        };
+        let speed = rng.range(self.speed_min, self.speed_max);
+        dir * speed
+    }
+}
+
+/// Velocity pointing radially outward from a center point.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct RadialVelocity {
+    /// Center point for radial direction.
+    pub center: Vec3,
+    /// Minimum speed.
+    pub speed_min: f32,
+    /// Maximum speed.
+    pub speed_max: f32,
+}
+
+impl RadialVelocity {
+    /// Creates radial velocity from the origin.
+    pub fn new() -> Self {
+        Self {
+            center: Vec3::ZERO,
+            speed_min: 1.0,
+            speed_max: 2.0,
+        }
+    }
+
+    /// Sets the center point.
+    pub fn from_center(mut self, center: Vec3) -> Self {
+        self.center = center;
+        self
+    }
+
+    /// Sets the speed range.
+    pub fn with_speed(mut self, min: f32, max: f32) -> Self {
+        self.speed_min = min;
+        self.speed_max = max;
+        self
+    }
+}
+
+impl Default for RadialVelocity {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl VelocityProvider for RadialVelocity {
+    fn sample(&self, position: Vec3, rng: &mut ParticleRng) -> Vec3 {
+        let dir = (position - self.center).normalize_or_zero();
+        let speed = rng.range(self.speed_min, self.speed_max);
+        dir * speed
+    }
+}
+
+// ============================================================================
+// Lifetime Provider
+// ============================================================================
+
+/// Random lifetime within a range.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct LifetimeRange {
+    /// Minimum lifetime.
+    pub min: f32,
+    /// Maximum lifetime.
+    pub max: f32,
+}
+
+impl LifetimeRange {
+    /// Creates a lifetime range.
+    pub fn new(min: f32, max: f32) -> Self {
+        Self { min, max }
+    }
+
+    /// Creates a fixed lifetime.
+    pub fn fixed(value: f32) -> Self {
+        Self {
+            min: value,
+            max: value,
+        }
+    }
+}
+
+impl Default for LifetimeRange {
+    fn default() -> Self {
+        Self::new(1.0, 2.0)
+    }
+}
+
+impl LifetimeProvider for LifetimeRange {
+    fn sample(&self, rng: &mut ParticleRng) -> f32 {
+        rng.range(self.min, self.max)
+    }
+}
+
+// ============================================================================
+// Attribute Provider
+// ============================================================================
+
+/// Fixed size and color attributes.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct FixedAttributes {
+    /// Particle size.
+    pub size: f32,
+    /// Particle color (RGBA).
+    pub color: [f32; 4],
+}
+
+impl FixedAttributes {
+    /// Creates fixed attributes.
+    pub fn new(size: f32, color: [f32; 4]) -> Self {
+        Self { size, color }
+    }
+
+    /// Creates white particles with given size.
+    pub fn white(size: f32) -> Self {
+        Self {
+            size,
+            color: [1.0, 1.0, 1.0, 1.0],
+        }
+    }
+}
+
+impl Default for FixedAttributes {
+    fn default() -> Self {
+        Self::white(1.0)
+    }
+}
+
+impl AttributeProvider for FixedAttributes {
+    fn sample(&self, _rng: &mut ParticleRng) -> (f32, [f32; 4]) {
+        (self.size, self.color)
+    }
+}
+
+// ============================================================================
+// Composite Emitter
+// ============================================================================
+
+/// A composable emitter built from providers.
+///
+/// This allows mixing different position, velocity, lifetime, and attribute
+/// sources to create custom emission behaviors.
+///
+/// # Example
+///
+/// ```
+/// use unshape_particle::{CompositeEmitter, SpherePosition, RadialVelocity, LifetimeRange, FixedAttributes};
+///
+/// let emitter = CompositeEmitter::new(
+///     SpherePosition::new(1.0),
+///     RadialVelocity::new().with_speed(2.0, 5.0),
+///     LifetimeRange::new(0.5, 2.0),
+///     FixedAttributes::white(0.1),
+/// );
+/// ```
+pub struct CompositeEmitter<P, V, L, A>
+where
+    P: PositionProvider,
+    V: VelocityProvider,
+    L: LifetimeProvider,
+    A: AttributeProvider,
+{
+    /// Position provider.
+    pub position: P,
+    /// Velocity provider.
+    pub velocity: V,
+    /// Lifetime provider.
+    pub lifetime: L,
+    /// Attribute provider.
+    pub attributes: A,
+}
+
+impl<P, V, L, A> CompositeEmitter<P, V, L, A>
+where
+    P: PositionProvider,
+    V: VelocityProvider,
+    L: LifetimeProvider,
+    A: AttributeProvider,
+{
+    /// Creates a new composite emitter from providers.
+    pub fn new(position: P, velocity: V, lifetime: L, attributes: A) -> Self {
+        Self {
+            position,
+            velocity,
+            lifetime,
+            attributes,
+        }
+    }
+}
+
+impl<P, V, L, A> Emitter for CompositeEmitter<P, V, L, A>
+where
+    P: PositionProvider,
+    V: VelocityProvider,
+    L: LifetimeProvider,
+    A: AttributeProvider,
+{
+    fn emit(&self, rng: &mut ParticleRng) -> Particle {
+        let position = self.position.sample(rng);
+        let velocity = self.velocity.sample(position, rng);
+        let lifetime = self.lifetime.sample(rng);
+        let (size, color) = self.attributes.sample(rng);
+
+        Particle {
+            position,
+            velocity,
+            age: 0.0,
+            lifetime,
+            size,
+            color,
+            custom: 0.0,
+        }
+    }
+}
+
 /// Modifies particles over time.
 pub trait Force: Send + Sync {
     /// Applies force to a particle, modifying its velocity.
