@@ -41,7 +41,7 @@ Skeletal animation, deformation, IK, procedural locomotion, and secondary motion
 ### Creating a Skeleton
 
 ```rust
-use rhizome_resin_rig::{Skeleton, Bone, BoneId, Transform};
+use rhi_unshape_rig::{Skeleton, Bone, BoneId, Transform};
 use glam::{Vec3, Quat};
 
 let mut skeleton = Skeleton::new();
@@ -81,7 +81,7 @@ let lower_arm = skeleton.add_bone(Bone {
 ### Poses
 
 ```rust
-use rhizome_resin_rig::Pose;
+use rhi_unshape_rig::Pose;
 
 // Create pose from skeleton (rest pose)
 let mut pose = Pose::from_skeleton(&skeleton);
@@ -98,7 +98,7 @@ let world_position = pose.world_position(&skeleton, upper_arm);
 ## Mesh Skinning
 
 ```rust
-use rhizome_resin_rig::{Skin, VertexInfluences, MAX_INFLUENCES};
+use rhi_unshape_rig::{Skin, VertexInfluences, MAX_INFLUENCES};
 
 // Create skin for mesh
 let mut skin = Skin::new(vertex_count);
@@ -122,7 +122,7 @@ let deformed_positions = skin.deform_positions(
 ### Animation Clips
 
 ```rust
-use rhizome_resin_rig::{AnimationClip, Track, Keyframe, Interpolation, AnimationTarget};
+use rhi_unshape_rig::{AnimationClip, Track, Keyframe, Interpolation, AnimationTarget};
 
 let mut clip = AnimationClip::new("walk", duration: 1.0);
 
@@ -149,7 +149,7 @@ clip.add_track(Track::new(
 ### Animation Playback
 
 ```rust
-use rhizome_resin_rig::AnimationPlayer;
+use rhi_unshape_rig::AnimationPlayer;
 
 let mut player = AnimationPlayer::new(&clip);
 
@@ -175,7 +175,7 @@ player.set_looping(true);
 ### Crossfade
 
 ```rust
-use rhizome_resin_rig::Crossfade;
+use rhi_unshape_rig::Crossfade;
 
 let mut crossfade = Crossfade::new(clip_a, clip_b, duration: 0.3);
 
@@ -186,7 +186,7 @@ crossfade.sample(&mut pose);
 ### Animation Layers
 
 ```rust
-use rhizome_resin_rig::{AnimationStack, AnimationLayer, BlendMode};
+use rhi_unshape_rig::{AnimationStack, AnimationLayer, BlendMode};
 
 let mut stack = AnimationStack::new();
 
@@ -213,7 +213,7 @@ stack.sample(time, &mut pose);
 ### Blend Trees
 
 ```rust
-use rhizome_resin_rig::BlendNode;
+use rhi_unshape_rig::BlendNode;
 
 // 1D blend (walk speed)
 let blend = BlendNode::Blend1D {
@@ -242,7 +242,7 @@ blend.sample(time, &mut pose);
 ### CCD (Cyclic Coordinate Descent)
 
 ```rust
-use rhizome_resin_rig::{IkChain, IkConfig, solve_ccd};
+use rhi_unshape_rig::{IkChain, IkConfig, solve_ccd};
 
 let chain = IkChain {
     bones: vec![upper_arm, lower_arm, hand],
@@ -261,7 +261,7 @@ let result = solve_ccd(&skeleton, &mut pose, &chain, &config);
 ### FABRIK
 
 ```rust
-use rhizome_resin_rig::solve_fabrik;
+use rhi_unshape_rig::solve_fabrik;
 
 let result = solve_fabrik(&skeleton, &mut pose, &chain, &config);
 
@@ -278,7 +278,7 @@ if result.reached {
 ### Path Constraint
 
 ```rust
-use rhizome_resin_rig::{PathConstraint, Path3D, ConstraintStack};
+use rhi_unshape_rig::{PathConstraint, Path3D, ConstraintStack};
 
 // Create path
 let path = Path3D::from_points(&[
@@ -306,7 +306,7 @@ stack.evaluate(&skeleton, &mut pose);
 ### Walk Cycle Generator
 
 ```rust
-use rhizome_resin_rig::{ProceduralWalk, GaitConfig, GaitPattern, WalkAnimator};
+use rhi_unshape_rig::{ProceduralWalk, GaitConfig, GaitPattern, WalkAnimator};
 
 let config = GaitConfig {
     stride_length: 0.8,
@@ -332,7 +332,7 @@ walk.apply_to_pose(&mut pose);
 ### Foot Placement
 
 ```rust
-use rhizome_resin_rig::FootPlacement;
+use rhi_unshape_rig::FootPlacement;
 
 let mut placement = FootPlacement::new(&skeleton);
 placement.add_foot(foot_l, leg_chain_l);
@@ -351,7 +351,7 @@ placement.update(
 ### Database Setup
 
 ```rust
-use rhizome_resin_rig::{
+use rhi_unshape_rig::{
     MotionDatabase, MotionClip, MotionFrame, MotionFrameBuilder,
     MotionMatcher, MotionMatchingConfig, MotionQuery,
 };
@@ -400,7 +400,7 @@ let blended = blend_frames(&current_frame, &result.frame, blend_factor);
 ### Jiggle Bones
 
 ```rust
-use rhizome_resin_rig::{JiggleBone, SecondaryConfig};
+use rhi_unshape_rig::{JiggleBone, SecondaryConfig};
 
 let config = SecondaryConfig {
     stiffness: 0.5,
@@ -418,7 +418,7 @@ jiggle.apply(&mut pose);
 ### Jiggle Chain
 
 ```rust
-use rhizome_resin_rig::JiggleChain;
+use rhi_unshape_rig::JiggleChain;
 
 // Chain of bones (e.g., ponytail)
 let mut chain = JiggleChain::new(
@@ -433,7 +433,7 @@ chain.apply(&mut pose);
 ### Jiggle Mesh
 
 ```rust
-use rhizome_resin_rig::JiggleMesh;
+use rhi_unshape_rig::JiggleMesh;
 
 let mut jiggle_mesh = JiggleMesh::new(
     &original_positions,
@@ -448,7 +448,7 @@ let deformed = jiggle_mesh.positions();
 ### Follow-Through and Overlap
 
 ```rust
-use rhizome_resin_rig::{FollowThrough, OverlappingAction, RotationFollowThrough};
+use rhi_unshape_rig::{FollowThrough, OverlappingAction, RotationFollowThrough};
 
 // Position follow-through (drag)
 let mut follow = FollowThrough::new(bone, drag: 0.3);
@@ -470,7 +470,7 @@ let mut overlap = OverlappingAction::new(
 ### Wind Forces
 
 ```rust
-use rhizome_resin_rig::{WindForce, apply_wind_to_bone, apply_wind_to_chain};
+use rhi_unshape_rig::{WindForce, apply_wind_to_bone, apply_wind_to_chain};
 
 let wind = WindForce {
     direction: Vec3::new(1.0, 0.0, 0.3),
@@ -489,7 +489,7 @@ apply_wind_to_chain(&wind, &mut jiggle_chain, time);
 ## 3D Paths
 
 ```rust
-use rhizome_resin_rig::{Path3D, Path3DBuilder, PathSample};
+use rhi_unshape_rig::{Path3D, Path3DBuilder, PathSample};
 
 // Build path
 let path = Path3DBuilder::new()
@@ -518,7 +518,7 @@ let sample = path.sample_at_length(distance: 1.5);
 ## Example: Complete Character Rig
 
 ```rust
-use rhizome_resin_rig::*;
+use rhi_unshape_rig::*;
 
 // Setup skeleton
 let mut skeleton = Skeleton::new();

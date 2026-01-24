@@ -40,7 +40,7 @@ Algorithms for generating content procedurally: terrain, mazes, networks, plants
 ### Algorithms
 
 ```rust
-use rhizome_resin_procgen::maze::{generate_maze, MazeAlgorithm, Maze};
+use rhi_unshape_procgen::maze::{generate_maze, MazeAlgorithm, Maze};
 
 // Available algorithms
 let maze = generate_maze(width, height, MazeAlgorithm::RecursiveBacktracker, seed);
@@ -80,7 +80,7 @@ let (gw, gh) = maze.grid_dimensions(); // Including walls
 ### Road Networks
 
 ```rust
-use rhizome_resin_procgen::network::{RoadNetwork, RoadConfig, RoadType};
+use rhi_unshape_procgen::network::{RoadNetwork, RoadConfig, RoadType};
 use glam::Vec2;
 
 let config = RoadConfig::default();
@@ -103,7 +103,7 @@ let segments = network.to_segments();
 ### River Networks
 
 ```rust
-use rhizome_resin_procgen::network::{RiverNetwork, RiverConfig};
+use rhi_unshape_procgen::network::{RiverNetwork, RiverConfig};
 
 let config = RiverConfig {
     meander_strength: 0.3,
@@ -123,7 +123,7 @@ let segments = rivers.to_segments();
 ### Basic Usage
 
 ```rust
-use rhizome_resin_lsystem::{LSystem, Rule, TurtleConfig, interpret_turtle_2d};
+use rhi_unshape_lsystem::{LSystem, Rule, TurtleConfig, interpret_turtle_2d};
 
 // Define system
 let lsystem = LSystem::new("F")
@@ -160,7 +160,7 @@ let paths = turtle.apply(&result);
 ### Presets
 
 ```rust
-use rhizome_resin_lsystem::presets;
+use rhi_unshape_lsystem::presets;
 
 // Classic fractals
 let koch = presets::koch_curve();
@@ -176,7 +176,7 @@ let fern = presets::barnsley_fern();
 ### 3D Interpretation
 
 ```rust
-use rhizome_resin_lsystem::interpret_turtle_3d;
+use rhi_unshape_lsystem::interpret_turtle_3d;
 
 let tree_string = lsystem.generate(5);
 let branches = interpret_turtle_3d(&tree_string, &config);
@@ -189,7 +189,7 @@ let branches = interpret_turtle_3d(&tree_string, &config);
 ### Tree Generation
 
 ```rust
-use rhizome_resin_space_colonization::{SpaceColonization, SpaceColonizationConfig};
+use rhi_unshape_space_colonization::{SpaceColonization, SpaceColonizationConfig};
 use glam::Vec3;
 
 let config = SpaceColonizationConfig {
@@ -246,7 +246,7 @@ for point in my_points {
 ### 1D Elementary CA
 
 ```rust
-use rhizome_resin_automata::{ElementaryCA, elementary_rules};
+use rhi_unshape_automata::{ElementaryCA, elementary_rules};
 
 // Create with rule number (0-255)
 let mut ca = ElementaryCA::new(width: 100, rule: 30);
@@ -273,7 +273,7 @@ let pattern = ca.generate_pattern(generations: 100);
 ### 2D Cellular Automata
 
 ```rust
-use rhizome_resin_automata::{CellularAutomaton2D, GameOfLife, rules};
+use rhi_unshape_automata::{CellularAutomaton2D, GameOfLife, rules};
 
 // Conway's Game of Life
 let mut life = GameOfLife::life(50, 50);
@@ -298,7 +298,7 @@ rules::DIAMOEBA;   // B35678/S5678 - Amoeba
 ### Gray-Scott Model
 
 ```rust
-use rhizome_resin_rd::{ReactionDiffusion, GrayScottPreset};
+use rhi_unshape_rd::{ReactionDiffusion, GrayScottPreset};
 
 let mut rd = ReactionDiffusion::new(256, 256);
 
@@ -333,7 +333,7 @@ let pattern = rd.get_v_normalized();  // 0.0-1.0 values
 ### Heightfield Creation
 
 ```rust
-use rhizome_resin_mesh::{Heightfield, HydraulicErosion, ThermalErosion};
+use rhi_unshape_mesh::{Heightfield, HydraulicErosion, ThermalErosion};
 
 // Create heightfield
 let mut hf = Heightfield::new(256, 256);
@@ -388,7 +388,7 @@ let normal_map = hf.to_normal_map();
 ## Building Generation
 
 ```rust
-use rhizome_resin_procgen::{Building, generate_building, generate_stairs};
+use rhi_unshape_procgen::{Building, generate_building, generate_stairs};
 
 // Simple building from footprint
 let footprint = vec![

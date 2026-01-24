@@ -484,4 +484,4 @@ But they share:
 3. **Noise** - several domains use it
 4. **Math types** - universal
 
-Design accordingly: shared utilities in `rhizome-resin-core`, domain-specific abstractions in domain crates.
+Design accordingly: shared utilities in `rhi-unshape-core`, domain-specific abstractions in domain crates.

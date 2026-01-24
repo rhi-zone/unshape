@@ -128,10 +128,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 ```toml
 # resin-gpu/Cargo.toml
 [features]
-image-expr = ["dep:rhizome-resin-image", "rhizome-resin-image/wgsl"]
+image-expr = ["dep:rhi-unshape-image", "rhi-unshape-image/wgsl"]
 
 [dependencies]
-rhizome-resin-image = { path = "../resin-image", optional = true }
+rhi-unshape-image = { path = "../resin-image", optional = true }
 ```
 
 ## Future: Pipeline Fusion

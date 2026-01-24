@@ -33,7 +33,7 @@ SIMD JIT beats native because:
 ## Usage
 
 ```rust
-use rhizome_resin_jit::{JitCompiler, JitConfig};
+use rhi_unshape_jit::{JitCompiler, JitConfig};
 
 // Compile affine transform: y = 0.5x + 1.0
 let mut compiler = JitCompiler::new(JitConfig::default())?;

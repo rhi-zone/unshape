@@ -46,7 +46,7 @@ See [expression-language](./design/expression-language.md) for full design.
 | Question | Status | Notes |
 |----------|--------|-------|
 | Ops as values | ✅ Resolved | Yes, ops are serializable structs. Derive macro for DynOp impl. See [ops-as-values](./design/ops-as-values.md) |
-| Plugin op registration | ✅ Resolved | Core defines trait + serialization contract. Plugin *loading* is host's responsibility. Optional adapters (rhizome-resin-wasm-plugins, etc.) for common cases. See [plugin-architecture](./design/plugin-architecture.md) |
+| Plugin op registration | ✅ Resolved | Core defines trait + serialization contract. Plugin *loading* is host's responsibility. Optional adapters (rhi-unshape-wasm-plugins, etc.) for common cases. See [plugin-architecture](./design/plugin-architecture.md) |
 | Graph evaluation caching | ✅ Resolved | Hash-based caching at node boundaries (salsa-style). Inputs unchanged -> return cached output |
 | External references | ✅ Resolved | IDs + resolution context (ComfyUI pattern). Optional asset embedding for portability (any size). |
 
@@ -55,7 +55,7 @@ See [expression-language](./design/expression-language.md) for full design.
 | Question | Status | Notes |
 |----------|--------|-------|
 | Half-edge vs index-based | ✅ Resolved | Half-edge internal, indexed on export. Accept memory cost for topology ops. See [mesh-representation](./design/mesh-representation.md) |
-| Instancing | ✅ Resolved | Plugin crate (`rhizome-resin-instances`), not core. Provides `Instances` type + scatter ops + merge to `Mesh`. |
+| Instancing | ✅ Resolved | Plugin crate (`rhi-unshape-instances`), not core. Provides `Instances` type + scatter ops + merge to `Mesh`. |
 | SDF integration | ✅ Resolved | SDF is `Field<Vec3, f32>`. SDF ops are field combinators. Meshing via explicit operators (MarchingCubes, etc.). Optional `Sdf` marker trait for type-level guarantees. |
 | Fields for selection | ✅ Resolved | Yes. `Field<VertexData, bool>` for inline/lazy selection, `SelectionSet` for materialized/named/manual picks. Same Field vs materialized pattern. |
 
@@ -66,7 +66,7 @@ See [expression-language](./design/expression-language.md) for full design.
 | Sample rate | ✅ Resolved | Runtime from EvalContext. Nodes query `ctx.sample_rate`. Lazy buffer init (one-time cost per rate). Same graph works at any host rate. |
 | Block size | ✅ Resolved | Host-controlled, variable. Nodes handle any size. Block size from EvalContext. Feedback edges update per-block. |
 | Modulation depth | ✅ Resolved | Hybrid. Node author decides which params are modulatable via `#[modulatable]`. Explicit mod inputs, not implicit on everything. Graph resolves per-block (not per-sample), zero cost when unconnected. |
-| Polyphony model | ✅ Resolved | Per-graph cloning (Pd pattern). Plugin crate (`rhizome-resin-poly`), not core. Voice allocator clones graph instances, mixes output. Matches instancing pattern. |
+| Polyphony model | ✅ Resolved | Per-graph cloning (Pd pattern). Plugin crate (`rhi-unshape-poly`), not core. Voice allocator clones graph instances, mixes output. Matches instancing pattern. |
 | Control vs audio rate | ✅ Resolved | No special types. Control rate = lower numeric rate. Explicit conversion nodes if needed (from mixed rates decision). |
 | State management | ✅ Resolved | Recurrent graphs: feedback edges carry state, nodes stay pure. Delay granularity per-edge, mixed rates via explicit conversion. See [recurrent-graphs](./design/recurrent-graphs.md) |
 
@@ -97,8 +97,8 @@ See [expression-language](./design/expression-language.md) for full design.
 |----------|--------|-------|
 | Unified 2D/3D rig | ✅ Resolved | Yes. Generic `Rig<G: HasPositions>` trait. Same bones/skinning concepts, just different dimensionality. Live2D validates 2D case. |
 | Deformer stacking | ✅ Resolved | Graph internal, Stack API. See [deformer-stacking](./design/deformer-stacking.md) |
-| Animation blending | ✅ Resolved | Separate crate (`rhizome-resin-anim`), bevy-style modularity. |
-| Procedural rigging | ✅ Resolved | Plugin crate (`rhizome-resin-autorig`). Core provides rig primitives, auto-generation is domain-specific. |
+| Animation blending | ✅ Resolved | Separate crate (`rhi-unshape-anim`), bevy-style modularity. |
+| Procedural rigging | ✅ Resolved | Plugin crate (`rhi-unshape-autorig`). Core provides rig primitives, auto-generation is domain-specific. |
 | Real-time vs offline | ✅ Resolved | Same API, user manages budget. Solver params (iterations, tolerance) for quality/speed tradeoff. Bone count is authoring choice. |
 
 ---

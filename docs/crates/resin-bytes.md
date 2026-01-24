@@ -17,7 +17,7 @@ This is a minimal crate with only `bytemuck` as a dependency.
 ### Raw Byte Casting
 Reinterpret bytes as different numeric types:
 ```rust
-use rhizome_resin_bytes::*;
+use rhi_unshape_bytes::*;
 
 // Any file as audio samples
 let jpeg_bytes = std::fs::read("photo.jpg")?;

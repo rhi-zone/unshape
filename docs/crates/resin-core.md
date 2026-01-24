@@ -28,7 +28,7 @@ The foundational crate for resin's node graph system. Provides the runtime graph
 A `Graph` contains nodes (computation units) connected by wires (data flow connections). Each node has typed input/output ports.
 
 ```rust
-use rhizome_resin_core::{Graph, DynNode, EvalContext, Value, ValueType, PortDescriptor, GraphError};
+use rhi_unshape_core::{Graph, DynNode, EvalContext, Value, ValueType, PortDescriptor, GraphError};
 
 // Define a custom node that adds two numbers
 struct AddNode;
@@ -85,7 +85,7 @@ assert_eq!(result[0].as_f32().unwrap(), 5.0);
 The evaluation context provides execution parameters beyond just input values:
 
 ```rust
-use rhizome_resin_core::{EvalContext, CancellationToken};
+use rhi_unshape_core::{EvalContext, CancellationToken};
 
 // Basic context
 let ctx = EvalContext::new();
@@ -139,7 +139,7 @@ let result = graph.execute_with_context(output_node, &ctx)?;
 `LazyEvaluator` only computes nodes needed for requested outputs, with caching:
 
 ```rust
-use rhizome_resin_core::{LazyEvaluator, Evaluator, EvalContext};
+use rhi_unshape_core::{LazyEvaluator, Evaluator, EvalContext};
 
 let mut evaluator = LazyEvaluator::new();
 let ctx = EvalContext::new();
@@ -164,7 +164,7 @@ evaluator.invalidate(some_node);
 Implement `CachePolicy` to control caching behavior:
 
 ```rust
-use rhizome_resin_core::{CachePolicy, CacheKey, CacheEntry, EvalCache, NodeId, Value};
+use rhi_unshape_core::{CachePolicy, CacheKey, CacheEntry, EvalCache, NodeId, Value};
 
 struct TimeLimitedPolicy {
     max_age: std::time::Duration,
@@ -195,7 +195,7 @@ let evaluator = LazyEvaluator::with_policy(TimeLimitedPolicy {
 The `Value` enum represents data flowing through wires:
 
 ```rust
-use rhizome_resin_core::Value;
+use rhi_unshape_core::Value;
 use glam::{Vec2, Vec3, Vec4};
 
 // Scalars
@@ -218,7 +218,7 @@ let x: f32 = f.as_f32().unwrap();
 Long-running evaluations can be cancelled cooperatively:
 
 ```rust
-use rhizome_resin_core::{CancellationToken, EvalContext, LazyEvaluator, Evaluator};
+use rhi_unshape_core::{CancellationToken, EvalContext, LazyEvaluator, Evaluator};
 use std::thread;
 
 let token = CancellationToken::new();
@@ -258,7 +258,7 @@ fn execute(&self, inputs: &[Value], ctx: &EvalContext) -> Result<Vec<Value>, Gra
 Track evaluation progress via callbacks:
 
 ```rust
-use rhizome_resin_core::{EvalContext, EvalProgress};
+use rhi_unshape_core::{EvalContext, EvalProgress};
 
 let ctx = EvalContext::new().with_progress(|progress: EvalProgress| {
     println!(
@@ -275,7 +275,7 @@ let ctx = EvalContext::new().with_progress(|progress: EvalProgress| {
 The `#[derive(DynNode)]` macro simplifies node definitions:
 
 ```rust
-use rhizome_resin_core::{DynNodeDerive, EvalContext};
+use rhi_unshape_core::{DynNodeDerive, EvalContext};
 
 #[derive(DynNodeDerive, Clone, Default)]
 struct MultiplyNode {
@@ -299,7 +299,7 @@ The macro generates the `DynNode` trait implementation, port descriptors, and va
 ## Error Handling
 
 ```rust
-use rhizome_resin_core::GraphError;
+use rhi_unshape_core::GraphError;
 
 match graph.execute(node) {
     Ok(outputs) => { /* use outputs */ }
@@ -315,7 +315,7 @@ match graph.execute(node) {
 ## Example: Animation Graph
 
 ```rust
-use rhizome_resin_core::{Graph, EvalContext, LazyEvaluator, Evaluator};
+use rhi_unshape_core::{Graph, EvalContext, LazyEvaluator, Evaluator};
 
 fn render_frame(
     graph: &Graph,

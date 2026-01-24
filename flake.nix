@@ -1,5 +1,5 @@
 {
-  description = "resin - constructive media generation";
+  description = "unshape - constructive media generation";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

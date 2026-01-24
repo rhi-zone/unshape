@@ -5,7 +5,7 @@
 //!
 //! Run with: `cargo run --example audio_synthesis`
 
-use rhizome_resin_audio::{FmOsc, Reverb, WavFile, chorus};
+use rhi_unshape_audio::{FmOsc, Reverb, WavFile, chorus};
 
 fn main() {
     let sample_rate = 44100u32;

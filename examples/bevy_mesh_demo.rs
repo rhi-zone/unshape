@@ -1,6 +1,6 @@
 //! Bevy integration demo: Procedural mesh generation.
 //!
-//! Demonstrates using resin-mesh to generate procedural geometry
+//! Demonstrates using unshape-mesh to generate procedural geometry
 //! and display it in Bevy.
 //!
 //! Run with: `cargo run --example bevy_mesh_demo`
@@ -9,7 +9,7 @@ use bevy::{
     prelude::*,
     render::mesh::{Indices, PrimitiveTopology},
 };
-use rhizome_resin_mesh::{Cuboid, UvSphere, subdivide_loop_n};
+use rhi_unshape_mesh::{Cuboid, UvSphere, subdivide_loop_n};
 
 fn main() {
     App::new()
@@ -103,7 +103,7 @@ fn rotate_meshes(time: Res<Time>, mut query: Query<(&mut Transform, &Rotating)>)
 }
 
 /// Convert a resin Mesh to a Bevy Mesh.
-fn resin_mesh_to_bevy(resin: &rhizome_resin_mesh::Mesh) -> Mesh {
+fn resin_mesh_to_bevy(resin: &rhi_unshape_mesh::Mesh) -> Mesh {
     let mut mesh = Mesh::new(
         PrimitiveTopology::TriangleList,
         bevy::render::render_asset::RenderAssetUsages::default(),

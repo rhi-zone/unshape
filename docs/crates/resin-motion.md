@@ -140,7 +140,7 @@ scene.add_layer(logo);
 Use motion functions to drive transforms over time:
 
 ```rust
-use rhizome_resin_motion_fn::{Spring, Oscillate, Eased, Motion};
+use rhi_unshape_motion_fn::{Spring, Oscillate, Eased, Motion};
 
 fn animate_scene(scene: &mut Scene, time: f32) {
     // Logo entrance

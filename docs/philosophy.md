@@ -83,11 +83,11 @@ Optional, domain-specific, or heavyweight features go in plugin crates:
 ```
 Core (always available)     Plugin (opt-in)
 ─────────────────────       ─────────────────────
-Mesh primitives             rhizome-resin-instances (instancing)
-Audio nodes                 rhizome-resin-poly (polyphony)
-Rig primitives              rhizome-resin-autorig (procedural rigging)
-Skeleton/skinning           rhizome-resin-anim (animation blending)
-Expressions (dew)           rhizome-resin-expr-field (Field integration)
+Mesh primitives             rhi-unshape-instances (instancing)
+Audio nodes                 rhi-unshape-poly (polyphony)
+Rig primitives              rhi-unshape-autorig (procedural rigging)
+Skeleton/skinning           rhi-unshape-anim (animation blending)
+Expressions (dew)           rhi-unshape-expr-field (Field integration)
 ```
 
 **Why plugins:**
@@ -190,11 +190,11 @@ fn load_plugins(path: &Path) -> Vec<Box<dyn DynNode>>;
 // (wasm, dylib, statically linked - host's choice)
 ```
 
-Optional adapters (`rhizome-resin-wasm-plugins`, etc.) for common loading patterns.
+Optional adapters (`rhi-unshape-wasm-plugins`, etc.) for common loading patterns.
 
 ## Bevy Compatibility
 
-Resin is designed to work with the bevy ecosystem without requiring it:
+Unshape is designed to work with the bevy ecosystem without requiring it:
 
 - Core types use `glam` for math (same as bevy)
 - Types should implement `From`/`Into` for bevy equivalents where sensible
@@ -209,24 +209,24 @@ Implementation is split by domain, with plugin crates for optional features:
 crates/
   # Core crates (always available)
   resin/              # umbrella crate, re-exports
-  rhizome-resin-core/         # shared primitives, Value enum, Graph
-  rhizome-resin-mesh/         # 3D mesh generation, half-edge
-  rhizome-resin-audio/        # audio synthesis, nodes
-  rhizome-resin-texture/      # procedural textures, fields
-  rhizome-resin-vector/       # 2D vector art, paths
-  rhizome-resin-rig/          # rigging, bones, skinning
+  rhi-unshape-core/         # shared primitives, Value enum, Graph
+  rhi-unshape-mesh/         # 3D mesh generation, half-edge
+  rhi-unshape-audio/        # audio synthesis, nodes
+  rhi-unshape-texture/      # procedural textures, fields
+  rhi-unshape-vector/       # 2D vector art, paths
+  rhi-unshape-rig/          # rigging, bones, skinning
 
   # Expression integration
-  rhizome-resin-expr-field/   # bridges dew expressions to Field system
+  rhi-unshape-expr-field/   # bridges dew expressions to Field system
 
   # External dependencies
   # dew (git)                 # expression AST, parsing, eval, backends
 
   # Plugin crates (opt-in)
-  rhizome-resin-instances/    # mesh instancing
-  rhizome-resin-poly/         # audio polyphony
-  rhizome-resin-autorig/      # procedural rigging
-  rhizome-resin-anim/         # animation blending
+  rhi-unshape-instances/    # mesh instancing
+  rhi-unshape-poly/         # audio polyphony
+  rhi-unshape-autorig/      # procedural rigging
+  rhi-unshape-anim/         # animation blending
 ```
 
 Each crate should be usable independently.

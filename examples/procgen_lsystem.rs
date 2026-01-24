@@ -4,7 +4,7 @@
 //!
 //! Run with: `cargo run --example procgen_lsystem`
 
-use rhizome_resin_lsystem::{LSystem, Rule, Turtle2D};
+use rhi_unshape_lsystem::{LSystem, Rule, Turtle2D};
 
 fn main() {
     println!("=== L-System Fractal Plant ===\n");

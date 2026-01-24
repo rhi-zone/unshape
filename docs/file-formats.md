@@ -18,7 +18,7 @@ Simple text-based mesh format. Good for geometry interchange.
 ### Import
 
 ```rust
-use rhizome_resin_mesh::import_obj;
+use rhi_unshape_mesh::import_obj;
 
 let mesh = import_obj("model.obj")?;
 
@@ -31,7 +31,7 @@ let uvs = mesh.uvs();
 ### Export
 
 ```rust
-use rhizome_resin_mesh::export_obj;
+use rhi_unshape_mesh::export_obj;
 
 export_obj(&mesh, "output.obj")?;
 
@@ -55,7 +55,7 @@ Modern 3D format with materials, animation, and scenes.
 ### Import
 
 ```rust
-use rhizome_resin_gltf::{import_gltf, import_gltf_from_bytes, GltfScene};
+use rhi_unshape_gltf::{import_gltf, import_gltf_from_bytes, GltfScene};
 
 // From file
 let scene = import_gltf("model.gltf")?;
@@ -82,7 +82,7 @@ let combined = scene.merge();
 ### Export
 
 ```rust
-use rhizome_resin_gltf::{export_gltf, export_glb, GltfExportOptions};
+use rhi_unshape_gltf::{export_gltf, export_glb, GltfExportOptions};
 
 // Binary GLB (recommended)
 export_glb(&mesh, "output.glb")?;
@@ -115,7 +115,7 @@ export_glb_with_options(&mesh, "output.glb", &options)?;
 ### Import
 
 ```rust
-use rhizome_resin_vector::svg::{parse_svg, parse_path_data};
+use rhi_unshape_vector::svg::{parse_svg, parse_path_data};
 
 // Parse SVG file
 let paths = parse_svg(&svg_content)?;
@@ -142,7 +142,7 @@ let path = parse_path_data("M 0 0 L 100 0 L 100 100 Z")?;
 ### Export
 
 ```rust
-use rhizome_resin_vector::svg::{path_to_svg, paths_to_svg_document, SvgExportOptions};
+use rhi_unshape_vector::svg::{path_to_svg, paths_to_svg_document, SvgExportOptions};
 
 // Single path to d attribute
 let d = path_to_svg(&path);
@@ -166,7 +166,7 @@ Uncompressed audio format.
 ### Import
 
 ```rust
-use rhizome_resin_audio::{WavFile, WavFormat};
+use rhi_unshape_audio::{WavFile, WavFormat};
 
 let wav = WavFile::load("audio.wav")?;
 
@@ -196,7 +196,7 @@ let resampled = wav.resample(48000);
 ### Export
 
 ```rust
-use rhizome_resin_audio::{WavFile, WavFormat};
+use rhi_unshape_audio::{WavFile, WavFormat};
 
 // Create from samples
 let wav = WavFile::new(samples, sample_rate: 44100, WavFormat::PCM16);

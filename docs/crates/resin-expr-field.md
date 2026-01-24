@@ -21,8 +21,8 @@ Bridges the dew expression language and the resin field system. Provides two way
 Parse and evaluate dew expressions as spatial fields:
 
 ```rust
-use rhizome_resin_expr_field::{ExprField, register_noise, scalar_registry};
-use rhizome_resin_field::{Field, EvalContext};
+use rhi_unshape_expr_field::{ExprField, register_noise, scalar_registry};
+use rhi_unshape_field::{Field, EvalContext};
 
 // Create registry with math + noise functions
 let mut registry = scalar_registry();
@@ -70,7 +70,7 @@ let inputs = field.user_inputs(); // {"speed", "amplitude"}
 For UI editors, serialization, and GPU compilation, use the typed AST:
 
 ```rust
-use rhizome_resin_expr_field::FieldExpr;
+use rhi_unshape_expr_field::FieldExpr;
 
 // Build expression: perlin(x * 4, y * 4) + 0.5 * simplex(x * 8, y * 8)
 let expr = FieldExpr::Add(

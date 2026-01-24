@@ -1,0 +1,19 @@
+[package]
+name = "rhi-unshape-procgen"
+version = "0.1.0"
+edition = "2024"
+description = "Procedural generation algorithms (WFC, mazes, roads, rivers)"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rhizome-lab/resin"
+
+[features]
+default = []
+serde = ["dep:serde", "glam/serde"]
+dynop = ["dep:rhi-unshape-op", "dep:serde_json", "serde"]
+
+[dependencies]
+glam.workspace = true
+rhi-unshape-op = { path = "../unshape-op", optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { version = "1", optional = true }
+thiserror.workspace = true
