@@ -40,7 +40,7 @@ export default withMermaid(
       nav: [
         { text: 'Guide', link: '/introduction' },
         { text: 'Design', link: '/philosophy' },
-        { text: 'Rhizome', link: 'https://rhi-zone.github.io/' },
+        { text: 'Rhizome', link: 'https://docs.rhi.zone/' },
       ],
 
       sidebar: {
