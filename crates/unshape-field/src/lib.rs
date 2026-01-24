@@ -327,6 +327,10 @@ where
 }
 
 /// Adds two fields together.
+///
+/// **Note:** This is a convenience struct. For new code, prefer using
+/// `zip(a, b).map(|(x, y)| x + y)` which composes from true primitives.
+#[deprecated(since = "0.1.0", note = "Use zip(a, b).map(|(x, y)| x + y) instead")]
 pub struct Add<A, B> {
     a: A,
     b: B,
@@ -366,6 +370,10 @@ where
 }
 
 /// Multiplies two fields together.
+///
+/// **Note:** This is a convenience struct. For new code, prefer using
+/// `zip(a, b).map(|(x, y)| x * y)` which composes from true primitives.
+#[deprecated(since = "0.1.0", note = "Use zip(a, b).map(|(x, y)| x * y) instead")]
 pub struct Mul<A, B> {
     a: A,
     b: B,
@@ -405,6 +413,13 @@ where
 }
 
 /// Mixes two fields using a blend factor.
+///
+/// **Note:** This is a convenience struct. For new code, prefer using
+/// `zip3(a, b, t).map(|(a, b, t)| a * (1.0 - t) + b * t)` or the `lerp()` helper.
+#[deprecated(
+    since = "0.1.0",
+    note = "Use lerp(a, b, t) or zip3(a, b, t).map(...) instead"
+)]
 pub struct Mix<A, B, Blend> {
     a: A,
     b: B,
@@ -507,6 +522,142 @@ where
     T: Field<I, f32>,
 {
     Zip3::new(a, b, t).map(|(a, b, t)| a * (1.0 - t) + b * t)
+}
+
+/// Adds two f32 fields together.
+///
+/// This is an ergonomic helper that expands to `Zip + Map`.
+///
+/// # Example
+/// ```
+/// use unshape_field::{Field, EvalContext, Constant, add};
+/// use glam::Vec2;
+///
+/// let a = Constant::new(3.0_f32);
+/// let b = Constant::new(4.0_f32);
+///
+/// let result = add::<Vec2, _, _>(a, b);
+///
+/// let ctx = EvalContext::new();
+/// assert_eq!(result.sample(Vec2::ZERO, &ctx), 7.0);
+/// ```
+pub fn add<I, A, B>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((f32, f32)) -> f32, (f32, f32)>
+where
+    I: Clone,
+    A: Field<I, f32>,
+    B: Field<I, f32>,
+{
+    Zip::new(a, b).map(|(a, b)| a + b)
+}
+
+/// Multiplies two f32 fields together.
+///
+/// This is an ergonomic helper that expands to `Zip + Map`.
+///
+/// # Example
+/// ```
+/// use unshape_field::{Field, EvalContext, Constant, mul};
+/// use glam::Vec2;
+///
+/// let a = Constant::new(3.0_f32);
+/// let b = Constant::new(4.0_f32);
+///
+/// let result = mul::<Vec2, _, _>(a, b);
+///
+/// let ctx = EvalContext::new();
+/// assert_eq!(result.sample(Vec2::ZERO, &ctx), 12.0);
+/// ```
+pub fn mul<I, A, B>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((f32, f32)) -> f32, (f32, f32)>
+where
+    I: Clone,
+    A: Field<I, f32>,
+    B: Field<I, f32>,
+{
+    Zip::new(a, b).map(|(a, b)| a * b)
+}
+
+/// Subtracts two f32 fields (a - b).
+///
+/// This is an ergonomic helper that expands to `Zip + Map`.
+///
+/// # Example
+/// ```
+/// use unshape_field::{Field, EvalContext, Constant, sub};
+/// use glam::Vec2;
+///
+/// let a = Constant::new(7.0_f32);
+/// let b = Constant::new(3.0_f32);
+///
+/// let result = sub::<Vec2, _, _>(a, b);
+///
+/// let ctx = EvalContext::new();
+/// assert_eq!(result.sample(Vec2::ZERO, &ctx), 4.0);
+/// ```
+pub fn sub<I, A, B>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((f32, f32)) -> f32, (f32, f32)>
+where
+    I: Clone,
+    A: Field<I, f32>,
+    B: Field<I, f32>,
+{
+    Zip::new(a, b).map(|(a, b)| a - b)
+}
+
+/// Divides two f32 fields (a / b).
+///
+/// This is an ergonomic helper that expands to `Zip + Map`.
+///
+/// # Example
+/// ```
+/// use unshape_field::{Field, EvalContext, Constant, div};
+/// use glam::Vec2;
+///
+/// let a = Constant::new(12.0_f32);
+/// let b = Constant::new(3.0_f32);
+///
+/// let result = div::<Vec2, _, _>(a, b);
+///
+/// let ctx = EvalContext::new();
+/// assert_eq!(result.sample(Vec2::ZERO, &ctx), 4.0);
+/// ```
+pub fn div<I, A, B>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((f32, f32)) -> f32, (f32, f32)>
+where
+    I: Clone,
+    A: Field<I, f32>,
+    B: Field<I, f32>,
+{
+    Zip::new(a, b).map(|(a, b)| a / b)
+}
+
+/// Mixes two f32 fields using a blend factor.
+///
+/// This is an alias for `lerp` - both perform linear interpolation.
+///
+/// # Example
+/// ```
+/// use unshape_field::{Field, EvalContext, Constant, mix};
+/// use glam::Vec2;
+///
+/// let a = Constant::new(0.0_f32);
+/// let b = Constant::new(10.0_f32);
+/// let t = Constant::new(0.5_f32);
+///
+/// let result = mix::<Vec2, _, _, _>(a, b, t);
+///
+/// let ctx = EvalContext::new();
+/// assert_eq!(result.sample(Vec2::ZERO, &ctx), 5.0);
+/// ```
+pub fn mix<I, A, B, T>(
+    a: A,
+    b: B,
+    t: T,
+) -> Map<Zip3<A, B, T>, impl Fn((f32, f32, f32)) -> f32, (f32, f32, f32)>
+where
+    I: Clone,
+    A: Field<I, f32>,
+    B: Field<I, f32>,
+    T: Field<I, f32>,
+{
+    lerp(a, b, t)
 }
 
 // Basic field implementations
