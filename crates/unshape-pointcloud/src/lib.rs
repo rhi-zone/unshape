@@ -20,11 +20,11 @@
 
 use glam::{Vec3, Vec4};
 use rand::Rng;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use unshape_field::{EvalContext, Field};
 use unshape_geometry::{HasColors, HasNormals, HasPositions};
 use unshape_mesh::Mesh;
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 
 /// Registers all pointcloud operations with an [`OpRegistry`].
 ///
@@ -33,6 +33,10 @@ use serde::{Deserialize, Serialize};
 pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<Poisson>("resin::Poisson");
     registry.register_type::<RemoveOutliers>("resin::RemoveOutliers");
+    registry.register_type::<VoxelDownsample>("resin::VoxelDownsample");
+    registry.register_type::<CropBounds>("resin::CropBounds");
+    registry.register_type::<EstimateNormals>("resin::EstimateNormals");
+    registry.register_type::<UniformSampling>("resin::UniformSampling");
 }
 
 /// A point cloud with positions, optional normals, and optional colors.
@@ -606,6 +610,132 @@ impl RemoveOutliers {
 
 /// Backwards-compatible type alias.
 pub type OutlierConfig = RemoveOutliers;
+
+/// Voxel grid downsampling operation for point clouds.
+///
+/// Points within the same voxel are averaged into a single point.
+/// This reduces point count while preserving overall shape.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = PointCloud, output = PointCloud))]
+pub struct VoxelDownsample {
+    /// Size of voxel grid cells.
+    pub voxel_size: f32,
+}
+
+impl Default for VoxelDownsample {
+    fn default() -> Self {
+        Self { voxel_size: 0.1 }
+    }
+}
+
+impl VoxelDownsample {
+    /// Creates a new voxel downsampling operation with the given voxel size.
+    pub fn new(voxel_size: f32) -> Self {
+        Self { voxel_size }
+    }
+
+    /// Applies this voxel downsampling operation to a point cloud.
+    pub fn apply(&self, cloud: &PointCloud) -> PointCloud {
+        voxel_downsample(cloud, self.voxel_size)
+    }
+}
+
+/// Crop operation for point clouds.
+///
+/// Filters points to only those within a bounding box.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = PointCloud, output = PointCloud))]
+pub struct CropBounds {
+    /// Minimum corner of the bounding box.
+    pub min: Vec3,
+    /// Maximum corner of the bounding box.
+    pub max: Vec3,
+}
+
+impl Default for CropBounds {
+    fn default() -> Self {
+        Self {
+            min: Vec3::splat(-1.0),
+            max: Vec3::splat(1.0),
+        }
+    }
+}
+
+impl CropBounds {
+    /// Creates a new crop operation with the given bounds.
+    pub fn new(min: Vec3, max: Vec3) -> Self {
+        Self { min, max }
+    }
+
+    /// Applies this crop operation to a point cloud.
+    pub fn apply(&self, cloud: &PointCloud) -> PointCloud {
+        crop_to_bounds(cloud, self.min, self.max)
+    }
+}
+
+/// Normal estimation operation for point clouds.
+///
+/// Estimates normals using local PCA on k nearest neighbors.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = PointCloud, output = PointCloud))]
+pub struct EstimateNormals {
+    /// Number of neighbors for local PCA.
+    pub k: usize,
+}
+
+impl Default for EstimateNormals {
+    fn default() -> Self {
+        Self { k: 10 }
+    }
+}
+
+impl EstimateNormals {
+    /// Creates a new normal estimation operation with the given neighbor count.
+    pub fn new(k: usize) -> Self {
+        Self { k }
+    }
+
+    /// Applies this normal estimation operation to a point cloud.
+    pub fn apply(&self, cloud: &PointCloud) -> PointCloud {
+        estimate_normals(cloud, self.k)
+    }
+}
+
+/// Uniform sampling operation for mesh surfaces.
+///
+/// Samples points uniformly distributed across the mesh surface.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = Mesh, output = PointCloud))]
+pub struct UniformSampling {
+    /// Number of points to sample.
+    pub count: usize,
+}
+
+impl Default for UniformSampling {
+    fn default() -> Self {
+        Self { count: 1000 }
+    }
+}
+
+impl UniformSampling {
+    /// Creates a new uniform sampling operation with the given point count.
+    pub fn new(count: usize) -> Self {
+        Self { count }
+    }
+
+    /// Applies this uniform sampling operation to a mesh.
+    pub fn apply(&self, mesh: &Mesh) -> PointCloud {
+        sample_mesh_uniform(mesh, self.count)
+    }
+}
 
 /// Removes statistical outliers from a point cloud.
 ///

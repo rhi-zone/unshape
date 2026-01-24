@@ -30,8 +30,8 @@ pub use jit_impl::{CompiledFieldExpr, FieldExprCompiler, FieldJitError, FieldJit
 use glam::{Vec2, Vec3};
 use rhizome_dew_core::{Expr, ParseError};
 use rhizome_dew_scalar::{FunctionRegistry, ScalarFn};
-use unshape_field::{EvalContext, Field};
 use std::collections::{HashMap, HashSet};
+use unshape_field::{EvalContext, Field};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};

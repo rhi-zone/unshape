@@ -1,10 +1,10 @@
 //! Node registry for type-based deserialization.
 
 use crate::error::SerdeError;
-use unshape_core::{BoxedNode, DynNode};
 use serde::de::DeserializeOwned;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
+use unshape_core::{BoxedNode, DynNode};
 
 /// Trait for nodes that can be serialized.
 ///
@@ -123,8 +123,8 @@ impl Default for NodeRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use unshape_core::{EvalContext, GraphError, PortDescriptor, Value, ValueType};
     use serde::{Deserialize, Serialize};
+    use unshape_core::{EvalContext, GraphError, PortDescriptor, Value, ValueType};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct TestNode {

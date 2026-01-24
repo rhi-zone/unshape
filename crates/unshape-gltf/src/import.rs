@@ -2,8 +2,8 @@
 
 use glam::{Vec2, Vec3};
 use gltf::{Document, Gltf};
-use unshape_mesh::Mesh;
 use std::path::Path;
+use unshape_mesh::Mesh;
 
 use crate::export::{GltfError, GltfMaterial, GltfMesh, GltfResult};
 

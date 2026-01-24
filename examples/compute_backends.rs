@@ -5,6 +5,7 @@
 //!
 //! Run with: `cargo run --example compute_backends`
 
+use std::any::Any;
 use unshape_backend::{
     BackendNodeExecutor, BackendRegistry, ExecutionPolicy, LazyEvaluator, Scheduler,
     backend_evaluator,
@@ -12,7 +13,6 @@ use unshape_backend::{
 use unshape_core::{
     DynNode, EvalContext, Evaluator, Graph, GraphError, PortDescriptor, Value, ValueType,
 };
-use std::any::Any;
 
 // ============================================================================
 // Example Nodes

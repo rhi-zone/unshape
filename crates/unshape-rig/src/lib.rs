@@ -42,7 +42,6 @@ pub use motion_matching::{
     blend_frames, compute_match_cost, find_best_match,
 };
 pub use path3d::{Path3D, Path3DBuilder, Path3DExt, PathSample, line3d, polyline3d};
-pub use unshape_transform::SpatialTransform;
 pub use secondary::{
     Drag, FollowThrough, JiggleBone, JiggleChain, JiggleMesh, OverlappingAction,
     RotationFollowThrough, Secondary, SecondaryConfig, SecondaryMotion, WindForce,
@@ -51,3 +50,4 @@ pub use secondary::{
 pub use skeleton::{AddBoneResult, Bone, BoneId, Pose, Skeleton};
 pub use skin::{MAX_INFLUENCES, Skin, VertexInfluences};
 pub use transform::Transform3D;
+pub use unshape_transform::SpatialTransform;

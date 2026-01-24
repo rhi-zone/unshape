@@ -11,8 +11,8 @@ use crate::backend::{ComputeBackend, Cost, WorkloadHint};
 use crate::error::BackendError;
 use crate::policy::ExecutionPolicy;
 use crate::registry::BackendRegistry;
-use unshape_core::{DynNode, EvalContext, NodeId, Value};
 use std::sync::Arc;
+use unshape_core::{DynNode, EvalContext, NodeId, Value};
 
 /// Scheduler that selects backends for node execution.
 ///
@@ -588,10 +588,8 @@ mod tests {
         assert_eq!(workload.input_bytes, 0);
 
         // Primitive inputs
-        let workload = estimate_workload(&[
-            Value::F32(1.0),
-            Value::Vec3(unshape_core::glam::Vec3::ZERO),
-        ]);
+        let workload =
+            estimate_workload(&[Value::F32(1.0), Value::Vec3(unshape_core::glam::Vec3::ZERO)]);
         assert_eq!(workload.input_bytes, 4 + 12);
     }
 }

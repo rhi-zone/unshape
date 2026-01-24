@@ -1,8 +1,8 @@
 //! Backend registry for managing available backends.
 
 use crate::backend::{BackendKind, ComputeBackend};
-use unshape_core::DynNode;
 use std::sync::Arc;
+use unshape_core::DynNode;
 
 /// Registry of available compute backends.
 ///

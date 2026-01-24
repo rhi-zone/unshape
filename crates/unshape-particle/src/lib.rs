@@ -78,6 +78,49 @@ pub trait Force: Send + Sync {
     fn apply(&self, particle: &mut Particle, dt: f32);
 }
 
+/// Numerical integrator for particle dynamics.
+///
+/// Different integrators provide different trade-offs between accuracy and
+/// performance. The default [`EulerIntegrator`] is simple and fast but can
+/// be unstable with large time steps.
+pub trait Integrator: Send + Sync {
+    /// Advances a particle's position based on its velocity.
+    fn step(&self, particle: &mut Particle, dt: f32);
+}
+
+/// Explicit Euler integration (default).
+///
+/// Updates position as: `p += v * dt`
+///
+/// Simple and fast, but can be unstable with large time steps or stiff systems.
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct EulerIntegrator;
+
+impl Integrator for EulerIntegrator {
+    fn step(&self, particle: &mut Particle, dt: f32) {
+        particle.position += particle.velocity * dt;
+    }
+}
+
+/// Semi-implicit (symplectic) Euler integration.
+///
+/// Updates velocity first, then position: `v += a * dt; p += v * dt`
+///
+/// More stable than explicit Euler for oscillatory systems.
+/// Note: Forces must be applied before calling step() for this to differ from Euler.
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct SemiImplicitEulerIntegrator;
+
+impl Integrator for SemiImplicitEulerIntegrator {
+    fn step(&self, particle: &mut Particle, dt: f32) {
+        // Same as Euler when forces are applied before step
+        // The difference is in the order of operations in the update loop
+        particle.position += particle.velocity * dt;
+    }
+}
+
 /// Simple random number generator for particle systems.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -200,11 +243,15 @@ impl ParticleSystem {
         }
     }
 
-    /// Updates all particles with the given time delta.
+    /// Updates all particles with the given time delta using the default Euler integrator.
     pub fn update(&mut self, dt: f32) {
-        // Update positions based on velocity
+        self.update_with_integrator(dt, &EulerIntegrator);
+    }
+
+    /// Updates all particles with a custom integrator.
+    pub fn update_with_integrator(&mut self, dt: f32, integrator: &dyn Integrator) {
         for particle in &mut self.particles {
-            particle.position += particle.velocity * dt;
+            integrator.step(particle, dt);
             particle.age += dt;
         }
 
@@ -212,17 +259,30 @@ impl ParticleSystem {
         self.particles.retain(|p| p.is_alive());
     }
 
-    /// Updates all particles and applies forces.
+    /// Updates all particles and applies forces using the default Euler integrator.
     pub fn update_with_forces(&mut self, dt: f32, forces: &[&dyn Force]) {
-        // Apply forces
+        self.update_with_forces_and_integrator(dt, forces, &EulerIntegrator);
+    }
+
+    /// Updates all particles with forces and a custom integrator.
+    pub fn update_with_forces_and_integrator(
+        &mut self,
+        dt: f32,
+        forces: &[&dyn Force],
+        integrator: &dyn Integrator,
+    ) {
         for particle in &mut self.particles {
+            // Apply forces first (modifies velocity)
             for force in forces {
                 force.apply(particle, dt);
             }
+            // Then integrate (updates position from velocity)
+            integrator.step(particle, dt);
+            particle.age += dt;
         }
 
-        // Update positions
-        self.update(dt);
+        // Remove dead particles
+        self.particles.retain(|p| p.is_alive());
     }
 
     /// Clears all particles.

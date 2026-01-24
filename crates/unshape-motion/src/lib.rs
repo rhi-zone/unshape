@@ -1153,8 +1153,7 @@ impl Motion<Transform2D> for WiggleTransform2D {
     fn at(&self, t: f32) -> Transform2D {
         use unshape_noise::Noise2D;
         let perlin = |seed: f32| {
-            unshape_noise::Perlin2D::with_seed(seed as i32).sample(t * self.frequency, 0.0)
-                * 2.0
+            unshape_noise::Perlin2D::with_seed(seed as i32).sample(t * self.frequency, 0.0) * 2.0
                 - 1.0
         };
 
@@ -1223,8 +1222,7 @@ impl Motion<LinearTransform2D> for WiggleLinearTransform2D {
     fn at(&self, t: f32) -> LinearTransform2D {
         use unshape_noise::Noise2D;
         let perlin = |seed: f32| {
-            unshape_noise::Perlin2D::with_seed(seed as i32).sample(t * self.frequency, 0.0)
-                * 2.0
+            unshape_noise::Perlin2D::with_seed(seed as i32).sample(t * self.frequency, 0.0) * 2.0
                 - 1.0
         };
 

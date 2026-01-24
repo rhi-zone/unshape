@@ -25,9 +25,9 @@
 use serde::{Deserialize, Serialize};
 
 use glam::{IVec3, UVec3, Vec3};
+use std::collections::HashMap;
 use unshape_field::{EvalContext, Field};
 use unshape_mesh::{Mesh, MeshBuilder};
-use std::collections::HashMap;
 
 /// A dense 3D voxel grid with arbitrary data type.
 #[derive(Debug, Clone)]

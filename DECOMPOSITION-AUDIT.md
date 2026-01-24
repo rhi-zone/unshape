@@ -1001,7 +1001,7 @@ Recognizes common patterns and emits optimal code:
 ### Medium Priority
 - [ ] Refactor emitters to CompositeEmitter pattern
 - [ ] Unify constraint solvers to common pattern
-- [ ] Remove trivial wrappers (downsample, upsample)
+- [x] Remove trivial wrappers - upsample deprecated (same as Resize), downsample kept (distinct box filter algorithm)
 
 ### Low Priority (Documentation)
 - [ ] Document which ops are compositions vs primitives

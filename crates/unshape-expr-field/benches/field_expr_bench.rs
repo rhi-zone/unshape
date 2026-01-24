@@ -3,8 +3,8 @@
 //! Compares JIT-compiled vs interpreted evaluation.
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
-use unshape_expr_field::FieldExpr;
 use std::collections::HashMap;
+use unshape_expr_field::FieldExpr;
 
 const GRID_SIZE: usize = 100; // 100x100 = 10,000 evaluations
 

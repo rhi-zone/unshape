@@ -22,11 +22,11 @@ use std::path::Path;
 use glam::{Mat3, Mat4, Vec2, Vec3, Vec4};
 use image::{DynamicImage, GenericImageView, ImageError};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 pub use unshape_color::BlendMode;
 use unshape_color::{Rgba, blend_with_alpha};
 use unshape_field::{EvalContext, Field};
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 
 /// How to handle UV coordinates outside [0, 1].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -4846,6 +4846,11 @@ pub fn downsample(image: &ImageField) -> ImageField {
 ///
 /// The output dimensions are `(width * 2, height * 2)`.
 ///
+/// # Deprecation
+///
+/// This function is equivalent to `Resize::new(w * 2, h * 2).apply(image)`.
+/// Consider using [`Resize`] directly for more control over dimensions.
+///
 /// # Example
 ///
 /// ```
@@ -4857,6 +4862,10 @@ pub fn downsample(image: &ImageField) -> ImageField {
 /// let double = upsample(&img);
 /// assert_eq!(double.dimensions(), (4, 4));
 /// ```
+#[deprecated(
+    since = "0.2.0",
+    note = "Use Resize::new(w * 2, h * 2).apply(image) instead"
+)]
 pub fn upsample(image: &ImageField) -> ImageField {
     let (width, height) = image.dimensions();
     let new_width = width * 2;
@@ -4953,7 +4962,8 @@ impl ImagePyramid {
 
         for i in 0..gaussian.levels.len() - 1 {
             let current = &gaussian.levels[i];
-            let next_upsampled = upsample(&gaussian.levels[i + 1]);
+            let (w, h) = gaussian.levels[i + 1].dimensions();
+            let next_upsampled = Resize::new(w * 2, h * 2).apply(&gaussian.levels[i + 1]);
 
             // Compute difference (detail at this level)
             let (width, height) = current.dimensions();
@@ -5027,7 +5037,8 @@ impl ImagePyramid {
             let (width, height) = detail.dimensions();
 
             // Upsample current
-            let upsampled = upsample(&current);
+            let (cw, ch) = current.dimensions();
+            let upsampled = Resize::new(cw * 2, ch * 2).apply(&current);
 
             // Add detail
             let mut data = Vec::with_capacity((width * height) as usize);
@@ -5449,7 +5460,8 @@ pub fn inpaint_patchmatch(
 
         // Upsample result if not at coarsest level
         if level < levels - 1 {
-            result = upsample(&result);
+            let (rw, rh) = (result.width, result.height);
+            result = Resize::new(rw * 2, rh * 2).apply(&result);
             // Resize to exact target dimensions
             if result.width != target_width || result.height != target_height {
                 result = resize(&result, target_width, target_height);

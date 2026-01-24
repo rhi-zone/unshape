@@ -2,8 +2,8 @@
 
 use glam::Vec3;
 use gltf_json as json;
-use unshape_mesh::Mesh;
 use std::path::Path;
+use unshape_mesh::Mesh;
 
 /// Result type for glTF operations.
 pub type GltfResult<T> = Result<T, GltfError>;

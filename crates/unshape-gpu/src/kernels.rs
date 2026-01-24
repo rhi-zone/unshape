@@ -8,9 +8,9 @@ use crate::backend::GpuKernel;
 use crate::noise::{NoiseConfig, NoiseType, generate_noise_texture_gpu};
 use crate::texture::GpuTexture;
 use crate::{GpuContext, GpuError};
-use unshape_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType};
 use std::any::Any;
 use std::sync::Arc;
+use unshape_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType};
 
 // ============================================================================
 // Noise Texture Node
