@@ -22,6 +22,7 @@ mod context;
 
 use glam::{Vec2, Vec3};
 use std::marker::PhantomData;
+use unshape_easing::Lerp;
 
 pub use context::EvalContext;
 
@@ -321,6 +322,7 @@ pub fn zip3<A, B, C>(a: A, b: B, c: C) -> Zip3<A, B, C> {
 /// Linearly interpolates between two fields.
 ///
 /// This is an ergonomic helper that expands to `Zip3 + Map`.
+/// Works with any type that implements `Lerp` (f32, Vec2, Vec3, Rgba, etc.).
 ///
 /// # Example
 /// ```
@@ -331,28 +333,30 @@ pub fn zip3<A, B, C>(a: A, b: B, c: C) -> Zip3<A, B, C> {
 /// let b = Constant::new(10.0_f32);
 /// let t = Constant::new(0.25_f32);
 ///
-/// let result = lerp::<Vec2, _, _, _>(a, b, t);
+/// let result = lerp::<Vec2, _, _, _, _>(a, b, t);
 ///
 /// let ctx = EvalContext::new();
 /// assert_eq!(result.sample(Vec2::ZERO, &ctx), 2.5);
 /// ```
-pub fn lerp<I, A, B, T>(
+pub fn lerp<I, O, A, B, T>(
     a: A,
     b: B,
     t: T,
-) -> Map<Zip3<A, B, T>, impl Fn((f32, f32, f32)) -> f32, (f32, f32, f32)>
+) -> Map<Zip3<A, B, T>, impl Fn((O, O, f32)) -> O, (O, O, f32)>
 where
     I: Clone,
-    A: Field<I, f32>,
-    B: Field<I, f32>,
+    O: Lerp,
+    A: Field<I, O>,
+    B: Field<I, O>,
     T: Field<I, f32>,
 {
-    Zip3::new(a, b, t).map(|(a, b, t)| a * (1.0 - t) + b * t)
+    Zip3::new(a, b, t).map(|(a, b, t)| a.lerp_to(&b, t))
 }
 
-/// Adds two f32 fields together.
+/// Adds two fields together (component-wise for color types).
 ///
 /// This is an ergonomic helper that expands to `Zip + Map`.
+/// Works with any type that implements `Add`.
 ///
 /// # Example
 /// ```
@@ -362,23 +366,25 @@ where
 /// let a = Constant::new(3.0_f32);
 /// let b = Constant::new(4.0_f32);
 ///
-/// let result = add::<Vec2, _, _>(a, b);
+/// let result = add::<Vec2, _, _, _>(a, b);
 ///
 /// let ctx = EvalContext::new();
 /// assert_eq!(result.sample(Vec2::ZERO, &ctx), 7.0);
 /// ```
-pub fn add<I, A, B>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((f32, f32)) -> f32, (f32, f32)>
+pub fn add<I, A, B, O>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((O, O)) -> O, (O, O)>
 where
     I: Clone,
-    A: Field<I, f32>,
-    B: Field<I, f32>,
+    O: std::ops::Add<Output = O>,
+    A: Field<I, O>,
+    B: Field<I, O>,
 {
     Zip::new(a, b).map(|(a, b)| a + b)
 }
 
-/// Multiplies two f32 fields together.
+/// Multiplies two fields together (component-wise for color types).
 ///
 /// This is an ergonomic helper that expands to `Zip + Map`.
+/// Works with any type that implements `Mul`.
 ///
 /// # Example
 /// ```
@@ -388,23 +394,25 @@ where
 /// let a = Constant::new(3.0_f32);
 /// let b = Constant::new(4.0_f32);
 ///
-/// let result = mul::<Vec2, _, _>(a, b);
+/// let result = mul::<Vec2, _, _, _>(a, b);
 ///
 /// let ctx = EvalContext::new();
 /// assert_eq!(result.sample(Vec2::ZERO, &ctx), 12.0);
 /// ```
-pub fn mul<I, A, B>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((f32, f32)) -> f32, (f32, f32)>
+pub fn mul<I, A, B, O>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((O, O)) -> O, (O, O)>
 where
     I: Clone,
-    A: Field<I, f32>,
-    B: Field<I, f32>,
+    O: std::ops::Mul<Output = O>,
+    A: Field<I, O>,
+    B: Field<I, O>,
 {
     Zip::new(a, b).map(|(a, b)| a * b)
 }
 
-/// Subtracts two f32 fields (a - b).
+/// Subtracts two fields (a - b).
 ///
 /// This is an ergonomic helper that expands to `Zip + Map`.
+/// Works with any type that implements `Sub`.
 ///
 /// # Example
 /// ```
@@ -414,23 +422,25 @@ where
 /// let a = Constant::new(7.0_f32);
 /// let b = Constant::new(3.0_f32);
 ///
-/// let result = sub::<Vec2, _, _>(a, b);
+/// let result = sub::<Vec2, _, _, _>(a, b);
 ///
 /// let ctx = EvalContext::new();
 /// assert_eq!(result.sample(Vec2::ZERO, &ctx), 4.0);
 /// ```
-pub fn sub<I, A, B>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((f32, f32)) -> f32, (f32, f32)>
+pub fn sub<I, A, B, O>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((O, O)) -> O, (O, O)>
 where
     I: Clone,
-    A: Field<I, f32>,
-    B: Field<I, f32>,
+    O: std::ops::Sub<Output = O>,
+    A: Field<I, O>,
+    B: Field<I, O>,
 {
     Zip::new(a, b).map(|(a, b)| a - b)
 }
 
-/// Divides two f32 fields (a / b).
+/// Divides two fields (a / b).
 ///
 /// This is an ergonomic helper that expands to `Zip + Map`.
+/// Works with any type that implements `Div`.
 ///
 /// # Example
 /// ```
@@ -440,23 +450,25 @@ where
 /// let a = Constant::new(12.0_f32);
 /// let b = Constant::new(3.0_f32);
 ///
-/// let result = div::<Vec2, _, _>(a, b);
+/// let result = div::<Vec2, _, _, _>(a, b);
 ///
 /// let ctx = EvalContext::new();
 /// assert_eq!(result.sample(Vec2::ZERO, &ctx), 4.0);
 /// ```
-pub fn div<I, A, B>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((f32, f32)) -> f32, (f32, f32)>
+pub fn div<I, A, B, O>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((O, O)) -> O, (O, O)>
 where
     I: Clone,
-    A: Field<I, f32>,
-    B: Field<I, f32>,
+    O: std::ops::Div<Output = O>,
+    A: Field<I, O>,
+    B: Field<I, O>,
 {
     Zip::new(a, b).map(|(a, b)| a / b)
 }
 
-/// Mixes two f32 fields using a blend factor.
+/// Mixes two fields using a blend factor.
 ///
 /// This is an alias for `lerp` - both perform linear interpolation.
+/// Works with any type that implements `Lerp` (f32, Vec2, Vec3, Rgba, etc.).
 ///
 /// # Example
 /// ```
@@ -467,20 +479,21 @@ where
 /// let b = Constant::new(10.0_f32);
 /// let t = Constant::new(0.5_f32);
 ///
-/// let result = mix::<Vec2, _, _, _>(a, b, t);
+/// let result = mix::<Vec2, _, _, _, _>(a, b, t);
 ///
 /// let ctx = EvalContext::new();
 /// assert_eq!(result.sample(Vec2::ZERO, &ctx), 5.0);
 /// ```
-pub fn mix<I, A, B, T>(
+pub fn mix<I, O, A, B, T>(
     a: A,
     b: B,
     t: T,
-) -> Map<Zip3<A, B, T>, impl Fn((f32, f32, f32)) -> f32, (f32, f32, f32)>
+) -> Map<Zip3<A, B, T>, impl Fn((O, O, f32)) -> O, (O, O, f32)>
 where
     I: Clone,
-    A: Field<I, f32>,
-    B: Field<I, f32>,
+    O: Lerp,
+    A: Field<I, O>,
+    B: Field<I, O>,
     T: Field<I, f32>,
 {
     lerp(a, b, t)
@@ -4502,7 +4515,7 @@ mod tests {
     fn test_add_combinator() {
         let a = Constant::new(3.0f32);
         let b = Constant::new(4.0f32);
-        let field = add::<Vec2, _, _>(a, b);
+        let field = add::<Vec2, _, _, _>(a, b);
         let ctx = EvalContext::new();
 
         assert_eq!(field.sample(Vec2::ZERO, &ctx), 7.0);
@@ -4571,10 +4584,35 @@ mod tests {
         let a = Constant::new(0.0f32);
         let b = Constant::new(10.0f32);
         let t = Constant::new(0.25f32);
-        let result = super::lerp::<Vec2, _, _, _>(a, b, t);
+        let result = super::lerp::<Vec2, _, _, _, _>(a, b, t);
         let ctx = EvalContext::new();
 
         assert_eq!(result.sample(Vec2::ZERO, &ctx), 2.5);
+    }
+
+    #[test]
+    fn test_lerp_vec2_output() {
+        // Generic lerp works with any Lerp-implementing type
+        let a = Constant::new(Vec2::new(0.0, 0.0));
+        let b = Constant::new(Vec2::new(10.0, 20.0));
+        let t = Constant::new(0.5f32);
+        let result = super::lerp::<Vec2, _, _, _, _>(a, b, t);
+        let ctx = EvalContext::new();
+
+        let v = result.sample(Vec2::ZERO, &ctx);
+        assert_eq!(v, Vec2::new(5.0, 10.0));
+    }
+
+    #[test]
+    fn test_add_vec2_output() {
+        // Generic add works with any Add-implementing type
+        let a = Constant::new(Vec2::new(1.0, 2.0));
+        let b = Constant::new(Vec2::new(3.0, 4.0));
+        let result = super::add::<Vec2, _, _, _>(a, b);
+        let ctx = EvalContext::new();
+
+        let v = result.sample(Vec2::ZERO, &ctx);
+        assert_eq!(v, Vec2::new(4.0, 6.0));
     }
 
     #[test]

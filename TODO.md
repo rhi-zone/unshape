@@ -720,8 +720,10 @@ Add to image pattern-matching optimizer (like audio's tremolo/chorus recognition
 - [x] ~~`Mix<A, B, Blend>`~~ — removed, use `lerp(a, b, t)` or `zip3(a, b, t).map(...)`
 - [x] ~~Field trait methods `.add()`, `.mul()`, `.mix()`~~ — removed from trait
 
-**Remaining:**
-- [ ] Extend all to support Rgba output
+**Generic helpers (output type via traits):**
+- [x] `lerp()`, `mix()` — generic over `Lerp` trait (f32, Vec2, Vec3, Rgba, etc.)
+- [x] `add()`, `sub()`, `mul()`, `div()` — generic over arithmetic traits (f32, Vec2, Vec3, etc.)
+- Note: Rgba doesn't implement Add/Mul (color arithmetic is nonsensical), but Lerp works
 
 **Not needed (just use combinators):**
 - ~~SdfToMask~~ - SDF is already a field, threshold via `map(|d| if d < 0.0 { 1.0 } else { 0.0 })`

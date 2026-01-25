@@ -337,6 +337,62 @@ impl Rgba {
 }
 
 // ============================================================================
+// Arithmetic Trait Implementations for LinearRgb
+// ============================================================================
+
+impl std::ops::Add for LinearRgb {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Self::new(self.r + rhs.r, self.g + rhs.g, self.b + rhs.b)
+    }
+}
+
+impl std::ops::Sub for LinearRgb {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        Self::new(self.r - rhs.r, self.g - rhs.g, self.b - rhs.b)
+    }
+}
+
+impl std::ops::Mul for LinearRgb {
+    type Output = Self;
+
+    /// Component-wise multiplication.
+    fn mul(self, rhs: Self) -> Self {
+        Self::new(self.r * rhs.r, self.g * rhs.g, self.b * rhs.b)
+    }
+}
+
+impl std::ops::Mul<f32> for LinearRgb {
+    type Output = Self;
+
+    /// Scalar multiplication.
+    fn mul(self, rhs: f32) -> Self {
+        Self::new(self.r * rhs, self.g * rhs, self.b * rhs)
+    }
+}
+
+impl std::ops::Div for LinearRgb {
+    type Output = Self;
+
+    /// Component-wise division.
+    fn div(self, rhs: Self) -> Self {
+        Self::new(self.r / rhs.r, self.g / rhs.g, self.b / rhs.b)
+    }
+}
+
+impl std::ops::Div<f32> for LinearRgb {
+    type Output = Self;
+
+    /// Scalar division.
+    fn div(self, rhs: f32) -> Self {
+        Self::new(self.r / rhs, self.g / rhs, self.b / rhs)
+    }
+}
+
+// ============================================================================
 // Lerp Trait Implementations
 // ============================================================================
 
