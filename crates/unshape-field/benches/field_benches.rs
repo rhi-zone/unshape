@@ -81,7 +81,7 @@ fn bench_fbm_octaves(c: &mut Criterion) {
 // ============================================================================
 
 fn bench_add_combinator(c: &mut Criterion) {
-    let field = Perlin2D::new().add(Simplex2D::new());
+    let field = add(Perlin2D::new(), Simplex2D::new());
     let ctx = EvalContext::new();
 
     c.bench_function("add_combinator", |b| {
@@ -96,7 +96,7 @@ fn bench_add_combinator(c: &mut Criterion) {
 }
 
 fn bench_mul_combinator(c: &mut Criterion) {
-    let field = Perlin2D::new().mul(Simplex2D::new());
+    let field = mul(Perlin2D::new(), Simplex2D::new());
     let ctx = EvalContext::new();
 
     c.bench_function("mul_combinator", |b| {
@@ -141,10 +141,10 @@ fn bench_translate_combinator(c: &mut Criterion) {
 }
 
 fn bench_chained_combinators(c: &mut Criterion) {
-    let field = Perlin2D::new()
-        .scale(4.0)
-        .translate(Vec2::new(10.0, 10.0))
-        .add(Simplex2D::new().scale(2.0));
+    let field = add(
+        Perlin2D::new().scale(4.0).translate(Vec2::new(10.0, 10.0)),
+        Simplex2D::new().scale(2.0),
+    );
     let ctx = EvalContext::new();
 
     c.bench_function("chained_combinators", |b| {
