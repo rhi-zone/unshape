@@ -14,8 +14,8 @@ Four fundamental operations that all image effects reduce to:
 
 | Primitive | Signature | Purpose |
 |-----------|-----------|---------|
-| `remap_uv` | `(ImageField, Expr<Vec2, Vec2>) -> ImageField` | UV coordinate remapping |
-| `map_pixels` | `(ImageField, Expr<Vec4, Vec4>) -> ImageField` | Per-pixel color transform |
+| `remap_uv` | `(ImageField, Expr&lt;Vec2, Vec2&gt;) -> ImageField` | UV coordinate remapping |
+| `map_pixels` | `(ImageField, Expr&lt;Vec4, Vec4&gt;) -> ImageField` | Per-pixel color transform |
 | `convolve` | `(ImageField, Kernel) -> ImageField` | Neighborhood operations |
 | `composite` | `(ImageField, ImageField, BlendMode, f32) -> ImageField` | Image blending |
 
