@@ -1,5 +1,11 @@
 # TODO
 
+## Docs Build Fixes
+
+- Fix markdown syntax in `docs/design/image-primitives.md` lines 17-18
+  - `Expr<Vec2, Vec2>` and `Expr<Vec4, Vec4>` in table need backticks
+  - VitePress/Vue interprets angle brackets as HTML tags
+
 ## Next Up
 
 ### Selection System (2025-01-17) ✅
@@ -499,6 +505,19 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 - [x] Bezier degree elevation exact, control polygon >= arc length
 - [x] Arc radius invariant, tangent perpendicular to radius
 - [x] Path length = sum of segments, ArcLengthPath uniform speed
+
+**resin-automata:** ✅ Implemented
+- [x] Neighborhood counts (Moore=8, VN=4, Hex=6, ExtendedMoore formula)
+- [x] Neighborhoods exclude origin (0,0)
+- [x] GoL: block still life, blinker period-2, glider displacement (1,1)/4 gens
+- [x] GoL empty stays empty
+- [x] Elementary CA: Rule 90 from center, determinism, Rule 184 conservation
+- [x] SmoothLife values in [0,1], empty stays near zero
+- [x] HashLife matches CellularAutomaton2D (blinker, glider)
+- [x] Langton's Ant: cell flip, grid values bounded, step count monotonic
+- [x] LargerThanLife: boolean values
+- [x] 3D CA: empty stays empty, single cell dies (B4/S5)
+- [x] Turmite: grid values bounded
 
 ### Spatial Additions
 
