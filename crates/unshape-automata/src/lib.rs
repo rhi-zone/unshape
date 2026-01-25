@@ -2551,6 +2551,8 @@ impl HashLife {
         }
 
         self.root = self.set_cell_recursive(self.root, x - self.origin_x, y - self.origin_y, alive);
+        // Invalidate result cache since the universe changed
+        self.result_cache.clear();
     }
 
     fn contains(&self, x: i64, y: i64) -> bool {
@@ -2629,82 +2631,284 @@ impl HashLife {
         }
     }
 
+    // ========================================================================
+    // Memoized recursive HashLife algorithm
+    // ========================================================================
+
     /// Advances the universe by one generation.
     pub fn step(&mut self) {
-        // Use simple brute-force approach: extract all cells, step, rebuild
-        self.step_simple();
+        self.step_pow2(0);
     }
 
-    /// Simple brute-force step: extract cells, run Game of Life, rebuild tree.
-    fn step_simple(&mut self) {
-        // Ensure we have enough space
-        while self.level(self.root) < 3 || self.needs_expansion() {
+    /// Advances the universe by exactly 2^n generations using memoized recursion.
+    ///
+    /// This is the core HashLife speedup. For patterns with repetitive structure,
+    /// memoization makes this effectively O(1) per unique sub-pattern, regardless
+    /// of the number of generations.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use unshape_automata::HashLife;
+    ///
+    /// let mut universe = HashLife::new();
+    /// // Set up an r-pentomino
+    /// universe.set_cell(1, 0, true);
+    /// universe.set_cell(2, 0, true);
+    /// universe.set_cell(0, 1, true);
+    /// universe.set_cell(1, 1, true);
+    /// universe.set_cell(1, 2, true);
+    ///
+    /// // Advance 1024 generations in one call
+    /// universe.step_pow2(10);
+    /// assert_eq!(universe.generation(), 1024);
+    /// ```
+    pub fn step_pow2(&mut self, n: u32) {
+        // Ensure the tree is large enough: advance at level L gives 2^(L-2) steps,
+        // so we need level >= n + 2.
+        let target_level = n + 2;
+        while self.level(self.root) < target_level {
             self.expand();
         }
-        // Extra expansion for safety
+        // Ensure borders are clear (live cells must not touch the edge)
+        while self.needs_expansion() {
+            self.expand();
+        }
+        // One extra expansion for safety margin
         self.expand();
 
         let level = self.level(self.root);
-        let size = 1i64 << level;
+        self.root = self.advance(self.root, n);
+        self.generation += 1u64 << n;
 
-        // Extract all cells
-        let mut cells = vec![vec![false; size as usize]; size as usize];
-        for y in 0..size {
-            for x in 0..size {
-                cells[y as usize][x as usize] = self.get_cell_recursive(self.root, x, y);
-            }
-        }
-
-        // Compute next generation
-        let mut next = vec![vec![false; size as usize]; size as usize];
-        for y in 1..(size - 1) {
-            for x in 1..(size - 1) {
-                let count = self.count_neighbors_simple(&cells, x as usize, y as usize);
-                let alive = cells[y as usize][x as usize];
-                next[y as usize][x as usize] = if alive {
-                    count == 2 || count == 3
-                } else {
-                    count == 3
-                };
-            }
-        }
-
-        // Rebuild tree from next state
-        self.root = self.build_tree(&next, 0, 0, size as usize);
-        self.generation += 1;
+        // Adjust origin: the result is the center of the original root.
+        // Original root covers [origin, origin + 2^level).
+        // Center starts at origin + 2^(level-2).
+        let quarter = 1i64 << (level - 2);
+        self.origin_x += quarter;
+        self.origin_y += quarter;
     }
 
-    fn count_neighbors_simple(&self, cells: &[Vec<bool>], x: usize, y: usize) -> u8 {
-        let mut count = 0u8;
-        for dy in [-1i64, 0, 1] {
-            for dx in [-1i64, 0, 1] {
-                if dx == 0 && dy == 0 {
-                    continue;
-                }
-                let nx = (x as i64 + dx) as usize;
-                let ny = (y as i64 + dy) as usize;
-                if cells[ny][nx] {
-                    count += 1;
-                }
-            }
+    /// The core memoized recursive algorithm.
+    ///
+    /// For a level-L node, advances `2^step_log2` generations and returns
+    /// the center level-(L-1) result. Requires `step_log2 <= L - 2`.
+    fn advance(&mut self, node: u64, step_log2: u32) -> u64 {
+        let level = self.level(node);
+        debug_assert!(level >= 2);
+        debug_assert!(step_log2 <= level - 2);
+
+        // Check memoization cache
+        if let Some(&result) = self.result_cache.get(&(node, step_log2 as u64)) {
+            return result;
         }
-        count
+
+        let result = if level == 2 {
+            // Base case: 4×4 grid → 2×2 center after 1 generation
+            self.advance_level2(node)
+        } else if step_log2 == level - 2 {
+            // Full speed: two rounds of recursive advance
+            self.advance_full(node)
+        } else {
+            // Slow mode: one round of advance, then extract centers
+            self.advance_slow(node, step_log2)
+        };
+
+        self.result_cache.insert((node, step_log2 as u64), result);
+
+        // Bounded memory: clear cache if it gets too large
+        if self.result_cache.len() > 1_000_000 {
+            self.result_cache.clear();
+        }
+
+        result
     }
 
-    fn build_tree(&mut self, cells: &[Vec<bool>], x: usize, y: usize, size: usize) -> u64 {
-        if size == 1 {
-            return if cells[y][x] { Self::ALIVE } else { Self::DEAD };
-        }
+    /// Base case: compute 1 generation of Game of Life on a 4×4 grid.
+    /// Returns the 2×2 center as a level-1 node.
+    fn advance_level2(&mut self, node: u64) -> u64 {
+        let (nw, ne, sw, se) = self.children(node);
+        let (nw_nw, nw_ne, nw_sw, nw_se) = self.children(nw);
+        let (ne_nw, ne_ne, ne_sw, ne_se) = self.children(ne);
+        let (sw_nw, sw_ne, sw_sw, sw_se) = self.children(sw);
+        let (se_nw, se_ne, se_sw, se_se) = self.children(se);
 
-        let half = size / 2;
-        let level = (size as f64).log2() as u32;
+        let cell = |id: u64| -> bool { matches!(&self.nodes[id as usize], QuadNode::Leaf(true)) };
 
-        let nw = self.build_tree(cells, x, y, half);
-        let ne = self.build_tree(cells, x + half, y, half);
-        let sw = self.build_tree(cells, x, y + half, half);
-        let se = self.build_tree(cells, x + half, y + half, half);
+        // 4×4 grid layout:
+        //   a[0][0] a[0][1] a[0][2] a[0][3]
+        //   a[1][0] a[1][1] a[1][2] a[1][3]
+        //   a[2][0] a[2][1] a[2][2] a[2][3]
+        //   a[3][0] a[3][1] a[3][2] a[3][3]
+        let a = [
+            [cell(nw_nw), cell(nw_ne), cell(ne_nw), cell(ne_ne)],
+            [cell(nw_sw), cell(nw_se), cell(ne_sw), cell(ne_se)],
+            [cell(sw_nw), cell(sw_ne), cell(se_nw), cell(se_ne)],
+            [cell(sw_sw), cell(sw_se), cell(se_sw), cell(se_se)],
+        ];
 
-        self.create_interior_node(level, nw, ne, sw, se)
+        // Apply Game of Life to the 4 center cells
+        let life = |y: usize, x: usize| -> bool {
+            let mut count = 0u8;
+            for dy in [0usize, 1, 2] {
+                for dx in [0usize, 1, 2] {
+                    if dy == 1 && dx == 1 {
+                        continue;
+                    }
+                    if a[y - 1 + dy][x - 1 + dx] {
+                        count += 1;
+                    }
+                }
+            }
+            if a[y][x] {
+                count == 2 || count == 3
+            } else {
+                count == 3
+            }
+        };
+
+        let r_nw = if life(1, 1) { Self::ALIVE } else { Self::DEAD };
+        let r_ne = if life(1, 2) { Self::ALIVE } else { Self::DEAD };
+        let r_sw = if life(2, 1) { Self::ALIVE } else { Self::DEAD };
+        let r_se = if life(2, 2) { Self::ALIVE } else { Self::DEAD };
+
+        self.create_interior_node(1, r_nw, r_ne, r_sw, r_se)
+    }
+
+    /// Full-speed advance: two rounds of recursion.
+    /// Advances 2^(L-2) generations for a level-L node.
+    fn advance_full(&mut self, node: u64) -> u64 {
+        let level = self.level(node);
+        let sub_step = level - 3;
+
+        // Form 9 overlapping sub-squares from the 4x4 grid of grandchildren
+        let (n00, n01, n02, n10, n11, n12, n20, n21, n22) = self.nine_sub_squares(node);
+
+        // First round: advance each sub-square by 2^(L-3) generations
+        let r00 = self.advance(n00, sub_step);
+        let r01 = self.advance(n01, sub_step);
+        let r02 = self.advance(n02, sub_step);
+        let r10 = self.advance(n10, sub_step);
+        let r11 = self.advance(n11, sub_step);
+        let r12 = self.advance(n12, sub_step);
+        let r20 = self.advance(n20, sub_step);
+        let r21 = self.advance(n21, sub_step);
+        let r22 = self.advance(n22, sub_step);
+
+        // Combine into 4 intermediate squares
+        let c0 = self.create_interior_node(level - 1, r00, r01, r10, r11);
+        let c1 = self.create_interior_node(level - 1, r01, r02, r11, r12);
+        let c2 = self.create_interior_node(level - 1, r10, r11, r20, r21);
+        let c3 = self.create_interior_node(level - 1, r11, r12, r21, r22);
+
+        // Second round: advance each intermediate by another 2^(L-3) generations
+        // Total: 2^(L-3) + 2^(L-3) = 2^(L-2) ✓
+        let f0 = self.advance(c0, sub_step);
+        let f1 = self.advance(c1, sub_step);
+        let f2 = self.advance(c2, sub_step);
+        let f3 = self.advance(c3, sub_step);
+
+        self.create_interior_node(level - 1, f0, f1, f2, f3)
+    }
+
+    /// Slow-mode advance: one round of recursion, then extract centers.
+    /// Advances 2^step_log2 generations where step_log2 < L-2.
+    fn advance_slow(&mut self, node: u64, step_log2: u32) -> u64 {
+        let level = self.level(node);
+
+        // Form 9 overlapping sub-squares
+        let (n00, n01, n02, n10, n11, n12, n20, n21, n22) = self.nine_sub_squares(node);
+
+        // Advance each sub-square by 2^step_log2 generations
+        let r00 = self.advance(n00, step_log2);
+        let r01 = self.advance(n01, step_log2);
+        let r02 = self.advance(n02, step_log2);
+        let r10 = self.advance(n10, step_log2);
+        let r11 = self.advance(n11, step_log2);
+        let r12 = self.advance(n12, step_log2);
+        let r20 = self.advance(n20, step_log2);
+        let r21 = self.advance(n21, step_log2);
+        let r22 = self.advance(n22, step_log2);
+
+        // Combine into 4 intermediate squares
+        let c0 = self.create_interior_node(level - 1, r00, r01, r10, r11);
+        let c1 = self.create_interior_node(level - 1, r01, r02, r11, r12);
+        let c2 = self.create_interior_node(level - 1, r10, r11, r20, r21);
+        let c3 = self.create_interior_node(level - 1, r11, r12, r21, r22);
+
+        // Extract centers (no additional stepping)
+        // Total: 2^step_log2 generations ✓
+        let f0 = self.center_node(c0);
+        let f1 = self.center_node(c1);
+        let f2 = self.center_node(c2);
+        let f3 = self.center_node(c3);
+
+        self.create_interior_node(level - 1, f0, f1, f2, f3)
+    }
+
+    /// Forms 9 overlapping level-(L-1) sub-squares from a level-L node.
+    ///
+    /// Given the 4x4 grid of grandchildren:
+    /// ```text
+    /// nw.nw nw.ne | ne.nw ne.ne
+    /// nw.sw nw.se | ne.sw ne.se
+    /// ------+------+------+------
+    /// sw.nw sw.ne | se.nw se.ne
+    /// sw.sw sw.se | se.sw se.se
+    /// ```
+    ///
+    /// Returns 9 overlapping 2x2 blocks (each level L-1):
+    /// ```text
+    /// n00 n01 n02
+    /// n10 n11 n12
+    /// n20 n21 n22
+    /// ```
+    fn nine_sub_squares(&mut self, node: u64) -> (u64, u64, u64, u64, u64, u64, u64, u64, u64) {
+        let (nw, ne, sw, se) = self.children(node);
+
+        let n00 = nw;
+        let n01 = self.center_horizontal(nw, ne);
+        let n02 = ne;
+        let n10 = self.center_vertical(nw, sw);
+        let n11 = self.center_quad(nw, ne, sw, se);
+        let n12 = self.center_vertical(ne, se);
+        let n20 = sw;
+        let n21 = self.center_horizontal(sw, se);
+        let n22 = se;
+
+        (n00, n01, n02, n10, n11, n12, n20, n21, n22)
+    }
+
+    /// Extracts the center level-(L-1) sub-node from a level-L node.
+    fn center_node(&mut self, node: u64) -> u64 {
+        let (nw, ne, sw, se) = self.children(node);
+        self.center_quad(nw, ne, sw, se)
+    }
+
+    /// Forms the level-L node between two horizontally adjacent level-L nodes.
+    fn center_horizontal(&mut self, w: u64, e: u64) -> u64 {
+        let (_, w_ne, _, w_se) = self.children(w);
+        let (e_nw, _, e_sw, _) = self.children(e);
+        let level = self.level(w);
+        self.create_interior_node(level, w_ne, e_nw, w_se, e_sw)
+    }
+
+    /// Forms the level-L node between two vertically adjacent level-L nodes.
+    fn center_vertical(&mut self, n: u64, s: u64) -> u64 {
+        let (_, _, n_sw, n_se) = self.children(n);
+        let (s_nw, s_ne, _, _) = self.children(s);
+        let level = self.level(n);
+        self.create_interior_node(level, n_sw, n_se, s_nw, s_ne)
+    }
+
+    /// Forms the level-L node at the center of 4 arranged level-L nodes.
+    fn center_quad(&mut self, nw: u64, ne: u64, sw: u64, se: u64) -> u64 {
+        let (_, _, _, nw_se) = self.children(nw);
+        let (_, _, ne_sw, _) = self.children(ne);
+        let (_, sw_ne, _, _) = self.children(sw);
+        let (se_nw, _, _, _) = self.children(se);
+        let level = self.level(nw);
+        self.create_interior_node(level, nw_se, ne_sw, sw_ne, se_nw)
     }
 
     fn needs_expansion(&self) -> bool {
@@ -2749,10 +2953,6 @@ impl HashLife {
 
         false
     }
-    // Note: The classic HashLife recursive algorithm with memoization
-    // can be added later for computing many generations at once (superspeed mode).
-    // For now, we use a simple brute-force approach that's correct but O(n²)
-    // per generation.
 
     /// Returns the total population (number of live cells).
     pub fn population(&self) -> u64 {
@@ -2765,9 +2965,18 @@ impl HashLife {
     }
 
     /// Advances multiple generations.
+    ///
+    /// Decomposes n into powers of 2 and calls [`step_pow2`](Self::step_pow2)
+    /// for each, taking advantage of memoization for large jumps.
     pub fn steps(&mut self, n: usize) {
-        for _ in 0..n {
-            self.step();
+        let mut remaining = n as u64;
+        let mut bit = 0u32;
+        while remaining > 0 {
+            if remaining & 1 == 1 {
+                self.step_pow2(bit);
+            }
+            remaining >>= 1;
+            bit += 1;
         }
     }
 
@@ -2805,6 +3014,27 @@ impl HashLife {
     /// Clears the result cache.
     pub fn clear_cache(&mut self) {
         self.result_cache.clear();
+    }
+
+    /// Creates a HashLife universe from a [`CellularAutomaton2D`].
+    ///
+    /// Copies all live cells from the grid-based automaton into the
+    /// quadtree-based HashLife. The grid is placed at coordinates (0, 0)
+    /// to (width-1, height-1).
+    ///
+    /// Note: HashLife uses Game of Life rules (B3/S23). The source CA's
+    /// rule set is not transferred.
+    pub fn from_ca2d(ca: &CellularAutomaton2D) -> Self {
+        let mut universe = Self::new();
+        let cells = ca.cells();
+        for (y, row) in cells.iter().enumerate() {
+            for (x, &alive) in row.iter().enumerate() {
+                if alive {
+                    universe.set_cell(x as i64, y as i64, true);
+                }
+            }
+        }
+        universe
     }
 }
 
@@ -3476,5 +3706,115 @@ mod tests {
         assert_eq!(max_x, 5);
         assert_eq!(min_y, 7);
         assert_eq!(max_y, 10);
+    }
+
+    #[test]
+    fn test_hashlife_step_pow2_blinker() {
+        // Blinker is period 2. After 2^1 = 2 generations, it returns to original.
+        let mut universe = HashLife::new();
+        universe.set_cell(0, -1, true);
+        universe.set_cell(0, 0, true);
+        universe.set_cell(0, 1, true);
+
+        universe.step_pow2(1); // 2 generations
+        assert_eq!(universe.generation(), 2);
+
+        // Should be back to original vertical orientation
+        assert!(universe.get_cell(0, -1));
+        assert!(universe.get_cell(0, 0));
+        assert!(universe.get_cell(0, 1));
+        assert!(!universe.get_cell(-1, 0));
+        assert!(!universe.get_cell(1, 0));
+    }
+
+    #[test]
+    fn test_hashlife_step_pow2_large() {
+        // R-pentomino: stabilizes after 1103 generations.
+        // Test that step_pow2(10) = 1024 generations works without crashing.
+        let mut universe = HashLife::new();
+        universe.set_cell(1, 0, true);
+        universe.set_cell(2, 0, true);
+        universe.set_cell(0, 1, true);
+        universe.set_cell(1, 1, true);
+        universe.set_cell(1, 2, true);
+
+        universe.step_pow2(10); // 1024 generations
+        assert_eq!(universe.generation(), 1024);
+        // R-pentomino should still have live cells after 1024 generations
+        assert!(universe.population() > 0);
+    }
+
+    #[test]
+    fn test_hashlife_steps_decomposed() {
+        // Compare step-by-step with decomposed steps() for a blinker.
+        // Blinker period is 2, so after 7 steps it should be in phase 1.
+        let mut a = HashLife::new();
+        a.set_cell(0, -1, true);
+        a.set_cell(0, 0, true);
+        a.set_cell(0, 1, true);
+
+        let mut b = a.clone();
+
+        // a: step one at a time
+        for _ in 0..7 {
+            a.step();
+        }
+
+        // b: decomposed (7 = 4 + 2 + 1)
+        b.steps(7);
+
+        assert_eq!(a.generation(), 7);
+        assert_eq!(b.generation(), 7);
+        assert_eq!(a.population(), b.population());
+
+        // Both should be in phase 1 (horizontal blinker)
+        assert!(a.get_cell(-1, 0));
+        assert!(a.get_cell(0, 0));
+        assert!(a.get_cell(1, 0));
+
+        assert!(b.get_cell(-1, 0));
+        assert!(b.get_cell(0, 0));
+        assert!(b.get_cell(1, 0));
+    }
+
+    #[test]
+    fn test_hashlife_step_pow2_glider() {
+        // Glider moves 1 cell diagonally every 4 generations.
+        // After 2^2 = 4 generations, glider should shift by (1, 1).
+        let mut universe = HashLife::new();
+        universe.set_cell(1, 0, true);
+        universe.set_cell(2, 1, true);
+        universe.set_cell(0, 2, true);
+        universe.set_cell(1, 2, true);
+        universe.set_cell(2, 2, true);
+
+        universe.step_pow2(2); // 4 generations
+        assert_eq!(universe.generation(), 4);
+        assert_eq!(universe.population(), 5);
+
+        // Glider shifted by (1, 1)
+        assert!(universe.get_cell(2, 1));
+        assert!(universe.get_cell(3, 2));
+        assert!(universe.get_cell(1, 3));
+        assert!(universe.get_cell(2, 3));
+        assert!(universe.get_cell(3, 3));
+    }
+
+    #[test]
+    fn test_hashlife_memoization() {
+        // Run a pattern, clear cache, run again - results should be identical.
+        let mut a = HashLife::new();
+        a.set_cell(0, -1, true);
+        a.set_cell(0, 0, true);
+        a.set_cell(0, 1, true);
+
+        let mut b = a.clone();
+
+        a.step_pow2(3); // 8 generations with warm cache
+        b.clear_cache();
+        b.step_pow2(3); // 8 generations with cold cache
+
+        assert_eq!(a.generation(), b.generation());
+        assert_eq!(a.population(), b.population());
     }
 }

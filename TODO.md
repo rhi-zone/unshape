@@ -847,13 +847,18 @@ See DECOMPOSITION-AUDIT.md for which are true primitives vs compositions.
   - Arbitrary coordinate support (including negative)
   - Population tracking and bounds computation
 
-**HashLife (Optimization):**
-- [ ] `HashLifeGrid` - quadtree representation with memoization
-  - `Node` = hash of (NW, NE, SW, SE) children
-  - Result cache: `HashMap<Node, Node>` for 2^k generation jumps
-- [ ] `step_pow2(log2_generations)` - advance 2^n generations in ~O(1)
-- [ ] `HashLifeGrid::from(CellularAutomaton2D)` - convert from standard grid
-- [ ] Memory management: LRU cache eviction for bounded memory
+**HashLife (Optimization) ✅:**
+- [x] Memoized recursive algorithm with `advance(node, step_log2)`
+  - Base case: `advance_level2` computes GoL on 4×4 grid
+  - Full speed: `advance_full` - two rounds of recursion for 2^(L-2) generations
+  - Slow mode: `advance_slow` - one round + center extraction for arbitrary 2^n
+  - 9 overlapping sub-squares via `nine_sub_squares()` helper
+  - Cache: `HashMap<(node_id, step_log2), result_node_id>`
+- [x] `step_pow2(n)` - advance 2^n generations with memoization
+- [x] `steps(n)` - decomposes n into powers of 2 for optimal memoization
+- [x] `from_ca2d(ca)` - convert from CellularAutomaton2D
+- [x] Cache eviction: clear when exceeding 1M entries
+- [x] Cache invalidation: `set_cell()` clears result cache
 
 ### WFC AdjacencySource Refactoring ✅
 
