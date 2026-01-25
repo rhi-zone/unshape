@@ -208,7 +208,7 @@ enum UvRemap {
 
 **Rejected because:**
 - Closed set - can't add new transforms without modifying enum
-- Combinators become complex (Compose(Box<UvRemap>, Box<UvRemap>))
+- Combinators become complex (`Compose(Box<UvRemap>, Box<UvRemap>)`)
 - Shader codegen requires matching on every variant
 
 ### Alternative 3: Closure with Serializable Hint
