@@ -17,7 +17,7 @@ Track progress auditing each crate for decomposition opportunities.
 | resin-curve | done | 4 | Line, QuadBezier, CubicBezier, Arc. All ops decompose to position_at/tangent_at |
 | resin-easing | done | 0 | All easing = dew expressions (t*t, sin, pow, etc). Ergonomic presets only |
 | resin-expr-field | skip | — | Infrastructure (dew→field bridge, FieldExpr AST) |
-| resin-field | done | 5 | Map, Zip, Zip3, FnField, Twist/Bend/Repeat. Add/Mul/Mix are Zip+Map |
+| resin-field | done | 5 | Map, Zip, Zip3, FnField, Twist/Bend/Repeat. Add/Mul/Mix removed (were Zip+Map) |
 | resin-fluid | done | 4 | Stable Fluids (advect/diffuse/project), SPH, Smoke buoyancy, Dissipation |
 | resin-geometry | skip | — | Traits only |
 | resin-gltf | skip | — | I/O |
@@ -157,16 +157,20 @@ Track progress auditing each crate for decomposition opportunities.
 5. `Twist/Bend/Repeat` - irreducible domain transforms
 
 **Ergonomic Helpers (Layer 2):**
-- `lerp(a, b, t)` - expands to `Zip3 + Map` ✅
+- `add(a, b)`, `mul(a, b)`, `sub(a, b)`, `div(a, b)` - expand to `Zip + Map` ✅
+- `lerp(a, b, t)`, `mix(a, b, t)` - expand to `Zip3 + Map` ✅
 - `zip(a, b)`, `zip3(a, b, c)` - standalone functions ✅
 
-**Redundant (all are Zip+Map):**
+**Removed (were Zip+Map):** ✅
+- ~~`Add<A, B>`~~ — replaced by `add()` helper
+- ~~`Mul<A, B>`~~ — replaced by `mul()` helper
+- ~~`Mix<A, B, T>`~~ — replaced by `lerp()` / `mix()` helpers
+- ~~`Field::add()`, `Field::mul()`, `Field::mix()`~~ trait methods — removed
+
+**Remaining redundancies (not yet removed):**
 
 | Current | Becomes |
 |---------|---------|
-| `Add<A, B>` | `Zip<A, B>.map(\|(a,b)\| a + b)` |
-| `Mul<A, B>` | `Zip<A, B>.map(\|(a,b)\| a * b)` |
-| `Mix<A, B, T>` | `Zip<Zip<A,B>, T>.map(...)` or keep as primitive |
 | `SdfUnion` | `Zip.map(min)` |
 | `SdfIntersection` | `Zip.map(max)` |
 | `SdfSubtraction` | `Zip.map(\|(a,b)\| max(a, -b))` |

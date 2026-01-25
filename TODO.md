@@ -695,28 +695,28 @@ Add to image pattern-matching optimizer (like audio's tremolo/chorus recognition
 
 > **Goal:** Reduce field combinators to true primitives.
 
-**Current state:**
-- `Mix<A, B, Blend>` - ternary lerp
-- `Add<A, B>`, `Mul<A, B>` - binary ops
-- `Map<F, M>` - unary transform
+**True primitives (implemented):**
+- [x] `Zip<A, B>` - general binary: two fields → tuple, compose with Map for any op
+- [x] `Zip3<A, B, C>` - general ternary: three fields → triple
+- [x] `Map<F, M>` - general unary: transform output
+- [x] Helper functions: `add()`, `mul()`, `sub()`, `div()`, `lerp()`, `mix()` — all Zip + Map sugar
 
-**Proposed primitives:**
-- [ ] `Zip<A, B, Expr>` - general binary: subsumes Add, Mul, Min, Max, etc.
-- [ ] `Map<F, Expr>` - general unary: subsumes Abs, Negate, etc.
-- [ ] `Mix<A, B, T>` - keep as primitive? Or `Zip3<A, B, T, Expr>`?
+**Removed (deprecated → deleted):**
+- [x] ~~`Add<A, B>`~~ — removed, use `add(a, b)` or `zip(a, b).map(|(x, y)| x + y)`
+- [x] ~~`Mul<A, B>`~~ — removed, use `mul(a, b)` or `zip(a, b).map(|(x, y)| x * y)`
+- [x] ~~`Mix<A, B, Blend>`~~ — removed, use `lerp(a, b, t)` or `zip3(a, b, t).map(...)`
+- [x] ~~Field trait methods `.add()`, `.mul()`, `.mix()`~~ — removed from trait
+
+**Remaining:**
 - [ ] Extend all to support Rgba output
-
-**Redundant (remove or make sugar):**
-- ~~Add<A, B>~~ → `Zip<A, B, "a + b">`
-- ~~Mul<A, B>~~ → `Zip<A, B, "a * b">`
 
 **Not needed (just use combinators):**
 - ~~SdfToMask~~ - SDF is already a field, threshold via `map(|d| if d < 0.0 { 1.0 } else { 0.0 })`
 - ~~ApplyMasked~~ - masking is just lerp with a second value:
-  - `Mix<original, transparent, mask>` = alpha mask
-  - `Mix<original, black, mask>` = fade to black
-  - `Mix<original, transformed, mask>` = selective transform
-  - `Mix<a, b, 0.5>` = 50% blend
+  - `lerp(original, transparent, mask)` = alpha mask
+  - `lerp(original, black, mask)` = fade to black
+  - `lerp(original, transformed, mask)` = selective transform
+  - `lerp(a, b, Constant::new(0.5))` = 50% blend
 - ~~MaskUnion/Intersect/Subtract~~ - just field math: `max(a,b)`, `min(a,b)`, `a*(1-b)`
 
 ### Spread Spectrum / Quantization ✅
