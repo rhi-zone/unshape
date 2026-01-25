@@ -8,7 +8,7 @@ Track progress auditing each crate for decomposition opportunities.
 |-------|--------|------------------|-------------|
 | resin-audio | done | 9 | DelayLine, PhaseOsc, Biquad, EnvelopeFollower, Allpass1, FFT/IFFT, AffineNode, Smoother, Mix |
 | resin-audio-codegen | skip | — | Codegen, not ops |
-| resin-automata | done | 2 | StepElementaryCA, StepCellularAutomaton2D. Config/presets are helpers |
+| resin-automata | done | 12 | Step ops per CA type + HashLife memoized advance. Neighborhoods are pluggable, configs/presets are helpers |
 | resin-backend | skip | — | Infrastructure |
 | resin-bytes | skip | — | Infrastructure (byte casting utilities) |
 | resin-color | done | 3 | Gamma, HSL/HSV transform, hue-wrapped lerp. Blend modes are component-wise ops |
@@ -37,7 +37,7 @@ Track progress auditing each crate for decomposition opportunities.
 | resin-particle | done | ~8 | CompositeEmitter pattern, 4 force primitives, Integrator missing |
 | resin-physics | done | 5 | RigidBody, Force/Impulse, Integration, Collision shapes, Constraint |
 | resin-pointcloud | done | 2 | Poisson, RemoveOutliers. Other ops need struct wrappers |
-| resin-procgen | done | 8 | WfcSolver + 6 maze algorithms + river generation |
+| resin-procgen | done | 8 | WfcSolver generic over AdjacencySource (co-equal: TileSet, WangTileSet) + 6 maze algs + river |
 | resin-rd | done | 2 | Step (PDE integration), Laplacian (internal). Seeds are buffer writes |
 | resin-rig | done | 8 | Skeleton, Pose, Skin, CCD, FABRIK, JiggleBone, Track. Locomotion decomposes |
 | resin-scatter | done | 6 | Random, Grid, Sphere, PoissonDisk2D, Line, Circle |
@@ -459,9 +459,25 @@ Implemented for: `DistanceConstraint`, `PointConstraint`, `HingeConstraint`, `Co
 
 ### resin-automata (done)
 
-**True Primitives (2):**
+**True Primitives (12):**
+
+*Step operations (one per CA type):*
 1. `StepElementaryCA { steps }` - 1D rule application (3-cell → rule bit lookup)
 2. `StepCellularAutomaton2D { steps }` - 2D neighbor counting + birth/survival rules
+3. `LargerThanLife::step()` - 2D extended-range CA with range-based birth/survival thresholds
+4. `CellularAutomaton3D::step()` - 3D neighbor counting + birth/survival rules
+5. `SmoothLife::step(dt)` - continuous-state 2D CA with sigmoid transitions and disk/ring integrals
+6. `LangtonsAnt::step()` - 2D Turing machine (ant on grid, state → turn rule)
+7. `Turmite::step()` - generalized multi-state ant with (grid_state, ant_state) → (new_grid, turn, new_ant) transitions
+
+*HashLife:*
+8. `HashLife::advance(node, step_log2)` - memoized recursive quadtree advance (Gosper's algorithm)
+9. `HashLife::advance_level2(node)` - base case: manual GoL on 4×4 grid → 2×2 center
+10. `HashLife::advance_full(node)` - full-speed: 9 sub-squares → recurse → 4 intermediates → recurse
+11. `HashLife::advance_slow(node, step_log2)` - parameterized: 9 sub-squares → recurse → extract centers
+
+*Neighborhood abstraction:*
+12. `Neighborhood2D` / `Neighborhood3D` traits - pluggable neighborhood patterns (Moore, VonNeumann, Hexagonal, ExtendedMoore, custom)
 
 **Decompositions Found:**
 
@@ -470,9 +486,19 @@ Implemented for: `DistanceConstraint`, `PointConstraint`, `HingeConstraint`, `Co
 | `GeneratePattern` | Loop: `StepElementaryCA` × N, collect states |
 | `ElementaryCAConfig` | `ElementaryCA::new()` + `randomize()` or `set_center()` |
 | `CellularAutomaton2DConfig` | `CellularAutomaton2D::new()` + `randomize()` |
+| `HashLife::step()` | `step_pow2(0)` |
+| `HashLife::steps(n)` | Binary decomposition: `step_pow2` per set bit in n |
+| `HashLife::from_ca2d()` | Tree construction from `CellularAutomaton2D` grid |
 | Rule presets (LIFE, etc.) | Data constants, not operations |
+| LtlRules presets (BUGS, etc.) | Data constants for Larger than Life |
+| Ant/turmite presets | Rule string constants |
+| SmoothLifeConfig presets | Parameter configurations (standard, fluid, slow) |
 
-**Key Insight:** Step operations are truly primitive (neighborhood + rule lookup). Initialization and presets are helpers.
+**Key Insights:**
+- Step operations are truly primitive per CA type (each has fundamentally different state/transition logic).
+- HashLife decomposes step into memoized recursive `advance` — three cases (base, full-speed, parameterized) are irreducible.
+- Neighborhoods are pluggable via traits, not hardcoded — `CellularAutomaton2D` and `CellularAutomaton3D` accept any `Neighborhood2D`/`Neighborhood3D`.
+- Binary step decomposition in `steps(n)` maximizes HashLife memoization hits.
 
 ---
 
@@ -623,7 +649,7 @@ Implemented for: `DistanceConstraint`, `PointConstraint`, `HingeConstraint`, `Co
 ### resin-procgen (done)
 
 **True Primitives (8):**
-1. `WfcSolver` - Wave Function Collapse with entropy-driven constraint propagation
+1. `WfcSolver<A: AdjacencySource>` - generic Wave Function Collapse with entropy-driven constraint propagation
 2. `RecursiveBacktracker` - DFS maze (long winding passages)
 3. `Prim` - randomized Prim's spanning tree maze
 4. `Kruskal` - union-find spanning tree maze
@@ -632,13 +658,39 @@ Implemented for: `DistanceConstraint`, `PointConstraint`, `HingeConstraint`, `Co
 7. `Sidewinder` - horizontal-bias maze variant
 8. `RiverNetwork::generate_river()` - procedural river with meandering
 
+**Co-Equal Primitives (AdjacencySource trait):**
+
+`WfcSolver` is generic over the `AdjacencySource` trait, which has two co-equal implementations:
+
+| Type | Storage | Adjacency Lookup | Best For |
+|------|---------|-------------------|----------|
+| `TileSet` | O(R) explicit rules in HashMap | O(1) per direction | Custom/irregular adjacency |
+| `WangTileSet` | O(N) tiles + O(C⁴) edge-color index | O(C³) where C = colors | Regular tiling patterns |
+
+Converting 1000 Wang tiles to explicit rules = ~1,000,000 entries. Neither subsumes the other efficiently. Both implement `AdjacencySource`, and `WfcSolver` works with either without conversion. `ValidNeighbors` enum avoids boxing (returns `HashSet::Iter` or `slice::Iter` depending on backing type).
+
+See `docs/design/general-internal-constrained-api.md` § "Exception: Co-Equal Primitives".
+
 **Op Structs (Layer 2):**
 - `GenerateMaze { width, height, algorithm, add_entrance, add_exit }`
 - `GenerateRiver { source, sink, config }`
 - `GenerateRoadNetworkGrid { bounds_min, bounds_max, spacing }`
 - `GenerateRoadNetworkHierarchical { bounds_min, bounds_max, density }`
 
-**Key Insight:** WFC and maze algorithms are irreducible—each uses fundamentally different traversal patterns. Presets are configurations of these primitives.
+**Decompositions Found:**
+
+| Operation | Decomposes To |
+|-----------|---------------|
+| `solve_wang_tiling()` | `WfcSolver::new(WangTileSet)` + `run()` (no O(N²) conversion) |
+| `WangTileSet::to_tileset()` | Explicit rule expansion (available but avoided in solver) |
+| `NamedTileSet` | String-keyed wrapper around `TileSet` |
+| Preset tilesets (`platformer_tileset`, etc.) | `NamedTileSet` configurations |
+| Wang presets (`two_color_corners`, etc.) | `WangTileSet` configurations |
+
+**Key Insights:**
+- WFC and maze algorithms are irreducible — each uses fundamentally different traversal patterns.
+- `AdjacencySource` is the unifying trait for tile adjacency, not a general/constrained pair. Both `TileSet` and `WangTileSet` are first-class primitives with different performance tradeoffs.
+- `WfcSolver` being generic over `AdjacencySource` eliminates the previous O(N²) conversion path for Wang tile solving.
 
 ---
 
