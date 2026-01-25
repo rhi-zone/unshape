@@ -9,6 +9,7 @@ repository = "https://github.com/rhi-zone/unshape"
 [features]
 serde = ["dep:serde"]
 dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
+invariant-tests = []
 
 [dependencies]
 unshape-op = { path = "../unshape-op", optional = true }

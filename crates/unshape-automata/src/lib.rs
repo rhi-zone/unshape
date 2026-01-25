@@ -3818,3 +3818,461 @@ mod tests {
         assert_eq!(a.population(), b.population());
     }
 }
+
+// ============================================================================
+// Invariant tests - mathematical properties that must hold
+// ============================================================================
+
+#[cfg(all(test, feature = "invariant-tests"))]
+mod invariant_tests {
+    use super::*;
+
+    // ------------------------------------------------------------------------
+    // Neighborhood invariants
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_moore_neighbor_count() {
+        let moore = Moore;
+        assert_eq!(
+            moore.offsets().len(),
+            8,
+            "Moore neighborhood must have 8 neighbors"
+        );
+    }
+
+    #[test]
+    fn test_vonneumann_neighbor_count() {
+        let vn = VonNeumann;
+        assert_eq!(
+            vn.offsets().len(),
+            4,
+            "Von Neumann neighborhood must have 4 neighbors"
+        );
+    }
+
+    #[test]
+    fn test_hexagonal_neighbor_count() {
+        let hex = Hexagonal;
+        assert_eq!(
+            hex.offsets().len(),
+            6,
+            "Hexagonal neighborhood must have 6 neighbors"
+        );
+    }
+
+    #[test]
+    fn test_extended_moore_radius_formula() {
+        // ExtendedMoore(r) should have (2r+1)^2 - 1 neighbors
+        for r in 1..=5 {
+            let em = ExtendedMoore::new(r);
+            let expected = ((2 * r + 1) * (2 * r + 1) - 1) as usize;
+            assert_eq!(
+                em.offsets().len(),
+                expected,
+                "ExtendedMoore({r}) should have {expected} neighbors"
+            );
+        }
+    }
+
+    #[test]
+    fn test_moore3d_neighbor_count() {
+        let moore = Moore3D;
+        assert_eq!(
+            moore.offsets().len(),
+            26,
+            "Moore3D neighborhood must have 26 neighbors"
+        );
+    }
+
+    #[test]
+    fn test_vonneumann3d_neighbor_count() {
+        let vn = VonNeumann3D;
+        assert_eq!(
+            vn.offsets().len(),
+            6,
+            "VonNeumann3D neighborhood must have 6 neighbors"
+        );
+    }
+
+    #[test]
+    fn test_neighborhoods_exclude_origin() {
+        // No neighborhood should include (0, 0) as a neighbor
+        let moore = Moore;
+        assert!(
+            !moore.offsets().contains(&(0, 0)),
+            "Moore must not include origin"
+        );
+
+        let vn = VonNeumann;
+        assert!(
+            !vn.offsets().contains(&(0, 0)),
+            "VonNeumann must not include origin"
+        );
+
+        let hex = Hexagonal;
+        assert!(
+            !hex.offsets().contains(&(0, 0)),
+            "Hexagonal must not include origin"
+        );
+
+        let em = ExtendedMoore::new(2);
+        assert!(
+            !em.offsets().contains(&(0, 0)),
+            "ExtendedMoore must not include origin"
+        );
+
+        let moore3d = Moore3D;
+        assert!(
+            !moore3d.offsets().contains(&(0, 0, 0)),
+            "Moore3D must not include origin"
+        );
+
+        let vn3d = VonNeumann3D;
+        assert!(
+            !vn3d.offsets().contains(&(0, 0, 0)),
+            "VonNeumann3D must not include origin"
+        );
+    }
+
+    // ------------------------------------------------------------------------
+    // Game of Life pattern invariants
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_gol_block_is_still_life() {
+        // Block (2x2 square) should never change
+        let mut ca = CellularAutomaton2D::life(10, 10);
+        ca.set(4, 4, true);
+        ca.set(5, 4, true);
+        ca.set(4, 5, true);
+        ca.set(5, 5, true);
+
+        let initial_pop = ca.population();
+        for _ in 0..100 {
+            ca.step();
+            assert_eq!(
+                ca.population(),
+                initial_pop,
+                "Block population must stay constant"
+            );
+        }
+    }
+
+    #[test]
+    fn test_gol_blinker_period_2() {
+        // Blinker oscillates with period 2
+        let mut ca = CellularAutomaton2D::life(10, 10);
+        ca.set(4, 5, true);
+        ca.set(5, 5, true);
+        ca.set(6, 5, true);
+
+        // After 1 step: vertical
+        ca.step();
+        assert!(ca.get(5, 4));
+        assert!(ca.get(5, 5));
+        assert!(ca.get(5, 6));
+
+        // After 2 steps: back to horizontal
+        ca.step();
+        assert!(ca.get(4, 5));
+        assert!(ca.get(5, 5));
+        assert!(ca.get(6, 5));
+    }
+
+    #[test]
+    fn test_gol_glider_displacement() {
+        // Glider moves (1, 1) every 4 generations
+        let mut ca = CellularAutomaton2D::life(20, 20);
+        // Glider pattern
+        ca.set(1, 0, true);
+        ca.set(2, 1, true);
+        ca.set(0, 2, true);
+        ca.set(1, 2, true);
+        ca.set(2, 2, true);
+
+        ca.steps(4);
+
+        // Glider should have moved to (2, 1), (3, 2), (1, 3), (2, 3), (3, 3)
+        assert!(ca.get(2, 1), "Glider displaced position (2,1)");
+        assert!(ca.get(3, 2), "Glider displaced position (3,2)");
+        assert!(ca.get(1, 3), "Glider displaced position (1,3)");
+        assert!(ca.get(2, 3), "Glider displaced position (2,3)");
+        assert!(ca.get(3, 3), "Glider displaced position (3,3)");
+        assert_eq!(ca.population(), 5, "Glider population stays 5");
+    }
+
+    #[test]
+    fn test_gol_empty_stays_empty() {
+        let mut ca = CellularAutomaton2D::life(10, 10);
+        for _ in 0..100 {
+            ca.step();
+            assert_eq!(ca.population(), 0, "Empty grid must stay empty");
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Elementary CA invariants
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_elementary_ca_single_cell_rule_90() {
+        // Rule 90 from single center cell produces Sierpinski triangle pattern
+        // After 2^n steps, has 2^n live cells (row sum = 2^row for row < 2^n)
+        let mut ca = ElementaryCA::new(129, 90);
+        ca.set_center();
+
+        // After 1 step: 2 cells
+        ca.step();
+        assert_eq!(ca.cells().iter().filter(|&&x| x).count(), 2);
+
+        // After 2 more steps (total 3): row 3 should have 4 cells
+        ca.steps(2);
+        // Row patterns: 1, 2, 2, 4, 2, 4, 4, 8, ...
+    }
+
+    #[test]
+    fn test_elementary_ca_rule_deterministic() {
+        let mut ca1 = ElementaryCA::new(50, 110);
+        ca1.set_center();
+        ca1.steps(20);
+
+        let mut ca2 = ElementaryCA::new(50, 110);
+        ca2.set_center();
+        ca2.steps(20);
+
+        assert_eq!(ca1.cells(), ca2.cells(), "Same rule + seed = same result");
+    }
+
+    #[test]
+    fn test_elementary_ca_rule_184_conservation() {
+        // Rule 184 is a traffic flow model - total count conserved
+        let mut ca = ElementaryCA::new(100, 184);
+        ca.randomize(42);
+        let initial_count: usize = ca.cells().iter().filter(|&&x| x).count();
+
+        for _ in 0..50 {
+            ca.step();
+            let count: usize = ca.cells().iter().filter(|&&x| x).count();
+            assert_eq!(count, initial_count, "Rule 184 conserves particle count");
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // SmoothLife invariants
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_smoothlife_values_bounded() {
+        let config = SmoothLifeConfig::standard();
+        let mut sl = SmoothLife::new(32, 32, config);
+        sl.randomize(42, 0.5);
+
+        for _ in 0..50 {
+            sl.step(0.1);
+            for y in 0..sl.height() {
+                for x in 0..sl.width() {
+                    let v = sl.get(x, y);
+                    assert!(
+                        (0.0..=1.0).contains(&v),
+                        "SmoothLife values must be in [0, 1], got {v}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_smoothlife_empty_stays_near_zero() {
+        let config = SmoothLifeConfig::standard();
+        let mut sl = SmoothLife::new(32, 32, config);
+        // Start empty (all zeros)
+
+        for _ in 0..10 {
+            sl.step(0.1);
+        }
+
+        // Average should stay very low (near 0)
+        let avg = sl.average_value();
+        assert!(
+            avg < 0.01,
+            "Empty SmoothLife should stay near zero, got {avg}"
+        );
+    }
+
+    // ------------------------------------------------------------------------
+    // HashLife vs brute-force invariants
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_hashlife_matches_ca2d_blinker() {
+        // Compare HashLife to CellularAutomaton2D for blinker pattern
+        let mut ca = CellularAutomaton2D::life(20, 20);
+        ca.set(9, 10, true);
+        ca.set(10, 10, true);
+        ca.set(11, 10, true);
+
+        let mut hl = HashLife::from_ca2d(&ca);
+
+        for step in 0..20 {
+            assert_eq!(
+                ca.population() as u64,
+                hl.population(),
+                "Population mismatch at generation {}",
+                step
+            );
+            ca.step();
+            hl.step();
+        }
+    }
+
+    #[test]
+    fn test_hashlife_matches_ca2d_glider() {
+        // Compare HashLife to CellularAutomaton2D for glider
+        let mut ca = CellularAutomaton2D::life(30, 30);
+        ca.set(1, 0, true);
+        ca.set(2, 1, true);
+        ca.set(0, 2, true);
+        ca.set(1, 2, true);
+        ca.set(2, 2, true);
+
+        let mut hl = HashLife::from_ca2d(&ca);
+
+        for step in 0..40 {
+            assert_eq!(
+                ca.population() as u64,
+                hl.population(),
+                "Glider population mismatch at generation {}",
+                step
+            );
+            ca.step();
+            hl.step();
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Langton's Ant invariants
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_langtons_ant_flips_cell() {
+        // Each step, ant flips the cell it's on
+        let mut ant = LangtonsAnt::new(10, 10, "RL");
+        let (x, y) = ant.position();
+        let before = ant.get(x as usize, y as usize);
+        ant.step();
+        let after = ant.get(x as usize, y as usize);
+        assert_ne!(before, after, "Ant must flip cell state");
+    }
+
+    #[test]
+    fn test_langtons_ant_grid_values_bounded() {
+        // Grid values should always be < num_states (rule length)
+        let mut ant = LangtonsAnt::new(100, 100, "RL");
+        let num_states = 2u8; // "RL" has 2 states
+
+        for _ in 0..1000 {
+            ant.step();
+        }
+
+        for y in 0..ant.height() {
+            for x in 0..ant.width() {
+                let state = ant.get(x, y);
+                assert!(
+                    state < num_states,
+                    "Grid value {} exceeds num_states {}",
+                    state,
+                    num_states
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_langtons_ant_step_count_monotonic() {
+        // Step count should increment by 1 each step
+        let mut ant = LangtonsAnt::new(50, 50, "RL");
+
+        for expected in 1..=100u64 {
+            ant.step();
+            assert_eq!(
+                ant.step_count(),
+                expected,
+                "Step count should be {}",
+                expected
+            );
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // LargerThanLife invariants
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ltl_values_boolean() {
+        // LargerThanLife cells are boolean (0 or 1)
+        let mut ltl = LargerThanLife::new(32, 32, 2, ltl_rules::BUGS);
+        ltl.randomize(42, 0.3);
+
+        for _ in 0..20 {
+            ltl.step();
+            for row in ltl.cells() {
+                for &cell in row {
+                    assert!(cell == false || cell == true, "LtL cells must be boolean");
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // 3D CA invariants
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_ca3d_empty_stays_empty() {
+        let mut ca = CellularAutomaton3D::new(10, 10, 10, &[4], &[5]);
+        for _ in 0..20 {
+            ca.step();
+            assert_eq!(ca.population(), 0, "Empty 3D grid must stay empty");
+        }
+    }
+
+    #[test]
+    fn test_ca3d_single_cell_dies() {
+        // A single cell with B4/S5 rule (typical 3D rule) should die
+        let mut ca = CellularAutomaton3D::new(10, 10, 10, &[4], &[5]);
+        ca.set(5, 5, 5, true);
+        ca.step();
+        assert_eq!(ca.population(), 0, "Single cell should die with B4/S5");
+    }
+
+    // ------------------------------------------------------------------------
+    // Turmite invariants
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_turmite_grid_values_bounded() {
+        // Grid values should be < num_grid_states
+        let rules = vec![
+            TurmiteRule::new(0, 0, 1, Turn::Right, 0),
+            TurmiteRule::new(1, 0, 0, Turn::Left, 0),
+        ];
+        let mut turmite = Turmite::new(50, 50, 2, 1, rules);
+
+        for _ in 0..1000 {
+            turmite.step();
+        }
+
+        let max_state = turmite.num_grid_states();
+        for row in turmite.grid() {
+            for &cell in row {
+                assert!(
+                    cell < max_state,
+                    "Grid value {} exceeds max state {}",
+                    cell,
+                    max_state
+                );
+            }
+        }
+    }
+}
