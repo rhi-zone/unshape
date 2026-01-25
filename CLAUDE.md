@@ -77,6 +77,8 @@ Do not:
 - Convenience = zero-config. Hiding information = pretending everything is okay.
 - Log when skipping something - user should know why.
 
+**Separate niche from shared.** Don't bloat shared config with feature-specific data. Use separate files for specialized data.
+
 **General internal, constrained APIs.** Store the general representation, expose simpler APIs for common cases:
 - VectorNetwork internally, Path API for linear curves
 - HalfEdgeMesh internally, IndexedMesh for GPU
