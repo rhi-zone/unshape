@@ -69,42 +69,11 @@ pub trait Field<I, O> {
         }
     }
 
-    /// Adds this field to another.
-    fn add<F2>(self, other: F2) -> Add<Self, F2>
-    where
-        Self: Sized,
-        F2: Field<I, O>,
-    {
-        Add { a: self, b: other }
-    }
-
-    /// Multiplies this field by another.
-    fn mul<F2>(self, other: F2) -> Mul<Self, F2>
-    where
-        Self: Sized,
-        F2: Field<I, O>,
-    {
-        Mul { a: self, b: other }
-    }
-
-    /// Mixes this field with another using a blend factor field.
-    fn mix<F2, FB>(self, other: F2, blend: FB) -> Mix<Self, F2, FB>
-    where
-        Self: Sized,
-        F2: Field<I, O>,
-        FB: Field<I, f32>,
-    {
-        Mix {
-            a: self,
-            b: other,
-            blend,
-        }
-    }
-
     /// Zips this field with another, yielding a tuple of their outputs.
     ///
-    /// This is a fundamental combinator - `Add`, `Mul`, `Mix` can all be
-    /// expressed as `zip().map(...)`.
+    /// This is a fundamental combinator - addition, multiplication, mixing
+    /// can all be expressed as `zip().map(...)`. See also the `add()`, `mul()`,
+    /// `mix()` helper functions.
     ///
     /// # Example
     /// ```
@@ -168,8 +137,9 @@ where
 
 /// Zips two fields, evaluating both at the same input.
 ///
-/// This is a fundamental primitive - binary operations like `Add`, `Mul`
-/// can be expressed as `Zip + Map`.
+/// This is a fundamental primitive - binary operations like addition and
+/// multiplication can be expressed as `Zip + Map`. See the `add()` and `mul()`
+/// helper functions.
 ///
 /// # Example
 /// ```
@@ -213,8 +183,9 @@ where
 
 /// Zips three fields, evaluating all at the same input.
 ///
-/// This is a fundamental primitive - ternary operations like `Mix`/lerp
-/// can be expressed as `Zip3 + Map`.
+/// This is a fundamental primitive - ternary operations like lerp/mix
+/// can be expressed as `Zip3 + Map`. See the `lerp()` and `mix()` helper
+/// functions.
 ///
 /// # Example
 /// ```
@@ -323,151 +294,6 @@ where
 {
     fn sample(&self, input: f32, ctx: &EvalContext) -> O {
         self.field.sample(input - self.offset, ctx)
-    }
-}
-
-/// Adds two fields together.
-///
-/// **Note:** This is a convenience struct. For new code, prefer using
-/// `zip(a, b).map(|(x, y)| x + y)` which composes from true primitives.
-#[deprecated(since = "0.1.0", note = "Use zip(a, b).map(|(x, y)| x + y) instead")]
-pub struct Add<A, B> {
-    a: A,
-    b: B,
-}
-
-impl<I, A, B> Field<I, f32> for Add<A, B>
-where
-    I: Clone,
-    A: Field<I, f32>,
-    B: Field<I, f32>,
-{
-    fn sample(&self, input: I, ctx: &EvalContext) -> f32 {
-        self.a.sample(input.clone(), ctx) + self.b.sample(input, ctx)
-    }
-}
-
-impl<I, A, B> Field<I, Vec2> for Add<A, B>
-where
-    I: Clone,
-    A: Field<I, Vec2>,
-    B: Field<I, Vec2>,
-{
-    fn sample(&self, input: I, ctx: &EvalContext) -> Vec2 {
-        self.a.sample(input.clone(), ctx) + self.b.sample(input, ctx)
-    }
-}
-
-impl<I, A, B> Field<I, Vec3> for Add<A, B>
-where
-    I: Clone,
-    A: Field<I, Vec3>,
-    B: Field<I, Vec3>,
-{
-    fn sample(&self, input: I, ctx: &EvalContext) -> Vec3 {
-        self.a.sample(input.clone(), ctx) + self.b.sample(input, ctx)
-    }
-}
-
-/// Multiplies two fields together.
-///
-/// **Note:** This is a convenience struct. For new code, prefer using
-/// `zip(a, b).map(|(x, y)| x * y)` which composes from true primitives.
-#[deprecated(since = "0.1.0", note = "Use zip(a, b).map(|(x, y)| x * y) instead")]
-pub struct Mul<A, B> {
-    a: A,
-    b: B,
-}
-
-impl<I, A, B> Field<I, f32> for Mul<A, B>
-where
-    I: Clone,
-    A: Field<I, f32>,
-    B: Field<I, f32>,
-{
-    fn sample(&self, input: I, ctx: &EvalContext) -> f32 {
-        self.a.sample(input.clone(), ctx) * self.b.sample(input, ctx)
-    }
-}
-
-impl<I, A, B> Field<I, Vec2> for Mul<A, B>
-where
-    I: Clone,
-    A: Field<I, Vec2>,
-    B: Field<I, Vec2>,
-{
-    fn sample(&self, input: I, ctx: &EvalContext) -> Vec2 {
-        self.a.sample(input.clone(), ctx) * self.b.sample(input, ctx)
-    }
-}
-
-impl<I, A, B> Field<I, Vec3> for Mul<A, B>
-where
-    I: Clone,
-    A: Field<I, Vec3>,
-    B: Field<I, Vec3>,
-{
-    fn sample(&self, input: I, ctx: &EvalContext) -> Vec3 {
-        self.a.sample(input.clone(), ctx) * self.b.sample(input, ctx)
-    }
-}
-
-/// Mixes two fields using a blend factor.
-///
-/// **Note:** This is a convenience struct. For new code, prefer using
-/// `zip3(a, b, t).map(|(a, b, t)| a * (1.0 - t) + b * t)` or the `lerp()` helper.
-#[deprecated(
-    since = "0.1.0",
-    note = "Use lerp(a, b, t) or zip3(a, b, t).map(...) instead"
-)]
-pub struct Mix<A, B, Blend> {
-    a: A,
-    b: B,
-    blend: Blend,
-}
-
-impl<I, A, B, Blend> Field<I, f32> for Mix<A, B, Blend>
-where
-    I: Clone,
-    A: Field<I, f32>,
-    B: Field<I, f32>,
-    Blend: Field<I, f32>,
-{
-    fn sample(&self, input: I, ctx: &EvalContext) -> f32 {
-        let t = self.blend.sample(input.clone(), ctx);
-        let a = self.a.sample(input.clone(), ctx);
-        let b = self.b.sample(input, ctx);
-        a * (1.0 - t) + b * t
-    }
-}
-
-impl<I, A, B, Blend> Field<I, Vec2> for Mix<A, B, Blend>
-where
-    I: Clone,
-    A: Field<I, Vec2>,
-    B: Field<I, Vec2>,
-    Blend: Field<I, f32>,
-{
-    fn sample(&self, input: I, ctx: &EvalContext) -> Vec2 {
-        let t = self.blend.sample(input.clone(), ctx);
-        let a = self.a.sample(input.clone(), ctx);
-        let b = self.b.sample(input, ctx);
-        a.lerp(b, t)
-    }
-}
-
-impl<I, A, B, Blend> Field<I, Vec3> for Mix<A, B, Blend>
-where
-    I: Clone,
-    A: Field<I, Vec3>,
-    B: Field<I, Vec3>,
-    Blend: Field<I, f32>,
-{
-    fn sample(&self, input: I, ctx: &EvalContext) -> Vec3 {
-        let t = self.blend.sample(input.clone(), ctx);
-        let a = self.a.sample(input.clone(), ctx);
-        let b = self.b.sample(input, ctx);
-        a.lerp(b, t)
     }
 }
 
@@ -4676,7 +4502,7 @@ mod tests {
     fn test_add_combinator() {
         let a = Constant::new(3.0f32);
         let b = Constant::new(4.0f32);
-        let field = <Constant<f32> as Field<Vec2, f32>>::add(a, b);
+        let field = add::<Vec2, _, _>(a, b);
         let ctx = EvalContext::new();
 
         assert_eq!(field.sample(Vec2::ZERO, &ctx), 7.0);
@@ -5867,17 +5693,17 @@ mod invariant_tests {
         );
     }
 
-    /// Add combinator should sum outputs correctly.
+    /// Add helper should sum outputs correctly.
     #[test]
     fn test_add_combinator() {
         let ctx = EvalContext::new();
         let a = Constant::<f32>::new(0.3);
         let b = Constant::<f32>::new(0.4);
 
-        let sum = Add { a, b };
+        let sum = add::<Vec2, _, _>(a, b);
         let v = sum.sample(Vec2::ZERO, &ctx);
 
-        assert!((v - 0.7).abs() < 0.001, "Add: expected 0.7, got {v}");
+        assert!((v - 0.7).abs() < 0.001, "add: expected 0.7, got {v}");
     }
 
     /// Translate combinator should shift input coordinates.
