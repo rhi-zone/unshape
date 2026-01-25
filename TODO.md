@@ -1,11 +1,5 @@
 # TODO
 
-## Docs Build Fixes
-
-- Fix markdown syntax in `docs/design/image-primitives.md` lines 17-18
-  - `Expr<Vec2, Vec2>` and `Expr<Vec4, Vec4>` in table need backticks
-  - VitePress/Vue interprets angle brackets as HTML tags
-
 ## Next Up
 
 ### Selection System (2025-01-17) ✅
