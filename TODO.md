@@ -30,6 +30,26 @@ Implemented in `selection.rs`. Key types: `MeshSelection`, `Edge`, `SelectionMod
 All primitives are serializable structs with `apply()` method (ops-as-values pattern).
 Pyramid removed - use `Cone { segments: 4, .. }` instead.
 
+### File Splits (2025-01-29)
+
+> **Goal:** Split massive monolithic files into submodules for maintainability.
+
+**Critical:**
+- [ ] `unshape-image/src/lib.rs` (12,984 lines) → submodules by domain
+  - baking, convolve, channel, colorspace, adjust, dither/, distortion, pyramid, normals, inpaint, effects/, glitch/, frequency, expressions
+  - 52 sections with completely unrelated concerns (dithering, glitch art, frequency domain, inpainting, etc.)
+
+**High:**
+- [ ] `unshape-audio/src/optimize.rs` (2,435 lines) → engine + passes
+  - Separate pattern matching engine (fingerprinting, structural match) from optimization passes (affine fusion, dead code, constant fold)
+  - Tier 2 optimized effects (Tremolo/Flanger/Chorus) into own module
+- [ ] `unshape-audio/src/graph.rs` (2,180 lines) → params, chain, mixer, swappable, nodes/
+  - 5 distinct subsystems: lock-free params, signal chain, mixer, AudioGraph, ~20 built-in node types
+
+**Medium:**
+- [ ] `unshape-mesh/src/edit.rs` (2,126 lines) → face_ops, vertex_ops, edge_ops
+  - Each operation is an independent op struct; natural split by target element type
+
 ### Warning Cleanup (2025-01-16)
 
 - [x] Analyzed and fixed all compile warnings. See `docs/design/dead-code-patterns.md` for patterns and lessons learned.
