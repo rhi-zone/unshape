@@ -9,7 +9,7 @@ repository = "https://github.com/rhi-zone/unshape"
 [features]
 default = []
 serde = ["dep:serde", "glam/serde"]
-dew = ["dep:rhizome-dew-scalar", "dep:rhizome-dew-core"]
+wick = ["dep:wick-scalar", "dep:wick-core"]
 
 [dependencies]
 glam.workspace = true
@@ -17,8 +17,8 @@ unshape-field = { path = "../unshape-field" }
 unshape-easing = { path = "../unshape-easing" }
 unshape-noise = { path = "../unshape-noise" }
 serde = { workspace = true, optional = true }
-rhizome-dew-scalar = { git = "https://github.com/rhizome-lab/dew", optional = true }
-rhizome-dew-core = { git = "https://github.com/rhizome-lab/dew", optional = true }
+wick-scalar = { version = "0.1.0", optional = true }
+wick-core = { version = "0.1.0", optional = true }
 
 [dev-dependencies]
 serde_json = "1"

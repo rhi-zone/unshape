@@ -20,8 +20,8 @@ cranelift-module = { workspace = true, optional = true }
 cranelift-native = { workspace = true, optional = true }
 thiserror.workspace = true
 glam.workspace = true
-rhizome-dew-core = { git = "https://github.com/rhizome-lab/dew" }
-rhizome-dew-scalar = { git = "https://github.com/rhizome-lab/dew" }
+wick-core = "0.1.0"
+wick-scalar = "0.1.0"
 unshape-field = { path = "../unshape-field" }
 unshape-noise = { path = "../unshape-noise" }
 serde = { workspace = true, optional = true }

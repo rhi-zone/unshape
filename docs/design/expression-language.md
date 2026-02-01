@@ -24,8 +24,8 @@ struct MapVertices {
 Expressions are data structures that represent computations. We use the `dew` crate:
 
 ```rust
-use rhizome_dew_core::Expr;
-use rhizome_dew_scalar::{scalar_registry, eval};
+use wick_core::Expr;
+use wick_scalar::{scalar_registry, eval};
 
 // Parse an expression
 let expr = Expr::parse("x * 2.0 + y").unwrap();
@@ -138,7 +138,7 @@ register_noise(&mut registry);         // Adds: noise, perlin, perlin3, simplex,
 ### Custom Functions
 
 ```rust
-use rhizome_dew_scalar::{ScalarFn, FunctionRegistry};
+use wick_scalar::{ScalarFn, FunctionRegistry};
 
 struct MyFunction;
 impl ScalarFn<f32> for MyFunction {
@@ -816,8 +816,8 @@ unshape:
 
 ```
 rhi-unshape-expr-field
-├── rhizome-dew-core      # Parsing, AST
-├── rhizome-dew-scalar    # FunctionRegistry, eval, scalar_registry
+├── wick-core      # Parsing, AST
+├── wick-scalar    # FunctionRegistry, eval, scalar_registry
 ├── rhi-unshape-field   # Field trait, EvalContext
 └── rhi-unshape-noise   # Noise implementations
 ```

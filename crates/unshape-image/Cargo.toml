@@ -12,9 +12,9 @@ default = []
 invariant-tests = []
 serde = ["dep:serde"]
 dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
-dew = ["dep:rhizome-dew-core", "dep:rhizome-dew-linalg", "dep:num-traits"]
-cranelift = ["dew", "rhizome-dew-linalg/cranelift"]
-wgsl = ["dew", "rhizome-dew-linalg/wgsl"]
+wick = ["dep:wick-core", "dep:wick-linalg", "dep:num-traits"]
+cranelift = ["wick", "wick-linalg/cranelift"]
+wgsl = ["wick", "wick-linalg/wgsl"]
 
 [dependencies]
 glam.workspace = true
@@ -23,8 +23,8 @@ unshape-color = { path = "../unshape-color" }
 unshape-field = { path = "../unshape-field" }
 unshape-spectral = { path = "../unshape-spectral" }
 unshape-op = { path = "../unshape-op", optional = true }
-rhizome-dew-core = { git = "https://github.com/rhizome-lab/dew", features = ["cond"], optional = true }
-rhizome-dew-linalg = { git = "https://github.com/rhizome-lab/dew", features = ["4d"], optional = true }
+wick-core = { version = "0.1.0", features = ["cond"], optional = true }
+wick-linalg = { version = "0.1.0", features = ["4d"], optional = true }
 num-traits = { version = "0.2", optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }

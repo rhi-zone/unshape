@@ -127,7 +127,7 @@ let value = expr.eval(0.5, &HashMap::new());
 let vars = expr.free_vars();
 
 // Convert to dew AST for GPU compilation
-#[cfg(feature = "dew")]
+#[cfg(feature = "wick")]
 let ast = expr.to_dew_ast();
 ```
 
@@ -136,7 +136,7 @@ let ast = expr.to_dew_ast();
 Register motion functions for use in dew expressions:
 
 ```rust
-#[cfg(feature = "dew")]
+#[cfg(feature = "wick")]
 {
     let mut registry = scalar_registry();
     register_motion_functions(&mut registry);
