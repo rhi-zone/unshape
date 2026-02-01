@@ -278,8 +278,7 @@ impl Field<Vec2, f32> for IslandTerrain2D {
             0.0
         } else {
             let t = 1.0 - dist;
-            let s = t.powf(self.falloff);
-            s
+            t.powf(self.falloff)
         };
 
         let terrain_height = self.terrain.sample(input, ctx);

@@ -356,6 +356,7 @@ pub fn zip3<A, B, C>(a: A, b: B, c: C) -> Zip3<A, B, C> {
 /// let ctx = EvalContext::new();
 /// assert_eq!(result.sample(Vec2::ZERO, &ctx), 2.5);
 /// ```
+#[allow(clippy::type_complexity)]
 pub fn lerp<I, O, A, B, T>(
     a: A,
     b: B,
@@ -389,6 +390,7 @@ where
 /// let ctx = EvalContext::new();
 /// assert_eq!(result.sample(Vec2::ZERO, &ctx), 7.0);
 /// ```
+#[allow(clippy::type_complexity)]
 pub fn add<I, A, B, O>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((O, O)) -> O, (O, O)>
 where
     I: Clone,
@@ -417,6 +419,7 @@ where
 /// let ctx = EvalContext::new();
 /// assert_eq!(result.sample(Vec2::ZERO, &ctx), 12.0);
 /// ```
+#[allow(clippy::type_complexity)]
 pub fn mul<I, A, B, O>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((O, O)) -> O, (O, O)>
 where
     I: Clone,
@@ -445,6 +448,7 @@ where
 /// let ctx = EvalContext::new();
 /// assert_eq!(result.sample(Vec2::ZERO, &ctx), 4.0);
 /// ```
+#[allow(clippy::type_complexity)]
 pub fn sub<I, A, B, O>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((O, O)) -> O, (O, O)>
 where
     I: Clone,
@@ -473,6 +477,7 @@ where
 /// let ctx = EvalContext::new();
 /// assert_eq!(result.sample(Vec2::ZERO, &ctx), 4.0);
 /// ```
+#[allow(clippy::type_complexity)]
 pub fn div<I, A, B, O>(a: A, b: B) -> Map<Zip<A, B>, impl Fn((O, O)) -> O, (O, O)>
 where
     I: Clone,
@@ -502,6 +507,7 @@ where
 /// let ctx = EvalContext::new();
 /// assert_eq!(result.sample(Vec2::ZERO, &ctx), 5.0);
 /// ```
+#[allow(clippy::type_complexity)]
 pub fn mix<I, O, A, B, T>(
     a: A,
     b: B,
@@ -1156,7 +1162,7 @@ mod tests {
         assert!(new_sum > 0.0, "terrain should have material");
 
         // Heights should still be reasonable
-        assert!(hm.data.iter().all(|&h| h >= -5.0 && h < 25.0));
+        assert!(hm.data.iter().all(|&h| (-5.0..25.0).contains(&h)));
     }
 
     #[test]
@@ -1448,7 +1454,7 @@ mod tests {
         let network = generate_river_network(&hm, &config, 42);
 
         // Should have at least some nodes and edges
-        assert!(network.nodes.len() >= 1);
+        assert!(!network.nodes.is_empty());
     }
 
     #[test]
@@ -1630,6 +1636,7 @@ mod invariant_tests {
     #[test]
     fn test_noise_2d_range() {
         let ctx = EvalContext::new();
+        #[allow(clippy::type_complexity)]
         let fields: Vec<(&str, Box<dyn Field<Vec2, f32>>)> = vec![
             ("Perlin2D", Box::new(Perlin2D::new())),
             ("Simplex2D", Box::new(Simplex2D::new())),
@@ -1665,6 +1672,7 @@ mod invariant_tests {
     #[test]
     fn test_noise_3d_range() {
         let ctx = EvalContext::new();
+        #[allow(clippy::type_complexity)]
         let fields: Vec<(&str, Box<dyn Field<Vec3, f32>>)> = vec![
             ("Perlin3D", Box::new(Perlin3D::new())),
             ("Simplex3D", Box::new(Simplex3D::new())),
@@ -1696,6 +1704,7 @@ mod invariant_tests {
     #[test]
     fn test_noise_1d_range() {
         let ctx = EvalContext::new();
+        #[allow(clippy::type_complexity)]
         let fields: Vec<(&str, Box<dyn Field<f32, f32>>)> = vec![
             ("Perlin1D", Box::new(Perlin1D::new())),
             ("Simplex1D", Box::new(Simplex1D::new())),
@@ -1816,6 +1825,7 @@ mod invariant_tests {
     #[test]
     fn test_terrain_range() {
         let ctx = EvalContext::new();
+        #[allow(clippy::type_complexity)]
         let terrains: Vec<(&str, Box<dyn Field<Vec2, f32>>)> = vec![
             ("Terrain2D::default", Box::new(Terrain2D::default())),
             ("Terrain2D::mountains", Box::new(Terrain2D::mountains())),
@@ -1856,10 +1866,7 @@ mod invariant_tests {
         let field = Checkerboard::with_scale(1.0);
 
         // At scale 2.0, pattern should appear twice as large (sample at 1.0 = unscaled at 2.0)
-        let scaled = Scale {
-            field: field.clone(),
-            factor: 2.0,
-        };
+        let scaled = Scale { field, factor: 2.0 };
 
         // Sample scaled at (0.25, 0.25) = unscaled at (0.5, 0.5)
         let v_scaled = scaled.sample(Vec2::new(0.25, 0.25), &ctx);
@@ -1894,7 +1901,7 @@ mod invariant_tests {
         // Translate shifts input by subtracting offset
         // So translated.sample(p) = field.sample(p - offset)
         let translated = Translate {
-            field: field.clone(),
+            field,
             offset: Vec2::new(1.0, 1.0),
         };
 

@@ -181,7 +181,7 @@ pub fn blur(image: &Image, radius: f32) -> Image {
 
 ### Step 4: Document the Mapping
 
-Add to `DECOMPOSITION-AUDIT.md`:
+Add to `docs/archive/decomposition-audit.md`:
 ```markdown
 | Helper | Decomposes To |
 |--------|---------------|
@@ -319,5 +319,5 @@ Easing functions are expression builders, not runtime computations.
 ## See Also
 
 - [ops-as-values.md](./ops-as-values.md) - Op struct patterns
-- [DECOMPOSITION-AUDIT.md](../../DECOMPOSITION-AUDIT.md) - Full audit by crate
+- [decomposition-audit.md](../archive/decomposition-audit.md) - Full audit by crate
 - [expression-language.md](./expression-language.md) - dew expression system

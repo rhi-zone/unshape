@@ -325,4 +325,4 @@ impl SetBitPlane {
 // Note: LsbEmbed was intentionally not included as it's not a primitive.
 // It's a composition of ExtractBitPlane/SetBitPlane loops over pixels.
 // Users can compose these primitives to build their own embedding schemes.
-// See DECOMPOSITION-AUDIT.md for the principle of identifying true primitives.
+// See docs/archive/decomposition-audit.md for the principle of identifying true primitives.
