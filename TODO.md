@@ -777,7 +777,7 @@ Add to image pattern-matching optimizer (like audio's tremolo/chorus recognition
 **Remaining:**
 - [ ] `color_matrix` → `ColorMatrix { matrix }` (if needed - may be ColorExpr composition)
 
-See DECOMPOSITION-AUDIT.md for which are true primitives vs compositions.
+See docs/archive/decomposition-audit.md for which are true primitives vs compositions.
 
 ### Dew → Rust Codegen (AOT)
 

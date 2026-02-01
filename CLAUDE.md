@@ -237,7 +237,7 @@ When adding a new feature or module:
 
 These documents are authoritative references - **update them when implementation changes**:
 
-- **`DECOMPOSITION-AUDIT.md`** - Primitive decomposition audit. Update when:
+- **`docs/archive/decomposition-audit.md`** - Primitive decomposition audit. Update when:
   - Adding/removing primitives in any domain
   - Finding new decomposition opportunities
   - Changing the three-layer architecture (primitives → helpers → optimizer)
