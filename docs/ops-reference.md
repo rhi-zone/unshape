@@ -1,3 +1,6 @@
+   Compiling extract-ops v0.1.0 (/home/me/git/rhizone/unshape/tools/extract-ops)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.60s
+     Running `target/debug/extract-ops --md`
 # Ops Reference
 
 Auto-generated list of all ops-as-values structs in unshape.
@@ -47,7 +50,7 @@ Configuration for bar synthesis.
 | `decay_time` | `f32` | Decay time for fundamental in seconds. |
 | `brightness` | `f32` | Brightness (high frequency emphasis). |
 
-*Source: [crates/unshape-audio/src/percussion.rs:276](crates/unshape-audio/src/percussion.rs#L276)*
+*Source: `crates/unshape-audio/src/percussion.rs:276`*
 
 ### `Convolution`
 
@@ -61,7 +64,7 @@ Creates a convolution reverb from an impulse response.
 | `mix` | `f32` | Dry/wet mix. |
 | `gain` | `f32` | Output gain. |
 
-*Source: [crates/unshape-audio/src/effects.rs:821](crates/unshape-audio/src/effects.rs#L821)*
+*Source: `crates/unshape-audio/src/effects.rs:821`*
 
 ### `GranularSynth`
 
@@ -81,7 +84,7 @@ Configuration for grain generation.
 | `pan` | `f32` | Pan position (-1.0 to 1.0). |
 | `pan_jitter` | `f32` | Randomization of pan. |
 
-*Source: [crates/unshape-audio/src/granular.rs:49](crates/unshape-audio/src/granular.rs#L49)*
+*Source: `crates/unshape-audio/src/granular.rs:49`*
 
 ### `MembraneSynth`
 
@@ -97,7 +100,7 @@ Configuration for membrane synthesis.
 | `damping` | `f32` | Damping factor (higher = faster decay). |
 | `decay_time` | `f32` | Decay time for fundamental in seconds. |
 
-*Source: [crates/unshape-audio/src/percussion.rs:102](crates/unshape-audio/src/percussion.rs#L102)*
+*Source: `crates/unshape-audio/src/percussion.rs:102`*
 
 ### `PlateSynth`
 
@@ -113,7 +116,7 @@ Configuration for plate synthesis.
 | `decay_time` | `f32` | Decay time for fundamental in seconds. |
 | `density` | `f32` | High frequency density. |
 
-*Source: [crates/unshape-audio/src/percussion.rs:472](crates/unshape-audio/src/percussion.rs#L472)*
+*Source: `crates/unshape-audio/src/percussion.rs:472`*
 
 ### `PluckSynth`
 
@@ -128,7 +131,7 @@ Configuration for plucking a string.
 | `brightness` | `f32` | Brightness (0.0 to 1.0). Lower = duller sound. |
 | `noise_blend` | `f32` | Blend between noise (0.0) and sawtooth (1.0) for initial excitation. |
 
-*Source: [crates/unshape-audio/src/physical.rs:42](crates/unshape-audio/src/physical.rs#L42)*
+*Source: `crates/unshape-audio/src/physical.rs:42`*
 
 ### `Spatialize`
 
@@ -144,7 +147,7 @@ Configuration for the spatializer.
 | `hrtf_mode` | `HrtfMode` | HRTF mode. |
 | `max_itd_samples` | `usize` | Maximum delay for ITD in samples. |
 
-*Source: [crates/unshape-audio/src/spatial.rs:289](crates/unshape-audio/src/spatial.rs#L289)*
+*Source: `crates/unshape-audio/src/spatial.rs:289`*
 
 ### `Stft`
 
@@ -158,7 +161,7 @@ Configuration for STFT analysis.
 | `hop_size` | `usize` | Hop size between consecutive frames. |
 | `window` | `Vec<f32>` | Window function. |
 
-*Source: [crates/unshape-audio/src/spectral.rs:65](crates/unshape-audio/src/spectral.rs#L65)*
+*Source: `crates/unshape-audio/src/spectral.rs:65`*
 
 ### `TimeStretch`
 
@@ -174,7 +177,7 @@ Configuration for time-stretching.
 | `preserve_transients` | `bool` | Whether to preserve transients. |
 | `transient_threshold` | `f32` | Transient detection threshold. |
 
-*Source: [crates/unshape-audio/src/spectral.rs:405](crates/unshape-audio/src/spectral.rs#L405)*
+*Source: `crates/unshape-audio/src/spectral.rs:405`*
 
 ### `VocodeSynth`
 
@@ -189,7 +192,7 @@ Configuration for the vocoder.
 | `num_bands` | `usize` | Number of frequency bands for the filterbank. |
 | `envelope_smoothing` | `f32` | Envelope follower smoothing (0-1, higher = smoother). |
 
-*Source: [crates/unshape-audio/src/vocoder.rs:44](crates/unshape-audio/src/vocoder.rs#L44)*
+*Source: `crates/unshape-audio/src/vocoder.rs:44`*
 
 ### `Warp`
 
@@ -201,7 +204,7 @@ Time remapping operation via Dew expression.
 |-------|------|-------------|
 | `time_expr` | `FieldExpr` | Expression that maps old onset time (x) to new onset time. |
 
-*Source: [crates/unshape-audio/src/pattern.rs:1119](crates/unshape-audio/src/pattern.rs#L1119)*
+*Source: `crates/unshape-audio/src/pattern.rs:1119`*
 
 ---
 
@@ -223,7 +226,7 @@ Configuration operation for creating a 2D cellular automaton.
 | `seed` | `Option<u64>` | Seed for random initialization (None = start empty). |
 | `density` | `f32` | Density for random initialization (0.0 - 1.0). |
 
-*Source: [crates/unshape-automata/src/lib.rs:477](crates/unshape-automata/src/lib.rs#L477)*
+*Source: `crates/unshape-automata/src/lib.rs:147`*
 
 ### `ElementaryCAConfig`
 
@@ -238,7 +241,7 @@ Configuration operation for creating a 1D elementary cellular automaton.
 | `wrap` | `bool` | Whether to wrap at edges (toroidal topology). |
 | `seed` | `Option<u64>` | Seed for random initialization (None = start with center cell only). |
 
-*Source: [crates/unshape-automata/src/lib.rs:428](crates/unshape-automata/src/lib.rs#L428)*
+*Source: `crates/unshape-automata/src/lib.rs:98`*
 
 ### `GeneratePattern`
 
@@ -250,7 +253,7 @@ Operation to generate a 2D pattern from a 1D elementary CA.
 |-------|------|-------------|
 | `generations` | `usize` | Number of generations to produce. |
 
-*Source: [crates/unshape-automata/src/lib.rs:614](crates/unshape-automata/src/lib.rs#L614)*
+*Source: `crates/unshape-automata/src/lib.rs:284`*
 
 ### `StepCellularAutomaton2D`
 
@@ -262,7 +265,7 @@ Operation to step a 2D CA forward.
 |-------|------|-------------|
 | `steps` | `usize` | Number of steps to advance. |
 
-*Source: [crates/unshape-automata/src/lib.rs:582](crates/unshape-automata/src/lib.rs#L582)*
+*Source: `crates/unshape-automata/src/lib.rs:252`*
 
 ### `StepElementaryCA`
 
@@ -274,7 +277,7 @@ Operation to step an elementary CA forward.
 |-------|------|-------------|
 | `steps` | `usize` | Number of steps to advance. |
 
-*Source: [crates/unshape-automata/src/lib.rs:550](crates/unshape-automata/src/lib.rs#L550)*
+*Source: `crates/unshape-automata/src/lib.rs:220`*
 
 ---
 
@@ -296,7 +299,7 @@ Converts audio to a spectrogram image.
 | `log_magnitude` | `bool` | Whether to use logarithmic magnitude scaling. |
 | `gain` | `f32` | Gain applied to magnitude values. |
 
-*Source: [crates/unshape-crossdomain/src/lib.rs:348](crates/unshape-crossdomain/src/lib.rs#L348)*
+*Source: `crates/unshape-crossdomain/src/lib.rs:348`*
 
 ### `ImageToAudio`
 
@@ -312,7 +315,7 @@ Converts an image to audio using additive synthesis.
 | `max_freq` | `f32` | Maximum frequency (Hz) for the top of the image. |
 | `log_frequency` | `bool` | Whether to use logarithmic frequency scaling. |
 
-*Source: [crates/unshape-crossdomain/src/lib.rs:246](crates/unshape-crossdomain/src/lib.rs#L246)*
+*Source: `crates/unshape-crossdomain/src/lib.rs:246`*
 
 ---
 
@@ -340,7 +343,7 @@ Hydraulic erosion simulation operation.
 | `brush_radius` | `usize` | Erosion brush radius. |
 | `seed` | `u64` | Random seed for simulation. |
 
-*Source: [crates/unshape-field/src/lib.rs:3571](crates/unshape-field/src/lib.rs#L3571)*
+*Source: `crates/unshape-field/src/erosion.rs:152`*
 
 ### `RiverNetwork`
 
@@ -357,7 +360,7 @@ River network generation operation.
 | `merge_rivers` | `bool` | Whether to merge rivers that meet. |
 | `seed` | `u64` | Random seed for generation. |
 
-*Source: [crates/unshape-field/src/lib.rs:4351](crates/unshape-field/src/lib.rs#L4351)*
+*Source: `crates/unshape-field/src/network.rs:411`*
 
 ### `RoadNetwork`
 
@@ -375,7 +378,7 @@ Road network generation operation.
 | `curvature` | `f32` | Path curvature amount. |
 | `seed` | `u64` | Random seed for generation. |
 
-*Source: [crates/unshape-field/src/lib.rs:4121](crates/unshape-field/src/lib.rs#L4121)*
+*Source: `crates/unshape-field/src/network.rs:181`*
 
 ### `ThermalErosion`
 
@@ -389,7 +392,7 @@ Thermal erosion simulation operation.
 | `talus_angle` | `f32` | Maximum slope angle (as tangent) before material slides. |
 | `transfer_rate` | `f32` | Rate of material transfer per iteration. |
 
-*Source: [crates/unshape-field/src/lib.rs:3790](crates/unshape-field/src/lib.rs#L3790)*
+*Source: `crates/unshape-field/src/erosion.rs:373`*
 
 ---
 
@@ -407,7 +410,7 @@ Configuration for grid-based fluid simulation.
 | `iterations` | `u32` | Number of iterations for Gauss-Seidel solver. |
 | `dt` | `f32` | Time step for simulation. |
 
-*Source: [crates/unshape-fluid/src/lib.rs:23](crates/unshape-fluid/src/lib.rs#L23)*
+*Source: `crates/unshape-fluid/src/grid.rs:12`*
 
 ### `Smoke`
 
@@ -425,7 +428,7 @@ Configuration for smoke simulation.
 | `temperature_dissipation` | `f32` | Temperature dissipation rate (cooling). |
 | `density_dissipation` | `f32` | Density dissipation rate. |
 
-*Source: [crates/unshape-fluid/src/lib.rs:1342](crates/unshape-fluid/src/lib.rs#L1342)*
+*Source: `crates/unshape-fluid/src/smoke.rs:12`*
 
 ### `Sph`
 
@@ -443,7 +446,7 @@ Configuration for SPH simulation.
 | `gravity` | `Vec2` | Gravity. |
 | `boundary_damping` | `f32` | Boundary damping. |
 
-*Source: [crates/unshape-fluid/src/lib.rs:844](crates/unshape-fluid/src/lib.rs#L844)*
+*Source: `crates/unshape-fluid/src/sph.rs:11`*
 
 ### `SphParams3D`
 
@@ -461,7 +464,7 @@ Configuration for 3D SPH simulation.
 | `gravity` | `Vec3` | Gravity. |
 | `boundary_damping` | `f32` | Boundary damping. |
 
-*Source: [crates/unshape-fluid/src/lib.rs:1123](crates/unshape-fluid/src/lib.rs#L1123)*
+*Source: `crates/unshape-fluid/src/sph.rs:286`*
 
 ---
 
@@ -482,7 +485,7 @@ Configuration for noise generation.
 | `lacunarity` | `f32` | Lacunarity for FBM (frequency multiplier per octave). |
 | `seed` | `u32` | Seed for randomization. |
 
-*Source: [crates/unshape-gpu/src/noise.rs:32](crates/unshape-gpu/src/noise.rs#L32)*
+*Source: `crates/unshape-gpu/src/noise.rs:32`*
 
 ---
 
@@ -502,7 +505,7 @@ Configuration for animation rendering.
 | `frame_duration` | `f32` | Frame duration in seconds. |
 | `samples` | `u32` | Anti-aliasing samples (1 = no AA). |
 
-*Source: [crates/unshape-image/src/lib.rs:565](crates/unshape-image/src/lib.rs#L565)*
+*Source: `crates/unshape-image/src/bake.rs:266`*
 
 ### `BakeConfig`
 
@@ -516,7 +519,7 @@ Configuration for texture baking.
 | `height` | `u32` | Output height in pixels. |
 | `samples` | `u32` | Number of samples per pixel for anti-aliasing (1 = no AA). |
 
-*Source: [crates/unshape-image/src/lib.rs:312](crates/unshape-image/src/lib.rs#L312)*
+*Source: `crates/unshape-image/src/bake.rs:17`*
 
 ### `ChromaticAberration`
 
@@ -531,7 +534,7 @@ Applies chromatic aberration effect to an image.
 | `blue_offset` | `f32` | Offset amount for blue channel. |
 | `center` | `(f32,f32)` | Center point for radial offset (normalized coordinates, default: (0.5, 0.5)). |
 
-*Source: [crates/unshape-image/src/lib.rs:1991](crates/unshape-image/src/lib.rs#L1991)*
+*Source: `crates/unshape-image/src/adjust.rs:16`*
 
 ### `Composite`
 
@@ -544,7 +547,7 @@ Image compositing operation.
 | `mode` | `BlendMode` | The blend mode to use. |
 | `opacity` | `f32` | Opacity of the overlay (0.0 = transparent, 1.0 = opaque). |
 
-*Source: [crates/unshape-image/src/lib.rs:1064](crates/unshape-image/src/lib.rs#L1064)*
+*Source: `crates/unshape-image/src/kernel.rs:279`*
 
 ### `Convolve`
 
@@ -556,7 +559,7 @@ Image compositing operation.
 |-------|------|-------------|
 | `kernel` | `Kernel` | The convolution kernel. |
 
-*Source: [crates/unshape-image/src/lib.rs:954](crates/unshape-image/src/lib.rs#L954)*
+*Source: `crates/unshape-image/src/kernel.rs:169`*
 
 ### `CurveDiffuse`
 
@@ -571,7 +574,7 @@ Curve-based error diffusion (Riemersma dithering).
 | `decay` | `f32` | Decay ratio for error weights (0-1, smaller = faster decay). |
 | `levels` | `u32` | Number of quantization levels. |
 
-*Source: [crates/unshape-image/src/lib.rs:2911](crates/unshape-image/src/lib.rs#L2911)*
+*Source: `crates/unshape-image/src/dither.rs:574`*
 
 ### `Datamosh`
 
@@ -589,7 +592,7 @@ Configuration for datamosh glitch effect.
 | `motion` | `MotionPattern` | Motion pattern to use. |
 | `freeze_probability` | `f32` | Probability of a block "sticking" and not updating (0-1). |
 
-*Source: [crates/unshape-image/src/lib.rs:6154](crates/unshape-image/src/lib.rs#L6154)*
+*Source: `crates/unshape-image/src/glitch.rs:449`*
 
 ### `Dct2d`
 
@@ -601,7 +604,7 @@ Configuration for datamosh glitch effect.
 |-------|------|-------------|
 | `block_size` | `Option<u32>` | Block size for block-based DCT. None = whole image. |
 
-*Source: [crates/unshape-image/src/lib.rs:7590](crates/unshape-image/src/lib.rs#L7590)*
+*Source: `crates/unshape-image/src/freq.rs:140`*
 
 ### `ErrorDiffuse`
 
@@ -614,7 +617,7 @@ Error diffusion dithering operation.
 | `kernel` | `DiffusionKernel` | The diffusion kernel to use. |
 | `levels` | `u32` | Number of quantization levels. |
 
-*Source: [crates/unshape-image/src/lib.rs:2803](crates/unshape-image/src/lib.rs#L2803)*
+*Source: `crates/unshape-image/src/dither.rs:466`*
 
 ### `ExtractBitPlane`
 
@@ -627,7 +630,7 @@ Extracts a single bit plane from an image channel.
 | `channel` | `Channel` | Which channel to extract from. |
 | `bit` | `u8` | Which bit to extract (0 = LSB, 7 = MSB for 8-bit). |
 
-*Source: [crates/unshape-image/src/lib.rs:7322](crates/unshape-image/src/lib.rs#L7322)*
+*Source: `crates/unshape-image/src/int_ops.rs:201`*
 
 ### `Fft2d`
 
@@ -635,7 +638,7 @@ Extracts a single bit plane from an image channel.
 
 `apply(&ImageField) -> (ImageField,ImageField)`
 
-*Source: [crates/unshape-image/src/lib.rs:7463](crates/unshape-image/src/lib.rs#L7463)*
+*Source: `crates/unshape-image/src/freq.rs:13`*
 
 ### `FftShift`
 
@@ -643,7 +646,7 @@ Shifts zero frequency to center of spectrum.
 
 `apply(&ImageField) -> ImageField`
 
-*Source: [crates/unshape-image/src/lib.rs:7556](crates/unshape-image/src/lib.rs#L7556)*
+*Source: `crates/unshape-image/src/freq.rs:106`*
 
 ### `FromInt`
 
@@ -655,7 +658,7 @@ Converts integer pixel data back to floating-point image (0-1).
 |-------|------|-------------|
 | `range` | `IntRange` | The integer range to convert from. |
 
-*Source: [crates/unshape-image/src/lib.rs:7252](crates/unshape-image/src/lib.rs#L7252)*
+*Source: `crates/unshape-image/src/int_ops.rs:131`*
 
 ### `Idct2d`
 
@@ -667,7 +670,7 @@ Converts integer pixel data back to floating-point image (0-1).
 |-------|------|-------------|
 | `block_size` | `Option<u32>` | Block size for block-based IDCT. None = whole image. |
 
-*Source: [crates/unshape-image/src/lib.rs:7643](crates/unshape-image/src/lib.rs#L7643)*
+*Source: `crates/unshape-image/src/freq.rs:193`*
 
 ### `Ifft2d`
 
@@ -675,7 +678,7 @@ Converts integer pixel data back to floating-point image (0-1).
 
 `apply(&ImageField) -> ImageField`
 
-*Source: [crates/unshape-image/src/lib.rs:7516](crates/unshape-image/src/lib.rs#L7516)*
+*Source: `crates/unshape-image/src/freq.rs:66`*
 
 ### `Inpaint`
 
@@ -688,7 +691,7 @@ Configuration for diffusion-based inpainting operations.
 | `iterations` | `u32` | Number of iterations for diffusion-based inpainting. |
 | `diffusion_rate` | `f32` | Diffusion rate (0.0-1.0). Higher values spread color faster. |
 
-*Source: [crates/unshape-image/src/lib.rs:5169](crates/unshape-image/src/lib.rs#L5169)*
+*Source: `crates/unshape-image/src/inpaint.rs:15`*
 
 ### `LensDistortion`
 
@@ -701,7 +704,7 @@ Applies radial lens distortion (barrel or pincushion).
 | `strength` | `f32` | Distortion strength. Positive = barrel, negative = pincushion. |
 | `center` | `(f32,f32)` | Center point for distortion (normalized coordinates). |
 
-*Source: [crates/unshape-image/src/lib.rs:4281](crates/unshape-image/src/lib.rs#L4281)*
+*Source: `crates/unshape-image/src/distort.rs:15`*
 
 ### `Levels`
 
@@ -717,7 +720,7 @@ Applies levels adjustment to an image.
 | `output_black` | `f32` | Output black point. Range: 0-1. |
 | `output_white` | `f32` | Output white point. Range: 0-1. |
 
-*Source: [crates/unshape-image/src/lib.rs:2114](crates/unshape-image/src/lib.rs#L2114)*
+*Source: `crates/unshape-image/src/adjust.rs:135`*
 
 ### `Lut1D`
 
@@ -731,7 +734,7 @@ Applies levels adjustment to an image.
 | `green` | `Vec<f32>` | Green channel LUT entries. |
 | `blue` | `Vec<f32>` | Blue channel LUT entries. |
 
-*Source: [crates/unshape-image/src/lib.rs:8055](crates/unshape-image/src/lib.rs#L8055)*
+*Source: `crates/unshape-image/src/transform.rs:174`*
 
 ### `Lut3D`
 
@@ -744,7 +747,7 @@ Applies levels adjustment to an image.
 | `data` | `Vec<[f32;3]>` | LUT data as [R][G][B] -> [r, g, b]. |
 | `size` | `usize` | Size of each dimension. |
 
-*Source: [crates/unshape-image/src/lib.rs:8161](crates/unshape-image/src/lib.rs#L8161)*
+*Source: `crates/unshape-image/src/transform.rs:280`*
 
 ### `MapPixels`
 
@@ -756,7 +759,7 @@ Per-pixel color transform operation.
 |-------|------|-------------|
 | `expr` | `ColorExpr` | The color transform expression. |
 
-*Source: [crates/unshape-image/src/lib.rs:1138](crates/unshape-image/src/lib.rs#L1138)*
+*Source: `crates/unshape-image/src/kernel.rs:353`*
 
 ### `PatchMatch`
 
@@ -770,7 +773,7 @@ Configuration for PatchMatch-based inpainting.
 | `pyramid_levels` | `u32` | Number of pyramid levels for multi-scale processing. |
 | `iterations` | `u32` | Number of iterations per pyramid level. |
 
-*Source: [crates/unshape-image/src/lib.rs:5316](crates/unshape-image/src/lib.rs#L5316)*
+*Source: `crates/unshape-image/src/inpaint.rs:162`*
 
 ### `Quantize`
 
@@ -782,7 +785,7 @@ Quantize a value to discrete levels.
 |-------|------|-------------|
 | `levels` | `u32` | Number of discrete levels (2-256). |
 
-*Source: [crates/unshape-image/src/lib.rs:2352](crates/unshape-image/src/lib.rs#L2352)*
+*Source: `crates/unshape-image/src/dither.rs:15`*
 
 ### `QuantizeWithBias`
 
@@ -794,7 +797,7 @@ Quantizes pixel values with a bias toward specific values.
 |-------|------|-------------|
 | `levels` | `u32` | Number of quantization levels. |
 
-*Source: [crates/unshape-image/src/lib.rs:7825](crates/unshape-image/src/lib.rs#L7825)*
+*Source: `crates/unshape-image/src/freq.rs:371`*
 
 ### `RemapUv`
 
@@ -806,7 +809,7 @@ UV coordinate remapping operation.
 |-------|------|-------------|
 | `expr` | `UvExpr` | The UV remapping expression. |
 
-*Source: [crates/unshape-image/src/lib.rs:1102](crates/unshape-image/src/lib.rs#L1102)*
+*Source: `crates/unshape-image/src/kernel.rs:317`*
 
 ### `Resize`
 
@@ -819,7 +822,7 @@ Image resizing operation.
 | `width` | `u32` | Target width in pixels. |
 | `height` | `u32` | Target height in pixels. |
 
-*Source: [crates/unshape-image/src/lib.rs:1026](crates/unshape-image/src/lib.rs#L1026)*
+*Source: `crates/unshape-image/src/kernel.rs:241`*
 
 ### `SetBitPlane`
 
@@ -832,7 +835,7 @@ Sets a single bit plane in an image channel from a source image.
 | `channel` | `Channel` | Which channel to modify. |
 | `bit` | `u8` | Which bit to set (0 = LSB, 7 = MSB for 8-bit). |
 
-*Source: [crates/unshape-image/src/lib.rs:7380](crates/unshape-image/src/lib.rs#L7380)*
+*Source: `crates/unshape-image/src/int_ops.rs:259`*
 
 ### `Spherize`
 
@@ -845,7 +848,7 @@ Configuration for spherize/bulge effect.
 | `strength` | `f32` | Bulge strength (positive = bulge out, negative = pinch in). |
 | `center` | `(f32,f32)` | Center point (normalized coordinates). |
 
-*Source: [crates/unshape-image/src/lib.rs:4664](crates/unshape-image/src/lib.rs#L4664)*
+*Source: `crates/unshape-image/src/distort.rs:398`*
 
 ### `SpreadSpectrum`
 
@@ -858,7 +861,7 @@ Spreads image data using a pseudorandom sequence.
 | `seed` | `u64` | Seed for the pseudorandom sequence. |
 | `factor` | `f32` | Spreading factor (higher = more robust, lower visual quality). |
 
-*Source: [crates/unshape-image/src/lib.rs:7703](crates/unshape-image/src/lib.rs#L7703)*
+*Source: `crates/unshape-image/src/freq.rs:249`*
 
 ### `Swirl`
 
@@ -872,7 +875,7 @@ Configuration for swirl/twist distortion.
 | `radius` | `f32` | Radius of effect (normalized, 1.0 = half image size). |
 | `center` | `(f32,f32)` | Center point (normalized coordinates). |
 
-*Source: [crates/unshape-image/src/lib.rs:4571](crates/unshape-image/src/lib.rs#L4571)*
+*Source: `crates/unshape-image/src/distort.rs:305`*
 
 ### `ToInt`
 
@@ -885,7 +888,7 @@ Converts a floating-point image (0-1) to integer representation.
 | `range` | `IntRange` | The integer range to convert to. |
 | `channel` | `Option<Channel>` | Which channel to convert (None = all channels). |
 
-*Source: [crates/unshape-image/src/lib.rs:7176](crates/unshape-image/src/lib.rs#L7176)*
+*Source: `crates/unshape-image/src/int_ops.rs:55`*
 
 ### `TransformConfig`
 
@@ -898,7 +901,7 @@ Configuration for image position transformation.
 | `matrix` | `[[f32;3];3]` | 3x3 transformation matrix for UV coordinates. |
 | `filter` | `bool` | Whether to use bilinear filtering regardless of image setting. |
 
-*Source: [crates/unshape-image/src/lib.rs:7923](crates/unshape-image/src/lib.rs#L7923)*
+*Source: `crates/unshape-image/src/transform.rs:42`*
 
 ### `UnspreadSpectrum`
 
@@ -911,7 +914,7 @@ Reverses spread spectrum operation.
 | `seed` | `u64` | Seed for the pseudorandom sequence (must match SpreadSpectrum). |
 | `factor` | `f32` | Factor used in original spread (must match). |
 
-*Source: [crates/unshape-image/src/lib.rs:7772](crates/unshape-image/src/lib.rs#L7772)*
+*Source: `crates/unshape-image/src/freq.rs:318`*
 
 ### `WaveDistortion`
 
@@ -927,7 +930,7 @@ Applies wave distortion to an image.
 | `frequency_y` | `f32` | Frequency of waves in Y direction. |
 | `phase` | `f32` | Phase offset in radians. |
 
-*Source: [crates/unshape-image/src/lib.rs:4391](crates/unshape-image/src/lib.rs#L4391)*
+*Source: `crates/unshape-image/src/distort.rs:125`*
 
 ### `WernessDither`
 
@@ -940,7 +943,7 @@ Werness dithering - hybrid noise-threshold + error absorption.
 | `levels` | `u32` | Number of quantization levels. |
 | `iterations` | `u32` | Number of iterations. |
 
-*Source: [crates/unshape-image/src/lib.rs:3076](crates/unshape-image/src/lib.rs#L3076)*
+*Source: `crates/unshape-image/src/dither.rs:739`*
 
 ---
 
@@ -958,7 +961,7 @@ Interprets an L-system string using 2D turtle graphics.
 | `step` | `f32` | Step distance for F and f commands. |
 | `scale_factor` | `f32` | Scale factor for push/pop. |
 
-*Source: [crates/unshape-lsystem/src/lib.rs:163](crates/unshape-lsystem/src/lib.rs#L163)*
+*Source: `crates/unshape-lsystem/src/lib.rs:163`*
 
 ### `Turtle3D`
 
@@ -972,7 +975,7 @@ Interprets an L-system string using 3D turtle graphics.
 | `step` | `f32` | Step distance for F and f commands. |
 | `scale_factor` | `f32` | Scale factor for push/pop. |
 
-*Source: [crates/unshape-lsystem/src/lib.rs:197](crates/unshape-lsystem/src/lib.rs#L197)*
+*Source: `crates/unshape-lsystem/src/lib.rs:197`*
 
 ---
 
@@ -992,7 +995,7 @@ Bakes ambient occlusion to per-vertex values.
 | `cosine_weighted` | `bool` | Whether to use cosine-weighted hemisphere sampling. |
 | `falloff_power` | `f32` | Power for AO falloff (higher = softer shadows). |
 
-*Source: [crates/unshape-mesh/src/ao.rs:22](crates/unshape-mesh/src/ao.rs#L22)*
+*Source: `crates/unshape-mesh/src/ao.rs:22`*
 
 ### `Bevel`
 
@@ -1006,7 +1009,7 @@ Bevels edges of a half-edge mesh.
 | `segments` | `u32` | Number of segments for smooth bevels (1 = flat chamfer). |
 | `smooth` | `bool` | Whether to use a smooth profile (arc) or flat (linear). |
 
-*Source: [crates/unshape-mesh/src/bevel.rs:30](crates/unshape-mesh/src/bevel.rs#L30)*
+*Source: `crates/unshape-mesh/src/bevel.rs:30`*
 
 ### `BridgeEdgeLoops`
 
@@ -1019,7 +1022,7 @@ Bridges two edge loops by creating connecting faces.
 | `segments` | `u32` | Number of segments in the bridge. |
 | `twist` | `i32` | Twist amount (in edge loop positions). |
 
-*Source: [crates/unshape-mesh/src/edit.rs:1620](crates/unshape-mesh/src/edit.rs#L1620)*
+*Source: `crates/unshape-mesh/src/edit/advanced_ops.rs:12`*
 
 ### `CatmullClark`
 
@@ -1032,7 +1035,7 @@ Catmull-Clark subdivision operation.
 | `levels` | `u32` | Number of subdivision levels. |
 | `creases` | `Option<EdgeCreases>` | Optional edge creases for controlling sharpness. |
 
-*Source: [crates/unshape-mesh/src/subdivision.rs:50](crates/unshape-mesh/src/subdivision.rs#L50)*
+*Source: `crates/unshape-mesh/src/subdivision.rs:50`*
 
 ### `Cone`
 
@@ -1046,7 +1049,7 @@ Generates a cone mesh centered at the origin.
 | `height` | `f32` | Height of the cone. |
 | `segments` | `u32` | Number of divisions around the circumference. Minimum 3. |
 
-*Source: [crates/unshape-mesh/src/primitives.rs:443](crates/unshape-mesh/src/primitives.rs#L443)*
+*Source: `crates/unshape-mesh/src/primitives.rs:443`*
 
 ### `CreaseEdges`
 
@@ -1058,7 +1061,7 @@ Marks selected edges with crease weights.
 |-------|------|-------------|
 | `weight` | `f32` | Crease weight to apply (0.0 = smooth, 1.0 = sharp). |
 
-*Source: [crates/unshape-mesh/src/edit.rs:851](crates/unshape-mesh/src/edit.rs#L851)*
+*Source: `crates/unshape-mesh/src/edit/edge_ops.rs:125`*
 
 ### `Cuboid`
 
@@ -1072,7 +1075,7 @@ Generates a box/cuboid mesh centered at the origin.
 | `height` | `f32` | Size along the Y axis. |
 | `depth` | `f32` | Size along the Z axis. |
 
-*Source: [crates/unshape-mesh/src/primitives.rs:46](crates/unshape-mesh/src/primitives.rs#L46)*
+*Source: `crates/unshape-mesh/src/primitives.rs:46`*
 
 ### `Cylinder`
 
@@ -1086,7 +1089,7 @@ Generates a cylinder mesh centered at the origin.
 | `height` | `f32` | Height of the cylinder. |
 | `segments` | `u32` | Number of divisions around the circumference. Minimum 3. |
 
-*Source: [crates/unshape-mesh/src/primitives.rs:295](crates/unshape-mesh/src/primitives.rs#L295)*
+*Source: `crates/unshape-mesh/src/primitives.rs:295`*
 
 ### `Decimate`
 
@@ -1101,7 +1104,7 @@ Decimates a mesh using edge collapse.
 | `max_error` | `f32` | Maximum error threshold. Edges with higher error won't be collapsed. |
 | `preserve_boundary` | `bool` | Whether to preserve boundary edges (edges with only one face). |
 
-*Source: [crates/unshape-mesh/src/decimate.rs:33](crates/unshape-mesh/src/decimate.rs#L33)*
+*Source: `crates/unshape-mesh/src/decimate.rs:33`*
 
 ### `DeleteFaces`
 
@@ -1113,7 +1116,7 @@ Deletes selected faces from the mesh.
 |-------|------|-------------|
 | `remove_orphaned_vertices` | `bool` | Whether to remove vertices that are no longer used by any face. |
 
-*Source: [crates/unshape-mesh/src/edit.rs:53](crates/unshape-mesh/src/edit.rs#L53)*
+*Source: `crates/unshape-mesh/src/edit/face_ops.rs:18`*
 
 ### `Extrude`
 
@@ -1127,7 +1130,7 @@ Extrudes a mesh along vertex normals.
 | `create_sides` | `bool` | Whether to create side faces connecting old and new vertices. |
 | `keep_original` | `bool` | Whether to keep the original faces. |
 
-*Source: [crates/unshape-mesh/src/ops.rs:22](crates/unshape-mesh/src/ops.rs#L22)*
+*Source: `crates/unshape-mesh/src/ops.rs:22`*
 
 ### `ExtrudeFaces`
 
@@ -1139,7 +1142,7 @@ Extrudes selected faces along their normals.
 |-------|------|-------------|
 | `amount` | `f32` | Distance to extrude (positive = outward). |
 
-*Source: [crates/unshape-mesh/src/edit.rs:885](crates/unshape-mesh/src/edit.rs#L885)*
+*Source: `crates/unshape-mesh/src/edit/face_ops.rs:321`*
 
 ### `ExtrudeProfile`
 
@@ -1155,7 +1158,7 @@ Extrudes a 2D profile along a direction to create a 3D mesh.
 | `cap_end` | `bool` | Whether to cap the end of the extrusion. |
 | `segments` | `usize` | Number of segments along the extrusion direction. |
 
-*Source: [crates/unshape-mesh/src/curve_mesh.rs:41](crates/unshape-mesh/src/curve_mesh.rs#L41)*
+*Source: `crates/unshape-mesh/src/curve_mesh.rs:41`*
 
 ### `GenerateLodChain`
 
@@ -1172,7 +1175,7 @@ Generates a LOD chain from a high-poly mesh.
 | `max_error` | `f32` | Maximum geometric error allowed during decimation. |
 | `screen_thresholds` | `Option<Vec<f32>>` | Screen size thresholds for each LOD (as fraction of screen height). |
 
-*Source: [crates/unshape-mesh/src/lod.rs:33](crates/unshape-mesh/src/lod.rs#L33)*
+*Source: `crates/unshape-mesh/src/lod.rs:33`*
 
 ### `GenerateNavMesh`
 
@@ -1189,7 +1192,7 @@ Generates a navigation mesh from a floor mesh.
 | `agent_radius` | `f32` | Agent radius for obstacle margin. |
 | `max_step_height` | `f32` | Maximum step height. |
 
-*Source: [crates/unshape-mesh/src/navmesh.rs:22](crates/unshape-mesh/src/navmesh.rs#L22)*
+*Source: `crates/unshape-mesh/src/navmesh.rs:22`*
 
 ### `GenerateSdf`
 
@@ -1203,7 +1206,7 @@ Generates a signed distance field from a mesh.
 | `padding` | `f32` | Bounding box padding (multiplier, 1.1 = 10% padding). |
 | `exact` | `bool` | Whether to compute exact distances (slower) or approximate. |
 
-*Source: [crates/unshape-mesh/src/sdf.rs:21](crates/unshape-mesh/src/sdf.rs#L21)*
+*Source: `crates/unshape-mesh/src/sdf.rs:21`*
 
 ### `Icosphere`
 
@@ -1216,7 +1219,7 @@ Generates an icosphere (geodesic sphere) mesh centered at the origin.
 | `radius` | `f32` | Radius of the sphere. |
 | `subdivisions` | `u32` | Number of subdivision iterations. 0 = icosahedron (20 faces). |
 
-*Source: [crates/unshape-mesh/src/primitives.rs:741](crates/unshape-mesh/src/primitives.rs#L741)*
+*Source: `crates/unshape-mesh/src/primitives.rs:741`*
 
 ### `Inset`
 
@@ -1230,7 +1233,7 @@ Insets all faces toward their centers.
 | `depth` | `f32` | Optional depth (positive = extrude inward after inset). |
 | `create_bridge` | `bool` | Whether to create the connecting faces. |
 
-*Source: [crates/unshape-mesh/src/ops.rs:170](crates/unshape-mesh/src/ops.rs#L170)*
+*Source: `crates/unshape-mesh/src/ops.rs:170`*
 
 ### `InsetFaces`
 
@@ -1243,7 +1246,7 @@ Insets selected faces toward their centers.
 | `amount` | `f32` | Inset amount (0.0 = no change, 1.0 = shrink to center). |
 | `individual` | `bool` | Whether to inset faces individually or as a region. |
 
-*Source: [crates/unshape-mesh/src/edit.rs:1046](crates/unshape-mesh/src/edit.rs#L1046)*
+*Source: `crates/unshape-mesh/src/edit/face_ops.rs:482`*
 
 ### `KnifeCut`
 
@@ -1255,7 +1258,7 @@ Cuts the mesh along a path.
 |-------|------|-------------|
 | `points` | `Vec<KnifePoint>` | Points defining the cut path. |
 
-*Source: [crates/unshape-mesh/src/edit.rs:1783](crates/unshape-mesh/src/edit.rs#L1783)*
+*Source: `crates/unshape-mesh/src/edit/advanced_ops.rs:175`*
 
 ### `Loft`
 
@@ -1270,7 +1273,7 @@ Lofts between profile curves to create a mesh surface.
 | `interpolation_steps` | `usize` | Number of interpolated profiles between each input profile (0 = no interpolation). |
 | `closed_profiles` | `bool` | Whether the profiles should be closed loops. |
 
-*Source: [crates/unshape-mesh/src/loft.rs:38](crates/unshape-mesh/src/loft.rs#L38)*
+*Source: `crates/unshape-mesh/src/loft.rs:38`*
 
 ### `MarchingCubes`
 
@@ -1285,7 +1288,7 @@ Extracts a mesh from a signed distance field using marching cubes.
 | `resolution` | `usize` | Resolution (number of cells) in each dimension. |
 | `iso_value` | `f32` | Iso-value at which to extract the surface (default: 0.0). |
 
-*Source: [crates/unshape-mesh/src/marching_cubes.rs:37](crates/unshape-mesh/src/marching_cubes.rs#L37)*
+*Source: `crates/unshape-mesh/src/marching_cubes.rs:37`*
 
 ### `MergeVertices`
 
@@ -1298,7 +1301,7 @@ Merges selected vertices into a single vertex.
 | `mode` | `MergeMode` | How to determine the merge position. |
 | `position` | `Vec3` | Target position when mode is AtPosition. |
 
-*Source: [crates/unshape-mesh/src/edit.rs:579](crates/unshape-mesh/src/edit.rs#L579)*
+*Source: `crates/unshape-mesh/src/edit/vertex_ops.rs:234`*
 
 ### `Plane`
 
@@ -1313,7 +1316,7 @@ Generates a flat plane mesh in the XZ plane, centered at the origin.
 | `subdivisions_x` | `u32` | Number of divisions along X. Minimum 1. |
 | `subdivisions_z` | `u32` | Number of divisions along Z. Minimum 1. |
 
-*Source: [crates/unshape-mesh/src/primitives.rs:659](crates/unshape-mesh/src/primitives.rs#L659)*
+*Source: `crates/unshape-mesh/src/primitives.rs:659`*
 
 ### `PokeFaces`
 
@@ -1325,7 +1328,7 @@ Pokes selected faces by adding a vertex at their center.
 |-------|------|-------------|
 | `offset` | `f32` | Offset along face normal for the poked vertex (0 = at face center). |
 
-*Source: [crates/unshape-mesh/src/edit.rs:295](crates/unshape-mesh/src/edit.rs#L295)*
+*Source: `crates/unshape-mesh/src/edit/face_ops.rs:143`*
 
 ### `Quadify`
 
@@ -1339,7 +1342,7 @@ Converts triangle pairs to quads where possible.
 | `preserve_sharp` | `bool` | Whether to preserve sharp edges. |
 | `sharp_angle` | `f32` | Sharp edge angle threshold (degrees). |
 
-*Source: [crates/unshape-mesh/src/remesh.rs:340](crates/unshape-mesh/src/remesh.rs#L340)*
+*Source: `crates/unshape-mesh/src/remesh.rs:340`*
 
 ### `Remesh`
 
@@ -1354,7 +1357,7 @@ Performs isotropic remeshing to achieve uniform edge lengths.
 | `smoothing` | `f32` | Smoothing factor (0-1). |
 | `preserve_boundary` | `bool` | Whether to preserve boundary edges. |
 
-*Source: [crates/unshape-mesh/src/remesh.rs:32](crates/unshape-mesh/src/remesh.rs#L32)*
+*Source: `crates/unshape-mesh/src/remesh.rs:32`*
 
 ### `Revolve`
 
@@ -1371,7 +1374,7 @@ Revolves a 2D profile around an axis to create a surface of revolution.
 | `close` | `bool` | Whether to close the revolve (only if angle < TAU). |
 | `cap_ends` | `bool` | Whether to cap ends if not a full rotation. |
 
-*Source: [crates/unshape-mesh/src/curve_mesh.rs:93](crates/unshape-mesh/src/curve_mesh.rs#L93)*
+*Source: `crates/unshape-mesh/src/curve_mesh.rs:93`*
 
 ### `RipVertices`
 
@@ -1379,7 +1382,7 @@ Rips selected vertices, disconnecting them from adjacent faces.
 
 `apply(&Mesh) -> Mesh`
 
-*Source: [crates/unshape-mesh/src/edit.rs:1548](crates/unshape-mesh/src/edit.rs#L1548)*
+*Source: `crates/unshape-mesh/src/edit/vertex_ops.rs:396`*
 
 ### `ScaleFaces`
 
@@ -1391,7 +1394,7 @@ Scales selected faces around their individual centers.
 |-------|------|-------------|
 | `factor` | `f32` | Scale factor (1.0 = no change, 0.5 = half size, 2.0 = double). |
 
-*Source: [crates/unshape-mesh/src/edit.rs:394](crates/unshape-mesh/src/edit.rs#L394)*
+*Source: `crates/unshape-mesh/src/edit/face_ops.rs:238`*
 
 ### `SlideEdges`
 
@@ -1403,7 +1406,7 @@ Slides selected edges along their adjacent faces.
 |-------|------|-------------|
 | `factor` | `f32` | Slide factor (-1.0 to 1.0, direction along adjacent edges). |
 
-*Source: [crates/unshape-mesh/src/edit.rs:1459](crates/unshape-mesh/src/edit.rs#L1459)*
+*Source: `crates/unshape-mesh/src/edit/edge_ops.rs:155`*
 
 ### `Smooth`
 
@@ -1417,7 +1420,7 @@ Applies Laplacian smoothing to a mesh.
 | `iterations` | `usize` | Number of smoothing iterations. |
 | `preserve_boundary` | `bool` | Whether to preserve boundary vertices (don't move them). |
 
-*Source: [crates/unshape-mesh/src/ops.rs:492](crates/unshape-mesh/src/ops.rs#L492)*
+*Source: `crates/unshape-mesh/src/ops.rs:492`*
 
 ### `SmoothVertices`
 
@@ -1430,7 +1433,7 @@ Applies Laplacian smoothing to selected vertices.
 | `lambda` | `f32` | Smoothing factor per iteration (0.0 = no change, 1.0 = move to average). |
 | `iterations` | `usize` | Number of smoothing iterations. |
 
-*Source: [crates/unshape-mesh/src/edit.rs:477](crates/unshape-mesh/src/edit.rs#L477)*
+*Source: `crates/unshape-mesh/src/edit/vertex_ops.rs:132`*
 
 ### `SplitEdges`
 
@@ -1438,7 +1441,7 @@ Splits selected edges to create hard edges.
 
 `apply(&Mesh) -> Mesh`
 
-*Source: [crates/unshape-mesh/src/edit.rs:744](crates/unshape-mesh/src/edit.rs#L744)*
+*Source: `crates/unshape-mesh/src/edit/edge_ops.rs:18`*
 
 ### `SubdivideFaces`
 
@@ -1450,7 +1453,7 @@ Subdivides selected faces.
 |-------|------|-------------|
 | `levels` | `u32` | Number of subdivision levels. |
 
-*Source: [crates/unshape-mesh/src/edit.rs:1328](crates/unshape-mesh/src/edit.rs#L1328)*
+*Source: `crates/unshape-mesh/src/edit/face_ops.rs:764`*
 
 ### `Sweep`
 
@@ -1467,7 +1470,7 @@ Sweeps a 2D profile along a 3D path.
 | `cap_end` | `bool` | Whether to cap the end. |
 | `scale_along_path` | `f32` | Scale factor along the path (1.0 = uniform). |
 
-*Source: [crates/unshape-mesh/src/curve_mesh.rs:328](crates/unshape-mesh/src/curve_mesh.rs#L328)*
+*Source: `crates/unshape-mesh/src/curve_mesh.rs:328`*
 
 ### `Torus`
 
@@ -1482,7 +1485,7 @@ Generates a torus (donut shape) mesh centered at the origin.
 | `major_segments` | `u32` | Divisions around the main ring. Minimum 3. |
 | `minor_segments` | `u32` | Divisions around the tube cross-section. Minimum 3. |
 
-*Source: [crates/unshape-mesh/src/primitives.rs:560](crates/unshape-mesh/src/primitives.rs#L560)*
+*Source: `crates/unshape-mesh/src/primitives.rs:560`*
 
 ### `TransformVertices`
 
@@ -1494,7 +1497,7 @@ Transforms selected vertices by a matrix.
 |-------|------|-------------|
 | `matrix` | `Mat4` | The transformation matrix to apply. |
 
-*Source: [crates/unshape-mesh/src/edit.rs:153](crates/unshape-mesh/src/edit.rs#L153)*
+*Source: `crates/unshape-mesh/src/edit/vertex_ops.rs:17`*
 
 ### `TriangulateFaces`
 
@@ -1502,7 +1505,7 @@ Triangulates selected faces (for meshes with quads/ngons).
 
 `apply(&Mesh) -> Mesh`
 
-*Source: [crates/unshape-mesh/src/edit.rs:272](crates/unshape-mesh/src/edit.rs#L272)*
+*Source: `crates/unshape-mesh/src/edit/face_ops.rs:120`*
 
 ### `UvSphere`
 
@@ -1516,7 +1519,7 @@ Generates a UV sphere mesh centered at the origin.
 | `segments` | `u32` | Number of horizontal divisions (longitude). Minimum 3. |
 | `rings` | `u32` | Number of vertical divisions (latitude). Minimum 2. |
 
-*Source: [crates/unshape-mesh/src/primitives.rs:196](crates/unshape-mesh/src/primitives.rs#L196)*
+*Source: `crates/unshape-mesh/src/primitives.rs:196`*
 
 ---
 
@@ -1534,7 +1537,7 @@ Attractor/repulsor force.
 | `strength` | `f32` | Strength (positive = attract, negative = repel). |
 | `min_distance` | `f32` | Minimum distance (to prevent extreme forces). |
 
-*Source: [crates/unshape-particle/src/lib.rs:1096](crates/unshape-particle/src/lib.rs#L1096)*
+*Source: `crates/unshape-particle/src/lib.rs:1096`*
 
 ### `ConeEmitter`
 
@@ -1554,7 +1557,7 @@ Emits particles in a cone shape.
 | `size` | `f32` | Initial size. |
 | `color` | `[f32;4]` | Initial color. |
 
-*Source: [crates/unshape-particle/src/lib.rs:896](crates/unshape-particle/src/lib.rs#L896)*
+*Source: `crates/unshape-particle/src/lib.rs:896`*
 
 ### `CurlNoise`
 
@@ -1568,7 +1571,7 @@ Curl noise force for divergence-free turbulence.
 | `frequency` | `f32` | Frequency (scale of noise). |
 | `epsilon` | `f32` | Small offset for gradient computation. |
 
-*Source: [crates/unshape-particle/src/lib.rs:1261](crates/unshape-particle/src/lib.rs#L1261)*
+*Source: `crates/unshape-particle/src/lib.rs:1261`*
 
 ### `Drag`
 
@@ -1580,7 +1583,7 @@ Drag force that slows particles.
 |-------|------|-------------|
 | `coefficient` | `f32` | Drag coefficient (0 = no drag, higher = more drag). |
 
-*Source: [crates/unshape-particle/src/lib.rs:1065](crates/unshape-particle/src/lib.rs#L1065)*
+*Source: `crates/unshape-particle/src/lib.rs:1065`*
 
 ### `Gravity`
 
@@ -1592,7 +1595,7 @@ Constant directional force (like gravity).
 |-------|------|-------------|
 | `acceleration` | `Vec3` | Acceleration vector (units per second squared). |
 
-*Source: [crates/unshape-particle/src/lib.rs:997](crates/unshape-particle/src/lib.rs#L997)*
+*Source: `crates/unshape-particle/src/lib.rs:997`*
 
 ### `PointEmitter`
 
@@ -1612,7 +1615,7 @@ Emits particles from a single point.
 | `size` | `f32` | Initial size. |
 | `color` | `[f32;4]` | Initial color. |
 
-*Source: [crates/unshape-particle/src/lib.rs:745](crates/unshape-particle/src/lib.rs#L745)*
+*Source: `crates/unshape-particle/src/lib.rs:745`*
 
 ### `SphereEmitter`
 
@@ -1632,7 +1635,7 @@ Emits particles from a sphere surface or volume.
 | `size` | `f32` | Initial size. |
 | `color` | `[f32;4]` | Initial color. |
 
-*Source: [crates/unshape-particle/src/lib.rs:823](crates/unshape-particle/src/lib.rs#L823)*
+*Source: `crates/unshape-particle/src/lib.rs:823`*
 
 ### `Turbulence`
 
@@ -1647,7 +1650,7 @@ Turbulence force using noise.
 | `speed` | `f32` | Animation speed. |
 | `time` | `f32` | Current time offset. |
 
-*Source: [crates/unshape-particle/src/lib.rs:1196](crates/unshape-particle/src/lib.rs#L1196)*
+*Source: `crates/unshape-particle/src/lib.rs:1196`*
 
 ### `Vortex`
 
@@ -1662,7 +1665,7 @@ Vortex force that creates spinning motion.
 | `strength` | `f32` | Rotational strength. |
 | `falloff` | `f32` | How quickly force falls off with distance. |
 
-*Source: [crates/unshape-particle/src/lib.rs:1140](crates/unshape-particle/src/lib.rs#L1140)*
+*Source: `crates/unshape-particle/src/lib.rs:1140`*
 
 ### `Wind`
 
@@ -1675,7 +1678,7 @@ Constant wind force.
 | `velocity` | `Vec3` | Wind velocity (target velocity particles are pushed toward). |
 | `strength` | `f32` | How strongly particles are pushed (0 = no effect, 1 = instant). |
 
-*Source: [crates/unshape-particle/src/lib.rs:1029](crates/unshape-particle/src/lib.rs#L1029)*
+*Source: `crates/unshape-particle/src/lib.rs:1029`*
 
 ---
 
@@ -1697,7 +1700,7 @@ Configuration for cloth simulation.
 | `collision_margin` | `f32` | Collision margin (added to collider radii). |
 | `friction` | `f32` | Friction coefficient for collisions. |
 
-*Source: [crates/unshape-physics/src/cloth.rs:15](crates/unshape-physics/src/cloth.rs#L15)*
+*Source: `crates/unshape-physics/src/cloth.rs:15`*
 
 ### `Physics`
 
@@ -1711,7 +1714,7 @@ Configuration for physics simulation.
 | `solver_iterations` | `u32` | Number of constraint solver iterations. |
 | `dt` | `f32` | Time step. |
 
-*Source: [crates/unshape-physics/src/lib.rs:879](crates/unshape-physics/src/lib.rs#L879)*
+*Source: `crates/unshape-physics/src/world.rs:22`*
 
 ### `SoftBodyConfig`
 
@@ -1728,7 +1731,7 @@ Configuration for soft body simulation.
 | `gravity` | `Vec3` | Gravity vector. |
 | `iterations` | `u32` | Number of solver iterations. |
 
-*Source: [crates/unshape-physics/src/softbody.rs:15](crates/unshape-physics/src/softbody.rs#L15)*
+*Source: `crates/unshape-physics/src/softbody.rs:15`*
 
 ---
 
@@ -1745,7 +1748,7 @@ Crop operation for point clouds.
 | `min` | `Vec3` | Minimum corner of the bounding box. |
 | `max` | `Vec3` | Maximum corner of the bounding box. |
 
-*Source: [crates/unshape-pointcloud/src/lib.rs:652](crates/unshape-pointcloud/src/lib.rs#L652)*
+*Source: `crates/unshape-pointcloud/src/lib.rs:652`*
 
 ### `EstimateNormals`
 
@@ -1757,7 +1760,7 @@ Normal estimation operation for point clouds.
 |-------|------|-------------|
 | `k` | `usize` | Number of neighbors for local PCA. |
 
-*Source: [crates/unshape-pointcloud/src/lib.rs:687](crates/unshape-pointcloud/src/lib.rs#L687)*
+*Source: `crates/unshape-pointcloud/src/lib.rs:687`*
 
 ### `Poisson`
 
@@ -1770,7 +1773,7 @@ Poisson disk sampling operation for mesh surfaces.
 | `min_distance` | `f32` | Minimum distance between points. |
 | `max_attempts` | `u32` | Maximum attempts to place each point. |
 
-*Source: [crates/unshape-pointcloud/src/lib.rs:370](crates/unshape-pointcloud/src/lib.rs#L370)*
+*Source: `crates/unshape-pointcloud/src/lib.rs:370`*
 
 ### `RemoveOutliers`
 
@@ -1783,7 +1786,7 @@ Statistical outlier removal operation for point clouds.
 | `k` | `usize` | Number of neighbors to consider. |
 | `std_ratio` | `f32` | Standard deviation multiplier for outlier threshold. |
 
-*Source: [crates/unshape-pointcloud/src/lib.rs:580](crates/unshape-pointcloud/src/lib.rs#L580)*
+*Source: `crates/unshape-pointcloud/src/lib.rs:580`*
 
 ### `UniformSampling`
 
@@ -1795,7 +1798,7 @@ Uniform sampling operation for mesh surfaces.
 |-------|------|-------------|
 | `count` | `usize` | Number of points to sample. |
 
-*Source: [crates/unshape-pointcloud/src/lib.rs:717](crates/unshape-pointcloud/src/lib.rs#L717)*
+*Source: `crates/unshape-pointcloud/src/lib.rs:717`*
 
 ### `VoxelDownsample`
 
@@ -1807,7 +1810,7 @@ Voxel grid downsampling operation for point clouds.
 |-------|------|-------------|
 | `voxel_size` | `f32` | Size of voxel grid cells. |
 
-*Source: [crates/unshape-pointcloud/src/lib.rs:622](crates/unshape-pointcloud/src/lib.rs#L622)*
+*Source: `crates/unshape-pointcloud/src/lib.rs:622`*
 
 ---
 
@@ -1827,7 +1830,7 @@ Operation for maze generation.
 | `add_entrance` | `bool` | Whether to add entrance at top-left. |
 | `add_exit` | `bool` | Whether to add exit at bottom-right. |
 
-*Source: [crates/unshape-procgen/src/maze.rs:574](crates/unshape-procgen/src/maze.rs#L574)*
+*Source: `crates/unshape-procgen/src/maze.rs:576`*
 
 ### `GenerateRiver`
 
@@ -1841,7 +1844,7 @@ Operation to generate a simple procedural river from source to sink.
 | `sink` | `Vec2` | Sink position (downstream). |
 | `config` | `RiverConfig` | River configuration parameters. |
 
-*Source: [crates/unshape-procgen/src/network.rs:480](crates/unshape-procgen/src/network.rs#L480)*
+*Source: `crates/unshape-procgen/src/network.rs:480`*
 
 ### `GenerateRoadNetworkGrid`
 
@@ -1855,7 +1858,7 @@ Operation to generate a grid-based road network.
 | `bounds_max` | `Vec2` | Maximum corner of the bounds. |
 | `spacing` | `f32` | Grid spacing between roads. |
 
-*Source: [crates/unshape-procgen/src/network.rs:768](crates/unshape-procgen/src/network.rs#L768)*
+*Source: `crates/unshape-procgen/src/network.rs:768`*
 
 ### `GenerateRoadNetworkHierarchical`
 
@@ -1869,7 +1872,7 @@ Operation to generate a hierarchical road network with main roads and side stree
 | `bounds_max` | `Vec2` | Maximum corner of the bounds. |
 | `density` | `f32` | Road density factor. |
 
-*Source: [crates/unshape-procgen/src/network.rs:800](crates/unshape-procgen/src/network.rs#L800)*
+*Source: `crates/unshape-procgen/src/network.rs:800`*
 
 ---
 
@@ -1885,7 +1888,7 @@ Applies a preset to the simulation.
 |-------|------|-------------|
 | `preset` | `GrayScottPreset` | The preset to apply. |
 
-*Source: [crates/unshape-rd/src/lib.rs:655](crates/unshape-rd/src/lib.rs#L655)*
+*Source: `crates/unshape-rd/src/lib.rs:655`*
 
 ### `Clear`
 
@@ -1893,7 +1896,7 @@ Clears the simulation to initial state (U=1, V=0).
 
 `apply(&ReactionDiffusion) -> ReactionDiffusion`
 
-*Source: [crates/unshape-rd/src/lib.rs:586](crates/unshape-rd/src/lib.rs#L586)*
+*Source: `crates/unshape-rd/src/lib.rs:586`*
 
 ### `GrayScottParams`
 
@@ -1909,7 +1912,7 @@ Gray-Scott simulation parameters.
 | `kill` | `f32` | Kill rate. |
 | `dt` | `f32` | Time step. |
 
-*Source: [crates/unshape-rd/src/lib.rs:415](crates/unshape-rd/src/lib.rs#L415)*
+*Source: `crates/unshape-rd/src/lib.rs:415`*
 
 ### `SeedCircle`
 
@@ -1923,7 +1926,7 @@ Adds a circular seed of chemical V.
 | `cy` | `usize` | Center Y coordinate. |
 | `radius` | `usize` | Radius of the seed circle. |
 
-*Source: [crates/unshape-rd/src/lib.rs:496](crates/unshape-rd/src/lib.rs#L496)*
+*Source: `crates/unshape-rd/src/lib.rs:496`*
 
 ### `SeedRandom`
 
@@ -1937,7 +1940,7 @@ Adds random seeds across the grid.
 | `radius` | `usize` | Radius of each seed circle. |
 | `seed` | `u64` | Random seed for reproducibility. |
 
-*Source: [crates/unshape-rd/src/lib.rs:554](crates/unshape-rd/src/lib.rs#L554)*
+*Source: `crates/unshape-rd/src/lib.rs:554`*
 
 ### `SeedRect`
 
@@ -1952,7 +1955,7 @@ Adds a rectangular seed of chemical V.
 | `x2` | `usize` | Right X coordinate. |
 | `y2` | `usize` | Bottom Y coordinate. |
 
-*Source: [crates/unshape-rd/src/lib.rs:524](crates/unshape-rd/src/lib.rs#L524)*
+*Source: `crates/unshape-rd/src/lib.rs:524`*
 
 ### `SetFeed`
 
@@ -1964,7 +1967,7 @@ Sets the feed rate parameter.
 |-------|------|-------------|
 | `feed` | `f32` | The feed rate to set. |
 
-*Source: [crates/unshape-rd/src/lib.rs:607](crates/unshape-rd/src/lib.rs#L607)*
+*Source: `crates/unshape-rd/src/lib.rs:607`*
 
 ### `SetKill`
 
@@ -1976,7 +1979,7 @@ Sets the kill rate parameter.
 |-------|------|-------------|
 | `kill` | `f32` | The kill rate to set. |
 
-*Source: [crates/unshape-rd/src/lib.rs:631](crates/unshape-rd/src/lib.rs#L631)*
+*Source: `crates/unshape-rd/src/lib.rs:631`*
 
 ### `Step`
 
@@ -1988,7 +1991,7 @@ Advances the simulation by a number of steps.
 |-------|------|-------------|
 | `count` | `usize` | Number of simulation steps to advance. |
 
-*Source: [crates/unshape-rd/src/lib.rs:466](crates/unshape-rd/src/lib.rs#L466)*
+*Source: `crates/unshape-rd/src/lib.rs:466`*
 
 ---
 
@@ -2010,7 +2013,7 @@ Configuration for a walking gait.
 | `body_sway` | `f32` | Lateral sway amount for body. |
 | `lean_amount` | `f32` | Forward lean when moving. |
 
-*Source: [crates/unshape-rig/src/locomotion.rs:18](crates/unshape-rig/src/locomotion.rs#L18)*
+*Source: `crates/unshape-rig/src/locomotion.rs:18`*
 
 ### `Ik`
 
@@ -2023,7 +2026,7 @@ Configuration for IK solving.
 | `max_iterations` | `u32` | Maximum iterations. |
 | `tolerance` | `f32` | Distance threshold for success. |
 
-*Source: [crates/unshape-rig/src/ik.rs:35](crates/unshape-rig/src/ik.rs#L35)*
+*Source: `crates/unshape-rig/src/ik.rs:35`*
 
 ### `MotionMatching`
 
@@ -2042,7 +2045,7 @@ Configuration for motion matching.
 | `min_transition_time` | `f32` | Minimum time between transitions. |
 | `blend_time` | `f32` | Blend time for transitions. |
 
-*Source: [crates/unshape-rig/src/motion_matching.rs:19](crates/unshape-rig/src/motion_matching.rs#L19)*
+*Source: `crates/unshape-rig/src/motion_matching.rs:19`*
 
 ### `Secondary`
 
@@ -2059,7 +2062,7 @@ Configuration for secondary motion effects.
 | `max_displacement` | `f32` | Maximum displacement from rest position. |
 | `enable_collision` | `bool` | Whether to enable collision with parent bone. |
 
-*Source: [crates/unshape-rig/src/secondary.rs:45](crates/unshape-rig/src/secondary.rs#L45)*
+*Source: `crates/unshape-rig/src/secondary.rs:45`*
 
 ### `SolveCcd`
 
@@ -2071,7 +2074,7 @@ CCD (Cyclic Coordinate Descent) IK solver as an op struct.
 |-------|------|-------------|
 | `config` | `IkConfig` | IK solver configuration. |
 
-*Source: [crates/unshape-rig/src/ik.rs:396](crates/unshape-rig/src/ik.rs#L396)*
+*Source: `crates/unshape-rig/src/ik.rs:396`*
 
 ### `SolveFabrik`
 
@@ -2083,7 +2086,7 @@ FABRIK (Forward And Backward Reaching Inverse Kinematics) solver as an op struct
 |-------|------|-------------|
 | `config` | `IkConfig` | IK solver configuration. |
 
-*Source: [crates/unshape-rig/src/ik.rs:450](crates/unshape-rig/src/ik.rs#L450)*
+*Source: `crates/unshape-rig/src/ik.rs:450`*
 
 ---
 
@@ -2106,7 +2109,7 @@ Scatters instances randomly within a box volume.
 | `random_rotation` | `bool` | Whether to apply random rotation. |
 | `align_axis` | `Option<Vec3>` | Alignment axis for oriented scatter (e.g., up vector). |
 
-*Source: [crates/unshape-scatter/src/lib.rs:97](crates/unshape-scatter/src/lib.rs#L97)*
+*Source: `crates/unshape-scatter/src/lib.rs:97`*
 
 ### `Stagger`
 
@@ -2121,7 +2124,7 @@ Configuration for stagger timing generation.
 | `pattern` | `StaggerPattern` | Pattern for distributing delays. |
 | `easing` | `f32` | Easing function for delay distribution (0 = linear, positive = ease-in, negative = ease-out). |
 
-*Source: [crates/unshape-scatter/src/lib.rs:517](crates/unshape-scatter/src/lib.rs#L517)*
+*Source: `crates/unshape-scatter/src/lib.rs:517`*
 
 ---
 
@@ -2143,7 +2146,7 @@ Configuration for the space colonization algorithm.
 | `smoothing` | `f32` | Smoothing factor for growth direction (0.0 = sharp, 1.0 = smooth). |
 | `max_iterations` | `usize` | Maximum number of iterations. |
 
-*Source: [crates/unshape-space-colonization/src/lib.rs:59](crates/unshape-space-colonization/src/lib.rs#L59)*
+*Source: `crates/unshape-space-colonization/src/lib.rs:59`*
 
 ---
 
@@ -2161,7 +2164,7 @@ Configuration for a spring constraint.
 | `stiffness` | `f32` | Stiffness (0-1, higher = stiffer). |
 | `damping` | `f32` | Damping (0-1, reduces oscillation). |
 
-*Source: [crates/unshape-spring/src/lib.rs:91](crates/unshape-spring/src/lib.rs#L91)*
+*Source: `crates/unshape-spring/src/lib.rs:91`*
 
 ---
 
@@ -2181,7 +2184,7 @@ Operation for pressure-sensitive stroke rendering.
 | `join` | `JoinStyle` | Join style for corners. |
 | `miter_limit` | `f32` | Miter limit. |
 
-*Source: [crates/unshape-vector/src/stroke.rs:973](crates/unshape-vector/src/stroke.rs#L973)*
+*Source: `crates/unshape-vector/src/stroke.rs:973`*
 
 ### `Stroke`
 
@@ -2196,7 +2199,7 @@ Operation for converting strokes to filled path outlines.
 | `join` | `JoinStyle` | Join style for corners. |
 | `miter_limit` | `f32` | Miter limit (for miter joins). |
 
-*Source: [crates/unshape-vector/src/stroke.rs:62](crates/unshape-vector/src/stroke.rs#L62)*
+*Source: `crates/unshape-vector/src/stroke.rs:62`*
 
 ### `Trim`
 
@@ -2209,7 +2212,7 @@ Operation for trimming a path to a portion of its length.
 | `start` | `f32` | Start position (0.0 to 1.0). |
 | `end` | `f32` | End position (0.0 to 1.0). |
 
-*Source: [crates/unshape-vector/src/stroke.rs:1203](crates/unshape-vector/src/stroke.rs#L1203)*
+*Source: `crates/unshape-vector/src/stroke.rs:1203`*
 
 ---
 
@@ -2225,7 +2228,7 @@ Operation to dilate a binary voxel grid (grows solid regions).
 |-------|------|-------------|
 | `iterations` | `u32` | Number of dilation iterations. |
 
-*Source: [crates/unshape-voxel/src/lib.rs:448](crates/unshape-voxel/src/lib.rs#L448)*
+*Source: `crates/unshape-voxel/src/lib.rs:448`*
 
 ### `Erode`
 
@@ -2237,7 +2240,7 @@ Operation to erode a binary voxel grid (shrinks solid regions).
 |-------|------|-------------|
 | `iterations` | `u32` | Number of erosion iterations. |
 
-*Source: [crates/unshape-voxel/src/lib.rs:512](crates/unshape-voxel/src/lib.rs#L512)*
+*Source: `crates/unshape-voxel/src/lib.rs:512`*
 
 ### `FillBox`
 
@@ -2251,7 +2254,7 @@ Operation to fill a box region in a binary voxel grid.
 | `max` | `UVec3` | Maximum corner of the box (exclusive). |
 | `value` | `bool` | Value to fill with (true = solid, false = empty). |
 
-*Source: [crates/unshape-voxel/src/lib.rs:376](crates/unshape-voxel/src/lib.rs#L376)*
+*Source: `crates/unshape-voxel/src/lib.rs:376`*
 
 ### `FillSphere`
 
@@ -2265,7 +2268,7 @@ Operation to fill a sphere in a binary voxel grid.
 | `radius` | `f32` | Radius of the sphere in voxel units. |
 | `value` | `bool` | Value to fill with (true = solid, false = empty). |
 
-*Source: [crates/unshape-voxel/src/lib.rs:324](crates/unshape-voxel/src/lib.rs#L324)*
+*Source: `crates/unshape-voxel/src/lib.rs:324`*
 
 ### `SparseVoxelsToMesh`
 
@@ -2277,7 +2280,7 @@ Operation to generate a mesh from sparse voxels.
 |-------|------|-------------|
 | `voxel_size` | `f32` | Size of each voxel in world units. |
 
-*Source: [crates/unshape-voxel/src/lib.rs:730](crates/unshape-voxel/src/lib.rs#L730)*
+*Source: `crates/unshape-voxel/src/lib.rs:730`*
 
 ### `VoxelsToMesh`
 
@@ -2289,5 +2292,5 @@ Operation to generate a simple blocky mesh from a binary voxel grid.
 |-------|------|-------------|
 | `voxel_size` | `f32` | Size of each voxel in world units. |
 
-*Source: [crates/unshape-voxel/src/lib.rs:596](crates/unshape-voxel/src/lib.rs#L596)*
+*Source: `crates/unshape-voxel/src/lib.rs:596`*
 
