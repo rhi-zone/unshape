@@ -192,11 +192,8 @@ fn print_markdown(crates: &[CrateOps]) {
                 println!();
             }
 
-            // Source link
-            println!(
-                "*Source: [{}:{}]({}#L{})*",
-                op.file, op.line, op.file, op.line
-            );
+            // Source reference (plain text — .rs files aren't served by VitePress)
+            println!("*Source: `{}:{}`*", op.file, op.line);
             println!();
         }
     }
