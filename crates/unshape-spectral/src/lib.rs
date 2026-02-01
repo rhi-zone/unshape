@@ -405,12 +405,12 @@ pub fn dct(signal: &[f32]) -> Vec<f32> {
     let n = signal.len();
     let mut result = vec![0.0; n];
 
-    for k in 0..n {
+    for (k, result_k) in result.iter_mut().enumerate() {
         let mut sum = 0.0;
-        for i in 0..n {
-            sum += signal[i] * (PI * (2 * i + 1) as f32 * k as f32 / (2 * n) as f32).cos();
+        for (i, &s) in signal.iter().enumerate() {
+            sum += s * (PI * (2 * i + 1) as f32 * k as f32 / (2 * n) as f32).cos();
         }
-        result[k] = sum
+        *result_k = sum
             * if k == 0 {
                 1.0 / (n as f32).sqrt()
             } else {
@@ -429,13 +429,12 @@ pub fn idct(spectrum: &[f32]) -> Vec<f32> {
     let scale_0 = 1.0 / (n as f32).sqrt();
     let scale_k = (2.0 / n as f32).sqrt();
 
-    for i in 0..n {
+    for (i, result_i) in result.iter_mut().enumerate() {
         let mut sum = spectrum[0] * scale_0;
-        for k in 1..n {
-            sum +=
-                spectrum[k] * scale_k * (PI * (2 * i + 1) as f32 * k as f32 / (2 * n) as f32).cos();
+        for (k, &spec_k) in spectrum.iter().enumerate().skip(1) {
+            sum += spec_k * scale_k * (PI * (2 * i + 1) as f32 * k as f32 / (2 * n) as f32).cos();
         }
-        result[i] = sum;
+        *result_i = sum;
     }
 
     result
