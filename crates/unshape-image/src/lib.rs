@@ -2616,10 +2616,10 @@ mod tests {
         assert!((a - 0.7).abs() < 0.001, "Alpha not preserved: {}", a);
     }
 
-    #[cfg(feature = "dew")]
+    #[cfg(feature = "wick")]
     #[test]
     fn test_colorspace_dew_registration() {
-        use rhizome_dew_linalg::{Value, linalg_registry};
+        use wick_linalg::{Value, linalg_registry};
 
         let mut registry = linalg_registry::<f32>();
         register_colorspace(&mut registry);
@@ -2633,10 +2633,10 @@ mod tests {
         assert!(registry.get("hwb_to_rgb").is_some());
     }
 
-    #[cfg(feature = "dew")]
+    #[cfg(feature = "wick")]
     #[test]
     fn test_colorspace_dew_eval() {
-        use rhizome_dew_linalg::{LinalgFn, Value, linalg_registry};
+        use wick_linalg::{LinalgFn, Value, linalg_registry};
 
         let mut registry = linalg_registry::<f32>();
         register_colorspace(&mut registry);

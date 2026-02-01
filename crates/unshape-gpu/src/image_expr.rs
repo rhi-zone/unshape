@@ -7,7 +7,7 @@ use crate::GpuContext;
 use crate::error::{GpuError, GpuResult};
 use crate::texture::{GpuTexture, TextureFormat};
 use bytemuck::{Pod, Zeroable};
-use rhizome_dew_linalg::{Type, wgsl::emit_wgsl};
+use wick_linalg::{Type, wgsl::emit_wgsl};
 use std::collections::HashMap;
 use unshape_image::{ColorExpr, UvExpr};
 use wgpu::util::DeviceExt;

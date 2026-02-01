@@ -319,7 +319,7 @@ impl UvExpr {
     /// # Example
     ///
     /// ```ignore
-    /// use rhizome_dew_linalg::{Value, eval, linalg_registry};
+    /// use wick_linalg::{Value, eval, linalg_registry};
     /// use std::collections::HashMap;
     ///
     /// let expr = UvExpr::translate(0.1, 0.0);
@@ -331,9 +331,9 @@ impl UvExpr {
     /// let result = eval(&ast, &vars, &linalg_registry()).unwrap();
     /// // result = Value::Vec2([0.6, 0.5])
     /// ```
-    #[cfg(feature = "dew")]
-    pub fn to_dew_ast(&self) -> rhizome_dew_core::Ast {
-        use rhizome_dew_core::{Ast, BinOp, UnaryOp};
+    #[cfg(feature = "wick")]
+    pub fn to_dew_ast(&self) -> wick_core::Ast {
+        use wick_core::{Ast, BinOp, UnaryOp};
 
         match self {
             // Coordinates - uv is a Vec2 variable
@@ -1245,7 +1245,7 @@ impl ColorExpr {
     /// # Example
     ///
     /// ```ignore
-    /// use rhizome_dew_linalg::{Value, eval, linalg_registry};
+    /// use wick_linalg::{Value, eval, linalg_registry};
     /// use std::collections::HashMap;
     ///
     /// let expr = ColorExpr::grayscale();
@@ -1257,9 +1257,9 @@ impl ColorExpr {
     /// let result = eval(&ast, &vars, &linalg_registry()).unwrap();
     /// // result = Value::Vec4([0.2126, 0.2126, 0.2126, 1.0])
     /// ```
-    #[cfg(feature = "dew")]
-    pub fn to_dew_ast(&self) -> rhizome_dew_core::Ast {
-        use rhizome_dew_core::{Ast, BinOp, UnaryOp};
+    #[cfg(feature = "wick")]
+    pub fn to_dew_ast(&self) -> wick_core::Ast {
+        use wick_core::{Ast, BinOp, UnaryOp};
 
         match self {
             // Input - rgba is a Vec4 variable
@@ -1470,12 +1470,12 @@ impl ColorExpr {
 /// Colorspace conversion functions for dew expression evaluation.
 ///
 /// These functions allow colorspace conversions to be used in dew expressions
-/// when evaluated via `rhizome_dew_linalg`.
+/// when evaluated via `wick_linalg`.
 ///
 /// # Example
 ///
 /// ```ignore
-/// use rhizome_dew_linalg::{linalg_registry, eval, Value};
+/// use wick_linalg::{linalg_registry, eval, Value};
 /// use unshape_image::register_colorspace;
 ///
 /// let mut registry = linalg_registry();
@@ -1483,11 +1483,11 @@ impl ColorExpr {
 ///
 /// // Now you can use rgb_to_hsl, hsl_to_rgb, etc. in expressions
 /// ```
-#[cfg(feature = "dew")]
+#[cfg(feature = "wick")]
 pub mod colorspace_dew {
     use num_traits::NumCast;
-    use rhizome_dew_core::Numeric;
-    use rhizome_dew_linalg::{FunctionRegistry, LinalgFn, LinalgValue, Signature, Type};
+    use wick_core::Numeric;
+    use wick_linalg::{FunctionRegistry, LinalgFn, LinalgValue, Signature, Type};
 
     macro_rules! colorspace_fn {
         ($name:ident, $fn_name:literal, $convert:expr) => {
@@ -1574,7 +1574,7 @@ pub mod colorspace_dew {
     }
 }
 
-#[cfg(feature = "dew")]
+#[cfg(feature = "wick")]
 pub use colorspace_dew::register_colorspace;
 
 /// Remaps UV coordinates using an expression.

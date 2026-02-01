@@ -8,7 +8,7 @@ description = "Core types and traits for unshape fields"
 [features]
 serde = ["dep:serde"]
 dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
-image-expr = ["dep:unshape-image", "dep:rhizome-dew-linalg"]
+image-expr = ["dep:unshape-image", "dep:wick-linalg"]
 
 [dependencies]
 glam = { workspace = true }
@@ -20,7 +20,7 @@ unshape-core = { workspace = true }
 unshape-backend = { workspace = true }
 unshape-op = { path = "../unshape-op", optional = true }
 unshape-image = { path = "../unshape-image", features = ["wgsl"], optional = true }
-rhizome-dew-linalg = { git = "https://github.com/rhizome-lab/dew", features = ["4d", "wgsl"], optional = true }
+wick-linalg = { version = "0.1.0", features = ["4d", "wgsl"], optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
 
