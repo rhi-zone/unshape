@@ -247,6 +247,40 @@ impl ExtractBitPlane {
     }
 }
 
+#[cfg(feature = "dynop")]
+impl unshape_op::DynOp for ExtractBitPlane {
+    fn type_name(&self) -> &'static str {
+        "resin::ExtractBitPlane"
+    }
+
+    fn input_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn output_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn apply_dyn(
+        &self,
+        input: unshape_op::OpValue,
+    ) -> Result<unshape_op::OpValue, unshape_op::OpError> {
+        let img: ImageField = input.downcast()?;
+        let result = self.apply(&img);
+        Ok(unshape_op::OpValue::new(
+            unshape_op::OpType::of::<ImageField>("ImageField"),
+            result,
+        ))
+    }
+
+    fn params(&self) -> serde_json::Value {
+        serde_json::json!({
+            "channel": format!("{:?}", self.channel),
+            "bit": self.bit,
+        })
+    }
+}
+
 /// Sets a single bit plane in an image channel from a source image.
 ///
 /// The source image is treated as binary (>0.5 = 1, <=0.5 = 0).
@@ -322,10 +356,155 @@ impl SetBitPlane {
     }
 }
 
-// Note: LsbEmbed was intentionally not included as it's not a primitive.
-// It's a composition of ExtractBitPlane/SetBitPlane loops over pixels.
-// Users can compose these primitives to build their own embedding schemes.
-// See docs/archive/decomposition-audit.md for the principle of identifying true primitives.
+#[cfg(feature = "dynop")]
+impl unshape_op::DynOp for SetBitPlane {
+    fn type_name(&self) -> &'static str {
+        "resin::SetBitPlane"
+    }
+
+    fn input_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn output_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn apply_dyn(
+        &self,
+        input: unshape_op::OpValue,
+    ) -> Result<unshape_op::OpValue, unshape_op::OpError> {
+        // Single-input variant: use same image as both target and source.
+        let img: ImageField = input.downcast()?;
+        let result = self.apply(&img.clone(), &img);
+        Ok(unshape_op::OpValue::new(
+            unshape_op::OpType::of::<ImageField>("ImageField"),
+            result,
+        ))
+    }
+
+    fn params(&self) -> serde_json::Value {
+        serde_json::json!({
+            "channel": format!("{:?}", self.channel),
+            "bit": self.bit,
+        })
+    }
+}
+
+// ============================================================================
+// LsbEmbed — embed the LSB of a source image into a target channel
+// ============================================================================
+
+/// Embeds the least-significant bit (LSB) of a source image into the specified
+/// channel of a target image.
+///
+/// The source image is treated as binary: pixels with red channel > 0.5 embed
+/// a 1 bit, all others embed a 0 bit. Only the LSB of the target channel is
+/// modified; all other bits are preserved.
+///
+/// This is the fused form of `(channel & 0xFE) | data_bit`, recognized by the
+/// image optimizer when it detects that pattern in an [`IntColorExpr`].
+///
+/// # Use Cases
+/// - Steganography: embed hidden binary data in the LSB of an image channel
+/// - Watermarking: encode ownership data without visible artifacts
+///
+/// # Example
+///
+/// ```
+/// use unshape_image::{ImageField, LsbEmbed};
+/// use unshape_image::Channel;
+///
+/// let target = ImageField::from_raw(vec![[0.5f32, 0.5, 0.5, 1.0]; 64], 8, 8);
+/// let source = ImageField::from_raw(vec![[1.0f32, 1.0, 1.0, 1.0]; 64], 8, 8);
+/// let result = LsbEmbed { channel: Channel::Red }.apply(&target, &source);
+/// ```
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct LsbEmbed {
+    /// The channel of the target image in which to embed the LSB.
+    pub channel: Channel,
+}
+
+impl LsbEmbed {
+    /// Creates an LSB embed op for the specified channel.
+    pub fn new(channel: Channel) -> Self {
+        Self { channel }
+    }
+
+    /// Embeds the LSB of `source` into the target channel of `target`.
+    ///
+    /// Source pixels are thresholded at 0.5 on the red channel to determine
+    /// the embedded bit value.
+    pub fn apply(&self, target: &ImageField, source: &ImageField) -> ImageField {
+        let channel_idx = match self.channel {
+            Channel::Red => 0,
+            Channel::Green => 1,
+            Channel::Blue => 2,
+            Channel::Alpha => 3,
+        };
+
+        let data: Vec<[f32; 4]> = target
+            .data
+            .iter()
+            .enumerate()
+            .map(|(i, pixel)| {
+                let x = (i as u32) % target.width;
+                let y = (i as u32) / target.width;
+                let src_pixel = source.get_pixel(x, y);
+
+                // Threshold source to get the bit to embed (0 or 1).
+                let bit: u8 = if src_pixel[0] > 0.5 { 1 } else { 0 };
+
+                // Get current byte, clear LSB, set from source.
+                let byte = (pixel[channel_idx].clamp(0.0, 1.0) * 255.0) as u8;
+                let new_byte = (byte & 0xFE) | bit;
+
+                let mut result = *pixel;
+                result[channel_idx] = new_byte as f32 / 255.0;
+                result
+            })
+            .collect();
+
+        ImageField::from_raw(data, target.width, target.height)
+            .with_wrap_mode(target.wrap_mode)
+            .with_filter_mode(target.filter_mode)
+    }
+}
+
+#[cfg(feature = "dynop")]
+impl unshape_op::DynOp for LsbEmbed {
+    fn type_name(&self) -> &'static str {
+        "resin::LsbEmbed"
+    }
+
+    fn input_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn output_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn apply_dyn(
+        &self,
+        input: unshape_op::OpValue,
+    ) -> Result<unshape_op::OpValue, unshape_op::OpError> {
+        // Single-input variant: use same image as both target and source.
+        let img: ImageField = input.downcast()?;
+        let result = self.apply(&img.clone(), &img);
+        Ok(unshape_op::OpValue::new(
+            unshape_op::OpType::of::<ImageField>("ImageField"),
+            result,
+        ))
+    }
+
+    fn params(&self) -> serde_json::Value {
+        serde_json::json!({
+            "channel": format!("{:?}", self.channel),
+        })
+    }
+}
 
 /// An image stored as `[u8; 4]` per pixel (RGBA, 0–255 per channel).
 ///

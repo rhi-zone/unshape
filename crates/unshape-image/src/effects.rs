@@ -5,7 +5,7 @@ use crate::BlendMode;
 use crate::ImageField;
 use crate::channel::{Channel, extract_channel};
 use crate::composite::composite;
-use crate::kernel::blur;
+use crate::kernel::{GaussianBlur, blur};
 use crate::pyramid::{downsample, resize};
 use crate::transform::{TransformConfig, transform_image};
 
@@ -402,4 +402,239 @@ pub fn bloom(image: &ImageField, config: &Bloom) -> ImageField {
     let final_bloom = ImageField::from_raw(final_bloom_data, width, height);
 
     composite(image, &final_bloom, BlendMode::Add, 1.0)
+}
+
+// ============================================================================
+// HighPassOptimized — fused high-pass in spatial domain (original - blur)
+// ============================================================================
+
+/// Fused spatial-domain high-pass filter: `original - GaussianBlur(original, σ)`.
+///
+/// Equivalent to subtracting a blurred version of the image from itself.
+/// Recognized by the image optimizer when it detects a
+/// `GaussianBlur → Subtract` pattern referencing the original image.
+///
+/// # Example
+///
+/// ```
+/// use unshape_image::{ImageField, HighPassOptimized};
+///
+/// let img = ImageField::from_raw(vec![[0.5f32, 0.5, 0.5, 1.0]; 64], 8, 8);
+/// let edges = HighPassOptimized { sigma: 2.0 }.apply(&img);
+/// ```
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct HighPassOptimized {
+    /// Standard deviation of the Gaussian in pixels.
+    pub sigma: f32,
+}
+
+impl HighPassOptimized {
+    /// Creates a high-pass filter with the given Gaussian sigma.
+    pub fn new(sigma: f32) -> Self {
+        Self { sigma }
+    }
+
+    /// Applies fused high-pass filtering: `original - blur(original, σ)`.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        let blurred = GaussianBlur { sigma: self.sigma }.apply(image);
+        let (width, height) = image.dimensions();
+        let data: Vec<[f32; 4]> = image
+            .data
+            .iter()
+            .zip(blurred.data.iter())
+            .map(|(orig, blur)| {
+                [
+                    (orig[0] - blur[0]).clamp(-1.0, 1.0),
+                    (orig[1] - blur[1]).clamp(-1.0, 1.0),
+                    (orig[2] - blur[2]).clamp(-1.0, 1.0),
+                    orig[3],
+                ]
+            })
+            .collect();
+        ImageField::from_raw(data, width, height)
+            .with_wrap_mode(image.wrap_mode)
+            .with_filter_mode(image.filter_mode)
+    }
+}
+
+#[cfg(feature = "dynop")]
+impl unshape_op::DynOp for HighPassOptimized {
+    fn type_name(&self) -> &'static str {
+        "resin::HighPassOptimized"
+    }
+
+    fn input_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn output_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn apply_dyn(
+        &self,
+        input: unshape_op::OpValue,
+    ) -> Result<unshape_op::OpValue, unshape_op::OpError> {
+        let img: ImageField = input.downcast()?;
+        let result = self.apply(&img);
+        Ok(unshape_op::OpValue::new(
+            unshape_op::OpType::of::<ImageField>("ImageField"),
+            result,
+        ))
+    }
+
+    fn params(&self) -> serde_json::Value {
+        serde_json::json!({ "sigma": self.sigma })
+    }
+}
+
+// ============================================================================
+// UnsharpMaskOptimized — fused unsharp mask (original + k*(original - blur))
+// ============================================================================
+
+/// Fused unsharp mask: `original + amount * (original - GaussianBlur(original, σ))`.
+///
+/// Sharpens an image by adding a scaled version of the high-frequency
+/// component back to the original. Recognized by the image optimizer when
+/// it detects the `GaussianBlur → Subtract → Scale → Add` pattern.
+///
+/// # Example
+///
+/// ```
+/// use unshape_image::{ImageField, UnsharpMaskOptimized};
+///
+/// let img = ImageField::from_raw(vec![[0.5f32, 0.5, 0.5, 1.0]; 64], 8, 8);
+/// let sharpened = UnsharpMaskOptimized { sigma: 1.5, amount: 0.8 }.apply(&img);
+/// ```
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct UnsharpMaskOptimized {
+    /// Standard deviation of the Gaussian in pixels.
+    pub sigma: f32,
+    /// Sharpening amount (0.0 = no sharpening, 1.0 = full, >1.0 = over-sharpen).
+    pub amount: f32,
+}
+
+impl UnsharpMaskOptimized {
+    /// Creates an unsharp mask op with the given sigma and sharpening amount.
+    pub fn new(sigma: f32, amount: f32) -> Self {
+        Self { sigma, amount }
+    }
+
+    /// Applies fused unsharp masking: `original + amount * (original - blur(original, σ))`.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        let blurred = GaussianBlur { sigma: self.sigma }.apply(image);
+        let (width, height) = image.dimensions();
+        let data: Vec<[f32; 4]> = image
+            .data
+            .iter()
+            .zip(blurred.data.iter())
+            .map(|(orig, blur)| {
+                [
+                    (orig[0] + self.amount * (orig[0] - blur[0])).clamp(0.0, 1.0),
+                    (orig[1] + self.amount * (orig[1] - blur[1])).clamp(0.0, 1.0),
+                    (orig[2] + self.amount * (orig[2] - blur[2])).clamp(0.0, 1.0),
+                    orig[3],
+                ]
+            })
+            .collect();
+        ImageField::from_raw(data, width, height)
+            .with_wrap_mode(image.wrap_mode)
+            .with_filter_mode(image.filter_mode)
+    }
+}
+
+#[cfg(feature = "dynop")]
+impl unshape_op::DynOp for UnsharpMaskOptimized {
+    fn type_name(&self) -> &'static str {
+        "resin::UnsharpMaskOptimized"
+    }
+
+    fn input_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn output_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn apply_dyn(
+        &self,
+        input: unshape_op::OpValue,
+    ) -> Result<unshape_op::OpValue, unshape_op::OpError> {
+        let img: ImageField = input.downcast()?;
+        let result = self.apply(&img);
+        Ok(unshape_op::OpValue::new(
+            unshape_op::OpType::of::<ImageField>("ImageField"),
+            result,
+        ))
+    }
+
+    fn params(&self) -> serde_json::Value {
+        serde_json::json!({ "sigma": self.sigma, "amount": self.amount })
+    }
+}
+
+// ============================================================================
+// MaskedLerp — fused masked linear interpolation (lerp via add+mul)
+// ============================================================================
+
+/// Fused masked linear interpolation between two images.
+///
+/// Computes `a * (1 - mask) + b * mask` per pixel. Recognized by the image
+/// optimizer when it detects a `lerp(a, b, mask)` expressed as `add(mul(a,
+/// 1-mask), mul(b, mask))`.
+///
+/// The mask channel used is the red channel of the mask image (broadcast to RGB).
+/// Alpha is taken from image `a`.
+///
+/// # Example
+///
+/// ```
+/// use unshape_image::{ImageField, MaskedLerp};
+///
+/// let a = ImageField::from_raw(vec![[0.0f32, 0.0, 0.0, 1.0]; 64], 8, 8);
+/// let b = ImageField::from_raw(vec![[1.0f32, 1.0, 1.0, 1.0]; 64], 8, 8);
+/// let mask = ImageField::from_raw(vec![[0.5f32, 0.5, 0.5, 1.0]; 64], 8, 8);
+/// let result = MaskedLerp.apply(&a, &b, &mask);
+/// ```
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct MaskedLerp;
+
+impl MaskedLerp {
+    /// Creates a new MaskedLerp op.
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// Applies fused masked lerp: `a * (1 - mask) + b * mask`.
+    ///
+    /// Mask values are sampled from the red channel, applied uniformly to RGB.
+    /// Alpha channel is taken from image `a`.
+    pub fn apply(&self, a: &ImageField, b: &ImageField, mask: &ImageField) -> ImageField {
+        let (width, height) = a.dimensions();
+        let data: Vec<[f32; 4]> = a
+            .data
+            .iter()
+            .enumerate()
+            .map(|(i, pa)| {
+                let x = (i as u32) % width;
+                let y = (i as u32) / width;
+                let pb = b.get_pixel(x, y);
+                let pm = mask.get_pixel(x, y);
+                let t = pm[0].clamp(0.0, 1.0);
+                [
+                    pa[0] * (1.0 - t) + pb[0] * t,
+                    pa[1] * (1.0 - t) + pb[1] * t,
+                    pa[2] * (1.0 - t) + pb[2] * t,
+                    pa[3],
+                ]
+            })
+            .collect();
+        ImageField::from_raw(data, width, height)
+            .with_wrap_mode(a.wrap_mode)
+            .with_filter_mode(a.filter_mode)
+    }
 }

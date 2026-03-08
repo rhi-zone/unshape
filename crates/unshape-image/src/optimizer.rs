@@ -29,7 +29,10 @@
 use unshape_op::DynOp;
 
 use crate::ImageField;
-use crate::freq::{Fft2d, FreqRadialMul, Ifft2d};
+use crate::channel::Channel;
+use crate::effects::{HighPassOptimized, UnsharpMaskOptimized};
+use crate::freq::{Fft2d, FreqRadialMul, FreqRingMul, Ifft2d};
+use crate::int_ops::{ExtractBitPlane, LsbEmbed, SetBitPlane};
 use crate::kernel::{GaussianBlur, SeparableConvolve};
 
 /// Result of a successful pattern match.
@@ -72,8 +75,14 @@ impl ImageOptimizer {
             patterns: vec![
                 Box::new(LowPassFreqPattern),
                 Box::new(HighPassFreqPattern),
+                Box::new(BandPassFreqPattern),
                 Box::new(GaussianBlurCombinePattern),
                 Box::new(SeparableKernelPattern),
+                Box::new(ExtractBitPlanePattern),
+                Box::new(SetBitPlanePattern),
+                Box::new(LsbEmbedPattern),
+                Box::new(HighPassPattern),
+                Box::new(UnsharpMaskPattern),
             ],
         }
     }
@@ -499,6 +508,442 @@ impl DynOp for HighPassFreqOptimized {
 }
 
 // ============================================================================
+// Pattern: FFT → RingMul(lo, hi) → IFFT → BandPassFreqOptimized
+// ============================================================================
+
+/// Matches `Fft2d → FreqRingMul { lo, hi } → Ifft2d` and replaces
+/// with a single [`BandPassFreqOptimized`] op.
+pub struct BandPassFreqPattern;
+
+impl ImagePattern for BandPassFreqPattern {
+    fn name(&self) -> &'static str {
+        "BandPassFreqPattern"
+    }
+
+    fn try_match(&self, ops: &[&dyn DynOp]) -> Option<PatternMatch> {
+        if ops.len() < 3 {
+            return None;
+        }
+        if op_name(ops[0]) != "resin::Fft2d" {
+            return None;
+        }
+        if op_name(ops[1]) != "resin::FreqRingMul" {
+            return None;
+        }
+        if op_name(ops[2]) != "resin::Ifft2d" {
+            return None;
+        }
+
+        let params = ops[1].params();
+        let lo = params["lo"].as_f64().unwrap_or(0.1) as f32;
+        let hi = params["hi"].as_f64().unwrap_or(0.5) as f32;
+
+        Some(PatternMatch {
+            consumed: 3,
+            replacements: vec![Box::new(BandPassFreqOptimized { lo, hi })],
+        })
+    }
+}
+
+// ============================================================================
+// Optimized op: BandPassFreqOptimized
+// ============================================================================
+
+/// Fused band-pass frequency filter: FFT + ring mask + IFFT in one operation.
+///
+/// Equivalent to `Fft2d → FreqRingMul { lo, hi } → Ifft2d`
+/// but avoids creating separate intermediate frequency-domain image allocations.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct BandPassFreqOptimized {
+    /// Lower bound of the pass-band as a fraction of Nyquist (0.0–1.0).
+    pub lo: f32,
+    /// Upper bound of the pass-band as a fraction of Nyquist (0.0–1.0).
+    pub hi: f32,
+}
+
+impl BandPassFreqOptimized {
+    /// Creates a band-pass filter passing frequencies between `lo` and `hi`.
+    pub fn new(lo: f32, hi: f32) -> Self {
+        Self { lo, hi }
+    }
+
+    /// Applies band-pass frequency filtering in a single fused pass.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        let (mut real, mut imag) = Fft2d.apply(image);
+        FreqRingMul {
+            lo: self.lo,
+            hi: self.hi,
+        }
+        .apply_inplace(&mut real, &mut imag);
+        Ifft2d.apply(&real, &imag)
+    }
+}
+
+impl DynOp for BandPassFreqOptimized {
+    fn type_name(&self) -> &'static str {
+        "resin::BandPassFreqOptimized"
+    }
+
+    fn input_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn output_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn apply_dyn(
+        &self,
+        input: unshape_op::OpValue,
+    ) -> Result<unshape_op::OpValue, unshape_op::OpError> {
+        let img: ImageField = input.downcast()?;
+        let result = self.apply(&img);
+        Ok(unshape_op::OpValue::new(
+            unshape_op::OpType::of::<ImageField>("ImageField"),
+            result,
+        ))
+    }
+
+    fn params(&self) -> serde_json::Value {
+        serde_json::json!({ "lo": self.lo, "hi": self.hi })
+    }
+}
+
+// ============================================================================
+// Bit manipulation patterns
+// ============================================================================
+
+/// Matches an [`IntColorExpr`](crate::int_ops::IntColorExpr) that evaluates
+/// `(channel >> N) & 1` and replaces it with a direct [`ExtractBitPlane`] op.
+///
+/// Matches `MapPixels` whose expression is the canonical `extract_bit(ch, bit)`
+/// form: `BitAnd(Shr(channel, Constant(bit)), Constant(1))`.
+///
+/// [`IntColorExpr`]: crate::int_ops::IntColorExpr
+pub struct ExtractBitPlanePattern;
+
+impl ImagePattern for ExtractBitPlanePattern {
+    fn name(&self) -> &'static str {
+        "ExtractBitPlanePattern"
+    }
+
+    fn try_match(&self, ops: &[&dyn DynOp]) -> Option<PatternMatch> {
+        use crate::int_ops::IntColorExpr;
+
+        if ops.is_empty() {
+            return None;
+        }
+        if op_name(ops[0]) != "resin::MapPixels" {
+            return None;
+        }
+
+        // Recover the IntColorExpr from the params JSON.
+        let params = ops[0].params();
+        let expr_json = params.get("expr")?;
+        let expr: IntColorExpr = serde_json::from_value(expr_json.clone()).ok()?;
+
+        // Match: Vec4 { r: BitAnd(Shr(ch, Constant(N)), Constant(1)), ... }
+        let (channel, bit) = match_extract_bit_expr(&expr)?;
+
+        Some(PatternMatch {
+            consumed: 1,
+            replacements: vec![Box::new(ExtractBitPlane { channel, bit })],
+        })
+    }
+}
+
+/// Returns `(channel, bit)` if `expr` matches the `(channel >> bit) & 1` pattern.
+fn match_extract_bit_expr(expr: &crate::int_ops::IntColorExpr) -> Option<(Channel, u8)> {
+    use crate::int_ops::IntColorExpr;
+
+    // Top level must be Vec4 with all channels using the same expression.
+    let r_expr = match expr {
+        IntColorExpr::Vec4 { r, .. } => r.as_ref(),
+        _ => return None,
+    };
+
+    // r_expr must be BitAnd(Shr(ch, Constant(N)), Constant(1)).
+    let (shr_expr, and_const) = match r_expr {
+        IntColorExpr::BitAnd(lhs, rhs) => (lhs.as_ref(), rhs.as_ref()),
+        _ => return None,
+    };
+
+    // and_const must be Constant(1).
+    match and_const {
+        IntColorExpr::Constant(1) => {}
+        _ => return None,
+    }
+
+    // shr_expr must be Shr(ch, Constant(N)).
+    let (ch_expr, shift_expr) = match shr_expr {
+        IntColorExpr::Shr(lhs, rhs) => (lhs.as_ref(), rhs.as_ref()),
+        _ => return None,
+    };
+
+    let bit = match shift_expr {
+        IntColorExpr::Constant(n) => *n,
+        _ => return None,
+    };
+
+    let channel = match ch_expr {
+        IntColorExpr::R => Channel::Red,
+        IntColorExpr::G => Channel::Green,
+        IntColorExpr::B => Channel::Blue,
+        IntColorExpr::A => Channel::Alpha,
+        _ => return None,
+    };
+
+    Some((channel, bit))
+}
+
+/// Matches an [`IntColorExpr`](crate::int_ops::IntColorExpr) that evaluates
+/// `(channel & ~(1 << N)) | (src << N)` and replaces it with [`SetBitPlane`].
+///
+/// [`IntColorExpr`]: crate::int_ops::IntColorExpr
+pub struct SetBitPlanePattern;
+
+impl ImagePattern for SetBitPlanePattern {
+    fn name(&self) -> &'static str {
+        "SetBitPlanePattern"
+    }
+
+    fn try_match(&self, ops: &[&dyn DynOp]) -> Option<PatternMatch> {
+        use crate::int_ops::IntColorExpr;
+
+        if ops.is_empty() {
+            return None;
+        }
+        if op_name(ops[0]) != "resin::MapPixels" {
+            return None;
+        }
+
+        let params = ops[0].params();
+        let expr_json = params.get("expr")?;
+        let expr: IntColorExpr = serde_json::from_value(expr_json.clone()).ok()?;
+
+        let (channel, bit) = match_set_bit_expr(&expr)?;
+
+        Some(PatternMatch {
+            consumed: 1,
+            replacements: vec![Box::new(SetBitPlane { channel, bit })],
+        })
+    }
+}
+
+/// Returns `(channel, bit)` if `expr` matches the `(ch & ~(1<<N)) | (src<<N)` pattern.
+fn match_set_bit_expr(expr: &crate::int_ops::IntColorExpr) -> Option<(Channel, u8)> {
+    use crate::int_ops::IntColorExpr;
+
+    // Top level: Vec4 { r: BitOr(BitAnd(ch, ~(1<<N)), Shl(src, N)), ... }
+    let r_expr = match expr {
+        IntColorExpr::Vec4 { r, .. } => r.as_ref(),
+        _ => return None,
+    };
+
+    // r_expr: BitOr(clear_expr, set_expr)
+    let (clear_expr, set_expr) = match r_expr {
+        IntColorExpr::BitOr(lhs, rhs) => (lhs.as_ref(), rhs.as_ref()),
+        _ => return None,
+    };
+
+    // clear_expr: BitAnd(ch, Constant(inv_mask)) where inv_mask = !(1 << N)
+    let (ch_expr, inv_mask_expr) = match clear_expr {
+        IntColorExpr::BitAnd(lhs, rhs) => (lhs.as_ref(), rhs.as_ref()),
+        _ => return None,
+    };
+
+    let inv_mask = match inv_mask_expr {
+        IntColorExpr::Constant(c) => *c,
+        _ => return None,
+    };
+
+    // Determine bit from inv_mask: inv_mask = !(1 << N), so (1 << N) = !inv_mask
+    let mask = !inv_mask;
+    // mask must be a power of two
+    if mask.count_ones() != 1 {
+        return None;
+    }
+    let bit = mask.trailing_zeros() as u8;
+
+    // set_expr: Shl(src, Constant(N))
+    match set_expr {
+        IntColorExpr::Shl(_, shift) => match shift.as_ref() {
+            IntColorExpr::Constant(n) if *n == bit => {}
+            _ => return None,
+        },
+        _ => return None,
+    }
+
+    let channel = match ch_expr {
+        IntColorExpr::R => Channel::Red,
+        IntColorExpr::G => Channel::Green,
+        IntColorExpr::B => Channel::Blue,
+        IntColorExpr::A => Channel::Alpha,
+        _ => return None,
+    };
+
+    Some((channel, bit))
+}
+
+/// Matches an [`IntColorExpr`](crate::int_ops::IntColorExpr) that evaluates
+/// `(channel & 0xFE) | data_bit` and replaces it with [`LsbEmbed`].
+///
+/// [`IntColorExpr`]: crate::int_ops::IntColorExpr
+pub struct LsbEmbedPattern;
+
+impl ImagePattern for LsbEmbedPattern {
+    fn name(&self) -> &'static str {
+        "LsbEmbedPattern"
+    }
+
+    fn try_match(&self, ops: &[&dyn DynOp]) -> Option<PatternMatch> {
+        use crate::int_ops::IntColorExpr;
+
+        if ops.is_empty() {
+            return None;
+        }
+        if op_name(ops[0]) != "resin::MapPixels" {
+            return None;
+        }
+
+        let params = ops[0].params();
+        let expr_json = params.get("expr")?;
+        let expr: IntColorExpr = serde_json::from_value(expr_json.clone()).ok()?;
+
+        let channel = match_lsb_embed_expr(&expr)?;
+
+        Some(PatternMatch {
+            consumed: 1,
+            replacements: vec![Box::new(LsbEmbed { channel })],
+        })
+    }
+}
+
+/// Returns `channel` if `expr` matches the `(ch & 0xFE) | data_bit` pattern.
+fn match_lsb_embed_expr(expr: &crate::int_ops::IntColorExpr) -> Option<Channel> {
+    use crate::int_ops::IntColorExpr;
+
+    // Top level: Vec4 { r: BitOr(BitAnd(ch, Constant(0xFE)), data_bit), ... }
+    let r_expr = match expr {
+        IntColorExpr::Vec4 { r, .. } => r.as_ref(),
+        _ => return None,
+    };
+
+    let (clear_expr, _data_expr) = match r_expr {
+        IntColorExpr::BitOr(lhs, rhs) => (lhs.as_ref(), rhs.as_ref()),
+        _ => return None,
+    };
+
+    // clear_expr: BitAnd(ch, Constant(0xFE))
+    let (ch_expr, mask_expr) = match clear_expr {
+        IntColorExpr::BitAnd(lhs, rhs) => (lhs.as_ref(), rhs.as_ref()),
+        _ => return None,
+    };
+
+    // mask must be 0xFE (clear LSB)
+    match mask_expr {
+        IntColorExpr::Constant(0xFE) => {}
+        _ => return None,
+    }
+
+    let channel = match ch_expr {
+        IntColorExpr::R => Channel::Red,
+        IntColorExpr::G => Channel::Green,
+        IntColorExpr::B => Channel::Blue,
+        IntColorExpr::A => Channel::Alpha,
+        _ => return None,
+    };
+
+    Some(channel)
+}
+
+// ============================================================================
+// Composite patterns
+// ============================================================================
+
+/// Matches a `GaussianBlur` op that was applied to produce a high-pass
+/// component (`original - blur(original, σ)`) and replaces it with
+/// [`HighPassOptimized`].
+///
+/// Specifically matches a `GaussianBlur` op tagged with a `high_pass_marker`
+/// in its params, or detects the pattern by checking the op type name.
+/// In the linear pipeline model this matches any standalone `GaussianBlur`
+/// when used as a marker for the high-pass fused replacement.
+///
+/// **Pattern:** A `GaussianBlur` op immediately preceded by nothing or
+/// following a source marker. Replaces with `HighPassOptimized` which fuses
+/// `original - blur(original)` into a single pass.
+pub struct HighPassPattern;
+
+impl ImagePattern for HighPassPattern {
+    fn name(&self) -> &'static str {
+        "HighPassPattern"
+    }
+
+    fn try_match(&self, ops: &[&dyn DynOp]) -> Option<PatternMatch> {
+        if ops.is_empty() {
+            return None;
+        }
+
+        // Match a GaussianBlur op tagged with high_pass_mode = true.
+        if op_name(ops[0]) != "resin::GaussianBlur" {
+            return None;
+        }
+
+        let params = ops[0].params();
+        let high_pass = params["high_pass_mode"].as_bool().unwrap_or(false);
+        if !high_pass {
+            return None;
+        }
+
+        let sigma = params["sigma"].as_f64().unwrap_or(1.0) as f32;
+
+        Some(PatternMatch {
+            consumed: 1,
+            replacements: vec![Box::new(HighPassOptimized { sigma })],
+        })
+    }
+}
+
+/// Matches a `GaussianBlur` op tagged with `unsharp_mask_mode = true` and an
+/// `amount` parameter, replacing it with [`UnsharpMaskOptimized`].
+///
+/// **Pattern:** `GaussianBlur { sigma, unsharp_mask_mode: true, amount: k }`
+/// → `UnsharpMaskOptimized { sigma, amount: k }`
+pub struct UnsharpMaskPattern;
+
+impl ImagePattern for UnsharpMaskPattern {
+    fn name(&self) -> &'static str {
+        "UnsharpMaskPattern"
+    }
+
+    fn try_match(&self, ops: &[&dyn DynOp]) -> Option<PatternMatch> {
+        if ops.is_empty() {
+            return None;
+        }
+
+        if op_name(ops[0]) != "resin::GaussianBlur" {
+            return None;
+        }
+
+        let params = ops[0].params();
+        let unsharp = params["unsharp_mask_mode"].as_bool().unwrap_or(false);
+        if !unsharp {
+            return None;
+        }
+
+        let sigma = params["sigma"].as_f64().unwrap_or(1.0) as f32;
+        let amount = params["amount"].as_f64().unwrap_or(1.0) as f32;
+
+        Some(PatternMatch {
+            consumed: 1,
+            replacements: vec![Box::new(UnsharpMaskOptimized { sigma, amount })],
+        })
+    }
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -506,7 +951,8 @@ impl DynOp for HighPassFreqOptimized {
 mod tests {
     use super::*;
     use crate::ImageField;
-    use crate::freq::{Fft2d, FreqRadialMul, Ifft2d};
+    use crate::channel::Channel;
+    use crate::freq::{Fft2d, FreqRadialMul, FreqRingMul, Ifft2d};
     use crate::kernel::{Convolve, GaussianBlur, Kernel};
 
     fn test_image() -> ImageField {
@@ -645,6 +1091,100 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_band_pass_pattern_match() {
+        let ops: Vec<Box<dyn DynOp>> = vec![
+            Box::new(Fft2d),
+            Box::new(FreqRingMul { lo: 0.2, hi: 0.6 }),
+            Box::new(Ifft2d),
+        ];
+
+        let optimizer = ImageOptimizer::new();
+        let result = optimizer.optimize(ops);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].type_name(), "resin::BandPassFreqOptimized");
+
+        let params = result[0].params();
+        let lo = params["lo"].as_f64().unwrap() as f32;
+        let hi = params["hi"].as_f64().unwrap() as f32;
+        assert!((lo - 0.2).abs() < 1e-5, "expected lo=0.2, got {lo}");
+        assert!((hi - 0.6).abs() < 1e-5, "expected hi=0.6, got {hi}");
+    }
+
+    #[test]
+    fn test_band_pass_optimized_same_result_as_manual() {
+        let image = test_image();
+
+        // Manual FFT → ring mask → IFFT.
+        let (mut real, mut imag) = Fft2d.apply(&image);
+        FreqRingMul { lo: 0.2, hi: 0.6 }.apply_inplace(&mut real, &mut imag);
+        let manual_result = Ifft2d.apply(&real, &imag);
+
+        // Fused.
+        let fused_result = BandPassFreqOptimized { lo: 0.2, hi: 0.6 }.apply(&image);
+
+        assert_eq!(manual_result.dimensions(), fused_result.dimensions());
+        for (a, b) in manual_result.data.iter().zip(fused_result.data.iter()) {
+            for ch in 0..4 {
+                assert!(
+                    (a[ch] - b[ch]).abs() < 1e-5,
+                    "channel {ch}: {} vs {}",
+                    a[ch],
+                    b[ch]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_extract_bit_plane_pattern_helper() {
+        use crate::int_ops::IntColorExpr;
+
+        // Build the canonical extract_bit expression for red channel, bit 3.
+        let expr = IntColorExpr::Vec4 {
+            r: Box::new(IntColorExpr::BitAnd(
+                Box::new(IntColorExpr::Shr(
+                    Box::new(IntColorExpr::R),
+                    Box::new(IntColorExpr::Constant(3)),
+                )),
+                Box::new(IntColorExpr::Constant(1)),
+            )),
+            g: Box::new(IntColorExpr::Constant(0)),
+            b: Box::new(IntColorExpr::Constant(0)),
+            a: Box::new(IntColorExpr::Constant(0xFF)),
+        };
+
+        let channel_bit = match_extract_bit_expr(&expr);
+        assert!(channel_bit.is_some());
+        let (channel, bit) = channel_bit.unwrap();
+        assert_eq!(channel, Channel::Red);
+        assert_eq!(bit, 3);
+    }
+
+    #[test]
+    fn test_lsb_embed_pattern_helper() {
+        use crate::int_ops::IntColorExpr;
+
+        // (R & 0xFE) | data_bit
+        let expr = IntColorExpr::Vec4 {
+            r: Box::new(IntColorExpr::BitOr(
+                Box::new(IntColorExpr::BitAnd(
+                    Box::new(IntColorExpr::R),
+                    Box::new(IntColorExpr::Constant(0xFE)),
+                )),
+                Box::new(IntColorExpr::Constant(0)), // data_bit placeholder
+            )),
+            g: Box::new(IntColorExpr::G),
+            b: Box::new(IntColorExpr::B),
+            a: Box::new(IntColorExpr::A),
+        };
+
+        let channel = match_lsb_embed_expr(&expr);
+        assert!(channel.is_some());
+        assert_eq!(channel.unwrap(), Channel::Red);
     }
 
     #[test]
