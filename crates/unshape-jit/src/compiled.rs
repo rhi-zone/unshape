@@ -28,7 +28,7 @@ impl CompiledScalar {
     /// The caller must ensure the JitCompiler that created this outlives it.
     pub(crate) unsafe fn new(func: *const u8, num_inputs: usize, num_outputs: usize) -> Self {
         Self {
-            func: unsafe { std::mem::transmute(func) },
+            func: unsafe { std::mem::transmute::<*const u8, fn(f32) -> f32>(func) },
             num_inputs,
             num_outputs,
         }
@@ -72,6 +72,7 @@ pub struct BatchState<Ctx> {
     /// Per-node output values (for graph evaluation).
     pub values: Vec<f32>,
     /// Stateful processor closures.
+    #[allow(clippy::type_complexity)]
     pub processors: Vec<Box<dyn FnMut(f32, &Ctx) -> f32 + Send>>,
 }
 
@@ -133,13 +134,15 @@ impl<Ctx> CompiledBatch<Ctx> {
     ///
     /// The function pointer must be valid and have the expected signature.
     /// The caller must ensure the JitCompiler that created this outlives it.
+    #[allow(dead_code)]
     pub(crate) unsafe fn new(
         func: *const u8,
         width: SimdWidth,
         state: Box<BatchState<Ctx>>,
     ) -> Self {
+        type BatchFn<Ctx> = fn(*const f32, *mut f32, usize, *mut BatchState<Ctx>);
         Self {
-            func: unsafe { std::mem::transmute(func) },
+            func: unsafe { std::mem::transmute::<*const u8, BatchFn<Ctx>>(func) },
             width,
             state,
         }
@@ -167,9 +170,7 @@ impl<Ctx> CompiledBatch<Ctx> {
             "input and output must be same length"
         );
 
-        let func: fn(*const f32, *mut f32, usize, *mut BatchState<Ctx>) =
-            unsafe { std::mem::transmute(self.func) };
-
+        let func = self.func;
         func(
             input.as_ptr(),
             output.as_mut_ptr(),

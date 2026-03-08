@@ -4920,7 +4920,10 @@ dependencies = [
  "cranelift-module 0.113.1",
  "cranelift-native 0.113.1",
  "criterion",
+ "proc-macro2",
+ "quote",
  "thiserror 2.0.18",
+ "wick-core",
 ]
 
 [[package]]

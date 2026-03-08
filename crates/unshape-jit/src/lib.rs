@@ -59,12 +59,14 @@ mod compiled;
 mod compiler;
 mod context;
 mod error;
+pub mod rust_codegen;
 mod traits;
 
 pub use compiled::*;
 pub use compiler::*;
 pub use context::*;
 pub use error::*;
+pub use rust_codegen::*;
 pub use traits::*;
 
 #[cfg(all(test, feature = "cranelift"))]
@@ -124,13 +126,13 @@ mod tests {
 
         simd.process(&input, &mut output);
 
-        for i in 0..8 {
+        for (i, (&out, &inp)) in output.iter().zip(input.iter()).enumerate() {
             assert!(
-                (output[i] - input[i]).abs() < 1e-6,
+                (out - inp).abs() < 1e-6,
                 "mismatch at {}: {} vs {}",
                 i,
-                output[i],
-                input[i]
+                out,
+                inp
             );
         }
     }
@@ -145,13 +147,13 @@ mod tests {
 
         simd.process(&input, &mut output);
 
-        for i in 0..8 {
+        for (i, &out) in output.iter().enumerate() {
             let expected = (i as f32) * 2.0;
             assert!(
-                (output[i] - expected).abs() < 1e-6,
+                (out - expected).abs() < 1e-6,
                 "mismatch at {}: {} vs {}",
                 i,
-                output[i],
+                out,
                 expected
             );
         }
@@ -167,13 +169,13 @@ mod tests {
 
         simd.process(&input, &mut output);
 
-        for i in 0..8 {
+        for (i, &out) in output.iter().enumerate() {
             let expected = (i as f32) + 5.0;
             assert!(
-                (output[i] - expected).abs() < 1e-6,
+                (out - expected).abs() < 1e-6,
                 "mismatch at {}: {} vs {}",
                 i,
-                output[i],
+                out,
                 expected
             );
         }
@@ -190,13 +192,13 @@ mod tests {
 
         simd.process(&input, &mut output);
 
-        for i in 0..8 {
+        for (i, &out) in output.iter().enumerate() {
             let expected = (i as f32) * 2.0 + 1.0;
             assert!(
-                (output[i] - expected).abs() < 1e-6,
+                (out - expected).abs() < 1e-6,
                 "mismatch at {}: {} vs {}",
                 i,
-                output[i],
+                out,
                 expected
             );
         }
@@ -213,13 +215,13 @@ mod tests {
 
         simd.process(&input, &mut output);
 
-        for i in 0..7 {
+        for (i, &out) in output.iter().enumerate() {
             let expected = (i as f32) * 2.0 + 1.0;
             assert!(
-                (output[i] - expected).abs() < 1e-6,
+                (out - expected).abs() < 1e-6,
                 "mismatch at {}: {} vs {}",
                 i,
-                output[i],
+                out,
                 expected
             );
         }
