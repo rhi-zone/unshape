@@ -442,16 +442,16 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 > **Goal:** Heterogeneous execution - GPU when available, CPU fallback, policy-based selection.
 > See `docs/design/compute-backends.md` for full design.
 
-- [ ] `ComputeBackend` trait - extensible backend abstraction (not enum)
-- [ ] `BackendRegistry` - register/query available backends
-- [ ] `CpuBackend` - default, always available
-- [ ] `GpuComputeBackend` - wgpu-based, registers GPU kernels per node type
-- [ ] `ExecutionPolicy` - Auto, PreferKind, Named, LocalFirst, MinimizeCost
-- [ ] `BackendScheduler` - matches policy to node capabilities
-- [ ] `WorkloadHint` - nodes advertise workload size for scheduling
-- [ ] `Cost` model - estimate compute + transfer costs
-- [ ] `DataLocation` tracking in `Value` - know where data lives
-- [ ] Integration with `EvalContext` - backends + policy fields
+- [x] `ComputeBackend` trait - extensible backend abstraction (not enum)
+- [x] `BackendRegistry` - register/query available backends
+- [x] `CpuBackend` - default, always available
+- [x] `GpuComputeBackend` - wgpu-based, registers GPU kernels per node type
+- [x] `ExecutionPolicy` - Auto, PreferKind, Named, LocalFirst, MinimizeCost
+- [x] `BackendScheduler` - matches policy to node capabilities
+- [x] `WorkloadHint` - nodes advertise workload size for scheduling
+- [x] `Cost` model - estimate compute + transfer costs
+- [x] `DataLocation` tracking in `Value` - know where data lives
+- [x] Integration with `EvalContext` - backends + policy fields
 
 ### Invariant Tests ✅
 
@@ -801,10 +801,10 @@ See docs/archive/decomposition-audit.md for which are true primitives vs composi
 **Problem:** `SerialGraph` in resin-serde defines a JSON format, but it's only documented in Rust code. Other languages need a spec to read/write resin graphs.
 
 **Proposed spec (`docs/spec/graph-format.md` + JSON Schema):**
-- [ ] `SerialGraph` structure: nodes array, edges array, metadata
-- [ ] Node format: `{ "id": "...", "type": "...", "params": {...} }`
-- [ ] Edge format: `{ "from": "node:port", "to": "node:port" }`
-- [ ] Type registry: how node types map to implementations
+- [x] `SerialGraph` structure: nodes array, edges array, metadata
+- [x] Node format: `{ "id": "...", "type": "...", "params": {...} }`
+- [x] Edge format: `{ "from": "node:port", "to": "node:port" }`
+- [x] Type registry: how node types map to implementations
 - [ ] Expression format: dew AST serialization
 
 **Example:**
