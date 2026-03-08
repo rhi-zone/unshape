@@ -156,6 +156,118 @@ impl unshape_op::DynOp for FreqRadialMul {
     }
 }
 
+// ============================================================================
+// FreqRingMul — ring/annulus mask in frequency domain
+// ============================================================================
+
+/// Applies a ring (annulus) frequency mask to a frequency-domain image pair.
+///
+/// Passes frequencies whose normalized radius falls between `lo` and `hi`.
+/// Used to implement band-pass filtering in the frequency domain.
+///
+/// Typically used between [`Fft2d`] and [`Ifft2d`] in a pipeline.
+/// The optimizer recognizes this pattern and replaces it with
+/// [`BandPassFreqOptimized`](crate::optimizer::BandPassFreqOptimized).
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct FreqRingMul {
+    /// Lower bound of the pass-band as a fraction of Nyquist (0.0–1.0).
+    pub lo: f32,
+    /// Upper bound of the pass-band as a fraction of Nyquist (0.0–1.0).
+    pub hi: f32,
+}
+
+impl FreqRingMul {
+    /// Creates a ring mask that passes frequencies between `lo` and `hi`.
+    pub fn new(lo: f32, hi: f32) -> Self {
+        Self { lo, hi }
+    }
+
+    /// Applies the ring mask to a [`FreqImage`].
+    pub fn apply(&self, freq: &FreqImage) -> FreqImage {
+        let mut real = freq.real.clone();
+        let mut imag = freq.imag.clone();
+        self.apply_inplace(&mut real, &mut imag);
+        FreqImage::new(real, imag)
+    }
+
+    /// Applies the ring mask in-place to real and imaginary image components.
+    ///
+    /// This is the fused path used by the optimizer to avoid extra allocations.
+    pub fn apply_inplace(&self, real: &mut ImageField, imag: &mut ImageField) {
+        let (w, h) = (real.width as usize, real.height as usize);
+        let cx = w as f32 / 2.0;
+        let cy = h as f32 / 2.0;
+        let max_radius = cx.min(cy);
+
+        for y in 0..h {
+            for x in 0..w {
+                let dx = (x as f32).min(w as f32 - x as f32);
+                let dy = (y as f32).min(h as f32 - y as f32);
+                let dist = (dx * dx + dy * dy).sqrt() / max_radius;
+
+                // Smooth step for lower edge (lo): ramp up from 0 near 0 to 1 at lo.
+                let lower_weight = if dist < self.lo {
+                    let t = (dist / (self.lo + 1e-8)).clamp(0.0, 1.0);
+                    t * t * (3.0 - 2.0 * t)
+                } else {
+                    1.0
+                };
+
+                // Smooth step for upper edge (hi): ramp down from 1 at hi to 0 above hi.
+                let upper_weight = if dist > self.hi {
+                    let t = ((dist - self.hi) / (1.0 - self.hi + 1e-8)).clamp(0.0, 1.0);
+                    1.0 - t * t * (3.0 - 2.0 * t)
+                } else {
+                    1.0
+                };
+
+                let weight = lower_weight * upper_weight;
+
+                let i = y * w + x;
+                for ch in 0..4 {
+                    real.data[i][ch] *= weight;
+                    imag.data[i][ch] *= weight;
+                }
+            }
+        }
+    }
+}
+
+#[cfg(feature = "dynop")]
+impl unshape_op::DynOp for FreqRingMul {
+    fn type_name(&self) -> &'static str {
+        "resin::FreqRingMul"
+    }
+
+    fn input_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<FreqImage>("FreqImage")
+    }
+
+    fn output_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<FreqImage>("FreqImage")
+    }
+
+    fn apply_dyn(
+        &self,
+        input: unshape_op::OpValue,
+    ) -> Result<unshape_op::OpValue, unshape_op::OpError> {
+        let freq: FreqImage = input.downcast()?;
+        let result = self.apply(&freq);
+        Ok(unshape_op::OpValue::new(
+            unshape_op::OpType::of::<FreqImage>("FreqImage"),
+            result,
+        ))
+    }
+
+    fn params(&self) -> serde_json::Value {
+        serde_json::json!({
+            "lo": self.lo,
+            "hi": self.hi,
+        })
+    }
+}
+
 /// 2D Fast Fourier Transform.
 ///
 /// Transforms an image from spatial domain to frequency domain.

@@ -63,8 +63,10 @@ pub use kernel::*;
 pub use normal_map::*;
 #[cfg(feature = "dynop")]
 pub use optimizer::{
-    GaussianBlurCombinePattern, HighPassFreqOptimized, HighPassFreqPattern, ImageOptimizer,
-    ImagePattern, LowPassFreqOptimized, LowPassFreqPattern, PatternMatch, SeparableKernelPattern,
+    BandPassFreqOptimized, BandPassFreqPattern, ExtractBitPlanePattern, GaussianBlurCombinePattern,
+    HighPassFreqOptimized, HighPassFreqPattern, HighPassPattern, ImageOptimizer, ImagePattern,
+    LowPassFreqOptimized, LowPassFreqPattern, LsbEmbedPattern, PatternMatch,
+    SeparableKernelPattern, SetBitPlanePattern, UnsharpMaskPattern,
 };
 pub use pyramid::*;
 pub use transform::*;

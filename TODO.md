@@ -649,26 +649,26 @@ Add to image pattern-matching optimizer (like audio's tremolo/chorus recognition
 
 **Frequency domain patterns:**
 - [x] `fft → mul(radial_mask) → ifft` → `LowPassFreqOptimized` / `HighPassFreqOptimized`
-- [ ] `fft → mul(ring_mask) → ifft` → `BandPassFreqOptimized`
+- [x] `fft → mul(ring_mask) → ifft` → `BandPassFreqOptimized`
 
 **Convolution patterns:**
 - [x] Separable kernel detection → two 1D passes instead of 2D (`SeparableKernelPattern` / `SeparableConvolve`)
 - [x] `blur(blur(x))` → single blur with combined sigma (`GaussianBlurCombinePattern`)
 
 **Bit manipulation patterns:**
-- [ ] `(r >> N) & 1` → `ExtractBitPlaneOptimized`
-- [ ] `(r & ~(1 << N)) | (src << N)` → `SetBitPlaneOptimized`
-- [ ] `(r & 0xFE) | bit` → `LsbEmbedOptimized`
+- [x] `(r >> N) & 1` → `ExtractBitPlane` (`ExtractBitPlanePattern` matches `IntColorExpr` AST)
+- [x] `(r & ~(1 << N)) | (src << N)` → `SetBitPlane` (`SetBitPlanePattern`)
+- [x] `(r & 0xFE) | bit` → `LsbEmbed` (`LsbEmbedPattern`); `LsbEmbed` op added to `int_ops.rs`
 
 **Composite patterns:**
-- [ ] `original - blur(original)` → `HighPassOptimized` (unsharp component)
-- [ ] `original + k * (original - blur(original))` → `UnsharpMaskOptimized`
-- [ ] `lerp(original, transformed, mask)` → fused masked transform
+- [x] `original - blur(original)` → `HighPassOptimized` (`HighPassPattern`; op in `effects.rs`)
+- [x] `original + k * (original - blur(original))` → `UnsharpMaskOptimized` (`UnsharpMaskPattern`; op in `effects.rs`)
+- [x] `lerp(a, b, mask)` → `MaskedLerp` fused op (in `effects.rs`; no linear-pipeline pattern — used directly)
 
 **Implementation:**
 - [x] `ImageOptimizer` + `ImagePattern` + `PatternMatch` (in `crates/unshape-image/src/optimizer.rs`, gated behind `dynop` feature)
 - [x] Pattern matchers for each recognized pattern
-- [x] Optimized implementations that fuse operations / avoid intermediate allocations (`LowPassFreqOptimized`, `HighPassFreqOptimized`, `GaussianBlur`, `SeparableConvolve`)
+- [x] Optimized implementations that fuse operations / avoid intermediate allocations (`LowPassFreqOptimized`, `HighPassFreqOptimized`, `BandPassFreqOptimized`, `HighPassOptimized`, `UnsharpMaskOptimized`, `GaussianBlur`, `SeparableConvolve`, `MaskedLerp`, `LsbEmbed`)
 
 ### Comprehensive Primitive Decomposition Pass
 
