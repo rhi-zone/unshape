@@ -52,7 +52,46 @@ impl GraphFormat for JsonFormat {
 mod tests {
     use super::*;
     use crate::serial::{SerialNode, SerialWire};
-    use unshape_core::Wire;
+    use std::any::Any;
+    use unshape_core::{DynNode, EvalContext, GraphError, PortDescriptor, Value, ValueType, Wire};
+
+    struct SingleOutNode;
+    impl DynNode for SingleOutNode {
+        fn type_name(&self) -> &'static str {
+            "test::SingleOut"
+        }
+        fn inputs(&self) -> Vec<PortDescriptor> {
+            vec![]
+        }
+        fn outputs(&self) -> Vec<PortDescriptor> {
+            vec![PortDescriptor::new("out", ValueType::F32)]
+        }
+        fn execute(&self, _: &[Value], _: &EvalContext) -> Result<Vec<Value>, GraphError> {
+            Ok(vec![Value::F32(0.0)])
+        }
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
+
+    struct SingleInNode;
+    impl DynNode for SingleInNode {
+        fn type_name(&self) -> &'static str {
+            "test::SingleIn"
+        }
+        fn inputs(&self) -> Vec<PortDescriptor> {
+            vec![PortDescriptor::new("in", ValueType::F32)]
+        }
+        fn outputs(&self) -> Vec<PortDescriptor> {
+            vec![]
+        }
+        fn execute(&self, _: &[Value], _: &EvalContext) -> Result<Vec<Value>, GraphError> {
+            Ok(vec![])
+        }
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
 
     #[test]
     fn test_json_roundtrip() {
@@ -103,12 +142,16 @@ mod tests {
         graph
             .nodes
             .push(SerialNode::new(1, "B", serde_json::json!({})));
-        graph.wires.push(SerialWire::from_wire(&Wire {
-            from_node: 0,
-            from_port: 0,
-            to_node: 1,
-            to_port: 0,
-        }));
+        graph.wires.push(SerialWire::from_wire(
+            &Wire {
+                from_node: 0,
+                from_port: 0,
+                to_node: 1,
+                to_port: 0,
+            },
+            &SingleOutNode,
+            &SingleInNode,
+        ));
         graph.next_id = 2;
 
         let format = JsonFormat::new();
@@ -116,7 +159,9 @@ mod tests {
         let loaded = format.deserialize(&bytes).unwrap();
 
         assert_eq!(loaded.wire_count(), 1);
-        let w = loaded.wires[0].to_wire().unwrap();
+        let w = loaded.wires[0]
+            .to_wire(&SingleOutNode, &SingleInNode)
+            .unwrap();
         assert_eq!(w.from_node, 0);
         assert_eq!(w.to_node, 1);
     }
