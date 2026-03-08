@@ -73,6 +73,15 @@ pub enum GraphError {
     /// Evaluation was cancelled.
     #[error("evaluation cancelled")]
     Cancelled,
+
+    /// A port with the given name was not found on the node.
+    #[error("port name not found: node {node}, name \"{name}\"")]
+    PortNameNotFound {
+        /// Node ID.
+        node: u32,
+        /// Port name that was not found.
+        name: String,
+    },
 }
 
 #[cfg(test)]

@@ -391,6 +391,87 @@ impl Graph {
     }
 }
 
+#[cfg(feature = "named-ports")]
+impl Graph {
+    /// Connects nodes by port name instead of index.
+    ///
+    /// Looks up `from_port` in the source node's output port names,
+    /// and `to_port` in the destination node's input port names,
+    /// then delegates to [`connect`].
+    pub fn connect_named(
+        &mut self,
+        from_node: NodeId,
+        from_port: &str,
+        to_node: NodeId,
+        to_port: &str,
+    ) -> Result<(), GraphError> {
+        let from_idx = {
+            let node = self
+                .nodes
+                .get(&from_node)
+                .ok_or(GraphError::NodeNotFound(from_node))?;
+            node.output_port_names()
+                .into_iter()
+                .position(|n| n == from_port)
+                .ok_or_else(|| GraphError::PortNameNotFound {
+                    node: from_node,
+                    name: from_port.to_string(),
+                })?
+        };
+        let to_idx = {
+            let node = self
+                .nodes
+                .get(&to_node)
+                .ok_or(GraphError::NodeNotFound(to_node))?;
+            node.input_port_names()
+                .into_iter()
+                .position(|n| n == to_port)
+                .ok_or_else(|| GraphError::PortNameNotFound {
+                    node: to_node,
+                    name: to_port.to_string(),
+                })?
+        };
+        self.connect(from_node, from_idx, to_node, to_idx)
+    }
+
+    /// Disconnects nodes by port name instead of index.
+    pub fn disconnect_named(
+        &mut self,
+        from_node: NodeId,
+        from_port: &str,
+        to_node: NodeId,
+        to_port: &str,
+    ) -> Result<(), GraphError> {
+        let from_idx = {
+            let node = self
+                .nodes
+                .get(&from_node)
+                .ok_or(GraphError::NodeNotFound(from_node))?;
+            node.output_port_names()
+                .into_iter()
+                .position(|n| n == from_port)
+                .ok_or_else(|| GraphError::PortNameNotFound {
+                    node: from_node,
+                    name: from_port.to_string(),
+                })?
+        };
+        let to_idx = {
+            let node = self
+                .nodes
+                .get(&to_node)
+                .ok_or(GraphError::NodeNotFound(to_node))?;
+            node.input_port_names()
+                .into_iter()
+                .position(|n| n == to_port)
+                .ok_or_else(|| GraphError::PortNameNotFound {
+                    node: to_node,
+                    name: to_port.to_string(),
+                })?
+        };
+        self.disconnect(from_node, from_idx, to_node, to_idx)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -723,5 +804,51 @@ mod tests {
         let result = evaluator.evaluate(&graph, &[add], &ctx);
 
         assert!(matches!(result, Err(GraphError::Cancelled)));
+    }
+
+    #[cfg(feature = "named-ports")]
+    #[test]
+    fn test_connect_named_success() {
+        let mut graph = Graph::new();
+
+        let const_a = graph.add_node(ConstNode(2.0));
+        let const_b = graph.add_node(ConstNode(3.0));
+        let add = graph.add_node(AddNode);
+
+        graph.connect_named(const_a, "value", add, "a").unwrap();
+        graph.connect_named(const_b, "value", add, "b").unwrap();
+
+        let outputs = graph.execute(add).unwrap();
+        assert_eq!(outputs[0].as_f32().unwrap(), 5.0);
+    }
+
+    #[cfg(feature = "named-ports")]
+    #[test]
+    fn test_connect_named_unknown_port() {
+        let mut graph = Graph::new();
+
+        let const_a = graph.add_node(ConstNode(1.0));
+        let add = graph.add_node(AddNode);
+
+        let result = graph.connect_named(const_a, "nonexistent", add, "a");
+        assert!(matches!(result, Err(GraphError::PortNameNotFound { .. })));
+
+        let result2 = graph.connect_named(const_a, "value", add, "nonexistent");
+        assert!(matches!(result2, Err(GraphError::PortNameNotFound { .. })));
+    }
+
+    #[cfg(feature = "named-ports")]
+    #[test]
+    fn test_disconnect_named_success() {
+        let mut graph = Graph::new();
+
+        let const_a = graph.add_node(ConstNode(2.0));
+        let add = graph.add_node(AddNode);
+
+        graph.connect_named(const_a, "value", add, "a").unwrap();
+        assert_eq!(graph.wire_count(), 1);
+
+        graph.disconnect_named(const_a, "value", add, "a").unwrap();
+        assert_eq!(graph.wire_count(), 0);
     }
 }

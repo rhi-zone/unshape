@@ -8,6 +8,7 @@ description = "Core types and traits for unshape"
 [features]
 default = []
 serde = ["dep:serde", "glam/serde"]
+named-ports = []
 
 [dependencies]
 glam.workspace = true
