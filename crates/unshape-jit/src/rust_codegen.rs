@@ -111,6 +111,57 @@ pub fn expr_to_rust(expr: &Expr) -> String {
     ast_to_rust(expr.ast())
 }
 
+/// Generates a complete Rust function from a dew expression,
+/// with only the context fields actually used as parameters.
+///
+/// Only parameters actually referenced in the expression are included,
+/// providing dead code elimination at the function signature level.
+///
+/// # Arguments
+/// * `fn_name` - Name of the generated function
+/// * `expr` - The dew expression
+/// * `all_context_fields` - All possible context field names in declaration order
+///   (e.g. `&["u", "v", "x", "y", "width", "height", "time"]`)
+///
+/// # Returns
+/// A complete Rust function like:
+/// ```text
+/// fn my_fn(u: f64, v: f64) -> f64 {
+///     (u * 2.0_f64 + v)
+/// }
+/// ```
+/// Only parameters actually referenced in the expression are included.
+#[cfg(feature = "introspect")]
+pub fn expr_to_rust_fn(fn_name: &str, expr: &Expr, all_context_fields: &[&str]) -> String {
+    let used = expr.free_vars();
+    let params: Vec<&str> = all_context_fields
+        .iter()
+        .copied()
+        .filter(|f| used.contains(*f))
+        .collect();
+    let param_list = params
+        .iter()
+        .map(|p| format!("{p}: f64"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let body = expr_to_rust(expr);
+    format!("fn {fn_name}({param_list}) -> f64 {{\n    {body}\n}}")
+}
+
+/// Returns which fields from `all_context_fields` are actually used by the expression.
+///
+/// Useful for callers to know which values they need to compute before calling eval,
+/// enabling dead code elimination in the caller (skip computing z and t if unused).
+#[cfg(feature = "introspect")]
+pub fn used_fields<'a>(expr: &Expr, all_context_fields: &[&'a str]) -> Vec<&'a str> {
+    let free = expr.free_vars();
+    all_context_fields
+        .iter()
+        .copied()
+        .filter(|f| free.contains(*f))
+        .collect()
+}
+
 /// Generate a `proc_macro2::TokenStream` for the given AST node.
 ///
 /// Equivalent to [`ast_to_rust`] but produces token trees instead of a string.
@@ -539,6 +590,84 @@ mod tests {
             ast_to_rust(&ast),
             "(if (cond) != 0.0_f64 { 1_f64 } else { 0_f64 })"
         );
+    }
+
+    // ========================================================================
+    // expr_to_rust_fn / used_fields tests
+    // ========================================================================
+
+    #[cfg(feature = "introspect")]
+    #[test]
+    fn test_expr_to_rust_fn_filters_params() {
+        let expr = wick_core::Expr::parse("u * 2.0 + v").unwrap();
+        let all_fields = &["u", "v", "x", "y", "time"];
+        let code = expr_to_rust_fn("my_fn", &expr, all_fields);
+        assert!(
+            code.starts_with("fn my_fn("),
+            "expected fn header, got: {code}"
+        );
+        assert!(code.contains("u: f64"), "expected u param in: {code}");
+        assert!(code.contains("v: f64"), "expected v param in: {code}");
+        assert!(!code.contains("x: f64"), "unexpected x param in: {code}");
+        assert!(!code.contains("y: f64"), "unexpected y param in: {code}");
+        assert!(
+            !code.contains("time: f64"),
+            "unexpected time param in: {code}"
+        );
+        assert!(code.contains("-> f64"), "expected return type in: {code}");
+    }
+
+    #[cfg(feature = "introspect")]
+    #[test]
+    fn test_expr_to_rust_fn_single_param() {
+        let expr = wick_core::Expr::parse("sin(time)").unwrap();
+        let all_fields = &["x", "y", "z", "time"];
+        let code = expr_to_rust_fn("audio_fn", &expr, all_fields);
+        assert!(code.contains("time: f64"), "expected time param in: {code}");
+        assert!(!code.contains("x: f64"), "unexpected x param in: {code}");
+        assert!(!code.contains("y: f64"), "unexpected y param in: {code}");
+        assert!(!code.contains("z: f64"), "unexpected z param in: {code}");
+    }
+
+    #[cfg(feature = "introspect")]
+    #[test]
+    fn test_expr_to_rust_fn_no_params() {
+        let expr = wick_core::Expr::parse("3.14").unwrap();
+        let all_fields = &["u", "v", "x", "y", "time"];
+        let code = expr_to_rust_fn("const_fn", &expr, all_fields);
+        // No parameters — empty parameter list
+        assert!(
+            code.contains("fn const_fn() -> f64"),
+            "expected empty params in: {code}"
+        );
+    }
+
+    #[cfg(feature = "introspect")]
+    #[test]
+    fn test_used_fields_subset() {
+        let expr = wick_core::Expr::parse("u * 2.0 + v").unwrap();
+        let all_fields = &["u", "v", "x", "y", "time"];
+        let result = used_fields(&expr, all_fields);
+        assert_eq!(result, vec!["u", "v"]);
+    }
+
+    #[cfg(feature = "introspect")]
+    #[test]
+    fn test_used_fields_preserves_order() {
+        let expr = wick_core::Expr::parse("y + x").unwrap();
+        let all_fields = &["x", "y", "z", "t"];
+        let result = used_fields(&expr, all_fields);
+        // Should preserve declaration order: x before y
+        assert_eq!(result, vec!["x", "y"]);
+    }
+
+    #[cfg(feature = "introspect")]
+    #[test]
+    fn test_used_fields_none() {
+        let expr = wick_core::Expr::parse("42.0").unwrap();
+        let all_fields = &["x", "y", "z", "t"];
+        let result = used_fields(&expr, all_fields);
+        assert!(result.is_empty());
     }
 
     // ========================================================================
