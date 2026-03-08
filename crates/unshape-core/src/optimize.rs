@@ -115,6 +115,7 @@ impl<G> OptimizerPipeline<G> {
     }
 
     /// Adds an optimizer to the pipeline.
+    #[allow(clippy::should_implement_trait)]
     pub fn add<O: Optimizer<G> + 'static>(mut self, optimizer: O) -> Self {
         self.passes.push(Box::new(optimizer));
         self
@@ -231,6 +232,7 @@ impl<G> TrackedPipeline<G> {
     }
 
     /// Adds an optimizer to the pipeline.
+    #[allow(clippy::should_implement_trait)]
     pub fn add<O: Optimizer<G> + 'static>(mut self, optimizer: O) -> Self {
         self.passes.push(Box::new(optimizer));
         self
