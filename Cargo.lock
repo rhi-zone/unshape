@@ -4077,50 +4077,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c6a884d2998352bb4daf0183589aec883f16a6da1f4dde84d8e2e9a5409a1ce"
 
 [[package]]
-name = "rhizome-dew-cond"
-version = "0.1.0"
-source = "git+https://github.com/rhizome-lab/dew#a450fe71269e5e1caa0ab4590da8849ccdaaef9d"
-dependencies = [
- "cranelift-codegen 0.116.1",
- "cranelift-frontend 0.116.1",
- "cranelift-jit 0.116.1",
- "cranelift-module 0.116.1",
- "rhizome-dew-core",
-]
-
-[[package]]
-name = "rhizome-dew-core"
-version = "0.1.0"
-source = "git+https://github.com/rhizome-lab/dew#a450fe71269e5e1caa0ab4590da8849ccdaaef9d"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
-name = "rhizome-dew-linalg"
-version = "0.1.0"
-source = "git+https://github.com/rhizome-lab/dew#a450fe71269e5e1caa0ab4590da8849ccdaaef9d"
-dependencies = [
- "cranelift-codegen 0.116.1",
- "cranelift-frontend 0.116.1",
- "cranelift-jit 0.116.1",
- "cranelift-module 0.116.1",
- "num-traits",
- "rhizome-dew-cond",
- "rhizome-dew-core",
-]
-
-[[package]]
-name = "rhizome-dew-scalar"
-version = "0.1.0"
-source = "git+https://github.com/rhizome-lab/dew#a450fe71269e5e1caa0ab4590da8849ccdaaef9d"
-dependencies = [
- "num-traits",
- "rhizome-dew-cond",
- "rhizome-dew-core",
-]
-
-[[package]]
 name = "ron"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4843,14 +4799,14 @@ dependencies = [
  "cranelift-native 0.113.1",
  "criterion",
  "glam",
- "rhizome-dew-core",
- "rhizome-dew-scalar",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "unshape-field",
  "unshape-jit",
  "unshape-noise",
+ "wick-core",
+ "wick-scalar",
 ]
 
 [[package]]
@@ -4906,7 +4862,6 @@ dependencies = [
  "glam",
  "image",
  "pollster",
- "rhizome-dew-linalg",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -4915,6 +4870,7 @@ dependencies = [
  "unshape-image",
  "unshape-op",
  "wgpu",
+ "wick-linalg",
 ]
 
 [[package]]
@@ -4935,8 +4891,6 @@ dependencies = [
  "glam",
  "image",
  "num-traits",
- "rhizome-dew-core",
- "rhizome-dew-linalg",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -4944,6 +4898,8 @@ dependencies = [
  "unshape-field",
  "unshape-op",
  "unshape-spectral",
+ "wick-core",
+ "wick-linalg",
 ]
 
 [[package]]
@@ -5011,13 +4967,13 @@ name = "unshape-motion-fn"
 version = "0.1.0"
 dependencies = [
  "glam",
- "rhizome-dew-core",
- "rhizome-dew-scalar",
  "serde",
  "serde_json",
  "unshape-easing",
  "unshape-field",
  "unshape-noise",
+ "wick-core",
+ "wick-scalar",
 ]
 
 [[package]]
@@ -5517,6 +5473,54 @@ dependencies = [
  "bitflags 2.10.0",
  "js-sys",
  "web-sys",
+]
+
+[[package]]
+name = "wick-cond"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4480e7f589afc56ad3e1ba930713c3fef0e0665c96074603ebf29f8f62df245"
+dependencies = [
+ "cranelift-codegen 0.116.1",
+ "cranelift-frontend 0.116.1",
+ "cranelift-jit 0.116.1",
+ "cranelift-module 0.116.1",
+ "wick-core",
+]
+
+[[package]]
+name = "wick-core"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f05e3ba1baf78dbf40c18fa2faf174e22da64454d7aad0089a42f0fd36255827"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "wick-linalg"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf2180a75ab12a21eef2e2e593c9158b1116115eb809bb3a4934dedb573f7bb8"
+dependencies = [
+ "cranelift-codegen 0.116.1",
+ "cranelift-frontend 0.116.1",
+ "cranelift-jit 0.116.1",
+ "cranelift-module 0.116.1",
+ "num-traits",
+ "wick-cond",
+ "wick-core",
+]
+
+[[package]]
+name = "wick-scalar"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f40ba30d044c704628e22e4fd6968972d721c26a58b2f9fc5923d72a6214f0d6"
+dependencies = [
+ "num-traits",
+ "wick-cond",
+ "wick-core",
 ]
 
 [[package]]

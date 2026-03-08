@@ -7,10 +7,10 @@ use crate::GpuContext;
 use crate::error::{GpuError, GpuResult};
 use crate::texture::{GpuTexture, TextureFormat};
 use bytemuck::{Pod, Zeroable};
-use wick_linalg::{Type, wgsl::emit_wgsl};
 use std::collections::HashMap;
 use unshape_image::{ColorExpr, UvExpr};
 use wgpu::util::DeviceExt;
+use wick_linalg::{Type, wgsl::emit_wgsl};
 
 /// Uniform buffer for image transforms.
 #[repr(C)]

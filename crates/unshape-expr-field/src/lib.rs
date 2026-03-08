@@ -30,10 +30,10 @@ pub mod jit_impl;
 pub use jit_impl::{CompiledFieldExpr, FieldExprCompiler, FieldJitError, FieldJitResult};
 
 use glam::{Vec2, Vec3};
-use wick_core::{Expr, ParseError};
-use wick_scalar::{FunctionRegistry, ScalarFn};
 use std::collections::{HashMap, HashSet};
 use unshape_field::{EvalContext, Field};
+use wick_core::{Expr, ParseError};
+use wick_scalar::{FunctionRegistry, ScalarFn};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
