@@ -9,31 +9,58 @@ use crate::{FilterMode, ImageField};
 /// Apply a 4x4 color matrix transform to an image.
 ///
 /// The matrix transforms RGBA values: `[r', g', b', a'] = matrix * [r, g, b, a]`.
-/// This can be used for color correction, channel mixing, sepia tones, etc.
+/// Stored in row-major order: `matrix[row][col]`.
 ///
 /// # Example
 ///
 /// ```
-/// use unshape_image::{ImageField, color_matrix};
-/// use glam::Mat4;
+/// use unshape_image::{ColorMatrix, ImageField};
 ///
 /// let image = ImageField::from_raw(vec![[1.0, 0.5, 0.25, 1.0]; 16], 4, 4);
 ///
-/// // Grayscale conversion matrix (luminance weights)
-/// let grayscale = Mat4::from_cols_array(&[
-///     0.299, 0.299, 0.299, 0.0,
-///     0.587, 0.587, 0.587, 0.0,
-///     0.114, 0.114, 0.114, 0.0,
-///     0.0,   0.0,   0.0,   1.0,
-/// ]);
-///
-/// let result = color_matrix(&image, grayscale);
+/// // Grayscale conversion matrix (luminance weights), row-major
+/// let result = ColorMatrix {
+///     matrix: [
+///         [0.299, 0.587, 0.114, 0.0],
+///         [0.299, 0.587, 0.114, 0.0],
+///         [0.299, 0.587, 0.114, 0.0],
+///         [0.0,   0.0,   0.0,   1.0],
+///     ],
+/// }.apply(&image);
 /// ```
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ColorMatrix {
+    /// Row-major 4×4 matrix: `matrix[row][col]`.
+    /// Applied as `[r', g', b', a'] = matrix * [r, g, b, a]`.
+    pub matrix: [[f32; 4]; 4],
+}
+
+impl ColorMatrix {
+    /// Identity matrix (no-op transform).
+    pub const IDENTITY: Self = Self {
+        matrix: [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ],
+    };
+
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        map_pixels(image, &ColorExpr::matrix(self.matrix))
+    }
+}
+
+/// Convenience wrapper for [`ColorMatrix::apply`].
+///
+/// `matrix` is a `glam::Mat4` in column-major order (standard glam convention).
 pub fn color_matrix(image: &ImageField, matrix: Mat4) -> ImageField {
-    // Convert column-major Mat4 to row-major [[f32; 4]; 4] for ColorExpr
-    // transpose() + to_cols_array_2d() gives us the rows as arrays
-    let m = matrix.transpose().to_cols_array_2d();
-    map_pixels(image, &ColorExpr::matrix(m))
+    // Mat4 is column-major; transpose gives us row-major for ColorMatrix
+    ColorMatrix {
+        matrix: matrix.transpose().to_cols_array_2d(),
+    }
+    .apply(image)
 }
 
 /// Configuration for image position transformation.
