@@ -774,7 +774,7 @@ Add to image pattern-matching optimizer (like audio's tremolo/chorus recognition
 - [x] `resize` → `Resize { width, height }`
 
 **Remaining:**
-- [ ] `color_matrix` → `ColorMatrix { matrix }` (if needed - may be ColorExpr composition)
+- [x] `color_matrix` → `ColorMatrix { matrix }` — struct with row-major `[[f32; 4]; 4]`, `IDENTITY` const, `apply()`; free fn kept as sugar for glam `Mat4`
 
 See docs/archive/decomposition-audit.md for which are true primitives vs compositions.
 
