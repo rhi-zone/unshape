@@ -42,7 +42,7 @@ pub use crate::error::SerdeError;
 pub use crate::format::GraphFormat;
 pub use crate::json::JsonFormat;
 pub use crate::registry::{NodeRegistry, SerializableNode};
-pub use crate::serial::{SerialGraph, SerialNode};
+pub use crate::serial::{SerialGraph, SerialNode, SerialWire};
 
 use unshape_core::Graph;
 
@@ -62,8 +62,9 @@ where
     F: Fn(&dyn unshape_core::DynNode) -> Option<serde_json::Value>,
 {
     let mut serial = SerialGraph {
+        version: 1,
         nodes: Vec::new(),
-        wires: graph.wires().to_vec(),
+        wires: graph.wires().iter().map(SerialWire::from_wire).collect(),
         next_id: graph.next_id(),
     };
 
@@ -96,7 +97,8 @@ pub fn serial_to_graph(serial: SerialGraph, registry: &NodeRegistry) -> Result<G
         graph.insert_node_with_id(serial_node.id, node)?;
     }
 
-    for wire in serial.wires {
+    for serial_wire in serial.wires {
+        let wire = serial_wire.to_wire()?;
         graph.connect(wire.from_node, wire.from_port, wire.to_node, wire.to_port)?;
     }
 

@@ -28,4 +28,8 @@ pub enum SerdeError {
     /// Node does not implement SerializableNode.
     #[error("node type '{0}' does not support serialization")]
     NotSerializable(String),
+
+    /// Wire endpoint string has an invalid format.
+    #[error("invalid wire format: {0}")]
+    InvalidWireFormat(String),
 }
