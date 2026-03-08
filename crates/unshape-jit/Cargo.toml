@@ -15,9 +15,16 @@ cranelift = [
     "dep:cranelift-module",
     "dep:cranelift-jit",
 ]
+# wick-core conditional/comparison operators (If, Compare, And, Or, UnaryOp::Not)
+cond = ["wick-core/cond"]
+# wick-core function call operator (Call)
+func = ["wick-core/func"]
+# TokenStream codegen via proc-macro2
+proc-macro2 = ["dep:proc-macro2", "dep:quote"]
 
 [dependencies]
 thiserror.workspace = true
+wick-core = "0.1.0"
 
 # JIT compilation (optional)
 cranelift = { workspace = true, optional = true }
@@ -25,6 +32,10 @@ cranelift-frontend = { workspace = true, optional = true }
 cranelift-native = { workspace = true, optional = true }
 cranelift-module = { workspace = true, optional = true }
 cranelift-jit = { workspace = true, optional = true }
+
+# Rust codegen (optional token stream support)
+proc-macro2 = { workspace = true, optional = true }
+quote = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion.workspace = true

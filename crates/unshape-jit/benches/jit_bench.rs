@@ -1,7 +1,10 @@
 //! JIT compilation benchmarks.
 
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+#[cfg(feature = "cranelift")]
+use criterion::black_box;
+use criterion::{Criterion, criterion_group, criterion_main};
 
+#[cfg(feature = "cranelift")]
 const SAMPLE_COUNT: usize = 44100; // 1 second of audio
 
 #[cfg(feature = "cranelift")]

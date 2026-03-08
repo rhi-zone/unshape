@@ -783,8 +783,8 @@ See docs/archive/decomposition-audit.md for which are true primitives vs composi
 > **Goal:** Generate Rust source from dew expressions for compile-time optimization.
 
 **Outputs:**
-- [ ] `expr.to_rust_code() -> String` - text output for build.rs
-- [ ] `expr.to_tokens() -> TokenStream` - for proc-macros (feature-gated on `proc-macro2`)
+- [x] `expr.to_rust_code() -> String` - text output for build.rs
+- [x] `expr.to_tokens() -> TokenStream` - for proc-macros (feature-gated on `proc-macro2`)
 
 **Use cases:**
 - build.rs generates optimized effect implementations (parallel to audio codegen)
@@ -808,7 +808,7 @@ See docs/archive/decomposition-audit.md for which are true primitives vs composi
 - [x] Node format: `{ "id": "...", "type": "...", "params": {...} }`
 - [x] Edge format: `{ "from": "node:port", "to": "node:port" }`
 - [x] Type registry: how node types map to implementations
-- [ ] Expression format: dew AST serialization
+- [x] Expression format: dew AST serialization — `Expr` serializes as its string representation via `Display`; round-trips through `Expr::parse()`
 
 **Example:**
 ```json

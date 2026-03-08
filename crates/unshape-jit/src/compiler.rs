@@ -79,6 +79,7 @@ pub struct JitCompiler {
 #[cfg(feature = "cranelift")]
 impl JitCompiler {
     /// Creates a new JIT compiler with the given configuration.
+    #[allow(clippy::result_large_err)]
     pub fn new(config: JitConfig) -> JitResult<Self> {
         let mut flag_builder = settings::builder();
 
@@ -109,6 +110,7 @@ impl JitCompiler {
     }
 
     /// Creates a new JIT compiler with default configuration.
+    #[allow(clippy::result_large_err)]
     pub fn with_defaults() -> JitResult<Self> {
         Self::new(JitConfig::default())
     }
@@ -128,6 +130,7 @@ impl JitCompiler {
     /// Compiles a simple scalar function: `output = input * gain + offset`.
     ///
     /// This is a convenience method for the common affine transform case.
+    #[allow(clippy::result_large_err)]
     pub fn compile_affine(&mut self, gain: f32, offset: f32) -> JitResult<CompiledScalar> {
         use cranelift::ir::{AbiParam, InstBuilder, types};
         use cranelift_frontend::FunctionBuilder;
@@ -197,6 +200,7 @@ impl JitCompiler {
     /// # Returns
     ///
     /// A `CompiledSimdBlock` that processes buffers of samples.
+    #[allow(clippy::result_large_err)]
     pub fn compile_affine_simd(&mut self, gain: f32, offset: f32) -> JitResult<CompiledSimdBlock> {
         use cranelift::ir::{AbiParam, InstBuilder, MemFlags, condcodes::IntCC, types};
         use cranelift_frontend::FunctionBuilder;
@@ -374,7 +378,9 @@ impl CompiledSimdBlock {
     /// The function pointer must be valid.
     pub(crate) unsafe fn new(func: *const u8) -> Self {
         Self {
-            func: unsafe { std::mem::transmute(func) },
+            func: unsafe {
+                std::mem::transmute::<*const u8, fn(*const f32, *mut f32, usize)>(func)
+            },
         }
     }
 
