@@ -2,18 +2,19 @@
 
 Reference for the `SerialGraph` JSON format produced and consumed by `unshape-serde`.
 
-**Sync requirement:** Update this document when `SerialGraph`, `SerialNode`, or `Wire` fields change.
+**Sync requirement:** Update this document when `SerialGraph`, `SerialNode`, or `SerialWire` fields change.
 
 ---
 
 ## Top-Level Structure
 
-`SerialGraph` serializes to a JSON object with three fields:
+`SerialGraph` serializes to a JSON object:
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `version` | integer (u32) | Format version. Currently `1`. Old graphs without this field deserialize as version `0` via `#[serde(default)]`. |
 | `nodes` | array of `SerialNode` | All nodes in the graph, in insertion order |
-| `wires` | array of `Wire` | All connections between node ports |
+| `wires` | array of `SerialWire` | All connections between node ports |
 | `next_id` | integer (u32) | Next node ID that will be assigned on deserialization |
 
 `next_id` is required for round-trip fidelity: deserializing and re-serializing a graph must preserve ID assignment so that subsequently added nodes do not collide with existing ones.
@@ -26,9 +27,9 @@ Each element of `nodes` is a `SerialNode`:
 |-------|------|-------------|
 | `id` | integer (u32) | Node ID, unique within the graph |
 | `type_name` | string | Fully qualified type name used for registry lookup |
-| `params_json` | string | Node parameters, JSON-encoded as a **string** |
+| `params` | JSON object | Node parameters, embedded directly as a JSON object |
 
-`params_json` is a JSON string whose value is itself a JSON object. This double-encoding is intentional: it allows bincode to serialize the params field without requiring bincode to understand arbitrary JSON values. The inner JSON structure is defined by each node type.
+`params` is a plain JSON object — no double-encoding. The structure of the object is defined by each node type.
 
 **Example node:**
 
@@ -36,7 +37,7 @@ Each element of `nodes` is a `SerialNode`:
 {
   "id": 0,
   "type_name": "test::Const",
-  "params_json": "{\"value\":2.0}"
+  "params": { "value": 2.0 }
 }
 ```
 
@@ -48,27 +49,22 @@ When using `NodeRegistry::register<N>()` (without an explicit name), the type na
 
 ## Wire Format
 
-Each element of `wires` is a `Wire`:
+Each element of `wires` is a `SerialWire` with two string fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `from_node` | integer (u32) | Source node ID |
-| `from_port` | integer (usize) | Output port index on the source node |
-| `to_node` | integer (u32) | Destination node ID |
-| `to_port` | integer (usize) | Input port index on the destination node |
+| `from` | string | Source endpoint: `"nodeId:portIndex"` |
+| `to` | string | Destination endpoint: `"nodeId:portIndex"` |
 
-Ports are zero-indexed and correspond to the order returned by the node's `outputs()` and `inputs()` methods respectively.
+Port indices are zero-based and correspond to the order returned by the node's `outputs()` and `inputs()` methods respectively.
 
 **Example wire** (connecting output port 0 of node 0 to input port 1 of node 2):
 
 ```json
-{
-  "from_node": 0,
-  "from_port": 0,
-  "to_node": 2,
-  "to_port": 1
-}
+{ "from": "0:0", "to": "2:1" }
 ```
+
+The `"nodeId:portIndex"` format uses colon-separated integers. This is more readable than four separate integer fields and survives JSON reformatting.
 
 ## Complete Example
 
@@ -81,26 +77,27 @@ Const(3.0) --[port 1]--> Add
 
 ```json
 {
+  "version": 1,
   "nodes": [
     {
       "id": 0,
       "type_name": "test::Const",
-      "params_json": "{\"value\":2.0}"
+      "params": { "value": 2.0 }
     },
     {
       "id": 1,
       "type_name": "test::Const",
-      "params_json": "{\"value\":3.0}"
+      "params": { "value": 3.0 }
     },
     {
       "id": 2,
       "type_name": "test::Add",
-      "params_json": "{}"
+      "params": {}
     }
   ],
   "wires": [
-    { "from_node": 0, "from_port": 0, "to_node": 2, "to_port": 0 },
-    { "from_node": 1, "from_port": 0, "to_node": 2, "to_port": 1 }
+    { "from": "0:0", "to": "2:0" },
+    { "from": "1:0", "to": "2:1" }
   ],
   "next_id": 3
 }
@@ -118,7 +115,7 @@ Three registration methods are available:
 | `register_with_name<N>(name)` | `N` implements `DeserializeOwned`; caller controls the key string |
 | `register_factory(name, fn)` | Custom deserialization logic (e.g., type has extra construction steps) |
 
-During deserialization, `registry.deserialize(type_name, params_json_value)` is called for each node. If the type name is not registered, deserialization returns `SerdeError::UnknownNodeType`.
+During deserialization, `registry.deserialize(type_name, params_value)` is called for each node. If the type name is not registered, deserialization returns `SerdeError::UnknownNodeType`.
 
 ### Making a Node Serializable
 
@@ -132,13 +129,13 @@ impl SerializableNode for MyNode {
 }
 ```
 
-The returned value is what gets stored in `params_json`. For symmetric round-trips, it must be deserializable by whatever factory was registered for this node's type name.
+The returned value is stored as the `params` field. For symmetric round-trips, it must be deserializable by whatever factory was registered for this node's type name.
 
 ## Format Variants
 
 ### JSON
 
-`JsonFormat` serializes `SerialGraph` to UTF-8 JSON bytes using `serde_json`.
+`JsonFormat` serializes `SerialGraph` to UTF-8 JSON bytes using `serde_json`. Params are embedded as native JSON objects — no double-encoding.
 
 | Mode | Construction | Notes |
 |------|--------------|-------|
@@ -159,7 +156,7 @@ Both modes produce identical `SerialGraph` values on deserialization.
 | Human-readable | No |
 | Size | Smaller than JSON for graphs with many nodes |
 
-`params_json` is stored as a length-prefixed string in bincode. This is why params are stored as a JSON string rather than a structured value — bincode cannot encode `serde_json::Value` directly.
+Internally, the bincode path converts `params` (a `serde_json::Value`) to a JSON string before encoding, because bincode's serde bridge does not support the `any` data model required by `serde_json::Value`. This conversion happens transparently in `BincodeFormat::serialize` / `deserialize` — the `SerialGraph` API is the same in both paths.
 
 ### GraphFormat Trait
 
@@ -208,10 +205,11 @@ let graph = serial_to_graph(serial, &registry)?;
 | `SerdeError::Bincode(e)` | Bincode decode failure |
 | `SerdeError::BincodeEncode(e)` | Bincode encode failure |
 | `SerdeError::Graph(e)` | Graph reconstruction failed (e.g., invalid wire referencing missing node) |
+| `SerdeError::InvalidWireFormat(msg)` | Wire endpoint string is not valid `"nodeId:portIndex"` |
 
 ## Versioning
 
-There is no version field in `SerialGraph`. The format has no built-in versioning or schema migration mechanism. If the format changes in a breaking way, consumers must handle this externally (e.g., by file extension convention or wrapper envelope).
+`SerialGraph` includes a `version: u32` field (currently `1`). Graphs serialized without this field (version 0 / pre-stable format) deserialize with `version = 0` via `#[serde(default)]`. There is no automatic migration — consumers can inspect `version` and handle differences explicitly.
 
 ## What Is Not Serialized
 

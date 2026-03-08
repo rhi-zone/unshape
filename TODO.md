@@ -832,6 +832,21 @@ See docs/archive/decomposition-audit.md for which are true primitives vs composi
 - Auditable: implementations can validate against schema
 - Tooling: editors, visualizers, converters
 
+### Wire Format Review (backlog)
+
+> **Goal:** Audit the current wire format and consider improvements before it becomes a stable API.
+
+**Current state:** Wires use four integer fields (`from_node`, `from_port`, `to_node`, `to_port` — zero-indexed).
+The example in this TODO (and the original design) used `"node:port"` string references.
+
+**Questions to resolve:**
+- [x] Are integer port indices ergonomic enough for external tooling, or should wires use named port identifiers? → Switched to `SerialWire { from: "nodeId:portIndex", to: "nodeId:portIndex" }` string format
+- [x] Should `SerialNode` params be a proper `serde_json::Value` object rather than a double-encoded JSON string? → Fixed: `params: serde_json::Value` in `SerialNode`; bincode path converts to/from string internally in `BincodeFormat`
+- [x] Add a `version` field to `SerialGraph` for forward-compatibility? → Added `version: u32` (currently `1`); old graphs without the field deserialize as version `0` via `#[serde(default)]`
+- [ ] Consider named ports: `{ "from": "n1:out", "to": "n2:in" }` vs current integer form — named is more readable and survives node reordering (deferred: core graph doesn't have port names yet)
+
+**Note:** Format is not yet stable/public, so breaking changes are low-cost now.
+
 ### Cellular Automata Extensions (2025-01-25) ✅
 
 > **Goal:** Expand unshape-automata with custom neighborhoods, new CA types, and advanced algorithms.

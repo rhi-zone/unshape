@@ -51,7 +51,7 @@ impl GraphFormat for JsonFormat {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::serial::SerialNode;
+    use crate::serial::{SerialNode, SerialWire};
     use unshape_core::Wire;
 
     #[test]
@@ -103,12 +103,12 @@ mod tests {
         graph
             .nodes
             .push(SerialNode::new(1, "B", serde_json::json!({})));
-        graph.wires.push(Wire {
+        graph.wires.push(SerialWire::from_wire(&Wire {
             from_node: 0,
             from_port: 0,
             to_node: 1,
             to_port: 0,
-        });
+        }));
         graph.next_id = 2;
 
         let format = JsonFormat::new();
@@ -116,7 +116,8 @@ mod tests {
         let loaded = format.deserialize(&bytes).unwrap();
 
         assert_eq!(loaded.wire_count(), 1);
-        assert_eq!(loaded.wires[0].from_node, 0);
-        assert_eq!(loaded.wires[0].to_node, 1);
+        let w = loaded.wires[0].to_wire().unwrap();
+        assert_eq!(w.from_node, 0);
+        assert_eq!(w.to_node, 1);
     }
 }
