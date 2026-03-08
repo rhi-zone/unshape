@@ -176,7 +176,7 @@ impl BlueNoise3D {
     ///
     /// **Warning**: This is expensive! O(n³) complexity. Size is clamped to 4..=32.
     pub fn generate(size: u32) -> Self {
-        let size = size.max(4).min(32);
+        let size = size.clamp(4, 32);
         Self {
             data: generate_blue_noise_3d(size),
             size,
@@ -668,11 +668,11 @@ fn curve_diffuse_impl(image: &ImageField, config: &CurveDiffuse) -> ImageField {
         let mut error_sum_g = 0.0f32;
         let mut error_sum_b = 0.0f32;
 
-        for i in 0..config.history_size {
+        for (i, &weight) in weights.iter().enumerate().take(config.history_size) {
             let hist_i = (history_idx + config.history_size - 1 - i) % config.history_size;
-            error_sum_r += error_history_r[hist_i] * weights[i];
-            error_sum_g += error_history_g[hist_i] * weights[i];
-            error_sum_b += error_history_b[hist_i] * weights[i];
+            error_sum_r += error_history_r[hist_i] * weight;
+            error_sum_g += error_history_g[hist_i] * weight;
+            error_sum_b += error_history_b[hist_i] * weight;
         }
 
         // Apply error and quantize
@@ -779,7 +779,7 @@ fn werness_impl(image: &ImageField, config: &WernessDither) -> ImageField {
             let v = 0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2];
 
             // Add noise seeding
-            let noise = fract(52.9829189 * fract(0.06711056 * x as f32 + 0.00583715 * y as f32));
+            let noise = fract(52.982_918 * fract(0.06711056 * x as f32 + 0.00583715 * y as f32));
             let seeded = v + (noise - 0.5) * 0.1;
 
             values.push(seeded);
@@ -881,7 +881,7 @@ fn fract(x: f32) -> f32 {
 /// This is a simplified implementation. For production use, consider
 /// precomputed blue noise textures which have better quality.
 pub fn generate_blue_noise_2d(size: u32) -> ImageField {
-    let size = size.max(4).min(256);
+    let size = size.clamp(4, 256);
     let total = (size * size) as usize;
 
     // Initialize with random binary pattern
@@ -1015,7 +1015,7 @@ fn calculate_density(pattern: &[bool], center_idx: usize, size: u32, include_sel
 ///
 /// Vector of f32 values in [0, 1] with blue noise distribution.
 pub fn generate_blue_noise_1d(size: u32) -> Vec<f32> {
-    let size = size.max(4).min(4096) as usize;
+    let size = size.clamp(4, 4096) as usize;
 
     // Initialize with random binary pattern
     let mut pattern: Vec<bool> = (0..size)
@@ -1132,7 +1132,7 @@ fn calculate_density_1d(pattern: &[bool], center: usize, include_self: bool) -> 
 /// 3D array of f32 values in [0, 1] as a flattened Vec (x + y*size + z*size*size).
 pub fn generate_blue_noise_3d(size: u32) -> Vec<f32> {
     // Clamp to reasonable sizes - 3D is very expensive
-    let size = size.max(4).min(32) as usize;
+    let size = size.clamp(4, 32) as usize;
     let total = size * size * size;
 
     // Initialize with random binary pattern
@@ -1345,7 +1345,7 @@ impl Field<Vec2, f32> for InterleavedGradientNoise {
         let rotated_y = y + frame_offset;
 
         // IGN formula: fract(52.9829189 * fract(0.06711056 * x + 0.00583715 * y))
-        fract(52.9829189 * fract(0.06711056 * rotated_x + 0.00583715 * rotated_y))
+        fract(52.982_918 * fract(0.06711056 * rotated_x + 0.00583715 * rotated_y))
     }
 }
 

@@ -276,7 +276,7 @@ pub(crate) fn rgb_to_lab(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
     // Linear RGB to XYZ (D65 illuminant)
     let x = r * 0.4124564 + g * 0.3575761 + b * 0.1804375;
     let y = r * 0.2126729 + g * 0.7151522 + b * 0.0721750;
-    let z = r * 0.0193339 + g * 0.1191920 + b * 0.9503041;
+    let z = r * 0.0193339 + g * 0.119_192 + b * 0.9503041;
 
     // XYZ to Lab (D65 reference white)
     let xn = 0.95047;
@@ -331,7 +331,7 @@ pub(crate) fn lab_to_rgb(l: f32, a: f32, lab_b: f32) -> (f32, f32, f32) {
 
     // XYZ to linear RGB
     let r = x * 3.2404542 - y * 1.5371385 - z * 0.4985314;
-    let g = -x * 0.9692660 + y * 1.8760108 + z * 0.0415560;
+    let g = -x * 0.969_266 + y * 1.8760108 + z * 0.0415560;
     let b = x * 0.0556434 - y * 0.2040259 + z * 1.0572252;
 
     // Linear RGB to sRGB
@@ -414,17 +414,17 @@ pub(crate) fn rgb_to_oklab(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
     let b = to_linear(b);
 
     // Linear RGB to OkLab via LMS
-    let l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
-    let m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b;
-    let s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b;
+    let l = 0.412_221_46 * r + 0.536_332_55 * g + 0.051_445_995 * b;
+    let m = 0.211_903_5 * r + 0.680_699_5 * g + 0.107_396_96 * b;
+    let s = 0.088_302_46 * r + 0.281_718_85 * g + 0.629_978_7 * b;
 
     let l_ = l.cbrt();
     let m_ = m.cbrt();
     let s_ = s.cbrt();
 
-    let lab_l = 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_;
-    let lab_a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_;
-    let lab_b = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_;
+    let lab_l = 0.210_454_26 * l_ + 0.793_617_8 * m_ - 0.004_072_047 * s_;
+    let lab_a = 1.977_998_5 * l_ - 2.428_592_2 * m_ + 0.450_593_7 * s_;
+    let lab_b = 0.025_904_037 * l_ + 0.782_771_77 * m_ - 0.808_675_77 * s_;
 
     // Normalize: L is [0,1], a/b are roughly [-0.4, 0.4], normalize to [0,1]
     (
@@ -439,17 +439,17 @@ pub(crate) fn oklab_to_rgb(l: f32, a: f32, b_val: f32) -> (f32, f32, f32) {
     let lab_a = a * 0.8 - 0.4;
     let lab_b = b_val * 0.8 - 0.4;
 
-    let l_ = l + 0.3963377774 * lab_a + 0.2158037573 * lab_b;
-    let m_ = l - 0.1055613458 * lab_a - 0.0638541728 * lab_b;
-    let s_ = l - 0.0894841775 * lab_a - 1.2914855480 * lab_b;
+    let l_ = l + 0.396_337_78 * lab_a + 0.215_803_76 * lab_b;
+    let m_ = l - 0.105_561_346 * lab_a - 0.063_854_17 * lab_b;
+    let s_ = l - 0.089_484_18 * lab_a - 1.291_485_5 * lab_b;
 
     let l_cubed = l_ * l_ * l_;
     let m_cubed = m_ * m_ * m_;
     let s_cubed = s_ * s_ * s_;
 
-    let r = 4.0767416621 * l_cubed - 3.3077115913 * m_cubed + 0.2309699292 * s_cubed;
-    let g = -1.2684380046 * l_cubed + 2.6097574011 * m_cubed - 0.3413193965 * s_cubed;
-    let b = -0.0041960863 * l_cubed - 0.7034186147 * m_cubed + 1.7076147010 * s_cubed;
+    let r = 4.076_741_7 * l_cubed - 3.307_711_6 * m_cubed + 0.230_969_94 * s_cubed;
+    let g = -1.268_438 * l_cubed + 2.609_757_4 * m_cubed - 0.341_319_38 * s_cubed;
+    let b = -0.0041960863 * l_cubed - 0.703_418_6 * m_cubed + 1.707_614_7 * s_cubed;
 
     // Linear to sRGB
     let from_linear = |v: f32| -> f32 {

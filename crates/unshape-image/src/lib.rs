@@ -41,6 +41,8 @@ mod inpaint;
 mod int_ops;
 mod kernel;
 mod normal_map;
+#[cfg(feature = "dynop")]
+pub mod optimizer;
 mod pyramid;
 mod transform;
 
@@ -59,6 +61,11 @@ pub use inpaint::*;
 pub use int_ops::*;
 pub use kernel::*;
 pub use normal_map::*;
+#[cfg(feature = "dynop")]
+pub use optimizer::{
+    GaussianBlurCombinePattern, HighPassFreqOptimized, HighPassFreqPattern, ImageOptimizer,
+    ImagePattern, LowPassFreqOptimized, LowPassFreqPattern, PatternMatch, SeparableKernelPattern,
+};
 pub use pyramid::*;
 pub use transform::*;
 
@@ -1125,7 +1132,7 @@ mod tests {
             let x = (i % 4) as f32 / 1000.0;
             let y = (i / 4) as f32 / 1000.0;
             let v = bayer.sample(Vec2::new(x, y), &ctx);
-            assert!(v >= 0.0 && v <= 1.0, "Bayer value out of range: {}", v);
+            assert!((0.0..=1.0).contains(&v), "Bayer value out of range: {}", v);
         }
     }
 
@@ -1267,7 +1274,11 @@ mod tests {
         for y in 0..16 {
             for x in 0..16 {
                 let v = noise.get_pixel(x, y)[0];
-                assert!(v >= 0.0 && v <= 1.0, "Blue noise value out of range: {}", v);
+                assert!(
+                    (0.0..=1.0).contains(&v),
+                    "Blue noise value out of range: {}",
+                    v
+                );
             }
         }
 
@@ -1301,7 +1312,11 @@ mod tests {
             for x in 0..16 {
                 let uv = Vec2::new(x as f32 / 16.0, y as f32 / 16.0);
                 let v = field.sample(uv, &ctx);
-                assert!(v >= 0.0 && v <= 1.0, "Blue noise value out of range: {}", v);
+                assert!(
+                    (0.0..=1.0).contains(&v),
+                    "Blue noise value out of range: {}",
+                    v
+                );
             }
         }
     }
@@ -1314,7 +1329,7 @@ mod tests {
         // Check range
         for &v in &noise {
             assert!(
-                v >= 0.0 && v <= 1.0,
+                (0.0..=1.0).contains(&v),
                 "Blue noise 1D value out of range: {}",
                 v
             );
@@ -1335,7 +1350,7 @@ mod tests {
         // Check range
         for &v in &noise {
             assert!(
-                v >= 0.0 && v <= 1.0,
+                (0.0..=1.0).contains(&v),
                 "Blue noise 3D value out of range: {}",
                 v
             );
@@ -1406,7 +1421,7 @@ mod tests {
                 for j in 0..10 {
                     let pos = Vec2::new(i as f32 / 10.0, j as f32 / 10.0);
                     let v = bayer.sample(pos, &ctx);
-                    assert!(v >= 0.0 && v < 1.0, "Bayer value {} out of range", v);
+                    assert!((0.0..1.0).contains(&v), "Bayer value {} out of range", v);
                 }
             }
         }
@@ -1442,7 +1457,7 @@ mod tests {
                 for j in 0..10 {
                     let pos = Vec2::new(i as f32 / 10.0, j as f32 / 10.0);
                     let v = ign.sample(pos, &ctx);
-                    assert!(v >= 0.0 && v < 1.0, "IGN value {} out of range", v);
+                    assert!((0.0..1.0).contains(&v), "IGN value {} out of range", v);
                 }
             }
         }
@@ -1503,10 +1518,10 @@ mod tests {
         }
 
         // All points should be visited
-        for y in 0..size as usize {
-            for x in 0..size as usize {
+        for (y, row) in visited.iter().enumerate().take(size as usize) {
+            for (x, &was_visited) in row.iter().enumerate().take(size as usize) {
                 assert!(
-                    visited[y][x],
+                    was_visited,
                     "Point ({}, {}) not visited by Hilbert curve",
                     x, y
                 );
@@ -1697,6 +1712,7 @@ mod tests {
         let data = vec![[0.5, 0.5, 0.5, 1.0]; 4];
         let img = ImageField::from_raw(data, 2, 2);
 
+        #[allow(deprecated)]
         let double = upsample(&img);
         assert_eq!(double.dimensions(), (4, 4));
     }
@@ -1707,6 +1723,7 @@ mod tests {
         let img = ImageField::from_raw(data, 4, 4);
 
         let down = downsample(&img);
+        #[allow(deprecated)]
         let up = upsample(&down);
 
         // Should be back to original size
@@ -2619,7 +2636,7 @@ mod tests {
     #[cfg(feature = "wick")]
     #[test]
     fn test_colorspace_dew_registration() {
-        use wick_linalg::{Value, linalg_registry};
+        use wick_linalg::linalg_registry;
 
         let mut registry = linalg_registry::<f32>();
         register_colorspace(&mut registry);
@@ -2636,7 +2653,7 @@ mod tests {
     #[cfg(feature = "wick")]
     #[test]
     fn test_colorspace_dew_eval() {
-        use wick_linalg::{LinalgFn, Value, linalg_registry};
+        use wick_linalg::{Value, linalg_registry};
 
         let mut registry = linalg_registry::<f32>();
         register_colorspace(&mut registry);
@@ -3192,7 +3209,7 @@ mod invariant_tests {
                 let uv = Vec2::new(x as f32 * 0.001, y as f32 * 0.001);
                 let v: f32 = bayer.sample(uv, &ctx);
                 assert!(
-                    v >= 0.0 && v < 1.0,
+                    (0.0..1.0).contains(&v),
                     "Bayer value should be in [0, 1), got {} at ({}, {})",
                     v,
                     x,

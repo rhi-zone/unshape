@@ -4,22 +4,204 @@ use unshape_spectral::{Complex, dct2d, fft_shift, fft2d, idct2d, ifft2d};
 
 use crate::ImageField;
 
+// ============================================================================
+// FreqImage — typed container for frequency-domain data
+// ============================================================================
+
+/// A pair of images representing the real and imaginary components of a 2D FFT.
+///
+/// Used as the intermediate type between [`Fft2d`] and [`Ifft2d`] / [`FreqRadialMul`].
+/// Both images have identical dimensions (power-of-2 padded).
+#[derive(Debug, Clone)]
+pub struct FreqImage {
+    /// Real component of the frequency-domain spectrum.
+    pub real: ImageField,
+    /// Imaginary component of the frequency-domain spectrum.
+    pub imag: ImageField,
+}
+
+impl FreqImage {
+    /// Creates a `FreqImage` from real and imaginary component images.
+    pub fn new(real: ImageField, imag: ImageField) -> Self {
+        Self { real, imag }
+    }
+}
+
+// ============================================================================
+// FreqRadialMul — radial frequency mask multiplication
+// ============================================================================
+
+/// Applies a radial frequency mask to a frequency-domain image pair.
+///
+/// The mask is a smooth step function based on distance from the DC component
+/// (center of the spectrum after FFT shift). Used to implement low-pass and
+/// high-pass frequency filters.
+///
+/// Typically used between [`Fft2d`] and [`Ifft2d`] in a pipeline.
+/// The optimizer recognizes this pattern and replaces it with
+/// [`LowPassFreqOptimized`](crate::optimizer::LowPassFreqOptimized) or
+/// [`HighPassFreqOptimized`](crate::optimizer::HighPassFreqOptimized).
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct FreqRadialMul {
+    /// Cutoff frequency as a fraction of Nyquist (0.0–1.0).
+    pub cutoff: f32,
+    /// If `true`, frequencies below cutoff are passed (low-pass).
+    /// If `false`, frequencies above cutoff are passed (high-pass).
+    pub low_pass: bool,
+}
+
+impl FreqRadialMul {
+    /// Creates a low-pass radial mask with the given cutoff.
+    pub fn low_pass(cutoff: f32) -> Self {
+        Self {
+            cutoff,
+            low_pass: true,
+        }
+    }
+
+    /// Creates a high-pass radial mask with the given cutoff.
+    pub fn high_pass(cutoff: f32) -> Self {
+        Self {
+            cutoff,
+            low_pass: false,
+        }
+    }
+
+    /// Applies the radial mask to a [`FreqImage`].
+    pub fn apply(&self, freq: &FreqImage) -> FreqImage {
+        let mut real = freq.real.clone();
+        let mut imag = freq.imag.clone();
+        self.apply_inplace(&mut real, &mut imag);
+        FreqImage::new(real, imag)
+    }
+
+    /// Applies the radial mask in-place to real and imaginary image components.
+    ///
+    /// This is the fused path used by the optimizer to avoid extra allocations.
+    pub fn apply_inplace(&self, real: &mut ImageField, imag: &mut ImageField) {
+        let (w, h) = (real.width as usize, real.height as usize);
+        let cx = w as f32 / 2.0;
+        let cy = h as f32 / 2.0;
+        let max_radius = cx.min(cy);
+
+        for y in 0..h {
+            for x in 0..w {
+                // Distance from DC (corner in un-shifted FFT = cx, cy after shift).
+                // Since we don't apply fft_shift, DC is at (0, 0) corner.
+                // Compute normalized distance from nearest corner.
+                let dx = (x as f32).min(w as f32 - x as f32);
+                let dy = (y as f32).min(h as f32 - y as f32);
+                let dist = (dx * dx + dy * dy).sqrt() / max_radius;
+
+                let weight = if self.low_pass {
+                    // Smooth step: pass low frequencies, attenuate high.
+                    if dist < self.cutoff {
+                        1.0
+                    } else {
+                        let t = ((dist - self.cutoff) / (1.0 - self.cutoff + 1e-8)).clamp(0.0, 1.0);
+                        1.0 - t * t * (3.0 - 2.0 * t) // smoothstep
+                    }
+                } else {
+                    // High-pass: pass high frequencies, attenuate low.
+                    if dist > self.cutoff {
+                        1.0
+                    } else {
+                        let t = (dist / (self.cutoff + 1e-8)).clamp(0.0, 1.0);
+                        t * t * (3.0 - 2.0 * t) // smoothstep
+                    }
+                };
+
+                let i = y * w + x;
+                for ch in 0..4 {
+                    real.data[i][ch] *= weight;
+                    imag.data[i][ch] *= weight;
+                }
+            }
+        }
+    }
+}
+
+#[cfg(feature = "dynop")]
+impl unshape_op::DynOp for FreqRadialMul {
+    fn type_name(&self) -> &'static str {
+        "resin::FreqRadialMul"
+    }
+
+    fn input_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<FreqImage>("FreqImage")
+    }
+
+    fn output_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<FreqImage>("FreqImage")
+    }
+
+    fn apply_dyn(
+        &self,
+        input: unshape_op::OpValue,
+    ) -> Result<unshape_op::OpValue, unshape_op::OpError> {
+        let freq: FreqImage = input.downcast()?;
+        let result = self.apply(&freq);
+        Ok(unshape_op::OpValue::new(
+            unshape_op::OpType::of::<FreqImage>("FreqImage"),
+            result,
+        ))
+    }
+
+    fn params(&self) -> serde_json::Value {
+        serde_json::json!({
+            "cutoff": self.cutoff,
+            "low_pass": self.low_pass,
+        })
+    }
+}
+
 /// 2D Fast Fourier Transform.
 ///
 /// Transforms an image from spatial domain to frequency domain.
-/// Output is two images: real and imaginary components.
+/// Output is a [`FreqImage`] containing real and imaginary components.
+/// Low frequencies are at corners; use [`FftShift`] to center them.
+///
+/// Note: Dimensions must be powers of 2. Non-power-of-2 images are padded.
 #[derive(Debug, Clone, Copy, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Fft2d;
+
+#[cfg(feature = "dynop")]
+impl unshape_op::DynOp for Fft2d {
+    fn type_name(&self) -> &'static str {
+        "resin::Fft2d"
+    }
+
+    fn input_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn output_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<FreqImage>("FreqImage")
+    }
+
+    fn apply_dyn(
+        &self,
+        input: unshape_op::OpValue,
+    ) -> Result<unshape_op::OpValue, unshape_op::OpError> {
+        let img: ImageField = input.downcast()?;
+        let (real, imag) = self.apply(&img);
+        Ok(unshape_op::OpValue::new(
+            unshape_op::OpType::of::<FreqImage>("FreqImage"),
+            FreqImage::new(real, imag),
+        ))
+    }
+
+    fn params(&self) -> serde_json::Value {
+        serde_json::json!({})
+    }
+}
 
 impl Fft2d {
     /// Applies 2D FFT to an image.
     ///
     /// Returns (real, imaginary) image pair representing the frequency domain.
-    /// Low frequencies are at corners, high frequencies at center.
-    /// Use `FftShift` to center low frequencies.
-    ///
-    /// Note: Dimensions must be powers of 2. Non-power-of-2 images are padded.
     pub fn apply(&self, image: &ImageField) -> (ImageField, ImageField) {
         let (w, h) = (image.width as usize, image.height as usize);
         let (pw, ph) = (w.next_power_of_two(), h.next_power_of_two());
@@ -61,9 +243,41 @@ impl Fft2d {
 /// 2D Inverse Fast Fourier Transform.
 ///
 /// Transforms from frequency domain back to spatial domain.
+/// Accepts a [`FreqImage`] (or the raw (real, imag) pair directly).
 #[derive(Debug, Clone, Copy, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Ifft2d;
+
+#[cfg(feature = "dynop")]
+impl unshape_op::DynOp for Ifft2d {
+    fn type_name(&self) -> &'static str {
+        "resin::Ifft2d"
+    }
+
+    fn input_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<FreqImage>("FreqImage")
+    }
+
+    fn output_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn apply_dyn(
+        &self,
+        input: unshape_op::OpValue,
+    ) -> Result<unshape_op::OpValue, unshape_op::OpError> {
+        let freq: FreqImage = input.downcast()?;
+        let result = self.apply(&freq.real, &freq.imag);
+        Ok(unshape_op::OpValue::new(
+            unshape_op::OpType::of::<ImageField>("ImageField"),
+            result,
+        ))
+    }
+
+    fn params(&self) -> serde_json::Value {
+        serde_json::json!({})
+    }
+}
 
 impl Ifft2d {
     /// Applies 2D IFFT to frequency domain images.
@@ -76,6 +290,7 @@ impl Ifft2d {
         let (w, h) = (real.width as usize, real.height as usize);
         let mut result_data = vec![[0.0f32; 4]; w * h];
 
+        #[allow(clippy::needless_range_loop)]
         for ch in 0..4 {
             // Combine real/imag into complex spectrum
             let spectrum: Vec<Complex> = (0..w * h)
@@ -137,15 +352,10 @@ impl FftShift {
 /// Used in JPEG compression. Can operate on whole image or in blocks.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Default)]
 pub struct Dct2d {
     /// Block size for block-based DCT. None = whole image.
     pub block_size: Option<u32>,
-}
-
-impl Default for Dct2d {
-    fn default() -> Self {
-        Self { block_size: None }
-    }
 }
 
 impl Dct2d {
@@ -190,15 +400,10 @@ impl Dct2d {
 /// 2D Inverse Discrete Cosine Transform.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Default)]
 pub struct Idct2d {
     /// Block size for block-based IDCT. None = whole image.
     pub block_size: Option<u32>,
-}
-
-impl Default for Idct2d {
-    fn default() -> Self {
-        Self { block_size: None }
-    }
 }
 
 impl Idct2d {

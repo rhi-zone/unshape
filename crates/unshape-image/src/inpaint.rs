@@ -182,7 +182,7 @@ impl PatchMatch {
     /// Creates a new PatchMatch configuration.
     pub fn new(patch_size: u32) -> Self {
         Self {
-            patch_size: if patch_size % 2 == 0 {
+            patch_size: if patch_size.is_multiple_of(2) {
                 patch_size + 1
             } else {
                 patch_size

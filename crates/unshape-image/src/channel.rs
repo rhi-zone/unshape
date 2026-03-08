@@ -1,8 +1,12 @@
 use crate::ImageField;
 use crate::expr::{ColorExpr, map_pixels};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// Which channel to extract or operate on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Channel {
     /// Red channel.
     Red,
