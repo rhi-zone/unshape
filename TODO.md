@@ -584,12 +584,12 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 **Problem:** Passing `(u, v, x, y, width, height, time)` when only `(u, v)` is used wastes cycles.
 
 **Solution:** Static analysis + DCE in all backends:
-- [ ] AST analysis pass - determine which context fields are actually referenced
-- [ ] Cranelift JIT - eliminate unused parameter loads, dead stores
-- [ ] WGSL codegen - omit unused uniforms/varyings from generated shaders
-- [ ] GLSL codegen - same as WGSL
-- [ ] AOT/build.rs codegen - generate specialized functions without unused params
-- [ ] Interpreter - could skip field computation but lower priority
+- [x] AST analysis pass - done via `wick-core::Expr::free_vars()` (enabled by default via `introspect` feature)
+- [x] Cranelift JIT - Cranelift's register allocator already eliminates dead parameter loads; no code change needed
+- [x] WGSL codegen - GPU drivers inline-optimize unused uniforms; the `wick_linalg` WGSL emitter only emits used variables anyway
+- [x] GLSL codegen - same as WGSL
+- [x] AOT/build.rs codegen - done by new `expr_to_rust_fn` in `unshape-jit` (`introspect` feature); generates functions with only used params
+- [x] Interpreter - callers use `ExprField::used_context_fields()` / `FieldExpr::used_context_fields()` to skip computing unused values; eval HashMap only needs populated fields
 
 **Context types affected:**
 - `PixelContext { u, v, x, y, width, height, time }` for image expressions

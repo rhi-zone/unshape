@@ -45,6 +45,14 @@ pub use wick_scalar::{Error as EvalError, scalar_registry};
 /// Built-in variables that are automatically bound during field evaluation.
 pub const BUILTIN_VARS: &[&str] = &["x", "y", "z", "t", "time"];
 
+/// Standard context fields for 3D spatial field evaluation, in declaration order.
+///
+/// Use with [`ExprField::used_context_fields`] to determine which of these
+/// need to be computed before evaluating an expression. For example, if the
+/// expression is `"x * 2.0 + y"`, only `"x"` and `"y"` are needed — callers
+/// can skip computing `z` and `t`.
+pub const FIELD_CONTEXT_FIELDS: &[&str] = &["x", "y", "z", "t"];
+
 // ============================================================================
 // Noise expression functions
 // ============================================================================
@@ -201,6 +209,23 @@ impl ExprField {
             .free_vars()
             .into_iter()
             .filter(|v| !BUILTIN_VARS.contains(v))
+            .collect()
+    }
+
+    /// Returns which of the standard context fields (`x`, `y`, `z`, `t`) this expression
+    /// actually uses, in declaration order.
+    ///
+    /// Use this to avoid computing unused context values before evaluation.
+    /// For example, if the expression is `"x * 2.0 + y"`, this returns `["x", "y"]`
+    /// and the caller can skip computing `z` and `t`.
+    ///
+    /// See [`FIELD_CONTEXT_FIELDS`] for the full ordered list of fields checked.
+    pub fn used_context_fields(&self) -> Vec<&'static str> {
+        let free = self.expr.free_vars();
+        FIELD_CONTEXT_FIELDS
+            .iter()
+            .copied()
+            .filter(|f| free.contains(*f))
             .collect()
     }
 
@@ -949,6 +974,136 @@ impl FieldExpr {
         }
     }
 
+    /// Returns which of the standard context fields (`x`, `y`, `z`, `t`) are referenced
+    /// anywhere in this expression tree, in declaration order.
+    ///
+    /// Use this to avoid computing unused coordinate values before evaluation.
+    /// For example, an expression that only uses `X` and `Y` variants will return
+    /// `["x", "y"]`, signalling that the caller need not compute `z` or `t`.
+    ///
+    /// Note: this checks for the typed coordinate variants (`X`, `Y`, `Z`, `T`),
+    /// not user-defined `Var` nodes. For user variables, see [`Self::free_vars`].
+    pub fn used_context_fields(&self) -> Vec<&'static str> {
+        let mut used = [false; 4]; // x, y, z, t
+        self.collect_coords(&mut used);
+        let names = ["x", "y", "z", "t"];
+        names
+            .iter()
+            .copied()
+            .zip(used)
+            .filter_map(|(name, used)| if used { Some(name) } else { None })
+            .collect()
+    }
+
+    fn collect_coords(&self, used: &mut [bool; 4]) {
+        match self {
+            Self::X => used[0] = true,
+            Self::Y => used[1] = true,
+            Self::Z => used[2] = true,
+            Self::T => used[3] = true,
+
+            Self::Constant(_) | Self::Var(_) => {}
+
+            Self::Add(a, b)
+            | Self::Sub(a, b)
+            | Self::Mul(a, b)
+            | Self::Div(a, b)
+            | Self::Mod(a, b)
+            | Self::Pow(a, b)
+            | Self::Min(a, b)
+            | Self::Max(a, b)
+            | Self::Gt(a, b)
+            | Self::Lt(a, b)
+            | Self::Eq(a, b) => {
+                a.collect_coords(used);
+                b.collect_coords(used);
+            }
+
+            Self::Neg(a)
+            | Self::Sin(a)
+            | Self::Cos(a)
+            | Self::Tan(a)
+            | Self::Abs(a)
+            | Self::Floor(a)
+            | Self::Ceil(a)
+            | Self::Fract(a)
+            | Self::Sqrt(a)
+            | Self::Exp(a)
+            | Self::Ln(a)
+            | Self::Sign(a) => {
+                a.collect_coords(used);
+            }
+
+            Self::Perlin2 { x, y } | Self::Simplex2 { x, y } | Self::Length2 { x, y } => {
+                x.collect_coords(used);
+                y.collect_coords(used);
+            }
+
+            Self::Fbm2 { x, y, .. }
+            | Self::Distance2 { x, y, .. }
+            | Self::SdfCircle { x, y, .. }
+            | Self::SdfBox2 { x, y, .. } => {
+                x.collect_coords(used);
+                y.collect_coords(used);
+            }
+
+            Self::Perlin3 { x, y, z } | Self::Simplex3 { x, y, z } | Self::Length3 { x, y, z } => {
+                x.collect_coords(used);
+                y.collect_coords(used);
+                z.collect_coords(used);
+            }
+
+            Self::Fbm3 { x, y, z, .. }
+            | Self::Distance3 { x, y, z, .. }
+            | Self::SdfSphere { x, y, z, .. }
+            | Self::SdfBox3 { x, y, z, .. } => {
+                x.collect_coords(used);
+                y.collect_coords(used);
+                z.collect_coords(used);
+            }
+
+            Self::SdfSmoothUnion { a, b, .. }
+            | Self::SdfSmoothIntersection { a, b, .. }
+            | Self::SdfSmoothSubtraction { a, b, .. } => {
+                a.collect_coords(used);
+                b.collect_coords(used);
+            }
+
+            Self::Clamp { value, min, max } => {
+                value.collect_coords(used);
+                min.collect_coords(used);
+                max.collect_coords(used);
+            }
+
+            Self::Lerp { a, b, t } => {
+                a.collect_coords(used);
+                b.collect_coords(used);
+                t.collect_coords(used);
+            }
+
+            Self::SmoothStep { edge0, edge1, x } => {
+                edge0.collect_coords(used);
+                edge1.collect_coords(used);
+                x.collect_coords(used);
+            }
+
+            Self::Step { edge, x } => {
+                edge.collect_coords(used);
+                x.collect_coords(used);
+            }
+
+            Self::IfThenElse {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                condition.collect_coords(used);
+                then_expr.collect_coords(used);
+                else_expr.collect_coords(used);
+            }
+        }
+    }
+
     /// Convert to dew AST for compilation to WGSL/Cranelift.
     pub fn to_dew_ast(&self) -> Ast {
         match self {
@@ -1408,6 +1563,78 @@ mod tests {
         assert!((expr.eval(1.0, 0.0, 0.0, 0.0, &Default::default()) - 1.0).abs() < 0.01);
         // At x=0.5, smoothstep = 0.5
         assert!((expr.eval(0.5, 0.0, 0.0, 0.0, &Default::default()) - 0.5).abs() < 0.01);
+    }
+
+    // ExprField::used_context_fields tests
+
+    #[test]
+    fn test_expr_field_used_context_fields_xy() {
+        let registry = FunctionRegistry::<f32>::new();
+        let field = ExprField::parse("x * 2.0 + y", registry).unwrap();
+        let fields = field.used_context_fields();
+        assert_eq!(fields, vec!["x", "y"]);
+    }
+
+    #[test]
+    fn test_expr_field_used_context_fields_t_only() {
+        let registry = FunctionRegistry::<f32>::new();
+        let field = ExprField::parse("t * 3.14", registry).unwrap();
+        let fields = field.used_context_fields();
+        assert_eq!(fields, vec!["t"]);
+    }
+
+    #[test]
+    fn test_expr_field_used_context_fields_none() {
+        let registry = FunctionRegistry::<f32>::new();
+        let field = ExprField::parse("42.0", registry).unwrap();
+        let fields = field.used_context_fields();
+        assert!(fields.is_empty());
+    }
+
+    #[test]
+    fn test_expr_field_used_context_fields_preserves_order() {
+        let registry = FunctionRegistry::<f32>::new();
+        let field = ExprField::parse("z + x + y", registry).unwrap();
+        let fields = field.used_context_fields();
+        // Declaration order: x, y, z
+        assert_eq!(fields, vec!["x", "y", "z"]);
+    }
+
+    // FieldExpr::used_context_fields tests
+
+    #[test]
+    fn test_field_expr_used_context_fields_xy() {
+        let expr = FieldExpr::Add(Box::new(FieldExpr::X), Box::new(FieldExpr::Y));
+        let fields = expr.used_context_fields();
+        assert_eq!(fields, vec!["x", "y"]);
+    }
+
+    #[test]
+    fn test_field_expr_used_context_fields_t_only() {
+        let expr = FieldExpr::Mul(
+            Box::new(FieldExpr::T),
+            Box::new(FieldExpr::Constant(std::f32::consts::PI)),
+        );
+        let fields = expr.used_context_fields();
+        assert_eq!(fields, vec!["t"]);
+    }
+
+    #[test]
+    fn test_field_expr_used_context_fields_constant() {
+        let expr = FieldExpr::Constant(1.0);
+        let fields = expr.used_context_fields();
+        assert!(fields.is_empty());
+    }
+
+    #[test]
+    fn test_field_expr_used_context_fields_xyz() {
+        let expr = FieldExpr::Perlin3 {
+            x: Box::new(FieldExpr::X),
+            y: Box::new(FieldExpr::Y),
+            z: Box::new(FieldExpr::Z),
+        };
+        let fields = expr.used_context_fields();
+        assert_eq!(fields, vec!["x", "y", "z"]);
     }
 
     #[cfg(feature = "serde")]
