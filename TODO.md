@@ -847,6 +847,7 @@ The example in this TODO (and the original design) used `"node:port"` string ref
 - [x] Should `SerialNode` params be a proper `serde_json::Value` object rather than a double-encoded JSON string? → Fixed: `params: serde_json::Value` in `SerialNode`; bincode path converts to/from string internally in `BincodeFormat`
 - [x] Add a `version` field to `SerialGraph` for forward-compatibility? → Added `version: u32` (currently `1`); old graphs without the field deserialize as version `0` via `#[serde(default)]`
 - [x] Switch to named-only port format: `{ "from": "n1:out", "to": "n2:in" }` — no numeric fallback, clean break (format is pre-stable so no compat needed) → Done: `SerialWire` now uses `"nodeId:portName"` strings; port names resolved via `DynNode::input_port_names()`/`output_port_names()` default methods
+- [x] Add `connect_named()`/`disconnect_named()` runtime API to `Graph` — Done: implemented behind `named-ports` feature in `unshape-core`; `PortNameNotFound` added to `GraphError` unconditionally
 
 **Note:** Format is not yet stable/public, so breaking changes are low-cost now.
 
