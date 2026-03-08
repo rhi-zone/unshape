@@ -458,8 +458,8 @@ mod tests {
 
     #[test]
     fn test_as_f32_success() {
-        let v = Value::F32(3.14);
-        assert_eq!(v.as_f32().unwrap(), 3.14);
+        let v = Value::F32(1.5);
+        assert_eq!(v.as_f32().unwrap(), 1.5);
     }
 
     #[test]
@@ -470,8 +470,8 @@ mod tests {
 
     #[test]
     fn test_as_f64_success() {
-        let v = Value::F64(3.14);
-        assert_eq!(v.as_f64().unwrap(), 3.14);
+        let v = Value::F64(1.5);
+        assert_eq!(v.as_f64().unwrap(), 1.5);
     }
 
     #[test]
@@ -603,6 +603,7 @@ mod tests {
     struct TestImage {
         width: u32,
         height: u32,
+        #[allow(dead_code)]
         data: Vec<f32>,
     }
 
@@ -618,6 +619,7 @@ mod tests {
     /// Test type with custom location
     #[derive(Debug)]
     struct GpuBuffer {
+        #[allow(dead_code)]
         size: usize,
         device_id: u32,
     }

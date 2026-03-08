@@ -376,10 +376,12 @@ pub enum ErrorHandling {
     /// The function receives (node_id, error) and returns Some(value) to use,
     /// or None to propagate the error.
     Fallback {
+        #[allow(clippy::type_complexity)]
         default_fn: Box<dyn Fn(NodeId, &GraphError) -> Option<Value> + Send>,
     },
 }
 
+#[allow(clippy::derivable_impls)] // Can't derive: Fallback variant contains Box<dyn Fn>
 impl Default for ErrorHandling {
     fn default() -> Self {
         Self::FailFast
@@ -728,6 +730,7 @@ impl<E: NodeExecutor> LazyEvaluator<E> {
 
         // Check cache
         let cache_key = CacheKey::new(node_id, &inputs);
+        #[allow(clippy::collapsible_if)]
         if let Some(entry) = self.cache.get(&cache_key) {
             if self.policy.is_valid(&cache_key, entry) {
                 cached.push(node_id);
