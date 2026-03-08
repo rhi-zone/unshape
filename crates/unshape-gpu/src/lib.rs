@@ -42,10 +42,17 @@ mod texture;
 
 #[cfg(feature = "image-expr")]
 mod image_expr;
+#[cfg(feature = "image-expr")]
+pub mod image_ops;
 
 pub use backend::{GpuComputeBackend, GpuKernel};
 pub use context::GpuContext;
 pub use error::GpuError;
+#[cfg(feature = "image-expr")]
+pub use image_ops::{
+    ConvolveKernel, ConvolveNode, GaussianBlurKernel, GaussianBlurNode, LevelsKernel, LevelsNode,
+    MAX_KERNEL_SIZE,
+};
 pub use kernels::{
     CpuNoiseData, NoiseTextureKernel, NoiseTextureNode, ParameterizedNoiseNode, register_kernels,
 };

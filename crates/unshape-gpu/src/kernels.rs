@@ -330,8 +330,18 @@ pub fn register_kernels(backend: &crate::GpuComputeBackend) {
 
     #[cfg(feature = "image-expr")]
     {
+        use crate::image_ops::{
+            ConvolveKernel, ConvolveNode, GaussianBlurKernel, GaussianBlurNode, LevelsKernel,
+            LevelsNode,
+        };
+
         backend.register_kernel::<RemapUvNode>(Arc::new(RemapUvKernel));
         backend.register_kernel::<MapPixelsNode>(Arc::new(MapPixelsKernel));
+
+        // Image ops kernels — GPU node wrappers
+        backend.register_kernel::<GaussianBlurNode>(Arc::new(GaussianBlurKernel));
+        backend.register_kernel::<ConvolveNode>(Arc::new(ConvolveKernel));
+        backend.register_kernel::<LevelsNode>(Arc::new(LevelsKernel));
     }
 }
 
