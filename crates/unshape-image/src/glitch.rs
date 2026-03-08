@@ -134,10 +134,10 @@ pub fn pixel_sort(image: &ImageField, config: &PixelSort) -> ImageField {
                         _ => {}
                     }
                 }
-                if let Some(start) = span_start {
-                    if width > start + 1 {
-                        spans.push((start, width));
-                    }
+                if let Some(start) = span_start
+                    && width > start + 1
+                {
+                    spans.push((start, width));
                 }
 
                 // Sort each span
@@ -179,10 +179,10 @@ pub fn pixel_sort(image: &ImageField, config: &PixelSort) -> ImageField {
                         _ => {}
                     }
                 }
-                if let Some(start) = span_start {
-                    if height > start + 1 {
-                        spans.push((start, height));
-                    }
+                if let Some(start) = span_start
+                    && height > start + 1
+                {
+                    spans.push((start, height));
                 }
 
                 // Sort each span
@@ -304,7 +304,7 @@ pub fn scan_lines(image: &ImageField, config: &ScanLines) -> ImageField {
     let mut data = image.data.clone();
 
     for y in 0..height {
-        let line_pos = ((y as u32 + config.offset) % period) as u32;
+        let line_pos = (y as u32 + config.offset) % period;
         if line_pos < config.thickness {
             let factor = 1.0 - config.intensity;
             for x in 0..width {
@@ -573,8 +573,8 @@ pub fn datamosh(image: &ImageField, config: &Datamosh) -> ImageField {
     let block_size = config.block_size.max(4) as usize;
 
     // Calculate number of blocks
-    let blocks_x = (width + block_size - 1) / block_size;
-    let blocks_y = (height + block_size - 1) / block_size;
+    let blocks_x = width.div_ceil(block_size);
+    let blocks_y = height.div_ceil(block_size);
 
     // Start with the original image data
     let mut current = image.data.clone();
@@ -788,8 +788,8 @@ pub fn datamosh_frames(
     let height = curr_frame.height as usize;
     let block_size = config.block_size.max(4) as usize;
 
-    let blocks_x = (width + block_size - 1) / block_size;
-    let blocks_y = (height + block_size - 1) / block_size;
+    let blocks_x = width.div_ceil(block_size);
+    let blocks_y = height.div_ceil(block_size);
 
     let mut result = vec![[0.0f32; 4]; width * height];
 
@@ -869,6 +869,7 @@ pub fn datamosh_frames(
 }
 
 /// Estimate motion vector for a block based on brightness changes.
+#[allow(clippy::too_many_arguments)]
 fn estimate_block_motion(
     prev_frame: &ImageField,
     curr_frame: &ImageField,

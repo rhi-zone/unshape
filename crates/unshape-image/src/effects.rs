@@ -107,9 +107,8 @@ pub fn drop_shadow(image: &ImageField, config: &DropShadow) -> ImageField {
     let shadow = ImageField::from_raw(shadow_data, width, height);
 
     // 5. Composite: shadow under original
-    let with_shadow = composite(&shadow, image, BlendMode::Normal, 1.0);
 
-    with_shadow
+    composite(&shadow, image, BlendMode::Normal, 1.0)
 }
 
 /// Configuration for glow effect.

@@ -10,7 +10,7 @@ repository = "https://github.com/rhi-zone/unshape"
 default = []
 # Enable thorough statistical/invariant tests (slower, for CI)
 invariant-tests = []
-serde = ["dep:serde"]
+serde = ["dep:serde", "unshape-color/serde"]
 dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
 wick = ["dep:wick-core", "dep:wick-linalg", "dep:num-traits"]
 cranelift = ["wick", "wick-linalg/cranelift"]

@@ -11,6 +11,7 @@ use crate::pyramid::resize_impl;
 ///
 /// Kernels are square matrices of odd dimensions (3x3, 5x5, etc.).
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Kernel {
     /// Kernel weights in row-major order.
     pub weights: Vec<f32>,
@@ -155,6 +156,9 @@ pub fn convolve(image: &ImageField, kernel: &Kernel) -> ImageField {
 /// A true image primitive - neighborhood operations cannot be decomposed further.
 /// All blur, sharpen, and edge detection effects are implemented via this primitive.
 ///
+/// The optimizer can detect when the kernel is separable (expressible as an outer
+/// product of two 1D vectors) and replace this with a [`SeparableConvolve`].
+///
 /// # Example
 ///
 /// ```
@@ -180,6 +184,43 @@ impl Convolve {
     /// Applies the convolution to an image.
     pub fn apply(&self, image: &ImageField) -> ImageField {
         convolve_impl(image, &self.kernel)
+    }
+}
+
+#[cfg(feature = "dynop")]
+impl unshape_op::DynOp for Convolve {
+    fn type_name(&self) -> &'static str {
+        "resin::Convolve"
+    }
+
+    fn input_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn output_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn apply_dyn(
+        &self,
+        input: unshape_op::OpValue,
+    ) -> Result<unshape_op::OpValue, unshape_op::OpError> {
+        let img: ImageField = input.downcast()?;
+        let result = self.apply(&img);
+        Ok(unshape_op::OpValue::new(
+            unshape_op::OpType::of::<ImageField>("ImageField"),
+            result,
+        ))
+    }
+
+    fn params(&self) -> serde_json::Value {
+        // Serialize kernel weights and size for the optimizer to inspect.
+        serde_json::json!({
+            "kernel": {
+                "weights": self.kernel.weights,
+                "size": self.kernel.size,
+            }
+        })
     }
 }
 
@@ -394,6 +435,239 @@ pub fn detect_edges(image: &ImageField) -> ImageField {
     }
 
     ImageField::from_raw(data, width, height)
+}
+
+// ============================================================================
+// GaussianBlur — sigma-parameterized Gaussian blur op
+// ============================================================================
+
+/// Gaussian blur with a continuous sigma parameter.
+///
+/// Constructs a Gaussian kernel from the sigma value and applies it via 2D
+/// convolution. The kernel size is chosen automatically as `2 * ceil(3σ) + 1`.
+///
+/// This op is recognized by the [`ImageOptimizer`](crate::optimizer::ImageOptimizer):
+/// two consecutive `GaussianBlur` ops are combined into one via the rule
+/// `σ_combined = √(σ₁² + σ₂²)`.
+///
+/// # Example
+///
+/// ```
+/// use unshape_image::{ImageField, GaussianBlur};
+///
+/// let img = ImageField::from_raw(vec![[0.5f32, 0.5, 0.5, 1.0]; 64], 8, 8);
+/// let blurred = GaussianBlur { sigma: 2.0 }.apply(&img);
+/// ```
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct GaussianBlur {
+    /// Standard deviation of the Gaussian in pixels.
+    pub sigma: f32,
+}
+
+impl GaussianBlur {
+    /// Creates a Gaussian kernel of the appropriate size for the given sigma.
+    fn make_kernel(&self) -> Kernel {
+        let radius = (3.0 * self.sigma).ceil() as usize;
+        let size = 2 * radius + 1;
+        let mut weights = Vec::with_capacity(size * size);
+
+        let two_sigma_sq = 2.0 * self.sigma * self.sigma;
+        let mut sum = 0.0f32;
+
+        for r in 0..size {
+            for c in 0..size {
+                let dr = r as f32 - radius as f32;
+                let dc = c as f32 - radius as f32;
+                let v = (-(dr * dr + dc * dc) / two_sigma_sq).exp();
+                weights.push(v);
+                sum += v;
+            }
+        }
+
+        // Normalize.
+        for w in &mut weights {
+            *w /= sum;
+        }
+
+        Kernel::new(weights, size)
+    }
+
+    /// Applies the Gaussian blur to an image.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        let kernel = self.make_kernel();
+        convolve_impl(image, &kernel)
+    }
+}
+
+#[cfg(feature = "dynop")]
+impl unshape_op::DynOp for GaussianBlur {
+    fn type_name(&self) -> &'static str {
+        "resin::GaussianBlur"
+    }
+
+    fn input_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn output_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn apply_dyn(
+        &self,
+        input: unshape_op::OpValue,
+    ) -> Result<unshape_op::OpValue, unshape_op::OpError> {
+        let img: ImageField = input.downcast()?;
+        let result = self.apply(&img);
+        Ok(unshape_op::OpValue::new(
+            unshape_op::OpType::of::<ImageField>("ImageField"),
+            result,
+        ))
+    }
+
+    fn params(&self) -> serde_json::Value {
+        serde_json::json!({ "sigma": self.sigma })
+    }
+}
+
+// ============================================================================
+// SeparableConvolve — two 1D convolution passes
+// ============================================================================
+
+/// Separable 2D convolution implemented as two 1D passes.
+///
+/// When a 2D kernel can be expressed as an outer product `K = col ⊗ row`,
+/// convolution can be split into a horizontal pass (with `row`) followed by
+/// a vertical pass (with `col`). This reduces the per-pixel work from
+/// O(k²) to O(2k) operations.
+///
+/// Produced by the [`ImageOptimizer`](crate::optimizer::ImageOptimizer) when it
+/// detects that a [`Convolve`] kernel is rank-1 (separable).
+///
+/// # Example
+///
+/// ```
+/// use unshape_image::{ImageField, SeparableConvolve};
+///
+/// let img = ImageField::from_raw(vec![[0.5f32, 0.5, 0.5, 1.0]; 64], 8, 8);
+/// let sc = SeparableConvolve {
+///     row: vec![0.25, 0.5, 0.25],
+///     col: vec![0.25, 0.5, 0.25],
+/// };
+/// let blurred = sc.apply(&img);
+/// ```
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct SeparableConvolve {
+    /// Horizontal (row) filter coefficients.
+    pub row: Vec<f32>,
+    /// Vertical (column) filter coefficients.
+    pub col: Vec<f32>,
+}
+
+impl SeparableConvolve {
+    /// Applies the separable convolution to an image.
+    pub fn apply(&self, image: &ImageField) -> ImageField {
+        let intermediate = convolve_1d_horizontal(image, &self.row);
+        convolve_1d_vertical(&intermediate, &self.col)
+    }
+}
+
+/// Applies a 1D filter horizontally (along each row).
+fn convolve_1d_horizontal(image: &ImageField, kernel: &[f32]) -> ImageField {
+    let (width, height) = image.dimensions();
+    let radius = (kernel.len() / 2) as i32;
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let mut r = 0.0f32;
+            let mut g = 0.0f32;
+            let mut b = 0.0f32;
+            let mut a = 0.0f32;
+
+            for (ki, &weight) in kernel.iter().enumerate() {
+                let sx = (x as i32 + ki as i32 - radius).clamp(0, width as i32 - 1) as u32;
+                let pixel = image.get_pixel(sx, y);
+                r += pixel[0] * weight;
+                g += pixel[1] * weight;
+                b += pixel[2] * weight;
+                a += pixel[3] * weight;
+            }
+
+            data.push([r, g, b, a]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+/// Applies a 1D filter vertically (along each column).
+fn convolve_1d_vertical(image: &ImageField, kernel: &[f32]) -> ImageField {
+    let (width, height) = image.dimensions();
+    let radius = (kernel.len() / 2) as i32;
+    let mut data = Vec::with_capacity((width * height) as usize);
+
+    for y in 0..height {
+        for x in 0..width {
+            let mut r = 0.0f32;
+            let mut g = 0.0f32;
+            let mut b = 0.0f32;
+            let mut a = 0.0f32;
+
+            for (ki, &weight) in kernel.iter().enumerate() {
+                let sy = (y as i32 + ki as i32 - radius).clamp(0, height as i32 - 1) as u32;
+                let pixel = image.get_pixel(x, sy);
+                r += pixel[0] * weight;
+                g += pixel[1] * weight;
+                b += pixel[2] * weight;
+                a += pixel[3] * weight;
+            }
+
+            data.push([r, g, b, a]);
+        }
+    }
+
+    ImageField::from_raw(data, width, height)
+        .with_wrap_mode(image.wrap_mode)
+        .with_filter_mode(image.filter_mode)
+}
+
+#[cfg(feature = "dynop")]
+impl unshape_op::DynOp for SeparableConvolve {
+    fn type_name(&self) -> &'static str {
+        "resin::SeparableConvolve"
+    }
+
+    fn input_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn output_type(&self) -> unshape_op::OpType {
+        unshape_op::OpType::of::<ImageField>("ImageField")
+    }
+
+    fn apply_dyn(
+        &self,
+        input: unshape_op::OpValue,
+    ) -> Result<unshape_op::OpValue, unshape_op::OpError> {
+        let img: ImageField = input.downcast()?;
+        let result = self.apply(&img);
+        Ok(unshape_op::OpValue::new(
+            unshape_op::OpType::of::<ImageField>("ImageField"),
+            result,
+        ))
+    }
+
+    fn params(&self) -> serde_json::Value {
+        serde_json::json!({
+            "row": self.row,
+            "col": self.col,
+        })
+    }
 }
 
 /// Applies a Gaussian blur with the specified number of passes.

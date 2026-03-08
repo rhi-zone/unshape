@@ -605,12 +605,12 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 - [x] `IntColorExpr` - integer color expressions with bitwise ops via dew
 
 **Conversion ops:**
-- [ ] `ToInt { range: IntRange }` - f32 0-1 → integer in range
-- [ ] `FromInt { range: IntRange }` - integer in range → f32 0-1
-- [ ] `IntRange` enum: `U8` (0-255), `Hue360` (0-359), `Custom { min: i32, max: i32 }`
+- [x] `ToInt { range: IntRange }` - f32 0-1 → integer in range
+- [x] `FromInt { range: IntRange }` - integer in range → f32 0-1
+- [x] `IntRange` enum: `U8` (0-255), `Hue360` (0-359), `Custom { min: i32, max: i32 }`
 
 **Bit-level ops:**
-- [ ] `IntColorExpr` evaluation - full integer expression with bitwise ops via dew
+- [x] `IntColorExpr` evaluation - full integer expression with bitwise ops via dew
   - Bit plane extract: `(r >> bit) & 1`
   - Bit plane set: `(r & ~(1 << bit)) | (source << bit)`
   - LSB embed: `(r & 0xFE) | data_bit`
@@ -648,12 +648,12 @@ Add to image pattern-matching optimizer (like audio's tremolo/chorus recognition
 > Parallel to audio's `GraphOptimizer` that recognizes tremolo/chorus/flanger.
 
 **Frequency domain patterns:**
-- [ ] `fft → mul(radial_mask) → ifft` → `LowPassFreqOptimized` / `HighPassFreqOptimized`
+- [x] `fft → mul(radial_mask) → ifft` → `LowPassFreqOptimized` / `HighPassFreqOptimized`
 - [ ] `fft → mul(ring_mask) → ifft` → `BandPassFreqOptimized`
 
 **Convolution patterns:**
-- [ ] Separable kernel detection → two 1D passes instead of 2D
-- [ ] `blur(blur(x))` → single blur with combined sigma
+- [x] Separable kernel detection → two 1D passes instead of 2D (`SeparableKernelPattern` / `SeparableConvolve`)
+- [x] `blur(blur(x))` → single blur with combined sigma (`GaussianBlurCombinePattern`)
 
 **Bit manipulation patterns:**
 - [ ] `(r >> N) & 1` → `ExtractBitPlaneOptimized`
@@ -666,9 +666,9 @@ Add to image pattern-matching optimizer (like audio's tremolo/chorus recognition
 - [ ] `lerp(original, transformed, mask)` → fused masked transform
 
 **Implementation:**
-- [ ] `ImageOptimizer` trait (parallel to `GraphOptimizer`)
-- [ ] Pattern matchers for each recognized pattern
-- [ ] Optimized implementations that fuse operations / use SIMD / avoid intermediate allocations
+- [x] `ImageOptimizer` + `ImagePattern` + `PatternMatch` (in `crates/unshape-image/src/optimizer.rs`, gated behind `dynop` feature)
+- [x] Pattern matchers for each recognized pattern
+- [x] Optimized implementations that fuse operations / avoid intermediate allocations (`LowPassFreqOptimized`, `HighPassFreqOptimized`, `GaussianBlur`, `SeparableConvolve`)
 
 ### Comprehensive Primitive Decomposition Pass
 
