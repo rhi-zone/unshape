@@ -4817,9 +4817,17 @@ dependencies = [
  "glam",
  "serde",
  "serde_json",
- "unshape-easing",
+ "unshape-field-ops",
  "unshape-noise",
  "unshape-op",
+]
+
+[[package]]
+name = "unshape-field-ops"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "unshape-easing",
 ]
 
 [[package]]

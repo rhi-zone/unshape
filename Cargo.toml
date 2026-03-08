@@ -69,6 +69,7 @@ unshape-fluid = { path = "crates/unshape-fluid" }
 unshape-physics = { path = "crates/unshape-physics" }
 unshape-noise = { path = "crates/unshape-noise" }
 unshape-field = { path = "crates/unshape-field" }
+unshape-field-ops = { path = "crates/unshape-field-ops" }
 unshape-image = { path = "crates/unshape-image" }
 unshape-lsystem = { path = "crates/unshape-lsystem" }
 unshape-op = { path = "crates/unshape-op" }

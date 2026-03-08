@@ -712,8 +712,11 @@ Add to image pattern-matching optimizer (like audio's tremolo/chorus recognition
 **Problem:** resin-field currently defines both the `Field` trait AND the combinator ops (Map, Add, Mul, etc.). This conflates interface and implementation.
 
 **Proposed split:**
-- [ ] `resin-field` - just the `Field<I, O>` trait and core types
-- [ ] `resin-field-ops` - combinator structs (Map, Zip, Mix, domain transforms)
+- [x] `resin-field` - just the `Field<I, O>` trait and core types
+  - Internal file split done: `lib.rs` is now 162 lines (trait only), combinators in `combinators.rs`, primitives in `primitives.rs`
+  - Remaining: extract `combinators.rs` + `primitives.rs` into a separate `unshape-field-ops` crate
+- [x] `resin-field-ops` - combinator structs (Map, Zip, Mix, domain transforms)
+  - Done: `unshape-field-ops` crate created; holds `Field` trait, `EvalContext`, combinators, primitives; `unshape-field` re-exports everything from it
 
 **Benefits:**
 - Cleaner dependency graph
@@ -843,7 +846,7 @@ The example in this TODO (and the original design) used `"node:port"` string ref
 - [x] Are integer port indices ergonomic enough for external tooling, or should wires use named port identifiers? → Switched to `SerialWire { from: "nodeId:portIndex", to: "nodeId:portIndex" }` string format
 - [x] Should `SerialNode` params be a proper `serde_json::Value` object rather than a double-encoded JSON string? → Fixed: `params: serde_json::Value` in `SerialNode`; bincode path converts to/from string internally in `BincodeFormat`
 - [x] Add a `version` field to `SerialGraph` for forward-compatibility? → Added `version: u32` (currently `1`); old graphs without the field deserialize as version `0` via `#[serde(default)]`
-- [ ] Consider named ports: `{ "from": "n1:out", "to": "n2:in" }` vs current integer form — named is more readable and survives node reordering (deferred: core graph doesn't have port names yet)
+- [ ] Switch to named-only port format: `{ "from": "n1:out", "to": "n2:in" }` — no numeric fallback, clean break (format is pre-stable so no compat needed)
 
 **Note:** Format is not yet stable/public, so breaking changes are low-cost now.
 

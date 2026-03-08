@@ -1,9 +1,6 @@
 use glam::{Vec2, Vec3};
 use std::marker::PhantomData;
 
-use crate::combinators::{Map, Zip, Zip3};
-use crate::context::EvalContext;
-use crate::primitives::{Constant, Coordinates};
 use crate::*;
 
 #[test]
