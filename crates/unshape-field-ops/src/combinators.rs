@@ -42,7 +42,8 @@ where
 ///
 /// # Example
 /// ```
-/// use unshape_field::{Field, EvalContext, Constant, Zip, Map};
+/// use unshape_field_ops::{Field, EvalContext};
+/// use unshape_field_ops::{Constant, Zip, Map};
 /// use std::marker::PhantomData;
 ///
 /// let a = Constant::new(3.0_f32);
@@ -56,8 +57,8 @@ where
 /// assert_eq!(Field::<f32, f32>::sample(&sum, 0.0, &ctx), 7.0);
 /// ```
 pub struct Zip<A, B> {
-    pub(crate) a: A,
-    pub(crate) b: B,
+    pub a: A,
+    pub b: B,
 }
 
 impl<A, B> Zip<A, B> {
@@ -88,7 +89,8 @@ where
 ///
 /// # Example
 /// ```
-/// use unshape_field::{Field, EvalContext, Constant, Zip3, Map};
+/// use unshape_field_ops::{Field, EvalContext};
+/// use unshape_field_ops::{Constant, Zip3, Map};
 /// use std::marker::PhantomData;
 ///
 /// let a = Constant::new(0.0_f32);
@@ -103,9 +105,9 @@ where
 /// assert_eq!(Field::<f32, f32>::sample(&lerp, 0.0, &ctx), 5.0);
 /// ```
 pub struct Zip3<A, B, C> {
-    pub(crate) a: A,
-    pub(crate) b: B,
-    pub(crate) c: C,
+    pub a: A,
+    pub b: B,
+    pub c: C,
 }
 
 impl<A, B, C> Zip3<A, B, C> {
@@ -136,8 +138,8 @@ where
 
 /// Scales the input coordinates of a field.
 pub struct Scale<F> {
-    pub(crate) field: F,
-    pub(crate) factor: f32,
+    pub field: F,
+    pub factor: f32,
 }
 
 impl<O, F> Field<Vec2, O> for Scale<F>
@@ -169,8 +171,8 @@ where
 
 /// Translates the input coordinates of a field.
 pub struct Translate<F, I> {
-    pub(crate) field: F,
-    pub(crate) offset: I,
+    pub field: F,
+    pub offset: I,
 }
 
 impl<O, F> Field<Vec2, O> for Translate<F, Vec2>
@@ -228,7 +230,8 @@ pub fn zip3<A, B, C>(a: A, b: B, c: C) -> Zip3<A, B, C> {
 ///
 /// # Example
 /// ```
-/// use unshape_field::{Field, EvalContext, Constant, lerp};
+/// use unshape_field_ops::{Field, EvalContext};
+/// use unshape_field_ops::{Constant, lerp};
 /// use glam::Vec2;
 ///
 /// let a = Constant::new(0.0_f32);
@@ -263,7 +266,8 @@ where
 ///
 /// # Example
 /// ```
-/// use unshape_field::{Field, EvalContext, Constant, add};
+/// use unshape_field_ops::{Field, EvalContext};
+/// use unshape_field_ops::{Constant, add};
 /// use glam::Vec2;
 ///
 /// let a = Constant::new(3.0_f32);
@@ -292,7 +296,8 @@ where
 ///
 /// # Example
 /// ```
-/// use unshape_field::{Field, EvalContext, Constant, mul};
+/// use unshape_field_ops::{Field, EvalContext};
+/// use unshape_field_ops::{Constant, mul};
 /// use glam::Vec2;
 ///
 /// let a = Constant::new(3.0_f32);
@@ -321,7 +326,8 @@ where
 ///
 /// # Example
 /// ```
-/// use unshape_field::{Field, EvalContext, Constant, sub};
+/// use unshape_field_ops::{Field, EvalContext};
+/// use unshape_field_ops::{Constant, sub};
 /// use glam::Vec2;
 ///
 /// let a = Constant::new(7.0_f32);
@@ -350,7 +356,8 @@ where
 ///
 /// # Example
 /// ```
-/// use unshape_field::{Field, EvalContext, Constant, div};
+/// use unshape_field_ops::{Field, EvalContext};
+/// use unshape_field_ops::{Constant, div};
 /// use glam::Vec2;
 ///
 /// let a = Constant::new(12.0_f32);
@@ -379,7 +386,8 @@ where
 ///
 /// # Example
 /// ```
-/// use unshape_field::{Field, EvalContext, Constant, mix};
+/// use unshape_field_ops::{Field, EvalContext};
+/// use unshape_field_ops::{Constant, mix};
 /// use glam::Vec2;
 ///
 /// let a = Constant::new(0.0_f32);

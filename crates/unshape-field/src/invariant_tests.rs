@@ -1,8 +1,5 @@
 use glam::{Vec2, Vec3};
 
-use crate::combinators::{Scale, Translate};
-use crate::context::EvalContext;
-use crate::primitives::Constant;
 use crate::*;
 
 const SAMPLE_COUNT: usize = 10_000;
