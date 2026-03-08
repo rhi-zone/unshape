@@ -1,4 +1,4 @@
-use glam::{Mat3, Mat4, Vec3};
+use glam::{Mat3, Vec3};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -50,17 +50,6 @@ impl ColorMatrix {
     pub fn apply(&self, image: &ImageField) -> ImageField {
         map_pixels(image, &ColorExpr::matrix(self.matrix))
     }
-}
-
-/// Convenience wrapper for [`ColorMatrix::apply`].
-///
-/// `matrix` is a `glam::Mat4` in column-major order (standard glam convention).
-pub fn color_matrix(image: &ImageField, matrix: Mat4) -> ImageField {
-    // Mat4 is column-major; transpose gives us row-major for ColorMatrix
-    ColorMatrix {
-        matrix: matrix.transpose().to_cols_array_2d(),
-    }
-    .apply(image)
 }
 
 /// Configuration for image position transformation.

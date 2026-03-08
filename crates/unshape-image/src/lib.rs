@@ -2207,27 +2207,26 @@ mod tests {
     }
 
     #[test]
-    fn test_color_matrix_function() {
-        use glam::Mat4;
-
+    fn test_color_matrix() {
         let data = vec![[1.0, 0.5, 0.25, 1.0]; 4];
         let img = ImageField::from_raw(data, 2, 2);
 
-        // Identity matrix
-        let result = color_matrix(&img, Mat4::IDENTITY);
-        let pixel = result.get_pixel(0, 0);
+        // Identity
+        let pixel = ColorMatrix::IDENTITY.apply(&img).get_pixel(0, 0);
         assert!((pixel[0] - 1.0).abs() < 1e-6);
         assert!((pixel[1] - 0.5).abs() < 1e-6);
         assert!((pixel[2] - 0.25).abs() < 1e-6);
 
-        // Grayscale using Mat4
-        let grayscale = Mat4::from_cols_array(&[
-            0.299, 0.299, 0.299, 0.0, // column 0
-            0.587, 0.587, 0.587, 0.0, // column 1
-            0.114, 0.114, 0.114, 0.0, // column 2
-            0.0, 0.0, 0.0, 1.0, // column 3
-        ]);
-        let result = color_matrix(&img, grayscale);
+        // Grayscale (row-major: each output channel = dot of row with [r, g, b, a])
+        let result = ColorMatrix {
+            matrix: [
+                [0.299, 0.587, 0.114, 0.0],
+                [0.299, 0.587, 0.114, 0.0],
+                [0.299, 0.587, 0.114, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+        }
+        .apply(&img);
         let pixel = result.get_pixel(0, 0);
         let expected_lum = 0.299 * 1.0 + 0.587 * 0.5 + 0.114 * 0.25;
         assert!((pixel[0] - expected_lum).abs() < 1e-5);
