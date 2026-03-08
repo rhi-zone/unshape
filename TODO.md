@@ -35,20 +35,16 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 > **Goal:** Split massive monolithic files into submodules for maintainability.
 
 **Critical:**
-- [ ] `unshape-image/src/lib.rs` (12,984 lines) → submodules by domain
-  - baking, convolve, channel, colorspace, adjust, dither/, distortion, pyramid, normals, inpaint, effects/, glitch/, frequency, expressions
-  - 52 sections with completely unrelated concerns (dithering, glitch art, frequency domain, inpainting, etc.)
+- [x] `unshape-image/src/lib.rs` (12,984 lines) → submodules by domain
+  - All 17 submodules extracted: adjust, bake, channel, colorspace, composite, distort, dither, effects, expr, freq, glitch, inpaint, int_ops, kernel, normal_map, pyramid, transform
+  - lib.rs now holds only core types + tests (~3,300 lines)
 
 **High:**
-- [ ] `unshape-audio/src/optimize.rs` (2,435 lines) → engine + passes
-  - Separate pattern matching engine (fingerprinting, structural match) from optimization passes (affine fusion, dead code, constant fold)
-  - Tier 2 optimized effects (Tremolo/Flanger/Chorus) into own module
-- [ ] `unshape-audio/src/graph.rs` (2,180 lines) → params, chain, mixer, swappable, nodes/
-  - 5 distinct subsystems: lock-free params, signal chain, mixer, AudioGraph, ~20 built-in node types
+- [x] `unshape-audio/src/optimize.rs` → `optimize/` submodule directory
+- [x] `unshape-audio/src/graph.rs` → `graph/` submodule directory
 
 **Medium:**
-- [ ] `unshape-mesh/src/edit.rs` (2,126 lines) → face_ops, vertex_ops, edge_ops
-  - Each operation is an independent op struct; natural split by target element type
+- [x] `unshape-mesh/src/edit.rs` → `edit/` submodule directory
 
 ### Warning Cleanup (2025-01-16)
 
@@ -605,8 +601,8 @@ Only `examples/*/main` functions remain above threshold (intentionally verbose).
 > **Goal:** Low-level bit manipulation for images - enables steganography, glitch art, compression analysis.
 
 **Types:**
-- [ ] `ImageFieldU8` - `[u8; 4]` per pixel, integer representation
-- [ ] `IntColorExpr` - integer color expressions with bitwise ops via dew
+- [x] `ImageFieldU8` - `[u8; 4]` per pixel, integer representation
+- [x] `IntColorExpr` - integer color expressions with bitwise ops via dew
 
 **Conversion ops:**
 - [ ] `ToInt { range: IntRange }` - f32 0-1 → integer in range
