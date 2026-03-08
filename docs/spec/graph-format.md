@@ -53,26 +53,26 @@ Each element of `wires` is a `SerialWire` with two string fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `from` | string | Source endpoint: `"nodeId:portIndex"` |
-| `to` | string | Destination endpoint: `"nodeId:portIndex"` |
+| `from` | string | Source endpoint: `"nodeId:portName"` |
+| `to` | string | Destination endpoint: `"nodeId:portName"` |
 
-Port indices are zero-based and correspond to the order returned by the node's `outputs()` and `inputs()` methods respectively.
+Port names come from `DynNode::output_port_names()` and `DynNode::input_port_names()`, which by default derive from the `name` field of each `PortDescriptor` returned by `outputs()` and `inputs()`.
 
-**Example wire** (connecting output port 0 of node 0 to input port 1 of node 2):
+**Example wire** (connecting the `value` output of node 0 to the `b` input of node 2):
 
 ```json
-{ "from": "0:0", "to": "2:1" }
+{ "from": "0:value", "to": "2:b" }
 ```
 
-The `"nodeId:portIndex"` format uses colon-separated integers. This is more readable than four separate integer fields and survives JSON reformatting.
+The `"nodeId:portName"` format is more readable than numeric indices and is refactoring-safe as long as port names don't change. Names are resolved back to numeric indices during deserialization by scanning the node's port descriptor list.
 
 ## Complete Example
 
 A three-node graph: two constant nodes feeding an add node.
 
 ```
-Const(2.0) --[port 0]--> Add --[output]
-Const(3.0) --[port 1]--> Add
+Const(2.0) --[value]--> Add(a) --[result]
+Const(3.0) --[value]--> Add(b)
 ```
 
 ```json
@@ -96,8 +96,8 @@ Const(3.0) --[port 1]--> Add
     }
   ],
   "wires": [
-    { "from": "0:0", "to": "2:0" },
-    { "from": "1:0", "to": "2:1" }
+    { "from": "0:value", "to": "2:a" },
+    { "from": "1:value", "to": "2:b" }
   ],
   "next_id": 3
 }
@@ -205,7 +205,7 @@ let graph = serial_to_graph(serial, &registry)?;
 | `SerdeError::Bincode(e)` | Bincode decode failure |
 | `SerdeError::BincodeEncode(e)` | Bincode encode failure |
 | `SerdeError::Graph(e)` | Graph reconstruction failed (e.g., invalid wire referencing missing node) |
-| `SerdeError::InvalidWireFormat(msg)` | Wire endpoint string is not valid `"nodeId:portIndex"` |
+| `SerdeError::InvalidWireFormat(msg)` | Wire endpoint string is not valid `"nodeId:portName"`, or the named port does not exist on the node |
 
 ## Versioning
 

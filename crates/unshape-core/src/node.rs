@@ -36,6 +36,20 @@ pub trait DynNode: Send + Sync + Any {
     /// Returns descriptors for all output ports.
     fn outputs(&self) -> Vec<PortDescriptor>;
 
+    /// Returns the names of all input ports, in order.
+    ///
+    /// Default implementation derives names from `inputs()` descriptors.
+    fn input_port_names(&self) -> Vec<&'static str> {
+        self.inputs().into_iter().map(|p| p.name).collect()
+    }
+
+    /// Returns the names of all output ports, in order.
+    ///
+    /// Default implementation derives names from `outputs()` descriptors.
+    fn output_port_names(&self) -> Vec<&'static str> {
+        self.outputs().into_iter().map(|p| p.name).collect()
+    }
+
     /// Executes the node with the given inputs and evaluation context.
     ///
     /// # Arguments

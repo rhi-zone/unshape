@@ -64,7 +64,21 @@ where
     let mut serial = SerialGraph {
         version: 1,
         nodes: Vec::new(),
-        wires: graph.wires().iter().map(SerialWire::from_wire).collect(),
+        wires: graph
+            .wires()
+            .iter()
+            .map(|w| {
+                let from_node = graph.get_node(w.from_node).map(|n| n.as_ref());
+                let to_node = graph.get_node(w.to_node).map(|n| n.as_ref());
+                match (from_node, to_node) {
+                    (Some(f), Some(t)) => SerialWire::from_wire(w, f, t),
+                    _ => SerialWire {
+                        from: format!("{}:out", w.from_node),
+                        to: format!("{}:in", w.to_node),
+                    },
+                }
+            })
+            .collect(),
         next_id: graph.next_id(),
     };
 
@@ -98,7 +112,24 @@ pub fn serial_to_graph(serial: SerialGraph, registry: &NodeRegistry) -> Result<G
     }
 
     for serial_wire in serial.wires {
-        let wire = serial_wire.to_wire()?;
+        // Parse node IDs first to look up nodes for port name resolution.
+        let from_node_id = SerialWire::node_id(&serial_wire.from)?;
+        let to_node_id = SerialWire::node_id(&serial_wire.to)?;
+
+        let from_node = graph.get_node(from_node_id).ok_or_else(|| {
+            SerdeError::InvalidWireFormat(format!(
+                "wire references unknown source node {}",
+                from_node_id
+            ))
+        })?;
+        let to_node = graph.get_node(to_node_id).ok_or_else(|| {
+            SerdeError::InvalidWireFormat(format!(
+                "wire references unknown destination node {}",
+                to_node_id
+            ))
+        })?;
+
+        let wire = serial_wire.to_wire(from_node.as_ref(), to_node.as_ref())?;
         graph.connect(wire.from_node, wire.from_port, wire.to_node, wire.to_port)?;
     }
 

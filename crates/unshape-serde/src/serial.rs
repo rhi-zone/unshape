@@ -3,7 +3,7 @@
 use crate::error::SerdeError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use unshape_core::{NodeId, Wire};
+use unshape_core::{DynNode, NodeId, Wire};
 
 /// Serializable representation of a node.
 ///
@@ -35,49 +35,84 @@ impl SerialNode {
     }
 }
 
-/// A wire in serialized form, using human-readable `"nodeId:portIndex"` strings.
+/// A wire in serialized form, using human-readable `"nodeId:portName"` strings.
 ///
-/// Example: `{ "from": "42:0", "to": "7:2" }` connects output port 0 of node 42
-/// to input port 2 of node 7.
+/// Example: `{ "from": "42:out", "to": "7:value" }` connects the `out` output port
+/// of node 42 to the `value` input port of node 7.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SerialWire {
-    /// Source endpoint: `"nodeId:portIndex"`.
+    /// Source endpoint: `"nodeId:portName"`.
     pub from: String,
-    /// Destination endpoint: `"nodeId:portIndex"`.
+    /// Destination endpoint: `"nodeId:portName"`.
     pub to: String,
 }
 
 impl SerialWire {
-    /// Converts a `Wire` to a `SerialWire`.
-    pub fn from_wire(w: &Wire) -> Self {
+    /// Converts a `Wire` to a `SerialWire` using port names from the connected nodes.
+    pub fn from_wire(w: &Wire, from_node: &dyn DynNode, to_node: &dyn DynNode) -> Self {
+        let from_names = from_node.output_port_names();
+        let from_name = from_names.get(w.from_port).copied().unwrap_or("out");
+        let to_names = to_node.input_port_names();
+        let to_name = to_names.get(w.to_port).copied().unwrap_or("in");
         Self {
-            from: format!("{}:{}", w.from_node, w.from_port),
-            to: format!("{}:{}", w.to_node, w.to_port),
+            from: format!("{}:{}", w.from_node, from_name),
+            to: format!("{}:{}", w.to_node, to_name),
         }
     }
 
-    /// Parses a `"nodeId:portIndex"` endpoint string.
-    fn parse_endpoint(s: &str) -> Result<(NodeId, usize), SerdeError> {
-        let (node_str, port_str) = s.split_once(':').ok_or_else(|| {
-            SerdeError::InvalidWireFormat(format!("expected \"nodeId:portIndex\", got {:?}", s))
+    /// Parses a `"nodeId:portName"` endpoint string.
+    fn parse_endpoint(s: &str) -> Result<(NodeId, &str), SerdeError> {
+        let (node_str, port_name) = s.split_once(':').ok_or_else(|| {
+            SerdeError::InvalidWireFormat(format!("expected \"nodeId:portName\", got {:?}", s))
         })?;
         let node_id: NodeId = node_str.parse().map_err(|_| {
             SerdeError::InvalidWireFormat(format!("invalid node id {:?}", node_str))
         })?;
-        let port: usize = port_str.parse().map_err(|_| {
-            SerdeError::InvalidWireFormat(format!("invalid port index {:?}", port_str))
-        })?;
-        Ok((node_id, port))
+        Ok((node_id, port_name))
     }
 
-    /// Converts this `SerialWire` back to a `Wire`.
-    pub fn to_wire(&self) -> Result<Wire, SerdeError> {
-        let (from_node, from_port) = Self::parse_endpoint(&self.from)?;
-        let (to_node, to_port) = Self::parse_endpoint(&self.to)?;
+    /// Parses only the node ID from a `"nodeId:portName"` endpoint string.
+    ///
+    /// Used by deserialization to look up nodes before resolving port names.
+    pub(crate) fn node_id(s: &str) -> Result<NodeId, SerdeError> {
+        Self::parse_endpoint(s).map(|(id, _)| id)
+    }
+
+    /// Converts this `SerialWire` back to a `Wire` using port names from the connected nodes.
+    pub fn to_wire(
+        &self,
+        from_node: &dyn DynNode,
+        to_node: &dyn DynNode,
+    ) -> Result<Wire, SerdeError> {
+        let (from_node_id, from_name) = Self::parse_endpoint(&self.from)?;
+        let (to_node_id, to_name) = Self::parse_endpoint(&self.to)?;
+
+        let from_port = from_node
+            .output_port_names()
+            .into_iter()
+            .position(|n| n == from_name)
+            .ok_or_else(|| {
+                SerdeError::InvalidWireFormat(format!(
+                    "node {} has no output port named {:?}",
+                    from_node_id, from_name
+                ))
+            })?;
+
+        let to_port = to_node
+            .input_port_names()
+            .into_iter()
+            .position(|n| n == to_name)
+            .ok_or_else(|| {
+                SerdeError::InvalidWireFormat(format!(
+                    "node {} has no input port named {:?}",
+                    to_node_id, to_name
+                ))
+            })?;
+
         Ok(Wire {
-            from_node,
+            from_node: from_node_id,
             from_port,
-            to_node,
+            to_node: to_node_id,
             to_port,
         })
     }
@@ -132,6 +167,49 @@ impl Default for SerialGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::any::Any;
+    use unshape_core::{EvalContext, GraphError, PortDescriptor, Value, ValueType};
+
+    struct ConstNode;
+    impl DynNode for ConstNode {
+        fn type_name(&self) -> &'static str {
+            "test::Const"
+        }
+        fn inputs(&self) -> Vec<PortDescriptor> {
+            vec![]
+        }
+        fn outputs(&self) -> Vec<PortDescriptor> {
+            vec![PortDescriptor::new("value", ValueType::F32)]
+        }
+        fn execute(&self, _: &[Value], _: &EvalContext) -> Result<Vec<Value>, GraphError> {
+            Ok(vec![Value::F32(0.0)])
+        }
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
+
+    struct AddNode;
+    impl DynNode for AddNode {
+        fn type_name(&self) -> &'static str {
+            "test::Add"
+        }
+        fn inputs(&self) -> Vec<PortDescriptor> {
+            vec![
+                PortDescriptor::new("a", ValueType::F32),
+                PortDescriptor::new("b", ValueType::F32),
+            ]
+        }
+        fn outputs(&self) -> Vec<PortDescriptor> {
+            vec![PortDescriptor::new("result", ValueType::F32)]
+        }
+        fn execute(&self, _: &[Value], _: &EvalContext) -> Result<Vec<Value>, GraphError> {
+            Ok(vec![Value::F32(0.0)])
+        }
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
 
     #[test]
     fn test_serial_node_new() {
@@ -152,36 +230,62 @@ mod tests {
 
     #[test]
     fn test_serial_wire_roundtrip() {
+        // ConstNode: output port 0 = "value"
+        // AddNode: input port 0 = "a"
         let wire = Wire {
             from_node: 42,
             from_port: 0,
             to_node: 7,
-            to_port: 2,
+            to_port: 0,
         };
-        let serial = SerialWire::from_wire(&wire);
-        assert_eq!(serial.from, "42:0");
-        assert_eq!(serial.to, "7:2");
+        let serial = SerialWire::from_wire(&wire, &ConstNode, &AddNode);
+        assert_eq!(serial.from, "42:value");
+        assert_eq!(serial.to, "7:a");
 
-        let recovered = serial.to_wire().unwrap();
+        let recovered = serial.to_wire(&ConstNode, &AddNode).unwrap();
         assert_eq!(recovered.from_node, 42);
         assert_eq!(recovered.from_port, 0);
         assert_eq!(recovered.to_node, 7);
-        assert_eq!(recovered.to_port, 2);
+        assert_eq!(recovered.to_port, 0);
+    }
+
+    #[test]
+    fn test_serial_wire_named_port_second_input() {
+        // AddNode output port 0 = "result"; AddNode input port 1 = "b"
+        let wire = Wire {
+            from_node: 1,
+            from_port: 0,
+            to_node: 2,
+            to_port: 1,
+        };
+        let serial = SerialWire::from_wire(&wire, &AddNode, &AddNode);
+        assert_eq!(serial.from, "1:result");
+        assert_eq!(serial.to, "2:b");
+
+        let recovered = serial.to_wire(&AddNode, &AddNode).unwrap();
+        assert_eq!(recovered.from_port, 0);
+        assert_eq!(recovered.to_port, 1);
     }
 
     #[test]
     fn test_serial_wire_invalid_format() {
         let bad = SerialWire {
             from: "not-valid".to_string(),
-            to: "0:0".to_string(),
+            to: "0:a".to_string(),
         };
-        assert!(bad.to_wire().is_err());
+        assert!(bad.to_wire(&ConstNode, &AddNode).is_err());
 
-        let bad2 = SerialWire {
-            from: "abc:0".to_string(),
-            to: "0:0".to_string(),
+        let bad_node_id = SerialWire {
+            from: "abc:value".to_string(),
+            to: "0:a".to_string(),
         };
-        assert!(bad2.to_wire().is_err());
+        assert!(bad_node_id.to_wire(&ConstNode, &AddNode).is_err());
+
+        let unknown_port = SerialWire {
+            from: "0:nonexistent".to_string(),
+            to: "1:a".to_string(),
+        };
+        assert!(unknown_port.to_wire(&ConstNode, &AddNode).is_err());
     }
 
     #[test]
@@ -218,12 +322,17 @@ mod tests {
             "test::Const",
             serde_json::json!({"value": 5.0}),
         ));
-        graph.wires.push(SerialWire::from_wire(&Wire {
-            from_node: 1,
-            from_port: 0,
-            to_node: 0,
-            to_port: 0,
-        }));
+        // ConstNode output "value" -> AddNode input "a"
+        graph.wires.push(SerialWire::from_wire(
+            &Wire {
+                from_node: 1,
+                from_port: 0,
+                to_node: 0,
+                to_port: 0,
+            },
+            &ConstNode,
+            &AddNode,
+        ));
         graph.next_id = 2;
 
         let json = serde_json::to_string_pretty(&graph).unwrap();
@@ -233,14 +342,14 @@ mod tests {
             json.contains("\"params\": {"),
             "params should be a JSON object in output:\n{json}"
         );
-        // wires must use the "from"/"to" string format
+        // wires must use named port format
         assert!(
-            json.contains("\"from\": \"1:0\""),
-            "wire 'from' should be a string:\n{json}"
+            json.contains("\"from\": \"1:value\""),
+            "wire 'from' should use named port:\n{json}"
         );
         assert!(
-            json.contains("\"to\": \"0:0\""),
-            "wire 'to' should be a string:\n{json}"
+            json.contains("\"to\": \"0:a\""),
+            "wire 'to' should use named port:\n{json}"
         );
         // version field should be present
         assert!(
@@ -256,8 +365,10 @@ mod tests {
         assert_eq!(loaded.next_id, 2);
         assert_eq!(loaded.nodes[0].type_name, "test::Add");
 
-        let recovered_wire = loaded.wires[0].to_wire().unwrap();
+        let recovered_wire = loaded.wires[0].to_wire(&ConstNode, &AddNode).unwrap();
         assert_eq!(recovered_wire.from_node, 1);
         assert_eq!(recovered_wire.to_node, 0);
+        assert_eq!(recovered_wire.from_port, 0);
+        assert_eq!(recovered_wire.to_port, 0);
     }
 }
