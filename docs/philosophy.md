@@ -137,6 +137,60 @@ let result = graph.execute(input)?;          // Value enum at runtime
 
 Node authors write concrete types, derive macros generate dynamic wrappers.
 
+## Graph is Artifact, Signals are Ephemeral
+
+The graph encodes *structure and response* — how a system behaves given input. Signals (time, live audio, external data feeds, user interaction) are consumed at evaluation time but not stored in the graph. Replaying the same graph at a different time, with a different signal, produces different output: this is intentional.
+
+**The graph is the artwork. Its expression is ephemeral.**
+
+Implications:
+- Graphs must be fully serializable — the artifact must be preservable and distributable
+- Signal sources are injected by the host, not embedded in the graph
+- Replay semantics are well-defined: same graph + different context = different expression, not a bug
+- A graph's "content" at any moment belongs to the signal as much as the author
+
+This principle is also a design test: if anything about Unshape makes signal sources feel like they belong *inside* the graph, or makes replay feel like a special case, the design has regressed.
+
+## Signal-Driven Experiences
+
+A key motivating use case for Unshape: experiences where the creator authors a *response system* — how media behaves given input — while the driving signal comes from elsewhere.
+
+Think of a visualizer authored for a specific track. The peaks, cuts, and choreography are all responses to that music's structure. Now feed it a different track: the visualizer's latent expectations collide with input it wasn't designed for, and the result belongs to neither author. This kind of work requires genuine decoupling between the response system and the signal — something most generative tools assume away.
+
+Unshape's node inputs are (or can be) live signals. Any input port can be driven by time, audio, sensor data, another graph's output, or anything the host provides. This isn't an add-on; it's what it means for a node graph to be fully general.
+
+**Design test:** Can a response system authored for one signal be driven by a completely different one? If not, the decoupling isn't real.
+
+## Realtime as a First-Class Concern
+
+Unshape must hold under realtime constraints, not just offline batch use. There are two distinct realtime concerns with different optimization targets:
+
+### Realtime Replay
+
+The graph is stable; context streams in continuously. Optimize for **throughput and jitter**: can the graph keep up with the signal frame-to-frame or sample-to-sample?
+
+- JIT compilation, SIMD, GPU offload, block processing
+- Stateful nodes are fine — you're always advancing forward in time
+- Seeking is generally irrelevant; the signal is live
+
+This is the signal-driven experiences case. The `StreamingEvaluator` and block-based audio processing are architectural commitments here.
+
+### Realtime Editing
+
+The graph is changing; the author is tweaking parameters and expects to see the output update immediately. Optimize for **time from change to updated output**.
+
+- Dirty tracking, incremental recomputation, aggressive caching of unchanged subgraphs
+- Stateful nodes are tricky: changing a parameter upstream of a stateful node (e.g. a filter, a physics sim) may require re-simulating from the beginning to produce a correct result — or accepting a discontinuity. This is the `SeekBehavior` tradeoff in `time-models.md`.
+- Seeking/scrubbing the timeline is essential
+
+This is the media editing substrate case — the graph as project file, think `.psd` but 100× smaller and fully rewindable (at the cost of replaying from the last checkpoint).
+
+---
+
+These two concerns also differ in what's moving: during replay, the graph is fixed and signals flow through it; during editing, the graph itself is being mutated. Both must be designed for. Any gap where either feels like a second-class citizen is a design deficit.
+
+Signal ingestion and output surfaces (display, speakers, network) are the host's responsibility. Unshape provides the graph substrate that consumes context and produces values.
+
 ## Host Controls Runtime
 
 Graphs adapt to host environment, not vice versa:
