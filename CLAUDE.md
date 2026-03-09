@@ -2,7 +2,7 @@
 
 Behavioral rules for Claude Code working in this repository.
 
-**Unshape goal:** Constructive generation and manipulation of media - 3D meshes/rigging, 2D vector art/rigging, audio, textures/noise. See `docs/philosophy.md` for design philosophy and `docs/prior-art.md` for references.
+**Unshape goal:** Constructive generation and manipulation of media - 3D meshes/rigging, 2D vector art/rigging, audio, textures/noise. Designed as a substrate for both archival/reproducible work (graph as project file, fully rewindable) and live signal-driven experiences (any node input can be a live signal). Realtime is a first-class concern, not an afterthought. See `docs/philosophy.md` for design philosophy and `docs/prior-art.md` for references.
 
 **Bevy compatibility:** Compatible with bevy ecosystem but no hard dependency. Use individual bevy crates (e.g., `bevy_math`, `bevy_reflect`) where useful. Core types should be convertible to/from bevy equivalents.
 
