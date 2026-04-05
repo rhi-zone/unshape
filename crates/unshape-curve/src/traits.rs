@@ -109,6 +109,50 @@ pub trait Curve: Clone {
         sum
     }
 
+    /// Computes the arc length from t=0 to the given parameter t ∈ [0, 1].
+    fn arc_length_to(&self, t: f32) -> f32 {
+        // 5-point Gaussian quadrature scaled to [0, t]
+        const WEIGHTS: [f32; 5] = [
+            0.2369269 * 0.5,
+            0.4786287 * 0.5,
+            0.5688889 * 0.5,
+            0.4786287 * 0.5,
+            0.2369269 * 0.5,
+        ];
+        const POINTS: [f32; 5] = [0.0469101, 0.2307653, 0.5, 0.7692347, 0.9530899];
+
+        let mut sum = 0.0;
+        for (w, p) in WEIGHTS.iter().zip(POINTS.iter()) {
+            sum += w * self.tangent_at(p * t).length();
+        }
+        sum * t
+    }
+
+    /// Evaluates the curve at a given arc length distance from the start.
+    ///
+    /// Returns the point at arc length `s` in `[0, self.length()]`.
+    /// Uses binary search on the parametric parameter to find `t` where
+    /// `arc_length_to(t) ≈ s`. ~20 iterations of bisection are used.
+    fn evaluate_at_arc_length(&self, s: f32) -> Self::Point {
+        let total = self.length();
+        if total <= 0.0 {
+            return self.position_at(0.0);
+        }
+        let s = s.clamp(0.0, total);
+
+        let mut lo = 0.0_f32;
+        let mut hi = 1.0_f32;
+        for _ in 0..20 {
+            let mid = (lo + hi) * 0.5;
+            if self.arc_length_to(mid) < s {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        self.position_at((lo + hi) * 0.5)
+    }
+
     /// Sample points for rendering using adaptive subdivision.
     fn flatten(&self, tolerance: f32) -> Vec<Self::Point> {
         let mut points = vec![self.start()];
