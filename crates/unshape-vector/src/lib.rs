@@ -51,11 +51,25 @@ pub use network::{
     Anchor, AnchorId, Edge, EdgeHandle, EdgeId, EdgeType, HandleStyle, Region, VectorNetwork,
 };
 pub use path::{
+    // Types
+    Circle,
     CornerRadii,
+    Ellipse,
+    LinePath,
     Path,
     PathBuilder,
     PathCommand,
-    // Primitives
+    Pill,
+    Polygon,
+    Polyline,
+    Rect,
+    RectCentered,
+    RegularPolygon,
+    RoundedRect,
+    RoundedRectCorners,
+    Squircle,
+    Star,
+    // Free-function sugar
     circle,
     ellipse,
     line,
