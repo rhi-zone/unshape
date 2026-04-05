@@ -1590,7 +1590,11 @@ mod tests {
         // Wiggle should produce values in range
         for i in 0..10 {
             let v = motion.at(i as f32 * 0.1);
-            assert!((-1.5..=1.5).contains(&v), "Wiggle out of expected range: {}", v);
+            assert!(
+                (-1.5..=1.5).contains(&v),
+                "Wiggle out of expected range: {}",
+                v
+            );
         }
     }
 
