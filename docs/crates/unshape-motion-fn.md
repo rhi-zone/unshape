@@ -11,10 +11,33 @@ Also includes `MotionExpr`, a typed expression AST for motion that enables UI in
 ## Related Crates
 
 - **unshape-field** - Core `Field` trait that motion functions implement
-- **unshape-easing** - Easing functions used by `Eased` motion
+- **unshape-easing** - Easing functions used by `Eased` motion and per-segment easing in `Keyframes`
+- **unshape-curve** - `Curve` trait consumed by `PathFollow` for arc-length traversal
 - **unshape-noise** - Perlin noise used by `Wiggle` motion
 - **unshape-motion** - Scene graph that uses motion functions for layer animation
 - **unshape-expr-field** - Similar typed AST for spatial fields (`FieldExpr`)
+
+## Multi-Stop Timelines
+
+`Keyframes<T>` defines a multi-stop timeline where each segment can have its own easing function. The stops are (time, value) pairs; between consecutive stops the value is interpolated using the segment's easing.
+
+```rust
+let ks = Keyframes::new(vec![
+    (0.0, 0.0),
+    (0.5, 80.0),
+    (1.0, 100.0),
+], vec![EasingType::CubicIn, EasingType::CubicOut]);
+let v = ks.at(0.25); // somewhere between 0 and 80, eased
+```
+
+## Path Following
+
+`PathFollow<C>` wraps any type implementing `Curve` and maps a time value to a position along the curve using arc-length parameterization, so motion proceeds at uniform speed regardless of control-point spacing. An optional `Easing` controls how time maps to arc-length.
+
+```rust
+let follow = PathFollow::new(my_curve, duration, EasingType::CubicInOut);
+let pos = follow.at(t); // uniform-speed position along curve
+```
 
 ## Motion Functions
 
