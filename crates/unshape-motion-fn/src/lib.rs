@@ -4,9 +4,11 @@
 //! - [`Constant`] - constant value
 //! - [`Lerp`] - linear interpolation
 //! - [`Eased`] - eased interpolation with any easing function
+//! - [`Keyframes`] - multi-stop timeline with per-segment easing
 //! - [`Spring`] - critically damped spring motion
 //! - [`Oscillate`] - sine wave oscillation
 //! - [`Wiggle`] - noise-based random motion
+//! - [`PathFollow`] - arc-length-parameterized motion along a curve
 //!
 //! All motion functions implement `Field<f32, T>` where the input is time
 //! and the output is the animated value.
@@ -257,6 +259,129 @@ impl_eased_motion!(Vec3, Vec3::lerp);
 impl_field_for_motion!(Eased<f32>, f32);
 impl_field_for_motion!(Eased<Vec2>, Vec2);
 impl_field_for_motion!(Eased<Vec3>, Vec3);
+
+// ============================================================================
+// Keyframes (multi-stop animation timeline)
+// ============================================================================
+
+/// A single keyframe in an animation timeline.
+///
+/// The `easing` field controls interpolation *from* this keyframe *to* the next.
+/// The easing on the last keyframe is unused.
+#[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(bound(
+        serialize = "T: serde::Serialize",
+        deserialize = "T: serde::de::DeserializeOwned"
+    ))
+)]
+pub struct Keyframe<T> {
+    /// Time of this keyframe.
+    pub time: f32,
+    /// Value at this keyframe.
+    pub value: T,
+    /// Easing from this keyframe to the next.
+    pub easing: unshape_easing::Easing,
+}
+
+/// Multi-stop animation timeline with per-segment easing.
+///
+/// Evaluates to the interpolated value at any point in time:
+/// - Before the first keyframe: clamps to the first value.
+/// - After the last keyframe: clamps to the last value.
+/// - Between two keyframes: normalizes `t` into `[0, 1]` within that segment,
+///   applies the segment's easing, then lerps between the two values.
+///
+/// # Example
+///
+/// ```
+/// use unshape_motion_fn::{Keyframe, Keyframes, Motion};
+/// use unshape_easing::Easing;
+///
+/// let anim = Keyframes::new(vec![
+///     Keyframe { time: 0.0, value: 0.0_f32, easing: Easing::Linear },
+///     Keyframe { time: 1.0, value: 100.0_f32, easing: Easing::CubicInOut },
+///     Keyframe { time: 2.0, value: 50.0_f32, easing: Easing::Linear },
+/// ]);
+///
+/// let v = anim.at(0.5);  // halfway through first segment
+/// ```
+#[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(bound(
+        serialize = "T: serde::Serialize",
+        deserialize = "T: serde::de::DeserializeOwned"
+    ))
+)]
+pub struct Keyframes<T> {
+    /// The keyframes in this timeline, should be sorted by time.
+    pub keyframes: Vec<Keyframe<T>>,
+}
+
+impl<T: Clone + unshape_easing::Lerp> Keyframes<T> {
+    /// Creates a new keyframe timeline.
+    ///
+    /// Keyframes should be sorted by `time` in ascending order.
+    pub fn new(keyframes: Vec<Keyframe<T>>) -> Self {
+        Self { keyframes }
+    }
+
+    /// Creates a keyframe timeline with linear easing between all stops.
+    pub fn from_pairs(pairs: impl IntoIterator<Item = (f32, T)>) -> Self {
+        let keyframes = pairs
+            .into_iter()
+            .map(|(time, value)| Keyframe {
+                time,
+                value,
+                easing: unshape_easing::Easing::Linear,
+            })
+            .collect();
+        Self { keyframes }
+    }
+
+    /// Get the interpolated value at time `t`.
+    pub fn at(&self, t: f32) -> T {
+        let kfs = &self.keyframes;
+        if kfs.is_empty() {
+            panic!("Keyframes must have at least one keyframe");
+        }
+        // Clamp before first keyframe
+        if t <= kfs[0].time {
+            return kfs[0].value.clone();
+        }
+        // Clamp after last keyframe
+        let last = &kfs[kfs.len() - 1];
+        if t >= last.time {
+            return last.value.clone();
+        }
+        // Find the segment: last keyframe with time <= t
+        let idx = kfs.partition_point(|kf| kf.time <= t) - 1;
+        let from = &kfs[idx];
+        let to = &kfs[idx + 1];
+        let segment_len = to.time - from.time;
+        let local_t = if segment_len > 0.0 {
+            (t - from.time) / segment_len
+        } else {
+            1.0
+        };
+        let eased_t = from.easing.ease(local_t);
+        from.value.lerp_to(&to.value, eased_t)
+    }
+}
+
+impl<T: Clone + unshape_easing::Lerp> Motion<T> for Keyframes<T> {
+    fn at(&self, t: f32) -> T {
+        Keyframes::at(self, t)
+    }
+}
+
+impl_field_for_motion!(Keyframes<f32>, f32);
+impl_field_for_motion!(Keyframes<Vec2>, Vec2);
+impl_field_for_motion!(Keyframes<Vec3>, Vec3);
 
 // ============================================================================
 // Spring (critically damped spring motion)
@@ -1338,6 +1463,58 @@ impl MotionExpr {
 }
 
 // ============================================================================
+// PathFollow
+// ============================================================================
+
+/// Animates a position along a curve at constant speed (arc-length parameterized).
+///
+/// The input time `t` is normalized over `duration` to a progress in [0, 1].
+/// The easing is applied to the progress, and the result is used to look up a
+/// position on the curve via arc-length parameterization (constant speed).
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct PathFollow<C> {
+    /// The curve to follow.
+    pub curve: C,
+    /// Time to traverse the full curve length.
+    pub duration: f32,
+    /// Easing applied to the [0, 1] progress before arc-length lookup.
+    pub easing: EasingType,
+}
+
+impl<C> PathFollow<C> {
+    /// Creates a new `PathFollow` motion.
+    pub fn new(curve: C, duration: f32, easing: EasingType) -> Self {
+        Self {
+            curve,
+            duration,
+            easing,
+        }
+    }
+}
+
+impl<C> Motion<C::Point> for PathFollow<C>
+where
+    C: unshape_curve::Curve + Clone,
+{
+    fn at(&self, t: f32) -> C::Point {
+        let progress = (t / self.duration).clamp(0.0, 1.0);
+        let eased = self.easing.apply(progress);
+        let arc_length = eased * self.curve.length();
+        self.curve.evaluate_at_arc_length(arc_length)
+    }
+}
+
+impl<C> Field<f32, C::Point> for PathFollow<C>
+where
+    C: unshape_curve::Curve + Clone,
+{
+    fn sample(&self, t: f32, _ctx: &EvalContext) -> C::Point {
+        Motion::at(self, t)
+    }
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -1413,7 +1590,7 @@ mod tests {
         // Wiggle should produce values in range
         for i in 0..10 {
             let v = motion.at(i as f32 * 0.1);
-            assert!(v >= -1.5 && v <= 1.5, "Wiggle out of expected range: {}", v);
+            assert!((-1.5..=1.5).contains(&v), "Wiggle out of expected range: {}", v);
         }
     }
 

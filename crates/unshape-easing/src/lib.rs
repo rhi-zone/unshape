@@ -355,6 +355,17 @@ impl Easing {
         }
     }
 
+    /// Returns a boxed closure that evaluates this easing.
+    ///
+    /// Unlike [`as_fn`](Easing::as_fn), this works for all variants including
+    /// [`Easing::CubicBezier`].
+    pub fn to_fn(self) -> Box<dyn Fn(f32) -> f32> {
+        match self {
+            Easing::CubicBezier(cb) => Box::new(move |t| cb.apply(t)),
+            other => Box::new(move |t| other.ease(t)),
+        }
+    }
+
     /// Returns the corresponding function pointer.
     ///
     /// # Panics
@@ -362,6 +373,9 @@ impl Easing {
     /// Panics if called on `Easing::CubicBezier`, because a closure capturing
     /// the control-point parameters cannot be coerced to a bare `fn` pointer.
     /// Use [`Easing::ease`] directly for `CubicBezier` variants.
+    #[deprecated(
+        note = "Use `.ease(t)` for single evaluations or `.to_fn()` for a closure. `as_fn()` panics for `CubicBezier` variants."
+    )]
     pub fn as_fn(self) -> EaseFn {
         match self {
             Easing::Linear => linear,
@@ -782,7 +796,8 @@ where
         + std::ops::Mul<f32, Output = T>
         + Copy,
 {
-    ease_value(start, end, t, easing.as_fn())
+    let eased = easing.ease(t.clamp(0.0, 1.0));
+    start + (end - start) * eased
 }
 
 /// Applies an easing function to a [`Lerp`] type.
@@ -1405,6 +1420,7 @@ mod invariant_tests {
         // reverse(0, f) should be 1 - f(1) = 1 - 1 = 0
         // reverse(1, f) should be 1 - f(0) = 1 - 0 = 1
         for (easing, name) in ALL_EASINGS {
+            #[allow(deprecated)]
             let ease_fn = easing.as_fn();
 
             let at_zero = reverse(0.0, ease_fn);
@@ -1479,6 +1495,7 @@ mod invariant_tests {
     #[test]
     fn test_mirror_boundary_conditions() {
         for (easing, name) in ALL_EASINGS {
+            #[allow(deprecated)]
             let ease_fn = easing.as_fn();
             let start = mirror(0.0, ease_fn);
             let end = mirror(1.0, ease_fn);
@@ -1505,6 +1522,7 @@ mod invariant_tests {
         let end = 200.0f32;
 
         for (easing, _) in ALL_EASINGS {
+            #[allow(deprecated)]
             let ease_fn = easing.as_fn();
 
             // At t=0, should be start
