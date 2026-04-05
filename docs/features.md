@@ -7,7 +7,7 @@ Index of unshape's crates organized by domain. See individual crate docs in `doc
 | Crate | Description |
 |-------|-------------|
 | **unshape-audio** | Procedural audio synthesis (FM, wavetable, granular, physical modeling), effects (reverb, delay, filters), spectral processing (FFT/STFT), signal routing |
-| **unshape-easing** | 31 easing functions (quad, cubic, elastic, bounce, etc.) with in/out/inout variants |
+| **unshape-easing** | 31 easing functions (quad, cubic, elastic, bounce, etc.) with in/out/inout variants; `CubicBezierEasing` with CSS named constructors (`ease`, `ease_in`, `ease_out`, `ease_in_out`, `linear`) |
 
 ## Mesh & 3D Geometry
 
@@ -19,13 +19,13 @@ Index of unshape's crates organized by domain. See individual crate docs in `doc
 | **unshape-voxel** | Dense and sparse voxel grids, morphological ops, greedy meshing |
 | **unshape-surface** | NURBS tensor product surfaces |
 | **unshape-spline** | Curves: cubic Bezier, Catmull-Rom, B-spline, NURBS |
-| **unshape-curve** | Unified `Curve` trait, 2D/3D segment types, arc-length paths |
+| **unshape-curve** | Unified `Curve` trait, 2D/3D segment types, arc-length paths; `arc_length_to(t)` and `evaluate_at_arc_length(s)` for uniform-speed traversal |
 
 ## 2D Vector Graphics
 
 | Crate | Description |
 |-------|-------------|
-| **unshape-vector** | 2D paths, boolean ops, stroke/offset, path trim, triangulation, vector networks, gradient meshes, text-to-path, hatching, SVG import/export |
+| **unshape-vector** | 2D paths, boolean ops, stroke/offset, path trim, triangulation, vector networks, gradient meshes, text-to-path, hatching, SVG import/export; shape primitives (`Circle`, `Rect`, `Star`, `Ellipse`, `Pill`, `Squircle`, `RoundedRect`, etc.) as serializable op structs |
 
 ## Image & Texture
 
@@ -45,7 +45,7 @@ Index of unshape's crates organized by domain. See individual crate docs in `doc
 |-------|-------------|
 | **unshape-rig** | Skeleton/bones, animation clips, blending/layers, IK (FABRIK, CCD), motion matching, procedural walk, secondary motion (jiggle, follow-through), skinning |
 | **unshape-easing** | Animation easing functions |
-| **unshape-motion-fn** | Motion functions: Spring, Oscillate, Wiggle, Eased, Lerp; typed MotionExpr AST; dew expression integration |
+| **unshape-motion-fn** | Motion functions: Spring, Oscillate, Wiggle, Eased, Lerp; `Keyframes<T>` multi-stop timeline with per-segment easing; `PathFollow<C>` arc-length-parameterized curve following; typed MotionExpr AST; dew expression integration |
 | **unshape-motion** | 2D motion graphics scene graph: Transform2D with anchor point, Layer hierarchy, blend modes, opacity |
 
 ## Physics
@@ -122,7 +122,7 @@ Index of unshape's crates organized by domain. See individual crate docs in `doc
 | 2D Vector | 1 | Paths, booleans, networks, gradients, text, SVG |
 | Image | 1 | Convolution, color adjust, distortion, pyramids |
 | Color | 1 | Color spaces, gradients, blend modes |
-| Animation | 4 | Skeleton, IK, motion matching, easing, motion functions, 2D scene graph |
+| Animation | 4 | Skeleton, IK, motion matching, easing (incl. cubic-bezier), motion functions (keyframes, path follow), 2D scene graph |
 | Physics | 4 | Rigid body, soft body, cloth, springs, particles, fluids |
 | Procedural | 6 | Noise, automata, WFC, L-systems, reaction-diffusion |
 | Spatial | 1 | Quadtree, octree, BVH, spatial hash, R-tree |
