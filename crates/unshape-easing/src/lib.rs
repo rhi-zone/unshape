@@ -763,12 +763,12 @@ pub fn stepped(t: f32, steps: u32) -> f32 {
 }
 
 /// Applies an easing function with reversed direction.
-pub fn reverse(t: f32, ease_fn: EaseFn) -> f32 {
+pub fn reverse(t: f32, ease_fn: impl Fn(f32) -> f32) -> f32 {
     1.0 - ease_fn(1.0 - t)
 }
 
 /// Applies an easing function mirrored around the midpoint.
-pub fn mirror(t: f32, ease_fn: EaseFn) -> f32 {
+pub fn mirror(t: f32, ease_fn: impl Fn(f32) -> f32) -> f32 {
     if t < 0.5 {
         ease_fn(t * 2.0) / 2.0
     } else {
@@ -777,7 +777,7 @@ pub fn mirror(t: f32, ease_fn: EaseFn) -> f32 {
 }
 
 /// Applies an easing to a value range.
-pub fn ease_value<T>(start: T, end: T, t: f32, ease_fn: EaseFn) -> T
+pub fn ease_value<T>(start: T, end: T, t: f32, ease_fn: impl Fn(f32) -> f32) -> T
 where
     T: std::ops::Add<Output = T>
         + std::ops::Sub<Output = T>
@@ -820,8 +820,8 @@ pub fn ease_lerp<T: Lerp>(start: &T, end: &T, t: f32, easing: Easing) -> T {
     start.lerp_to(end, eased)
 }
 
-/// Applies an easing function pointer to a [`Lerp`] type.
-pub fn ease_lerp_fn<T: Lerp>(start: &T, end: &T, t: f32, ease_fn: EaseFn) -> T {
+/// Applies an easing function to a [`Lerp`] type.
+pub fn ease_lerp_fn<T: Lerp>(start: &T, end: &T, t: f32, ease_fn: impl Fn(f32) -> f32) -> T {
     let eased = ease_fn(t.clamp(0.0, 1.0));
     start.lerp_to(end, eased)
 }
@@ -1420,11 +1420,8 @@ mod invariant_tests {
         // reverse(0, f) should be 1 - f(1) = 1 - 1 = 0
         // reverse(1, f) should be 1 - f(0) = 1 - 0 = 1
         for (easing, name) in ALL_EASINGS {
-            #[allow(deprecated)]
-            let ease_fn = easing.as_fn();
-
-            let at_zero = reverse(0.0, ease_fn);
-            let at_one = reverse(1.0, ease_fn);
+            let at_zero = reverse(0.0, |t| easing.ease(t));
+            let at_one = reverse(1.0, |t| easing.ease(t));
 
             assert!(
                 at_zero.abs() < 0.001,
@@ -1495,10 +1492,8 @@ mod invariant_tests {
     #[test]
     fn test_mirror_boundary_conditions() {
         for (easing, name) in ALL_EASINGS {
-            #[allow(deprecated)]
-            let ease_fn = easing.as_fn();
-            let start = mirror(0.0, ease_fn);
-            let end = mirror(1.0, ease_fn);
+            let start = mirror(0.0, |t| easing.ease(t));
+            let end = mirror(1.0, |t| easing.ease(t));
 
             assert!(
                 start.abs() < 0.001,
@@ -1522,11 +1517,8 @@ mod invariant_tests {
         let end = 200.0f32;
 
         for (easing, _) in ALL_EASINGS {
-            #[allow(deprecated)]
-            let ease_fn = easing.as_fn();
-
             // At t=0, should be start
-            let at_zero = ease_value(start, end, 0.0, ease_fn);
+            let at_zero = ease_value(start, end, 0.0, |t| easing.ease(t));
             assert!(
                 (at_zero - start).abs() < 0.01,
                 "{:?}: ease_value at t=0 should be start",
@@ -1534,7 +1526,7 @@ mod invariant_tests {
             );
 
             // At t=1, should be end
-            let at_one = ease_value(start, end, 1.0, ease_fn);
+            let at_one = ease_value(start, end, 1.0, |t| easing.ease(t));
             assert!(
                 (at_one - end).abs() < 0.01,
                 "{:?}: ease_value at t=1 should be end",
