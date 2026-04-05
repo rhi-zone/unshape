@@ -109,8 +109,144 @@ impl<T: Lerp, const N: usize> Lerp for [T; N] {
 /// Easing function type.
 pub type EaseFn = fn(f32) -> f32;
 
+// ============================================================================
+// CubicBezierEasing
+// ============================================================================
+
+/// A CSS-style cubic bezier timing curve defined by two interior control points.
+///
+/// The curve always passes through (0, 0) and (1, 1). The two control points
+/// `(x1, y1)` and `(x2, y2)` shape the curve between those endpoints, matching
+/// the CSS `cubic-bezier()` timing function exactly.
+///
+/// # Named constructors
+/// ```
+/// use unshape_easing::CubicBezierEasing;
+/// let ease     = CubicBezierEasing::ease();
+/// let ease_in  = CubicBezierEasing::ease_in();
+/// let ease_out = CubicBezierEasing::ease_out();
+/// let linear   = CubicBezierEasing::linear();
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CubicBezierEasing {
+    pub x1: f32,
+    pub y1: f32,
+    pub x2: f32,
+    pub y2: f32,
+}
+
+impl CubicBezierEasing {
+    /// CSS `ease` — `cubic-bezier(0.25, 0.1, 0.25, 1.0)`.
+    #[inline]
+    pub fn ease() -> Self {
+        Self {
+            x1: 0.25,
+            y1: 0.1,
+            x2: 0.25,
+            y2: 1.0,
+        }
+    }
+
+    /// CSS `ease-in` — `cubic-bezier(0.42, 0.0, 1.0, 1.0)`.
+    #[inline]
+    pub fn ease_in() -> Self {
+        Self {
+            x1: 0.42,
+            y1: 0.0,
+            x2: 1.0,
+            y2: 1.0,
+        }
+    }
+
+    /// CSS `ease-out` — `cubic-bezier(0.0, 0.0, 0.58, 1.0)`.
+    #[inline]
+    pub fn ease_out() -> Self {
+        Self {
+            x1: 0.0,
+            y1: 0.0,
+            x2: 0.58,
+            y2: 1.0,
+        }
+    }
+
+    /// CSS `ease-in-out` — `cubic-bezier(0.42, 0.0, 0.58, 1.0)`.
+    #[inline]
+    pub fn ease_in_out() -> Self {
+        Self {
+            x1: 0.42,
+            y1: 0.0,
+            x2: 0.58,
+            y2: 1.0,
+        }
+    }
+
+    /// CSS `linear` — `cubic-bezier(0.0, 0.0, 1.0, 1.0)`.
+    #[inline]
+    pub fn linear() -> Self {
+        Self {
+            x1: 0.0,
+            y1: 0.0,
+            x2: 1.0,
+            y2: 1.0,
+        }
+    }
+
+    /// Evaluates the CSS cubic-bezier timing function at `t` in [0, 1].
+    ///
+    /// Uses Newton's method to find the bezier parameter `u` such that
+    /// `x(u) == t`, then returns `y(u)`.
+    pub fn apply(&self, t: f32) -> f32 {
+        // Handle boundary cases exactly.
+        if t <= 0.0 {
+            return 0.0;
+        }
+        if t >= 1.0 {
+            return 1.0;
+        }
+
+        let x1 = self.x1;
+        let x2 = self.x2;
+        let y1 = self.y1;
+        let y2 = self.y2;
+
+        // Bezier x-coordinate as a function of parameter u:
+        //   x(u) = 3*(1-u)^2*u*x1 + 3*(1-u)*u^2*x2 + u^3
+        // Derivative:
+        //   dx/du = 3*(1-u)^2*x1 + 6*(1-u)*u*(x2-x1) + 3*u^2*(1-x2)
+        let bezier_x = |u: f32| -> f32 {
+            let one_minus_u = 1.0 - u;
+            3.0 * one_minus_u * one_minus_u * u * x1 + 3.0 * one_minus_u * u * u * x2 + u * u * u
+        };
+        let bezier_dx = |u: f32| -> f32 {
+            let one_minus_u = 1.0 - u;
+            3.0 * one_minus_u * one_minus_u * x1
+                + 6.0 * one_minus_u * u * (x2 - x1)
+                + 3.0 * u * u * (1.0 - x2)
+        };
+        let bezier_y = |u: f32| -> f32 {
+            let one_minus_u = 1.0 - u;
+            3.0 * one_minus_u * one_minus_u * u * y1 + 3.0 * one_minus_u * u * u * y2 + u * u * u
+        };
+
+        // Newton's method: find u such that bezier_x(u) == t.
+        let mut u = t; // Initial guess.
+        for _ in 0..8 {
+            let x = bezier_x(u);
+            let dx = bezier_dx(u);
+            if dx.abs() < 1e-6 {
+                break;
+            }
+            u -= (x - t) / dx;
+            u = u.clamp(0.0, 1.0);
+        }
+
+        bezier_y(u)
+    }
+}
+
 /// Standard easing function types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Easing {
     /// Linear interpolation (no easing).
@@ -176,6 +312,8 @@ pub enum Easing {
     BounceOut,
     /// Bounce ease in-out.
     BounceInOut,
+    /// Arbitrary CSS-style cubic bezier timing curve.
+    CubicBezier(CubicBezierEasing),
 }
 
 impl Easing {
@@ -213,10 +351,17 @@ impl Easing {
             Easing::BounceIn => bounce_in(t),
             Easing::BounceOut => bounce_out(t),
             Easing::BounceInOut => bounce_in_out(t),
+            Easing::CubicBezier(cb) => cb.apply(t),
         }
     }
 
     /// Returns the corresponding function pointer.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called on `Easing::CubicBezier`, because a closure capturing
+    /// the control-point parameters cannot be coerced to a bare `fn` pointer.
+    /// Use [`Easing::ease`] directly for `CubicBezier` variants.
     pub fn as_fn(self) -> EaseFn {
         match self {
             Easing::Linear => linear,
@@ -250,6 +395,11 @@ impl Easing {
             Easing::BounceIn => bounce_in,
             Easing::BounceOut => bounce_out,
             Easing::BounceInOut => bounce_in_out,
+            Easing::CubicBezier(_) => {
+                panic!(
+                    "`as_fn()` is not supported for `Easing::CubicBezier`; use `.ease(t)` instead"
+                )
+            }
         }
     }
 }
@@ -1371,6 +1521,75 @@ mod invariant_tests {
                 (at_one - end).abs() < 0.01,
                 "{:?}: ease_value at t=1 should be end",
                 easing
+            );
+        }
+    }
+
+    // ========================================================================
+    // CubicBezierEasing
+    // ========================================================================
+
+    /// CubicBezierEasing::apply must pass through (0, 0).
+    #[test]
+    fn test_cubic_bezier_starts_at_zero() {
+        let curves = [
+            CubicBezierEasing::ease(),
+            CubicBezierEasing::ease_in(),
+            CubicBezierEasing::ease_out(),
+            CubicBezierEasing::ease_in_out(),
+            CubicBezierEasing::linear(),
+        ];
+        for cb in curves {
+            let v = cb.apply(0.0);
+            assert!(v.abs() < 1e-5, "apply(0) should be 0, got {v} for {cb:?}");
+        }
+    }
+
+    /// CubicBezierEasing::apply must pass through (1, 1).
+    #[test]
+    fn test_cubic_bezier_ends_at_one() {
+        let curves = [
+            CubicBezierEasing::ease(),
+            CubicBezierEasing::ease_in(),
+            CubicBezierEasing::ease_out(),
+            CubicBezierEasing::ease_in_out(),
+            CubicBezierEasing::linear(),
+        ];
+        for cb in curves {
+            let v = cb.apply(1.0);
+            assert!(
+                (v - 1.0).abs() < 1e-5,
+                "apply(1) should be 1, got {v} for {cb:?}"
+            );
+        }
+    }
+
+    /// The `linear` named constructor should behave like the identity.
+    #[test]
+    fn test_cubic_bezier_linear_is_identity() {
+        let cb = CubicBezierEasing::linear();
+        for i in 0..=20 {
+            let t = i as f32 / 20.0;
+            let v = cb.apply(t);
+            assert!(
+                (v - t).abs() < 1e-3,
+                "linear cubic-bezier should approximate identity at t={t}, got {v}"
+            );
+        }
+    }
+
+    /// Easing::CubicBezier(cb).ease(t) should match cb.apply(t).
+    #[test]
+    fn test_easing_cubic_bezier_delegates_to_apply() {
+        let cb = CubicBezierEasing::ease_in_out();
+        let easing = Easing::CubicBezier(cb);
+        for i in 0..=20 {
+            let t = i as f32 / 20.0;
+            let v1 = cb.apply(t);
+            let v2 = easing.ease(t);
+            assert!(
+                (v1 - v2).abs() < 1e-6,
+                "Easing::CubicBezier.ease({t}) should equal cb.apply({t})"
             );
         }
     }
