@@ -4980,6 +4980,7 @@ dependencies = [
  "glam",
  "serde",
  "serde_json",
+ "unshape-curve",
  "unshape-easing",
  "unshape-field",
  "unshape-noise",
