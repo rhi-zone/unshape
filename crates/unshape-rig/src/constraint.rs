@@ -123,6 +123,109 @@ fn rotation_from_to_with_up(from: Vec3, to: Vec3, up: Vec3) -> Quat {
     Quat::from_mat3(&(to_mat * from_mat.transpose()))
 }
 
+/// An aim constraint that rotates a bone so a local axis points at a target.
+///
+/// After aligning the `aim_axis` toward `target`, it twists around that axis
+/// to align `up_axis` toward `world_up`. The result is blended with the
+/// bone's current rotation by `mix`.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct AimConstraint {
+    /// The bone to constrain.
+    pub bone_id: BoneId,
+    /// World-space target position that `aim_axis` points toward.
+    pub target: Vec3,
+    /// Local axis that should point at the target (e.g. `Vec3::Y`).
+    pub aim_axis: Vec3,
+    /// Local up axis used for twist orientation.
+    pub up_axis: Vec3,
+    /// World up reference for computing the twist (e.g. `Vec3::Y`).
+    pub world_up: Vec3,
+    /// Blend weight: 0.0 = no effect, 1.0 = full constraint.
+    pub mix: f32,
+}
+
+impl AimConstraint {
+    /// Creates an aim constraint with sensible defaults.
+    pub fn new(bone_id: BoneId, target: Vec3) -> Self {
+        Self {
+            bone_id,
+            target,
+            aim_axis: Vec3::Y,
+            up_axis: Vec3::Z,
+            world_up: Vec3::Y,
+            mix: 1.0,
+        }
+    }
+}
+
+impl Constraint for AimConstraint {
+    fn apply(&self, skeleton: &Skeleton, pose: &mut Pose) {
+        let world = pose.world_transform(skeleton, self.bone_id);
+        let bone_pos = world.translation;
+
+        let to_target = (self.target - bone_pos).normalize_or_zero();
+        if to_target.length_squared() < 0.0001 {
+            return;
+        }
+
+        // World-space aim axis (current).
+        let aim_world = (world.rotation * self.aim_axis).normalize_or_zero();
+
+        // Rotation that aligns aim_axis → to_target.
+        let aim_rot = Quat::from_rotation_arc(aim_world, to_target);
+        let aimed_rot = aim_rot * world.rotation;
+
+        // Twist: rotate around to_target to align up_axis toward world_up.
+        let up_world = (aimed_rot * self.up_axis).normalize_or_zero();
+        // Project world_up onto the plane perpendicular to to_target.
+        let world_up_proj =
+            (self.world_up - to_target * self.world_up.dot(to_target)).normalize_or_zero();
+        // Project up_world onto the same plane.
+        let up_proj = (up_world - to_target * up_world.dot(to_target)).normalize_or_zero();
+
+        let twist_rot =
+            if world_up_proj.length_squared() > 0.0001 && up_proj.length_squared() > 0.0001 {
+                Quat::from_rotation_arc(up_proj, world_up_proj)
+            } else {
+                Quat::IDENTITY
+            };
+
+        let new_world_rot = twist_rot * aimed_rot;
+
+        // Blend with current world rotation.
+        let blended_world_rot = if (self.mix - 1.0).abs() < f32::EPSILON {
+            new_world_rot
+        } else {
+            world
+                .rotation
+                .slerp(new_world_rot, self.mix.clamp(0.0, 1.0))
+        };
+
+        // Convert to local space.
+        let parent_world = skeleton
+            .bone(self.bone_id)
+            .and_then(|b| b.parent)
+            .map(|p| pose.world_transform(skeleton, p))
+            .unwrap_or(Transform3D::IDENTITY);
+
+        let local_rot = parent_world.rotation.inverse() * blended_world_rot;
+
+        let current = pose.get(self.bone_id);
+        pose.set(
+            self.bone_id,
+            Transform3D {
+                rotation: local_rot,
+                ..current
+            },
+        );
+    }
+
+    fn affected_bones(&self) -> &[BoneId] {
+        std::slice::from_ref(&self.bone_id)
+    }
+}
+
 /// A set of constraints to evaluate.
 #[derive(Default)]
 pub struct ConstraintStack {
