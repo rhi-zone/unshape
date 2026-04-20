@@ -18,6 +18,7 @@ mod loft;
 mod loops;
 mod marching_cubes;
 mod mesh;
+mod mirror;
 mod morph;
 mod navmesh;
 mod obj;
@@ -25,6 +26,7 @@ mod ops;
 mod primitives;
 mod remesh;
 pub mod repair;
+mod scatter;
 mod sdf;
 mod selection;
 mod subdivision;
@@ -45,7 +47,10 @@ pub use architecture::{
 pub use bevel::{
     Bevel, BevelConfig, bevel_edges, bevel_mesh_edges, bevel_mesh_vertices, bevel_vertices,
 };
-pub use boolean::{boolean_intersect, boolean_subtract, boolean_union};
+pub use boolean::{
+    BooleanIntersect, BooleanSubtract, BooleanUnion, boolean_intersect, boolean_subtract,
+    boolean_union,
+};
 pub use curvature::{
     CurvatureResult, compute_curvature, gaussian_curvature, mean_curvature, principal_curvatures,
 };
@@ -116,6 +121,7 @@ pub use loops::{
 };
 pub use marching_cubes::{MarchingCubes, MarchingCubesConfig, marching_cubes};
 pub use mesh::{Mesh, MeshBuilder};
+pub use mirror::{Mirror, MirrorAxis, mirror};
 pub use morph::{
     MorphTarget, MorphTargetSet, MorphWeights, apply_morph_targets,
     apply_morph_targets_with_normals, blend_positions,
@@ -136,6 +142,7 @@ pub use remesh::{
     QuadMesh, Quadify, QuadifyConfig, Remesh, RemeshConfig, average_edge_length, isotropic_remesh,
     quadify,
 };
+pub use scatter::{Scatter, ScatterResult, scatter};
 pub use sdf::{GenerateSdf, SdfConfig, SdfGrid, mesh_to_sdf, mesh_to_sdf_fast, raymarch};
 pub use selection::{Edge, Falloff, MeshSelection, SelectionMode, SoftSelection};
 pub use subdivision::{

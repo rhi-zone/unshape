@@ -2,6 +2,330 @@ use glam::{Vec2, Vec3};
 
 use crate::{EvalContext, Field};
 
+// ============================================================================
+// 3D SDF primitives
+// ============================================================================
+
+/// Signed distance field for a sphere.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SphereSdf {
+    pub center: Vec3,
+    pub radius: f32,
+}
+
+impl SphereSdf {
+    pub fn new(center: Vec3, radius: f32) -> Self {
+        Self { center, radius }
+    }
+}
+
+impl Field<Vec3, f32> for SphereSdf {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        (input - self.center).length() - self.radius
+    }
+}
+
+/// Signed distance field for an axis-aligned box.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct BoxSdf {
+    pub center: Vec3,
+    pub half_extents: Vec3,
+}
+
+impl BoxSdf {
+    pub fn new(center: Vec3, half_extents: Vec3) -> Self {
+        Self {
+            center,
+            half_extents,
+        }
+    }
+}
+
+impl Field<Vec3, f32> for BoxSdf {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        let p = (input - self.center).abs();
+        let q = p - self.half_extents;
+        q.max(Vec3::ZERO).length() + q.x.max(q.y).max(q.z).min(0.0)
+    }
+}
+
+/// Signed distance field for a rounded box.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RoundedBoxSdf {
+    pub center: Vec3,
+    pub half_extents: Vec3,
+    /// Corner rounding radius.
+    pub radius: f32,
+}
+
+impl RoundedBoxSdf {
+    pub fn new(center: Vec3, half_extents: Vec3, radius: f32) -> Self {
+        Self {
+            center,
+            half_extents,
+            radius,
+        }
+    }
+}
+
+impl Field<Vec3, f32> for RoundedBoxSdf {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        let p = (input - self.center).abs();
+        let q = p - self.half_extents + Vec3::splat(self.radius);
+        q.max(Vec3::ZERO).length() + q.x.max(q.y).max(q.z).min(0.0) - self.radius
+    }
+}
+
+/// Signed distance field for a Y-axis aligned cylinder.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CylinderSdf {
+    pub center: Vec3,
+    pub radius: f32,
+    pub half_height: f32,
+}
+
+impl CylinderSdf {
+    pub fn new(center: Vec3, radius: f32, half_height: f32) -> Self {
+        Self {
+            center,
+            radius,
+            half_height,
+        }
+    }
+}
+
+impl Field<Vec3, f32> for CylinderSdf {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        let p = input - self.center;
+        let d = Vec2::new(
+            Vec2::new(p.x, p.z).length() - self.radius,
+            p.y.abs() - self.half_height,
+        );
+        d.x.max(d.y).min(0.0) + d.max(Vec2::ZERO).length()
+    }
+}
+
+/// Signed distance field for a capsule (line segment with a radius).
+///
+/// This is a segment swept by a sphere: the set of points within `radius`
+/// of the segment from `a` to `b`.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CapsuleSdf {
+    /// First endpoint of the capsule axis.
+    pub a: Vec3,
+    /// Second endpoint of the capsule axis.
+    pub b: Vec3,
+    pub radius: f32,
+}
+
+impl CapsuleSdf {
+    pub fn new(a: Vec3, b: Vec3, radius: f32) -> Self {
+        Self { a, b, radius }
+    }
+}
+
+impl Field<Vec3, f32> for CapsuleSdf {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        let pa = input - self.a;
+        let ba = self.b - self.a;
+        let t = (pa.dot(ba) / ba.dot(ba)).clamp(0.0, 1.0);
+        (pa - ba * t).length() - self.radius
+    }
+}
+
+/// Signed distance field for a torus lying in the XZ plane.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TorusSdf {
+    pub center: Vec3,
+    /// Distance from the center of the tube to the center of the torus.
+    pub major_radius: f32,
+    /// Radius of the tube.
+    pub minor_radius: f32,
+}
+
+impl TorusSdf {
+    pub fn new(center: Vec3, major_radius: f32, minor_radius: f32) -> Self {
+        Self {
+            center,
+            major_radius,
+            minor_radius,
+        }
+    }
+}
+
+impl Field<Vec3, f32> for TorusSdf {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        let p = input - self.center;
+        let q = Vec2::new(Vec2::new(p.x, p.z).length() - self.major_radius, p.y);
+        q.length() - self.minor_radius
+    }
+}
+
+/// Signed distance field for a cone.
+///
+/// The cone tip is at `tip`, extending in `direction` for `height` units,
+/// opening at `half_angle` radians from the axis.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ConeSdf {
+    pub tip: Vec3,
+    /// Unit axis direction from tip toward the base.
+    pub direction: Vec3,
+    /// Half-angle of the cone in radians.
+    pub half_angle: f32,
+    /// Height of the cone from tip to base.
+    pub height: f32,
+}
+
+impl ConeSdf {
+    pub fn new(tip: Vec3, direction: Vec3, half_angle: f32, height: f32) -> Self {
+        Self {
+            tip,
+            direction: direction.normalize(),
+            half_angle,
+            height,
+        }
+    }
+}
+
+impl Field<Vec3, f32> for ConeSdf {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        // IQ sdCone formula (generic axis direction).
+        // Reference: https://iquilezles.org/articles/distfunctions/
+        let p = input - self.tip;
+        let axis_dist = p.dot(self.direction);
+        let radial_dist = (p - self.direction * axis_dist).length();
+
+        let sin_a = self.half_angle.sin();
+        let cos_a = self.half_angle.cos();
+        let h = self.height;
+
+        // Reduce to 2D: q = (radial, axial) but flip axial so tip is at top
+        // IQ uses q.y = -axis so that the cone opens downward in q-space
+        let q = Vec2::new(radial_dist, -axis_dist);
+        let w = Vec2::new(h * sin_a, -h * cos_a);
+
+        // Closest point on the slant edge (segment from origin to w)
+        let a = q - w * (q.dot(w) / w.dot(w)).clamp(0.0, 1.0);
+        // Closest point on the tip ray (semi-infinite line along cone surface direction)
+        let b = q - Vec2::new(sin_a, -cos_a) * q.dot(Vec2::new(sin_a, -cos_a)).max(0.0);
+
+        // Sign: negative inside
+        let k = if w.y * q.x > w.x * q.y { -1.0f32 } else { 1.0 };
+        k * (a.dot(a)).min(b.dot(b)).sqrt()
+    }
+}
+
+/// Signed distance field for a half-space (plane).
+///
+/// Points on the side the normal points toward are outside (positive distance).
+/// `distance` is the signed distance from the origin to the plane along `normal`.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct PlaneSdf {
+    /// Outward-facing unit normal of the plane.
+    pub normal: Vec3,
+    /// Signed distance from origin to the plane (plane equation: dot(p, normal) = distance).
+    pub distance: f32,
+}
+
+impl PlaneSdf {
+    pub fn new(normal: Vec3, distance: f32) -> Self {
+        Self {
+            normal: normal.normalize(),
+            distance,
+        }
+    }
+}
+
+impl Field<Vec3, f32> for PlaneSdf {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        input.dot(self.normal) - self.distance
+    }
+}
+
+/// Signed distance field for a 3D triangle.
+///
+/// Returns the signed distance from the query point to the triangle surface.
+/// Interior is defined by the winding order (counter-clockwise = front face).
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TriangleSdf {
+    pub a: Vec3,
+    pub b: Vec3,
+    pub c: Vec3,
+}
+
+impl TriangleSdf {
+    pub fn new(a: Vec3, b: Vec3, c: Vec3) -> Self {
+        Self { a, b, c }
+    }
+}
+
+impl Field<Vec3, f32> for TriangleSdf {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        // IQ sdTriangle3D formula
+        let ba = self.b - self.a;
+        let cb = self.c - self.b;
+        let ac = self.a - self.c;
+        let nor = ba.cross(ac);
+
+        let pa = input - self.a;
+        let pb = input - self.b;
+        let pc = input - self.c;
+
+        // Check which side of each edge the point is on
+        let inside = (ba.cross(nor).dot(pa)).signum()
+            + (cb.cross(nor).dot(pb)).signum()
+            + (ac.cross(nor).dot(pc)).signum()
+            < 2.0;
+
+        if inside {
+            // Outside triangle prism: distance to nearest edge
+            let d1 = (ba * (ba.dot(pa) / ba.dot(ba)).clamp(0.0, 1.0) - pa).length_squared();
+            let d2 = (cb * (cb.dot(pb) / cb.dot(cb)).clamp(0.0, 1.0) - pb).length_squared();
+            let d3 = (ac * (ac.dot(pc) / ac.dot(ac)).clamp(0.0, 1.0) - pc).length_squared();
+            d1.min(d2).min(d3).sqrt()
+        } else {
+            // Inside triangle prism: distance to the triangle plane
+            nor.dot(pa).abs() / nor.length()
+        }
+    }
+}
+
+/// Signed distance field for a line segment (infinitely thin capsule, i.e. with radius).
+///
+/// This is equivalent to [`CapsuleSdf`] and is provided as an alias for clarity
+/// when the intent is a thin line/wire rather than a thick capsule.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct LineSegmentSdf {
+    pub a: Vec3,
+    pub b: Vec3,
+    pub radius: f32,
+}
+
+impl LineSegmentSdf {
+    pub fn new(a: Vec3, b: Vec3, radius: f32) -> Self {
+        Self { a, b, radius }
+    }
+}
+
+impl Field<Vec3, f32> for LineSegmentSdf {
+    fn sample(&self, input: Vec3, _ctx: &EvalContext) -> f32 {
+        let pa = input - self.a;
+        let ba = self.b - self.a;
+        let t = (pa.dot(ba) / ba.dot(ba)).clamp(0.0, 1.0);
+        (pa - ba * t).length() - self.radius
+    }
+}
+
 /// Distance field - returns distance from a point.
 #[derive(Debug, Clone, Copy)]
 pub struct DistancePoint {
