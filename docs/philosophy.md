@@ -1,6 +1,8 @@
 # Philosophy
 
-Core design principles for Unshape.
+Unshape is a substrate for operations on arbitrary media. A mesh op, an audio op, and an image op are all instances of the same abstraction: a serializable, composable transformation between media. The medium is not special-cased — it's a type parameter. The constraint that makes this work: every op must have a finite, named parameter set. That one constraint is what makes ops serializable, replayable, graph-composable, and inspectable.
+
+The principles below follow from this thesis.
 
 ## Generative Mindset
 

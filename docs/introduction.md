@@ -1,23 +1,27 @@
 # Unshape
 
-Constructive generation and manipulation of media.
+A substrate for operations on arbitrary media.
 
 ## What is Unshape?
 
-Unshape is a Rust library for procedural generation and manipulation of media assets:
+Unshape is a Rust toolkit for any transformation between media that can be expressed as a parameterized, serializable operation. The medium types — meshes, images, audio, vector art, fields, and more — are open-ended: adding a new one means defining a representation and a set of ops. The graph, serialization, signal routing, and lazy/realtime evaluation come for free.
 
-- **3D Meshes** - geometry generation, primitives, indexed mesh representation
-- **2D Vector Art** - paths, shapes, bezier curves
-- **Audio** - oscillators, synthesis
-- **Textures/Noise** - Perlin, Simplex, fBm, lazy field evaluation
-- **Rigging** - skeletons, bones, skinning, poses
+The one constraint on an op: **finite, named parameters**. If a transformation has a finite parameter set, it is serializable, replayable, composable in a graph, and inspectable at runtime. Stochastic ops qualify with a seed. Stateful ops (filters, simulations) qualify if their state is checkpointable.
+
+This means Unshape is equally at home as:
+- An archival/reproducible project file format (graph as `.psd`, fully rewindable)
+- A live signal-driven experience (any input port can be driven by time, audio, sensors, or another graph's output)
+- A scripting substrate for procedural content pipelines
+
+Current media domains: 3D meshes, 2D vector art, audio, textures/noise, rigging.
 
 ## Design Goals
 
-- **Procedural first** - describe assets with parameters and expressions, not baked data
-- **Composable** - small primitives that combine into complex results
-- **Lazy evaluation** - build descriptions, evaluate on demand
-- **Bevy-compatible** - works with bevy ecosystem without requiring it
+- **Operations as values** - every transformation is a serializable struct with named parameters; methods are sugar
+- **Medium-agnostic graph** - the node graph, serialization, and signal machinery are not tied to any specific domain
+- **Lazy evaluation** - build descriptions, evaluate on demand; no hidden materializations
+- **Realtime first** - signal-driven use is not an afterthought; any input can be a live signal
+- **Bevy-compatible** - works with the bevy ecosystem without requiring it
 
 ## Quick Examples
 
