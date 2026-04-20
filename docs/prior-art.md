@@ -334,6 +334,63 @@ AI-powered knowledge canvas:
 
 **Relevance to Unshape**: Limited. It's a note-taking tool, not media generation. The canvas/graph UI pattern is common but not novel. Mentioned for completeness.
 
+## NURBS & Surface Modeling
+
+### MoI (Moment of Inspiration)
+
+[Website](https://moi3d.com/)
+
+Lightweight NURBS modeler by Michael Gibson. Notable for:
+- **Node editor**: visual pipeline for surface operations (unusual for a CAD tool)
+- **Mesh export quality**: produces exceptionally clean polygon meshes from NURBS — the conversion is principled, not an afterthought
+- **Low friction**: very small set of core ops, high discoverability
+
+Key insight: NURBS-to-mesh is a lossy, irreversible step in most tools. MoI's clean export pipeline implicitly treats it as a parameterized op (tolerance, angle, etc.) — the right model.
+
+### MoI + Elephant
+
+[MoI](https://moi3d.com/) · [Elephant GitHub](https://github.com/nkallen/elephant)
+
+MoI (Moment of Inspiration) is a lightweight NURBS modeler by Michael Gibson. Elephant is its node editor extension — a JavaScript plugin built on LiteGraph.js that adds procedural graph capabilities to the host.
+
+- **Node generation from host API**: nodes are dynamically generated from MoI's own geometry API (factories, operations, utilities) — the host's type system becomes the node vocabulary
+- **Lazy eval with dirty tracking**: nodes only execute when upstream inputs change, tracked via `hasChanged` propagation
+- **Finalization workflow**: results are staged as temporary geometry in output nodes, then committed to the document — a direct implementation of the lazy/materialized distinction
+- **History system**: procedural operations are recorded, enabling backward/forward traversal through the graph history — ops-as-values enables this almost for free
+- **Play/pause evaluation**: graph execution is controlled explicitly, not automatic
+
+Key insight: **the host's type system is the node vocabulary**. Elephant doesn't define new primitives — it exposes MoI's existing geometry ops as graph nodes. The node graph is a view over the operation space, not a separate system.
+
+**Cautionary note**: deep host integration via file patching (modifying MoI's core directories) rather than a clean plugin API. Creates fragile coupling to host internals.
+
+**Relevance to Unshape**: the finalization/staging model and history-via-op-log are worth studying. The dynamic-nodes-from-host-API approach is interesting if Unshape ever has a UI layer.
+
+### Plasticity
+
+[Website](https://www.plasticity.xyz/)
+
+Modern NURBS/solid modeler for artists, built on OCCT:
+- **Boolean-first workflow**: union, difference, intersect as primary operations
+- **Fast undo**: operations feel cheap to reverse — encourages experimentation
+- **Artist-targeted**: prioritizes feel and UX over CAD precision
+
+Key insight: boolean ops should be first-class, not an afterthought. The UI benchmark for what a `BooleanUnion` node should feel like to use.
+
+**Limitation**: no parametric history, no node graph. Every operation is immediately destructive.
+
+### XNurbs
+
+[Website](https://xnurbs.com/)
+
+Surface fitting plugin using energy minimization:
+- **Variational approach**: finds the smoothest NURBS surface satisfying given constraints by minimizing bending energy — analogous to a physical wooden batten assuming its lowest-energy curve
+- **Constraint-driven**: inputs are boundary curves, point constraints, tangency conditions — not control points
+- **Fast**: solves "virtually any" NURBS surface in milliseconds regardless of constraint complexity
+
+Key insight: surface fitting framed as constrained optimization rather than manual control-point placement. The constraint set is the parameter space — aligns naturally with ops-as-values (constraints as struct fields, solver as `apply()`). Whether energy minimization is the *correct* criterion for all use cases is an open question, but the formulation is principled.
+
+**Relevance to Unshape**: a `FitSurface` op struct whose fields are constraints (not control points) is the right abstraction, regardless of which solver is used internally.
+
 ## Compute Abstraction
 
 ### Burn / CubeCL
