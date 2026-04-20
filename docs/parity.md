@@ -1437,3 +1437,549 @@ Normal, Add, Subtract, Multiply, Screen, Overlay, Soft Light, Hard Light, Divide
 | `mid-side` | encode/decode |
 | `dry-wet-mixer` | |
 | `sliding-mean/RMS/max` | windowed statistics |
+
+---
+
+## Modular Audio — Reaktor
+
+[Reaktor 6](https://www.native-instruments.com/en/products/komplete/synths/reaktor-6/). Primary (macro) and Core (DSP primitive) levels.
+
+### Oscillators
+
+| Op | Notes |
+|----|-------|
+| `sine` / `triangle` / `saw` / `pulse` / `ramp` | basic waveforms |
+| `multiwave` | multiple waveforms in phase |
+| `sync-saw` / `tri-sync` / `pulse-sync` | hard-sync variants |
+| `FM-op` | FM operator |
+| `formant` | formant oscillator |
+| `quad-oscillator` | four-phase output |
+| `sub-oscillator` | |
+| `digital-noise` | |
+| `wavetable` | user buffer playback |
+
+### Filters
+
+| Op | Notes |
+|----|-------|
+| `1-pole` | LP/HP |
+| `2-pole-SV` | state variable (multiple topologies) |
+| `4-pole-ladder` | |
+| `diode-ladder` | |
+| `low-shelf` / `high-shelf` / `peak-EQ` | parametric EQ |
+| `6dB-LP/HP` | static filters |
+| `ZDF-*` | zero-delay feedback variants |
+
+### Envelopes / LFOs
+
+| Op | Notes |
+|----|-------|
+| `AR` / `AD` / `ADR` / `ADSR` / `AHD` / `AHDSR` | |
+| `4-ramp` / `5-ramp` / `6-ramp` | multi-segment |
+| `sine-LFO` / `tri-LFO` / `saw-LFO` / `square-LFO` / `multiwave-LFO` | |
+| `slow-random` | randomized LFO |
+| `env-follower` | amplitude tracking |
+
+### Dynamics / Distortion
+
+| Op | Notes |
+|----|-------|
+| `VCA` | linear / exponential |
+| `ring-modulator` | |
+| `rectifier` | |
+| `sine-shaper` | waveshaping |
+| `parabolic-saturation` / `hyperbolic-saturation` | |
+| `soft-knee-clipper` | |
+| `broken-parabolic` | |
+
+### Mixing / Routing
+
+| Op | Notes |
+|----|-------|
+| `audio-mix` (2–4 channel) | |
+| `stereo-mixer` | |
+| `pan` | mono→stereo |
+| `crossfade-linear` / `crossfade-parabolic` | |
+| `selector` / `router` | dynamic routing |
+
+### Sequencing / Timing
+
+| Op | Notes |
+|----|-------|
+| `metro` | clock / metronome |
+| `gate-generator` / `trigger-generator` | |
+| `sample-and-hold` | |
+| `step-sequencer` (16/32-step) | |
+| `clock-divider` | |
+
+### Storage / Delay
+
+| Op | Notes |
+|----|-------|
+| `audio-table` | buffer / delay memory |
+| `event-table` | |
+| `read/write-table` | |
+| `latch` | value hold |
+| `array` | flexible memory |
+
+### Math / Logic
+
+| Op | Notes |
+|----|-------|
+| `+` / `-` / `×` / `÷` / `%` / `^` / `1/x` | |
+| `abs` / `sqrt` / `negate` | |
+| `expon(A)` | dB→amplitude |
+| `expon(F)` | semitones→Hz |
+| `log(A)` / `log(F)` | inverse conversions |
+| `sin` / `cos` / `arctan` | |
+| `compare` / `AND` / `OR` / `NOT` / `XOR` | |
+| `schmitt-trigger` / `flip-flop` | |
+
+---
+
+## Motion Graphics — After Effects
+
+[AE effect list](https://helpx.adobe.com/after-effects/using/effect-list.html). Shape layer modifiers + expression language.
+
+### Effects by Category
+
+| Category | Key Effects |
+|----------|-------------|
+| Blur & Sharpen | Gaussian blur / lens blur / Z-defocus / box blur / channel blur / compound blur / bilateral blur / unsharp mask |
+| Color Correction | grade / curves / levels / hue-saturation / color-balance / exposure / brightness-contrast / vibrance / tint |
+| Channel | blend / channel-combiner / invert / shift-channels / set-channels |
+| Distort | turbulent-displace / warp / mesh-warp / displacement-map / ripple / spherize / twirl / polar-coordinates / lens-distortion / bezier-warp / bend |
+| Generate | fractal-noise / ramp / grid / circle / stroke / checkerboard / lightning / Vegas |
+| Keying | keylight / luma-key / color-key / difference-matte / linear-color-key / color-difference-key |
+| Noise & Grain | add-grain / noise / median / dust-scratches |
+| Stylize | find-edges / glow / mosaic / posterize / roughen-edges / cartoon / bloom / threshold / emboss / motion-tile |
+| Time | echo / time-remap / time-displacement / posterize-time |
+| Transition | gradient-wipe / iris-wipe / radial-wipe / linear-wipe / block-dissolve |
+| 3D Channel | EXtractoR / depth-of-field / fog-3D / normal-map / Z-depth |
+
+### Shape Layer Modifiers (non-destructive)
+
+| Op | Notes |
+|----|-------|
+| `trim-paths` | animate stroke draw-on (start/end/offset) |
+| `merge-paths` | add / subtract / intersect / exclude |
+| `offset-path` | expand/contract with miter |
+| `repeater` | N copies with per-copy position/rotation/scale/opacity offset |
+| `round-corners` | |
+| `pucker-bloat` | |
+| `wiggle-paths` | random path deformation over time |
+| `zig-zag` | jagged or wavy pattern |
+| `twist` | rotate around center |
+
+### Expression Language Primitives
+
+| Object / Function | Notes |
+|------------------|-------|
+| `time` | composition time in seconds |
+| `thisComp` / `thisLayer` / `thisProperty` | context access |
+| `valueAtTime(t)` | property value at arbitrary time |
+| `velocity()` / `speed()` | temporal derivatives |
+| `key(index)` / `nearestKey(t)` / `numKeys` | keyframe access |
+| `linear(t, v1, v2)` | linear interpolation |
+| `ease(t, v1, v2)` | smooth ease in/out |
+| `easeIn` / `easeOut` | one-sided ease |
+| `random()` / `gaussRandom()` / `seedRandom(n)` | stochastic |
+| `wiggle(freq, amp)` | time-varying noise |
+| `Math.*` | full JS Math object |
+| `length(v)` / `normalize(v)` / `dot` / `cross` | vector ops |
+| `degreesToRadians` / `radiansToDegrees` | |
+| `layer(name)` / `effect(name)` / `mask(name)` | scene graph access |
+
+---
+
+## 2D Vector — Inkscape + Illustrator
+
+[Inkscape docs](https://inkscape-manuals.readthedocs.io/) · [Illustrator docs](https://helpx.adobe.com/illustrator/).
+
+### Path Creation
+
+| Op | Notes |
+|----|-------|
+| `bezier` | draw bezier with handles |
+| `freehand` | sketch with smoothing |
+| `calligraphic` | variable-width stroke |
+
+### Boolean Ops
+
+| Op | Inkscape | Illustrator |
+|----|----------|-------------|
+| `union` | ✓ | ✓ |
+| `difference` | ✓ | ✓ (minus front) |
+| `intersection` | ✓ | ✓ |
+| `exclusion` | ✓ | ✓ (exclude) |
+| `division` | ✓ | ✓ |
+| `trim` | — | ✓ |
+| `merge` | — | ✓ |
+| `crop` | — | ✓ |
+| `outline` | — | ✓ |
+
+### Path Modification
+
+| Op | Notes |
+|----|-------|
+| `simplify` | reduce node count |
+| `offset` / `inset` | parallel path |
+| `break-apart` | split compound into pieces |
+| `join` | connect endpoint pairs |
+| `reverse` | flip path direction |
+| `stroke-to-path` | outline stroke as filled path |
+| `object-to-path` | convert shapes/text to paths |
+| `flatten-beziers` | approximate with lines |
+
+### Node Operations
+
+| Op | Notes |
+|----|-------|
+| `add-node` | insert on segment |
+| `delete-node` | remove |
+| `cusp` → `smooth` → `symmetric` → `auto-smooth` | node type conversions |
+| `break-at-node` | |
+| `join-nodes` | |
+
+### Live Path Effects (Inkscape)
+
+| Op | Notes |
+|----|-------|
+| `bend-path` | deform along guide path |
+| `perspective-envelope` | corner-handle distortion |
+| `roughen-corners` | irregular edges |
+| `corner-rounding` | |
+| `power-stroke` | variable width with control points |
+| `tiled-clones` | pattern repetition with transform rules |
+| `radial-pattern` | circular arrangement |
+| `mirror` | symmetry effect |
+| `sketch` | hand-drawn appearance |
+| `offset` | |
+
+### Illustrator-Specific
+
+| Op | Notes |
+|----|-------|
+| `width-profiles` | variable stroke width |
+| `puppet-warp` | organic deformation with pins |
+| `envelope-distort` | warp with control point grid |
+| `liquefy` | warp / twirl / pucker / bloat / scallop / crystallize / wrinkle |
+| `3D-extrude` | 2D→3D with depth |
+| `3D-revolve` | rotate profile around axis |
+| `3D-inflate` | balloon-style 3D |
+| `map-art` | map 2D artwork onto 3D surface |
+| `recolor-artwork` | interactive color harmony |
+
+### Fills
+
+| Type | Notes |
+|------|-------|
+| `solid` | |
+| `linear-gradient` / `radial-gradient` | |
+| `conical-gradient` | Inkscape only |
+| `mesh-gradient` | multi-directional grid |
+| `pattern` | tiled vector pattern |
+| `hatch` | |
+
+### Blend Modes
+
+Inkscape: 5. Illustrator: 15 (Normal, Darken, Multiply, Color Burn, Lighten, Screen, Color Dodge, Overlay, Soft Light, Hard Light, Difference, Exclusion, Hue, Saturation, Color, Luminosity).
+
+---
+
+## Realtime AV — vvvv + cables.gl
+
+### vvvv gamma
+
+[thegraybook.vvvv.org](https://thegraybook.vvvv.org/). Functional node-graph language.
+
+| Domain | Key node categories |
+|--------|---------------------|
+| Math | range / trig / vector / matrix / quaternion / bit ops |
+| Collections | GetSlice / Zip / Filter / Map / Spread operators / Fold |
+| 2D (Skia) | drawing primitives / text / transform / clip / mask |
+| 3D (Stride) | mesh loading / instancing / transform / post-effects (AO, bloom) / HLSL shaders |
+| Animation | LoopTool / Kairos (keyframe) / Interpolator / particle system |
+| Audio | playback / record / FFT / MIDI / VST3 / WASAPI / ASIO |
+| IO | mouse / keyboard / MIDI / serial / gamepad |
+| Spread | LinearSpread / spread generators / sinks (bounds, mean) |
+
+### cables.gl
+
+[cables.gl/ops](https://cables.gl/ops/). WebGL node graph.
+
+| Namespace | Key ops |
+|-----------|---------|
+| `Ops.Gl.Geometry` | bounding box / visibility / primitives / manipulation |
+| `Ops.Gl.Meshes` | mesh generation / parametric surfaces / instancer |
+| `Ops.Gl.Textures` | noise / combining / SSAO / EXR / copy/resize |
+| `Ops.Gl.GLTF` | load / parse / skeletal animation |
+| `Ops.Maths` | trig / range-map / ratio |
+| `Ops.Array` | range-map / filter / sort / helix / hex-grid / translate / rotate / scale |
+| `Ops.Anim` | LFO / animate-to / bang-trigger / boolean-number-anim |
+| `Ops.TimeLine` | keyframe objects / clip sequencing |
+| `Ops.WebAudio` | synthesis / effects / filtering / analysis |
+| `Ops.Devices.Midi` | note-in / CC / clock |
+| `Ops.Color` | palette / HSB→RGB / hex |
+| `Ops.Physics` | collision / character-controller / Ammo engine |
+| `Ops.Extension.LSystem` | L-system procedural generation |
+
+---
+
+## Procedural Placement — Unreal PCG + Niagara
+
+### PCG (Procedural Content Generation)
+
+[PCG docs](https://dev.epicgames.com/documentation/en-us/unreal-engine/procedural-content-generation-framework-node-reference-in-unreal-engine).
+
+| Category | Ops |
+|----------|-----|
+| Sampling | surface-sampler / static-mesh-sampler / spline-sampler / actor-data |
+| Transform | transform-points / point-bounds-modifier |
+| Filter | density-filter / attribute-filter / self-pruner |
+| Attributes | get/set-point-data / attribute-math / attribute-blending |
+| Output | static-mesh-spawner / actor-spawner / mesh-selector-by-attribute |
+| Graph topology (PCGEx) | Delaunay / Voronoi / probe / cluster-refinement |
+| Pathfinding (PCGEx) | A* / Dijkstra / Bellman-Ford |
+| Paths (PCGEx) | offset / bevel / smooth / subdivide / solidify |
+| Tensors (PCGEx) | orient / bias / guide (directional flow fields) |
+| Topology (PCGEx) | cluster→mesh / path→mesh |
+| WFC (PCGEx) | wave-function-collapse / constraint-topology |
+
+### Niagara (VFX / Particles)
+
+[Niagara docs](https://dev.epicgames.com/documentation/en-us/unreal-engine/system-and-emitter-module-reference-for-niagara-effects-in-unreal-engine).
+
+| Stage | Key modules |
+|-------|-------------|
+| System spawn | system-initialize / emitter-state |
+| Emitter update | spawn-rate / emitter-position / emitter-loops |
+| Particle spawn | initialize-particle / lifetime / position / velocity / color / size / rotation |
+| Particle update | solve-forces / gravity / drag / vector-field / velocity-scale / color-over-life / size-over-life / kill-on-age / kill-out-of-bounds / collision |
+| Render | sprite / mesh / ribbon / light / component |
+
+---
+
+## Rigging — Houdini KineFX + APEX
+
+[KineFX docs](https://www.sidefx.com/docs/houdini/character/kinefx/). Skeleton editing, IK, animation retargeting in SOP context + APEX graph.
+
+### KineFX SOPs
+
+| Op | Notes |
+|----|-------|
+| `skeleton` | draw/edit skeleton interactively |
+| `orient-joints` | compute joint transforms from children |
+| `skeleton-mirror` | duplicate across mirror plane |
+| `parent-joints` | modify hierarchy |
+| `group-joints` | create joint groups |
+| `delete-joints` | remove + reparent children |
+| `skeleton-blend` | blend transforms from multiple skeletons |
+| `configure-joints` | rotation/translation limits for IK/ragdoll |
+| `IK-chains` | two-bone IK with goal/twist/stretch |
+| `full-body-IK` | FABRIK or physical IK solver |
+| `rig-pose` | pose/animate skeleton (FK, translate, scale) |
+| `rig-mirror-pose` | mirror pose across plane |
+| `rig-stash-pose` | store rest pose |
+| `rig-match-pose` | conform poses for retargeting |
+| `joint-deform` | skin deformation (linear / dual-quaternion / blend) |
+| `joint-capture-biharmonic` | biharmonic skin weights |
+| `joint-capture-proximity` | distance-based skin weights |
+| `extract-locomotion` | extract root motion |
+| `FBX-character-import` / `USD-character-import` | |
+| `agent-from-rig` | rig → crowd agent |
+
+### APEX Graph Nodes (selection)
+
+| Category | Key nodes |
+|----------|-----------|
+| Skeleton | AddJoint / DeleteJoint / GetParent / GetChildren / SetPointTransforms / Blend / EvaluateMotionClip |
+| IK | rig::TwoBoneIK / rig::MultiBoneIK / fbik::Solver / fbik::SolveFABRIK / fbik::SolvePhysIK |
+| Constraints | rig::PointConstraint / rig::ParentConstraint / rig::CurveConstraint / rig::UVConstraint |
+| Controls | rig::AbstractControl / rig::ControlShape / rig::ControlSpline |
+| Spline | rig::SplineInterpolateTransforms / rig::SampleSplineTransforms / rig::SplineOffset |
+| Deformation | rig::RBFInterpolation / rig::PoseWeightInterpolation |
+| Components | component::FBIK / FKIK / MultiIk / Lookat / ReverseFoot / Spline / Twist / Blendshape / Deltamush |
+| Transform | transform::Build / Explode / Blend / LookAt / Rotate / Mirror / Slerp / PolarDecompose |
+| Quaternion | fromAxisAngle / toEuler / multiply / slerp / SwingTwistDecompose |
+| Channels | ch::Evaluate / AddKeys / BlendKeys / ReduceKeys / SmoothKeys / EulerFilter |
+| Graph | graph::AddNode / Connect / Compile / PromoteInput / EvaluateOutputs |
+
+---
+
+## Sculpting — ZBrush
+
+[ZBrush docs](https://help.maxon.net/zbr/en-us/).
+
+### Brushes
+
+| Category | Ops |
+|----------|-----|
+| Displacement | Standard / Inflat / Elastic / Displace / Blob / Layer / Clay |
+| Deformation | Move / Magnify / Pinch / SnakeHook / Nudge |
+| Surface | Smooth / Flatten / Morph / ZProject |
+| Hard surface | Clip / Trim / Polish / Planar |
+| Curves | CurveTube / CurveFlat / CurveBridge / CurveMultiTube |
+| Hair | Groom (fiber-specific) |
+| Insert | InsertMesh (insert geometry at stroke) |
+
+### Deformers (Gizmo 3D — 26 types)
+
+| Category | Ops |
+|----------|-----|
+| Bend | bend-arc / bend-curve / twist |
+| Scale | taper / stretch / inflate / offset / skew |
+| Flatten | flatten / slice / multi-slice |
+| Smooth | smooth / smooth-all |
+| Hard surface | bevel / crease / extender |
+| Topology | remesh-by-DynaMesh / remesh-by-ZRemesher / remesh-by-union / remesh-by-decimation |
+| Projection | project-primitive (cube / sphere / cylinder / prism) |
+| Deform cage | FFD (free-form deformation) |
+
+### Topology / Remeshing
+
+| Op | Notes |
+|----|-------|
+| `DynaMesh` | real-time quad retopology on sculpt |
+| `ZRemesher` | automatic retopo for organic + hard surface |
+| `mesh-fusion` | polygroup-based topology bridging |
+| `retopology-brush` | manual single-brush retopo (2026.1+) |
+| `subdivide` | Catmull-Clark subdivision levels |
+
+### Boolean / Combine
+
+| Op | Notes |
+|----|-------|
+| `live-boolean` | real-time union/subtract/intersect preview |
+| `make-boolean-mesh` | commit to unified geometry |
+| `merge-down` | consolidate SubTools |
+| `remesh-by-union` | boolean union via deformer |
+
+### Hard Surface (ZModeler)
+
+| Op | Notes |
+|----|-------|
+| `QMesh` | context-aware extrude with auto-weld |
+| `extrude` | pure push/pull |
+| `inset` | create offset loops |
+| `bevel` | add depth via beveled edges |
+| `panel-loops` | convert to separate panels with thickness |
+| `edge-loop-insert` | |
+
+### Polygroups
+
+| Op | Notes |
+|----|-------|
+| `group-from-mask` | |
+| `auto-groups` | per disconnected island |
+| `auto-groups-with-UV` | per UV island |
+| `group-by-normal` | by edge angle |
+| `crease-PG` | crease all polygroup borders |
+
+### UV
+
+| Op | Notes |
+|----|-------|
+| `UV-master` | single-click auto-unwrap |
+| `flatten` / `unflatten` | UV↔3D conversion |
+| `control-painting` | guide seam placement |
+| `density-painting` | per-area pixel density |
+
+### Morph Targets
+
+| Op | Notes |
+|----|-------|
+| `store-morph-target` | save current as reference |
+| `morph-brush` | blend back toward stored target |
+| `createDiffMesh` | delta-only SubTool (blendshape authoring) |
+
+---
+
+## NURBS — Rhino 8
+
+[Rhino 8 command reference](https://docs.mcneel.com/rhino/8/help/en-us/commandlist/command_list.htm).
+
+### Curve Creation
+
+| Op | Notes |
+|----|-------|
+| `arc` / `circle` / `ellipse` / `line` / `polyline` | |
+| `curve` | draw from control points |
+| `curve-through-points` | interpolating fit |
+| `conic` | parabola / hyperbola / ellipse sections |
+| `catenary` | hanging chain curve |
+
+### Curve Editing
+
+| Op | Notes |
+|----|-------|
+| `offset` / `offset-multiple` | |
+| `rebuild` | refit to degree + point count |
+| `simplify` | combine co-linear/co-circular segments |
+| `extend` | lengthen/shorten |
+| `fillet` | tangent arc between two curves |
+| `join` / `explode` | connect / break apart |
+| `fit-curve` | fit within tolerance |
+| `insert-knot` / `remove-knot` | |
+
+### Surface Creation
+
+| Op | Notes |
+|----|-------|
+| `loft` | through profile curves |
+| `sweep1` / `sweep2` | one/two-rail sweep |
+| `network` | from curve network |
+| `blend-surface` | G0/G1/G2 blend between surfaces |
+| `edge-surface` | from 2–4 boundary curves |
+| `extrude` / `revolve` / `rail-revolve` | |
+| `pipe` | tube around curve |
+| `drape` | through projected point intersections |
+| `dev-loft` | single developable surface |
+| `plane` / `box` / `sphere` / `cylinder` / `cone` / `torus` / `ellipsoid` | primitives |
+
+### Surface Editing
+
+| Op | Notes |
+|----|-------|
+| `trim` / `split` / `untrim` | |
+| `extend-surface` | |
+| `fillet-edge` | variable-radius round |
+| `fillet-surface` | constant-radius round |
+| `chamfer-surface` / `variable-chamfer` | |
+| `offset-surface` | |
+| `match-surface` | continuity/curvature matching |
+| `rebuild-surface` | |
+| `shrink-trimmed-surface` | shrink to trim boundary |
+
+### Solid Modeling
+
+| Op | Notes |
+|----|-------|
+| `boolean-union` / `boolean-difference` / `boolean-intersection` | |
+| `create-solid` | close open polysurface |
+| `cap` | close with planar faces |
+| `shell` | hollow with wall thickness |
+| `push-pull` | extrude polysurface faces |
+
+### Mesh
+
+| Op | Notes |
+|----|-------|
+| `mesh` | convert surface to polygon mesh |
+| `reduce-mesh` | decimate |
+| `subdivide` | Catmull-Clark |
+| `to-NURBS` | mesh/SubD → NURBS |
+| `to-SubD` | mesh → SubD |
+| `shrink-wrap` | wrap mesh around geometry |
+| `bevel` | chamfer/fillet mesh edges |
+
+### Analysis
+
+| Op | Notes |
+|----|-------|
+| `curvature-analysis` | false-color curvature map |
+| `zebra` | stripe continuity check |
+| `draft-angle-analysis` | |
+| `edge-continuity` | distance/tangency/curvature deviation |
+| `area` / `volume` / `length` / `distance` / `angle` | |
+| `mass-prop` | mass properties |
