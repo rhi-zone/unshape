@@ -1983,3 +1983,572 @@ Inkscape: 5. Illustrator: 15 (Normal, Darken, Multiply, Color Burn, Lighten, Scr
 | `edge-continuity` | distance/tangency/curvature deviation |
 | `area` / `volume` / `length` / `distance` / `angle` | |
 | `mass-prop` | mass properties |
+
+## Cinema 4D (MoGraph / Fields / Effectors)
+
+[Cinema 4D](https://www.maxon.net/en/cinema-4d). Procedural motion graphics and parametric modeling — MoGraph distributes clones and drives them with effectors falling off through fields.
+
+### MoGraph Generators
+
+| Op | Notes |
+|----|-------|
+| `cloner` | linear/radial/grid/honeycomb/object distribution |
+| `matrix` | invisible cloner for custom geometry |
+| `fracture` | split object into pieces |
+| `instance` | render instance |
+| `text` | 3D extruded text |
+| `tracer` | trace point paths over time |
+| `mospline` | procedural spline (turtle, formula, spline wrap) |
+| `voronoi-fracture` | shattering |
+| `mo-extrude` / `mo-inheritance` | iterative extrusion, motion inheritance |
+
+### Effectors
+
+| Op | Notes |
+|----|-------|
+| `plain` | base linear transform effector |
+| `random` | randomize P/R/S per clone |
+| `shader` | drive from texture luminance |
+| `sound` | FFT-driven |
+| `step` | ramp across clone index |
+| `target` | aim clones at target |
+| `time` | continuous animation |
+| `delay` | smooth/blend clone motion |
+| `formula` | math expression effector |
+| `push-apart` / `spline` / `volume` / `inheritance` / `group` / `python` | |
+
+### Fields (falloff)
+
+| Op | Notes |
+|----|-------|
+| `linear-field` / `spherical-field` / `box-field` / `cylinder-field` / `cone-field` / `torus-field` | shape fields |
+| `random-field` / `radial-field` / `sound-field` / `shader-field` / `python-field` | procedural |
+| `formula-field` | math expression |
+| `group-field` | stack/blend fields with layer modes |
+| `remap` | curve/range remap on field output |
+
+### Volumes
+
+| Op | Notes |
+|----|-------|
+| `volume-builder` | signed-distance field from geometry |
+| `volume-mesher` | SDF → polygon mesh |
+| `volume-boolean` | SDF CSG |
+| `volume-filter` | smooth/dilate/erode |
+
+## DaVinci Resolve Fusion
+
+[Fusion](https://www.blackmagicdesign.com/products/davinciresolve/fusion). Node-based compositing; the 2D/3D scene lives in a flow graph rather than a layer stack.
+
+### Generators
+
+| Op | Notes |
+|----|-------|
+| `background` | solid/gradient |
+| `fast-noise` / `plasma` | procedural noise |
+| `text+` | animated text |
+| `mandelbrot` | fractal |
+| `paint` | raster paint node |
+
+### Filter / Effect
+
+| Op | Notes |
+|----|-------|
+| `blur` / `directional-blur` / `defocus` / `vector-motion-blur` | |
+| `glow` / `soft-glow` / `hot-spot` | |
+| `sharpen` / `unsharp-mask` | |
+| `erode-dilate` / `rank-filter` / `custom-filter` | |
+| `displace` | vector displace |
+| `vortex` / `pinch` / `turbulence` | warp |
+
+### Color
+
+| Op | Notes |
+|----|-------|
+| `color-corrector` / `color-curves` / `hue-curves` | |
+| `brightness-contrast` / `gamma` / `gain` | |
+| `channel-booleans` | swap/remap channels |
+| `color-space` | convert |
+| `lut` | 1D/3D LUT |
+
+### Composite / Merge
+
+| Op | Notes |
+|----|-------|
+| `merge` | 2D over/under with apply modes |
+| `dissolve` | crossfade |
+| `channel-boolean` | per-channel composite |
+| `anaglyph` / `stereo-aligner` | stereoscopic |
+
+### Matte / Key
+
+| Op | Notes |
+|----|-------|
+| `luma-keyer` / `chroma-keyer` / `delta-keyer` / `ultra-keyer` | |
+| `matte-control` | despill, erode, blur matte |
+| `primatte` | pixel-classifier key |
+| `polygon-mask` / `bspline-mask` / `bitmap-mask` | rotoscope shapes |
+
+### Paint / Rotoscope
+
+| Op | Notes |
+|----|-------|
+| `paint` | strokes with brushes |
+| `planar-tracker` / `tracker` | 1-point, 4-point, planar |
+| `stabilizer` | |
+
+### 3D
+
+| Op | Notes |
+|----|-------|
+| `shape-3d` / `text-3d` / `fbx-mesh-3d` / `alembic-mesh-3d` | geometry sources |
+| `image-plane-3d` | |
+| `camera-3d` / `light-3d` (point/spot/directional/ambient) | |
+| `merge-3d` | 3D scene merge |
+| `renderer-3d` | software or OpenGL |
+| `replicate-3d` | instance geometry across points |
+| `displace-3d` | vertex displacement |
+
+### Particles
+
+| Op | Notes |
+|----|-------|
+| `pemitter` | particle source |
+| `pbounce` / `pdirectionalforce` / `pgravity` / `ppointforce` / `pturbulence` / `pvortex` / `pfriction` / `pkill` | forces / modifiers |
+| `prender` | render particles |
+
+### Position / Warp
+
+| Op | Notes |
+|----|-------|
+| `transform` / `dve` | translate/rotate/scale |
+| `crop` / `resize` / `scale` | |
+| `corner-positioner` / `perspective-positioner` | corner-pin |
+| `grid-warp` / `mesh-warp` / `dent` / `drip` / `ripple` | |
+
+### Flow / Utility
+
+| Op | Notes |
+|----|-------|
+| `switch` | select among inputs |
+| `time-stretcher` / `time-speed` | retime |
+| `macro` | encapsulate subgraph |
+| `expression` | Lua/Python scripted value |
+
+## Unity VFX Graph + Shader Graph
+
+[VFX Graph](https://unity.com/features/visual-effect-graph) and [Shader Graph](https://unity.com/features/shader-graph). VFX Graph is compute-shader particle DAG; Shader Graph is a material node editor.
+
+### VFX Graph Contexts
+
+| Op | Notes |
+|----|-------|
+| `spawn` | rate / burst / variable rate |
+| `initialize-particle` | set per-particle attrs at birth |
+| `update-particle` | per-frame integration |
+| `output-particle-quad` / `output-particle-mesh` / `output-particle-strip` / `output-line` | render contexts |
+| `event` | GPU event connecting graphs |
+
+### VFX Blocks (inside contexts)
+
+| Op | Notes |
+|----|-------|
+| `set-attribute` (position / velocity / color / size / lifetime / ...) | source: constant, random, curve, noise, map |
+| `add-velocity` / `add-force` / `turbulence` / `vector-field-force` / `conform-to-sphere` / `attract-to-position` | forces |
+| `collide-with-sphere` / `collide-with-plane` / `collide-with-depth-buffer` / `collide-with-signed-distance-field` | collision |
+| `kill-if-alive-above` / `kill-in-bounds` | cull |
+| `orient` | billboard / velocity / fixed axis |
+
+### VFX Operators
+
+| Op | Notes |
+|----|-------|
+| `sample-curve` / `sample-gradient` / `sample-texture2d` / `sample-texture3d` / `sample-mesh` / `sample-signed-distance-field` | data sources |
+| `position-on-sphere` / `position-on-cone` / `position-on-line` / `position-on-circle` / `position-on-mesh` | spawn shapes |
+| math, logic, noise (perlin/cellular/value), random, time | |
+
+### Shader Graph Nodes
+
+| Op | Notes |
+|----|-------|
+| Input: `sample-texture-2d/3d/cube`, `vertex-color`, `object`, `screen-position`, `uv`, `time`, `gradient`, `color`, `float/vector-n` | |
+| Math: arithmetic, `lerp`, `smoothstep`, `remap`, `clamp`, `fresnel-effect`, trig, derivatives | |
+| Procedural: `simple-noise`, `gradient-noise`, `voronoi`, `checkerboard` | |
+| UV: `tiling-and-offset`, `rotate`, `twirl`, `flipbook`, `polar-coordinates`, `triplanar` | |
+| Channel: `combine` / `split` / `swizzle` | |
+| Artistic (Adjust): `contrast`, `hue`, `saturation`, `white-balance`, `replace-color`, `channel-mixer`, `invert-colors`, `posterize` | |
+| Artistic (Blend): `blend` (all Photoshop modes), `dither` | |
+| Artistic (Filter): `sobel`, `normal-from-height`, `normal-blend`, `normal-unpack` | |
+| Artistic (Mask): `channel-mask`, `color-mask` | |
+| Artistic (Normal): `normal-strength`, `normal-from-texture`, `normal-reconstruct-z` | |
+| Procedural (Shape): `ellipse`, `rectangle`, `rounded-rectangle`, `polygon` | |
+| Utility: `preview`, `sub-graph`, `custom-function` (HLSL injection), `keyword`, `branch` | |
+| Master: `pbr-lit`, `unlit`, `sprite-lit`, `sprite-unlit`, `fullscreen` | stack targets |
+
+## Blender Shader Nodes (Cycles / EEVEE)
+
+[Blender shading](https://docs.blender.org/manual/en/latest/render/shader_nodes/index.html). Per-material node graph shared by Cycles (path tracer) and EEVEE (rasterizer).
+
+### Input
+
+| Op | Notes |
+|----|-------|
+| `geometry` | position / normal / tangent / true-normal / incoming / parametric / backfacing / pointiness / random-per-island |
+| `texture-coordinate` | generated / normal / uv / object / camera / window / reflection |
+| `uv-map` / `vertex-color` / `attribute` | named layers |
+| `camera-data` | view vector / depth / distance |
+| `light-path` | ray-type booleans + depth for Cycles shader branching |
+| `fresnel` / `layer-weight` | angle-based blending |
+| `object-info` / `particle-info` / `hair-info` / `point-info` / `volume-info` | per-instance data |
+| `rgb` / `value` / `wavelength` / `blackbody` | constants |
+
+### Shader (BSDF)
+
+| Op | Notes |
+|----|-------|
+| `principled-bsdf` | uber material |
+| `diffuse-bsdf` / `glossy-bsdf` / `glass-bsdf` / `refraction-bsdf` / `anisotropic-bsdf` / `transparent-bsdf` / `translucent-bsdf` / `velvet-bsdf` / `toon-bsdf` / `sheen-bsdf` / `hair-bsdf` / `principled-hair-bsdf` | individual BSDFs |
+| `subsurface-scattering` / `principled-volume` / `volume-absorption` / `volume-scatter` | volumes |
+| `emission` / `background` / `ambient-occlusion` / `holdout` | |
+| `mix-shader` / `add-shader` | shader arithmetic |
+
+### Texture
+
+| Op | Notes |
+|----|-------|
+| `image-texture` | with projection (flat/box/sphere/tube) |
+| `environment-texture` / `sky-texture` / `ies-texture` | |
+| `noise-texture` / `musgrave-texture` / `voronoi-texture` / `wave-texture` / `magic-texture` / `checker-texture` / `brick-texture` / `gradient-texture` | procedural |
+| `white-noise-texture` / `point-density` | |
+
+### Color
+
+| Op | Notes |
+|----|-------|
+| `mix-rgb` | all blend modes |
+| `rgb-curves` | |
+| `bright-contrast` / `gamma` / `hue-saturation` / `invert` | |
+| `light-falloff` | quadratic / linear / constant |
+
+### Vector
+
+| Op | Notes |
+|----|-------|
+| `mapping` | translate/rotate/scale UVs |
+| `normal-map` / `bump` / `displacement` / `vector-displacement` | |
+| `vector-curves` / `vector-rotate` / `vector-transform` | |
+
+### Converter
+
+| Op | Notes |
+|----|-------|
+| `color-ramp` | gradient map |
+| `math` | full scalar math library + clamp |
+| `vector-math` | vector ops |
+| `rgb-to-bw` / `separate-rgb/hsv/xyz` / `combine-rgb/hsv/xyz` | |
+| `shader-to-rgb` | EEVEE-only bake shader to color |
+| `map-range` / `clamp` / `wavelength` / `blackbody` | |
+| `float-curve` | |
+
+### Script / Output
+
+| Op | Notes |
+|----|-------|
+| `osl-script` | Cycles-only Open Shading Language |
+| `material-output` / `world-output` / `aov-output` / `light-output` | |
+
+## Spine
+
+[Spine](https://esotericsoftware.com/). 2D skeletal animation — bones, constraints, skinned mesh attachments, and a timeline of keyed values.
+
+### Skeleton
+
+| Op | Notes |
+|----|-------|
+| `bone` | hierarchy with local TRS, inherit rotation/scale toggles |
+| `slot` | draw order slot, tint, blend mode, attachment |
+| `skin` | named set of attachment overrides |
+| `event` | fire named event on timeline |
+
+### Constraints
+
+| Op | Notes |
+|----|-------|
+| `ik-constraint` | 1-bone or 2-bone, pole target, bend direction, stretch, mix |
+| `transform-constraint` | copy/blend TRS from target with world/local options |
+| `path-constraint` | follow curve by position/spacing, rotate by tangent |
+| `physics-constraint` | spring/damping/mass driven bone |
+| `slider-constraint` | drive scalar parameter used by other constraints |
+
+### Attachments
+
+| Op | Notes |
+|----|-------|
+| `region-attachment` | textured quad |
+| `mesh-attachment` | deformable mesh (weighted to bones) |
+| `bounding-box-attachment` | hit region |
+| `path-attachment` | spline used by path constraint |
+| `point-attachment` | named world-space marker |
+| `clipping-attachment` | mask subsequent slots |
+
+### Animation / Timeline
+
+| Op | Notes |
+|----|-------|
+| `rotate-timeline` / `translate-timeline` / `scale-timeline` / `shear-timeline` | bone TRS keys |
+| `attachment-timeline` / `color-timeline` / `draw-order-timeline` | slot channels |
+| `deform-timeline` | per-vertex mesh deform |
+| `ik-timeline` / `transform-timeline` / `path-timeline` / `physics-timeline` | constraint mix/blend |
+| `event-timeline` | |
+| `curve` | linear / stepped / Bezier per key |
+| `mix` / `track` | animation state machine with crossfade tracks |
+
+## Maya (rigging / deformers / dynamics)
+
+[Maya](https://www.autodesk.com/products/maya). Heavy-duty DAG node graph where the "op set" is the node type list. Listed by category.
+
+### Deformers
+
+| Op | Notes |
+|----|-------|
+| `skinCluster` | linear / dual-quaternion / blended skinning |
+| `blendShape` | morph targets, in-between, combination |
+| `lattice` / `ffd` | free-form deformation cage |
+| `cluster` | weighted point group transform |
+| `bend` / `twist` / `flare` / `sine` / `squash` / `wave` | nonlinear |
+| `wrap` | drive mesh from driver mesh |
+| `wire` | curve-driven deformation |
+| `softMod` | radial falloff push/pull |
+| `deltaMush` / `tensionMap` | smoothing / correction |
+| `jiggle` / `muscle` / `proximityWrap` / `shrinkWrap` | |
+| `sculpt` | push by sphere |
+| `textureDeformer` | displace from texture |
+| `solidify` | rigid thickness |
+| `deformerEvaluator` / `morph` | GPU deform |
+
+### Constraints
+
+| Op | Notes |
+|----|-------|
+| `parentConstraint` / `pointConstraint` / `orientConstraint` / `scaleConstraint` | |
+| `aimConstraint` / `poleVectorConstraint` | |
+| `geometryConstraint` / `normalConstraint` / `tangentConstraint` | |
+| `pointOnPolyConstraint` / `pointOnCurveInfo` | |
+
+### IK / Rigging
+
+| Op | Notes |
+|----|-------|
+| `ikHandle` (RP / SC / spline) | rotate-plane, single-chain, spline IK solvers |
+| `ikSplineHandle` | curve-driven chain |
+| `ikSpringSolver` | quadruped |
+| `hikSolver` | Human IK full-body |
+| `inverseMatrix` / `multMatrix` / `decomposeMatrix` / `composeMatrix` | matrix utility nodes |
+| `setRange` / `remapValue` / `remapColor` / `remapHsv` / `clamp` / `blendColors` / `condition` / `multiplyDivide` / `plusMinusAverage` | utility DG nodes |
+
+### Dynamics (nDynamics / Bifrost / Fluids)
+
+| Op | Notes |
+|----|-------|
+| `nCloth` / `nucleus` / `nParticle` / `nRigid` | unified Nucleus solver |
+| `nConstraint` (transform / component-to-component / force / slide-on-surface / weld / tearable) | |
+| `air` / `drag` / `gravity` / `newton` / `radial` / `turbulence` / `uniform` / `vortex` / `volumeAxis` | fields |
+| `rigidBody` / `rigidConstraint` (hinge / nail / pin / spring / barrier) | legacy dynamics |
+| `fluidShape` / `fluidEmitter` | Maya Fluids voxel sim |
+| `bifrostGraph` / `bifrostBoard` | MPM / FLIP / aero / MPM-cloth graph |
+| `boss` / `ocean` / `pond` | Bifrost Ocean |
+| `xgen` / `xgmSplineDescription` | hair / grooming |
+
+### Geometry / Modeling (node equivalents)
+
+| Op | Notes |
+|----|-------|
+| `polyExtrude` / `polyBevel` / `polySmoothFace` / `polyChipOff` / `polyBridgeEdge` / `polySplit` / `polyMergeVert` / `polyReduce` / `polyRemesh` / `polyRetopo` | history nodes |
+| `loft` / `revolve` / `extrude` / `sweep` / `birail` | NURBS construction |
+| `bevelPlus` / `birail2` / `offsetCurve` / `rebuildSurface` / `attachSurface` / `detachSurface` | |
+
+## Max/MSP Jitter
+
+[Jitter](https://cycling74.com/products/max). Matrix-oriented video/3D side of Max — everything is a named `jit.*` object operating on multi-dim `jit.matrix`.
+
+### Sources
+
+| Op | Notes |
+|----|-------|
+| `jit.qt.movie` / `jit.movie` | video file decode |
+| `jit.grab` / `jit.desktop` | live camera / screen |
+| `jit.noise` / `jit.gradient` / `jit.chromakey` | synthetic |
+| `jit.textfile` / `jit.matrix` | data / ring buffer |
+
+### Matrix Ops
+
+| Op | Notes |
+|----|-------|
+| `jit.op` | per-cell binary op (huge built-in list: `+ - * / % min max pass` ...) |
+| `jit.scalebias` | scale + bias |
+| `jit.pack` / `jit.unpack` | plane split/merge |
+| `jit.matrixset` | frame history |
+| `jit.expr` | per-cell expression |
+
+### Colorspace
+
+| Op | Notes |
+|----|-------|
+| `jit.colorspace` | RGB ↔ HSL / YUV / HSV / LAB |
+| `jit.rgb2luma` / `jit.chromakey` / `jit.lumakey` | keying |
+| `jit.brcosa` | brightness / contrast / saturation |
+
+### Filters
+
+| Op | Notes |
+|----|-------|
+| `jit.fastblur` / `jit.robcross` / `jit.sobel` / `jit.convolve` | convolution |
+| `jit.sharpen` / `jit.wake` | |
+| `jit.dilate` / `jit.erode` / `jit.rota` | morphological / spatial |
+| `jit.repos` | per-pixel resample with offset matrix |
+| `jit.traffic` / `jit.slide` | feedback / temporal |
+
+### Analysis
+
+| Op | Notes |
+|----|-------|
+| `jit.3m` | min/mean/max per plane |
+| `jit.findbounds` | bounding box of matching cells |
+| `jit.histogram` | |
+| `jit.fft` | 2D FFT |
+| `jit.cv.jit.*` | computer vision extensions (blob, face, flow) |
+
+### Compositing
+
+| Op | Notes |
+|----|-------|
+| `jit.xfade` | crossfade |
+| `jit.alphablend` | alpha over |
+| `jit.slide` | temporal easing per cell |
+| `jit.op @op` (with blend modes) | |
+
+### Transforms
+
+| Op | Notes |
+|----|-------|
+| `jit.resamp` / `jit.scissors` / `jit.glue` | resize / tile / assemble |
+| `jit.dimmap` | reorder / flip dims |
+| `jit.matrix @planemap` | plane swap |
+| `jit.rota` | rotate / scale / anchor |
+
+### OpenGL (3D)
+
+| Op | Notes |
+|----|-------|
+| `jit.gl.render` | context / camera |
+| `jit.gl.gridshape` / `jit.gl.mesh` / `jit.gl.model` / `jit.gl.text3d` / `jit.gl.sketch` | geometry sources |
+| `jit.gl.material` / `jit.gl.shader` / `jit.gl.pix` / `jit.gl.slab` | shading / GPU pixel DAG |
+| `jit.gl.light` / `jit.gl.camera` / `jit.gl.node` | scene graph |
+| `jit.gl.pass` | multi-pass / deferred rendering |
+| `jit.gl.mesh @draw_mode` | point / line / triangle / patch |
+| `jit.gen` / `jit.pix` / `jit.gl.pix` | gen-patcher JIT-compiled per-sample graph |
+
+## Processing + p5.js
+
+[Processing](https://processing.org/) / [p5.js](https://p5js.org/). Creative-coding libraries — the "op set" is the immediate-mode draw API.
+
+### Environment / Frame
+
+| Op | Notes |
+|----|-------|
+| `size` / `createCanvas` | |
+| `background` / `clear` | |
+| `frameRate` / `frameCount` / `deltaTime` | |
+| `push` / `pop` | state stack |
+| `loop` / `noLoop` / `redraw` | |
+| `pixelDensity` | HiDPI |
+
+### 2D Primitives
+
+| Op | Notes |
+|----|-------|
+| `point` / `line` / `triangle` / `quad` / `rect` (+ radii) / `ellipse` / `circle` / `arc` | |
+| `bezier` / `curve` | |
+| `beginShape` / `vertex` / `bezierVertex` / `quadraticVertex` / `curveVertex` / `endShape` | |
+| `rectMode` / `ellipseMode` / `imageMode` / `angleMode` | |
+
+### Stroke / Fill / Style
+
+| Op | Notes |
+|----|-------|
+| `fill` / `noFill` / `stroke` / `noStroke` | |
+| `strokeWeight` / `strokeCap` / `strokeJoin` | |
+| `smooth` / `noSmooth` | antialiasing |
+| `erase` / `noErase` | |
+| `blendMode` | Photoshop-style composite |
+
+### Color
+
+| Op | Notes |
+|----|-------|
+| `color` / `colorMode` (RGB / HSB / HSL) | |
+| `red` / `green` / `blue` / `alpha` / `hue` / `saturation` / `brightness` / `lightness` | |
+| `lerpColor` | |
+
+### Transforms
+
+| Op | Notes |
+|----|-------|
+| `translate` / `rotate` / `rotateX/Y/Z` / `scale` / `shearX` / `shearY` | |
+| `applyMatrix` / `resetMatrix` | |
+
+### 3D
+
+| Op | Notes |
+|----|-------|
+| `box` / `sphere` / `cylinder` / `cone` / `torus` / `plane` / `ellipsoid` | |
+| `camera` / `perspective` / `ortho` / `frustum` | |
+| `ambientLight` / `directionalLight` / `pointLight` / `spotLight` / `lightFalloff` / `specularMaterial` / `ambientMaterial` / `emissiveMaterial` / `normalMaterial` | |
+| `texture` / `normalMap` / `shader` / `resetShader` | |
+| `model` / `loadModel` | OBJ / STL |
+
+### Math / Vectors
+
+| Op | Notes |
+|----|-------|
+| `abs` / `ceil` / `floor` / `round` / `constrain` / `dist` / `exp` / `log` / `mag` / `map` / `max` / `min` / `norm` / `pow` / `sq` / `sqrt` / `fract` | |
+| `sin` / `cos` / `tan` / `atan` / `atan2` / `asin` / `acos` / `radians` / `degrees` | |
+| `random` / `randomGaussian` / `randomSeed` / `noise` / `noiseSeed` / `noiseDetail` | |
+| `p5.Vector` / `PVector` ops: `add`, `sub`, `mult`, `div`, `mag`, `normalize`, `limit`, `setMag`, `heading`, `rotate`, `lerp`, `dot`, `cross`, `dist`, `angleBetween`, `random2D`, `random3D`, `fromAngle` | |
+
+### Images / Pixels
+
+| Op | Notes |
+|----|-------|
+| `loadImage` / `image` / `tint` / `noTint` / `imageMode` | |
+| `createImage` / `get` / `set` / `copy` / `blend` / `mask` | |
+| `loadPixels` / `updatePixels` / `pixels[]` | |
+| `filter` (`THRESHOLD` / `GRAY` / `OPAQUE` / `INVERT` / `POSTERIZE` / `BLUR` / `ERODE` / `DILATE`) | |
+
+### Typography
+
+| Op | Notes |
+|----|-------|
+| `loadFont` / `textFont` / `textSize` / `textLeading` / `textAlign` / `textStyle` / `textWidth` / `textAscent` / `textDescent` / `text` | |
+
+### Input / Events
+
+| Op | Notes |
+|----|-------|
+| `mouseX` / `mouseY` / `pmouseX` / `pmouseY` / `mouseButton` / `mouseIsPressed` | |
+| `mousePressed` / `mouseReleased` / `mouseMoved` / `mouseDragged` / `mouseClicked` / `mouseWheel` | |
+| `keyCode` / `key` / `keyIsPressed` / `keyPressed` / `keyReleased` / `keyTyped` | |
+| `touches[]` / `touchStarted` / `touchMoved` / `touchEnded` | |
+
+### Time / Date
+
+| Op | Notes |
+|----|-------|
+| `millis` / `second` / `minute` / `hour` / `day` / `month` / `year` | |
+
+### DOM (p5.js)
+
+| Op | Notes |
+|----|-------|
+| `createDiv` / `createP` / `createSpan` / `createImg` / `createA` / `createSlider` / `createButton` / `createCheckbox` / `createSelect` / `createRadio` / `createInput` / `createFileInput` / `createVideo` / `createAudio` / `createCapture` / `createElement` | |
+| `select` / `selectAll` / `removeElements` | |
