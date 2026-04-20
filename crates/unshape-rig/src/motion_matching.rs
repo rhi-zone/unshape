@@ -153,7 +153,7 @@ impl MotionClip {
         let mut hi = self.frames.len() - 1;
 
         while lo < hi {
-            let mid = (lo + hi + 1) / 2;
+            let mid = (lo + hi).div_ceil(2);
             if self.frames[mid].time <= t {
                 lo = mid;
             } else {
@@ -437,25 +437,24 @@ impl MotionMatcher {
         });
 
         // Search for better match if enough time has passed
-        if self.time_since_transition >= self.config.min_transition_time {
-            if let Some(result) =
+        if self.time_since_transition >= self.config.min_transition_time
+            && let Some(result) =
                 find_best_match(database, query, &self.config, allowed_clips.as_deref())
-            {
-                // Check if new match is significantly better
-                let current_clip = database.clip(self.current_clip)?;
-                let current_frame_idx = current_clip.frame_index(self.current_time);
-                let current_frame = current_clip.frame(current_frame_idx)?;
-                let current_cost = compute_match_cost(query, current_frame, &self.config);
+        {
+            // Check if new match is significantly better
+            let current_clip = database.clip(self.current_clip)?;
+            let current_frame_idx = current_clip.frame_index(self.current_time);
+            let current_frame = current_clip.frame(current_frame_idx)?;
+            let current_cost = compute_match_cost(query, current_frame, &self.config);
 
-                // Transition if new match is at least 10% better
-                if result.cost < current_cost * 0.9 {
-                    self.transition_to(result.frame_ref.clip, database);
-                    self.current_time = database
-                        .clip(result.frame_ref.clip)?
-                        .frames
-                        .get(result.frame_ref.frame)?
-                        .time;
-                }
+            // Transition if new match is at least 10% better
+            if result.cost < current_cost * 0.9 {
+                self.transition_to(result.frame_ref.clip, database);
+                self.current_time = database
+                    .clip(result.frame_ref.clip)?
+                    .frames
+                    .get(result.frame_ref.frame)?
+                    .time;
             }
         }
 
@@ -772,8 +771,10 @@ mod tests {
 
     #[test]
     fn test_motion_matcher_blend_weight() {
-        let mut config = MotionMatchingConfig::default();
-        config.blend_time = 1.0;
+        let config = MotionMatchingConfig {
+            blend_time: 1.0,
+            ..MotionMatchingConfig::default()
+        };
 
         let mut matcher = MotionMatcher::new(config);
         matcher.blend_time_left = 0.5;

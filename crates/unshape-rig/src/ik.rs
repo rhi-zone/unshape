@@ -516,7 +516,7 @@ impl SolveFabrik {
         let result = solve_fabrik(skeleton, pose, chain, target, &self.config);
 
         if let Some(pole) = self.pole_target {
-            apply_pole_twist(skeleton, pose, chain, target, pole);
+            apply_pole_twist(skeleton, pose, chain, pole);
         }
 
         result
@@ -650,13 +650,7 @@ fn best_perp(v: Vec3) -> Vec3 {
 ///
 /// Rotates all bones around the root→tip axis so the first interior joint
 /// points toward `pole`.
-fn apply_pole_twist(
-    skeleton: &Skeleton,
-    pose: &mut Pose,
-    chain: &IkChain,
-    target: Vec3,
-    pole: Vec3,
-) {
+fn apply_pole_twist(skeleton: &Skeleton, pose: &mut Pose, chain: &IkChain, pole: Vec3) {
     if chain.len() < 2 {
         return;
     }
@@ -797,5 +791,65 @@ mod tests {
         let result = solve_fabrik(&skel, &mut pose, &chain, target, &IkConfig::default());
 
         assert!(!result.reached);
+    }
+
+    #[test]
+    fn test_two_bone_reachable() {
+        let (skel, chain, mut pose) = two_bone_chain();
+
+        // Target within reach (total chain length = 2.0)
+        let solver = SolveTwoBone {
+            target: Vec3::new(1.0, 1.0, 0.0),
+            pole_target: None,
+        };
+        let result = solver.solve(&chain, &skel, &mut pose);
+
+        assert!(result.reached);
+        assert!(result.distance < 0.01, "distance: {}", result.distance);
+        assert_eq!(result.iterations, 1);
+    }
+
+    #[test]
+    fn test_two_bone_unreachable() {
+        let (skel, chain, mut pose) = two_bone_chain();
+
+        // Target beyond reach
+        let solver = SolveTwoBone {
+            target: Vec3::new(10.0, 0.0, 0.0),
+            pole_target: None,
+        };
+        let result = solver.solve(&chain, &skel, &mut pose);
+
+        assert!(!result.reached);
+    }
+
+    #[test]
+    fn test_two_bone_requires_exactly_two_bones() {
+        let (skel, _, _) = two_bone_chain();
+        let chain = IkChain::new(vec![BoneId(0)]);
+        let mut pose = skel.rest_pose();
+
+        let solver = SolveTwoBone {
+            target: Vec3::new(1.0, 0.0, 0.0),
+            pole_target: None,
+        };
+        let result = solver.solve(&chain, &skel, &mut pose);
+
+        assert!(!result.reached);
+        assert_eq!(result.distance, f32::MAX);
+    }
+
+    #[test]
+    fn test_fabrik_with_pole_target() {
+        let (skel, chain, mut pose) = two_bone_chain();
+
+        let solver = SolveFabrik {
+            config: IkConfig::default(),
+            pole_target: Some(Vec3::new(0.0, 0.0, 1.0)),
+        };
+        let result = solver.apply(&skel, &mut pose, &chain, Vec3::new(1.0, 1.0, 0.0));
+
+        // Should still reach target
+        assert!(result.distance < 0.1, "distance: {}", result.distance);
     }
 }

@@ -30,8 +30,10 @@ pub use animation::{
     Track,
 };
 pub use blend::{AnimationLayer, AnimationPose, AnimationStack, BlendMode, BlendNode, Crossfade};
-pub use constraint::{Constraint, ConstraintStack, PathConstraint};
-pub use ik::{Ik, IkChain, IkConfig, IkResult, SolveCcd, SolveFabrik, solve_ccd, solve_fabrik};
+pub use constraint::{AimConstraint, Constraint, ConstraintStack, PathConstraint};
+pub use ik::{
+    Ik, IkChain, IkConfig, IkResult, SolveCcd, SolveFabrik, SolveTwoBone, solve_ccd, solve_fabrik,
+};
 pub use locomotion::{
     FootPlacement, Gait, GaitConfig, GaitPattern, LegState, ProceduralHop, ProceduralWalk,
     WalkAnimator,
