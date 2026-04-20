@@ -436,6 +436,10 @@ impl Default for SolveCcd {
 /// FABRIK is often faster than CCD and produces smoother results for
 /// longer chains.
 ///
+/// When `pole_target` is set, after FABRIK converges the chain is twisted
+/// around the root→tip axis so the first interior joint points toward the
+/// pole target.
+///
 /// # Example
 ///
 /// ```ignore
@@ -450,18 +454,24 @@ impl Default for SolveCcd {
 pub struct SolveFabrik {
     /// IK solver configuration.
     pub config: IkConfig,
+    /// Optional pole vector to control the elbow/knee direction.
+    pub pole_target: Option<Vec3>,
 }
 
 impl SolveFabrik {
     /// Creates a new FABRIK solver with the given configuration.
     pub fn new(config: IkConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            pole_target: None,
+        }
     }
 
     /// Creates a FABRIK solver with default configuration.
     pub fn default_config() -> Self {
         Self {
             config: IkConfig::default(),
+            pole_target: None,
         }
     }
 
@@ -472,6 +482,7 @@ impl SolveFabrik {
                 tolerance,
                 ..IkConfig::default()
             },
+            pole_target: None,
         }
     }
 
@@ -482,7 +493,14 @@ impl SolveFabrik {
                 max_iterations,
                 ..IkConfig::default()
             },
+            pole_target: None,
         }
+    }
+
+    /// Sets the pole target hint.
+    pub fn with_pole_target(mut self, pole: Vec3) -> Self {
+        self.pole_target = Some(pole);
+        self
     }
 
     /// Solves IK for the given chain to reach the target position.
@@ -495,13 +513,203 @@ impl SolveFabrik {
         chain: &IkChain,
         target: Vec3,
     ) -> IkResult {
-        solve_fabrik(skeleton, pose, chain, target, &self.config)
+        let result = solve_fabrik(skeleton, pose, chain, target, &self.config);
+
+        if let Some(pole) = self.pole_target {
+            apply_pole_twist(skeleton, pose, chain, target, pole);
+        }
+
+        result
     }
 }
 
 impl Default for SolveFabrik {
     fn default() -> Self {
         Self::default_config()
+    }
+}
+
+// ============================================================================
+// Two-Bone Analytical IK Solver
+// ============================================================================
+
+/// Analytical (closed-form) IK solver for exactly 2-bone chains.
+///
+/// Faster and more predictable than iterative methods like CCD or FABRIK.
+/// Suitable for arms (upper arm + forearm) and legs (thigh + shin).
+///
+/// The optional `pole_target` controls which direction the elbow/knee
+/// bends: it is projected onto the plane perpendicular to the root→target
+/// axis and used to orient the mid-joint in that plane.
+///
+/// # Example
+///
+/// ```ignore
+/// use unshape_rig::{SolveTwoBone, IkChain, Skeleton, Pose};
+/// use glam::Vec3;
+///
+/// let solver = SolveTwoBone {
+///     target: Vec3::new(1.5, -1.0, 0.0),
+///     pole_target: Some(Vec3::new(0.0, 0.0, 1.0)),
+/// };
+/// let result = solver.solve(&chain, &skeleton, &mut pose);
+/// ```
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct SolveTwoBone {
+    /// World-space target position for the end effector.
+    pub target: Vec3,
+    /// Optional pole target (elbow/knee hint) in world space.
+    pub pole_target: Option<Vec3>,
+}
+
+impl SolveTwoBone {
+    /// Solves the two-bone IK chain analytically.
+    ///
+    /// `chain` must contain exactly 2 bones; returns early with `reached: false`
+    /// if the chain length differs.
+    pub fn solve(&self, chain: &IkChain, skeleton: &Skeleton, pose: &mut Pose) -> IkResult {
+        if chain.len() != 2 {
+            return IkResult {
+                reached: false,
+                distance: f32::MAX,
+                iterations: 0,
+            };
+        }
+
+        let bone0_id = chain.bones[0];
+        let bone1_id = chain.bones[1];
+
+        let len0 = skeleton.bone(bone0_id).map(|b| b.length).unwrap_or(1.0);
+        let len1 = skeleton.bone(bone1_id).map(|b| b.length).unwrap_or(1.0);
+        let total_len = len0 + len1;
+
+        let root_pos = bone_head_world(skeleton, pose, bone0_id);
+        let to_target = self.target - root_pos;
+        let dist_raw = to_target.length();
+
+        // Clamp distance to reachable range; at least epsilon to avoid NaNs.
+        let dist = dist_raw.clamp(f32::EPSILON, total_len - f32::EPSILON);
+        let reached = dist_raw <= total_len;
+
+        // Direction from root toward target.
+        let root_to_target = to_target.normalize_or_zero();
+
+        // Law of cosines: angle at bone0 (elbow angle on the root side).
+        // dist² = len0² + len1² - 2·len0·len1·cos(elbow_angle)
+        // cos(elbow_angle) = (len0² + dist² - len1²) / (2·len0·dist)
+        let cos_angle0 =
+            ((len0 * len0 + dist * dist - len1 * len1) / (2.0 * len0 * dist)).clamp(-1.0, 1.0);
+        let angle0 = cos_angle0.acos();
+
+        // Bend plane normal: default to a plane containing root_to_target.
+        // If a pole target is given, use it to define the plane.
+        let bend_normal = if let Some(pole) = self.pole_target {
+            let to_pole = (pole - root_pos).normalize_or_zero();
+            // Project pole onto plane perpendicular to root→target.
+            let proj = to_pole - root_to_target * to_pole.dot(root_to_target);
+            if proj.length_squared() > 0.0001 {
+                proj.normalize()
+            } else {
+                best_perp(root_to_target)
+            }
+        } else {
+            best_perp(root_to_target)
+        };
+
+        // Mid-joint position: rotate root_to_target by angle0 around bend_normal.
+        let rot0 = Quat::from_axis_angle(bend_normal, angle0);
+        let mid_dir = rot0 * root_to_target;
+        let mid_pos = root_pos + mid_dir * len0;
+        let end_pos = root_pos + root_to_target * dist;
+
+        // Apply positions back to pose.
+        let positions = [root_pos, mid_pos, end_pos];
+        apply_positions_to_pose(skeleton, pose, chain, &positions);
+
+        let final_distance = (end_pos - self.target).length();
+        IkResult {
+            reached,
+            distance: final_distance,
+            iterations: 1,
+        }
+    }
+}
+
+/// Returns an arbitrary unit vector perpendicular to `v`.
+fn best_perp(v: Vec3) -> Vec3 {
+    let candidate = if v.abs().dot(Vec3::Y) < 0.9 {
+        Vec3::Y
+    } else {
+        Vec3::X
+    };
+    v.cross(candidate).normalize_or_zero()
+}
+
+/// Applies a pole-vector twist to the chain after a FABRIK solve.
+///
+/// Rotates all bones around the root→tip axis so the first interior joint
+/// points toward `pole`.
+fn apply_pole_twist(
+    skeleton: &Skeleton,
+    pose: &mut Pose,
+    chain: &IkChain,
+    target: Vec3,
+    pole: Vec3,
+) {
+    if chain.len() < 2 {
+        return;
+    }
+
+    let root_pos = bone_head_world(skeleton, pose, chain.bones[0]);
+    let tip_pos = {
+        let end = chain.end_bone().unwrap();
+        bone_tip_world(skeleton, pose, end)
+    };
+
+    let axis = (tip_pos - root_pos).normalize_or_zero();
+    if axis.length_squared() < 0.0001 {
+        return;
+    }
+
+    // Current mid-joint direction (projected onto the plane perp to axis).
+    let mid_pos = bone_head_world(skeleton, pose, chain.bones[1]);
+    let mid_vec = mid_pos - root_pos;
+    let mid_proj = (mid_vec - axis * mid_vec.dot(axis)).normalize_or_zero();
+
+    // Desired direction: pole projected onto same plane.
+    let pole_vec = pole - root_pos;
+    let pole_proj = (pole_vec - axis * pole_vec.dot(axis)).normalize_or_zero();
+
+    if mid_proj.length_squared() < 0.0001 || pole_proj.length_squared() < 0.0001 {
+        return;
+    }
+
+    let twist = Quat::from_rotation_arc(mid_proj, pole_proj);
+    if twist.is_nan() {
+        return;
+    }
+
+    // Apply twist rotation to all bones in the chain (world-to-local conversion).
+    for &bone_id in &chain.bones {
+        let current = pose.get(bone_id);
+        let world = pose.world_transform(skeleton, bone_id);
+        let parent_world = skeleton
+            .bone(bone_id)
+            .and_then(|b| b.parent)
+            .map(|p| pose.world_transform(skeleton, p))
+            .unwrap_or(Transform3D::IDENTITY);
+
+        let new_world_rot = twist * world.rotation;
+        let local_rot = parent_world.rotation.inverse() * new_world_rot;
+
+        pose.set(
+            bone_id,
+            Transform3D {
+                rotation: local_rot,
+                ..current
+            },
+        );
     }
 }
 

@@ -38,8 +38,8 @@ pub use sdf::*;
 pub use spectral::*;
 pub use terrain::*;
 pub use unshape_field_ops::{
-    Constant, Coordinates, EvalContext, Field, FnField, Map, Scale, Translate, Zip, Zip3, add, div,
-    from_fn, lerp, mix, mul, sub, zip, zip3,
+    Abs, Clamp, Constant, Coordinates, EvalContext, Field, FnField, Map, Negate, Pow, Remap, Scale,
+    Smoothstep, Step, Translate, Zip, Zip3, add, div, from_fn, lerp, mix, mul, sub, zip, zip3,
 };
 
 /// Registers all field operations with an [`OpRegistry`].
