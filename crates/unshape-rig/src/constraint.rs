@@ -329,4 +329,53 @@ mod tests {
         let world = pose.world_transform(&skel, bone);
         assert!((world.translation.x - 10.0).abs() < 0.001);
     }
+
+    #[test]
+    fn test_aim_constraint_aligns_axis() {
+        let (skel, bone) = single_bone_skeleton();
+        let mut pose = skel.rest_pose();
+
+        // Target is directly in the +X direction from the bone origin.
+        let constraint = AimConstraint {
+            bone_id: bone,
+            target: Vec3::new(5.0, 0.0, 0.0),
+            aim_axis: Vec3::Y,
+            up_axis: Vec3::Z,
+            world_up: Vec3::Y,
+            mix: 1.0,
+        };
+
+        constraint.apply(&skel, &mut pose);
+
+        let world = pose.world_transform(&skel, bone);
+        let aim_world = world.rotation * Vec3::Y;
+        // After constraint, Y axis should point toward +X.
+        assert!(
+            (aim_world.x - 1.0).abs() < 0.01,
+            "aim_world: {:?}",
+            aim_world
+        );
+    }
+
+    #[test]
+    fn test_aim_constraint_mix_zero_no_change() {
+        let (skel, bone) = single_bone_skeleton();
+        let mut pose = skel.rest_pose();
+        let original_rot = pose.world_transform(&skel, bone).rotation;
+
+        let constraint = AimConstraint {
+            bone_id: bone,
+            target: Vec3::new(5.0, 0.0, 0.0),
+            aim_axis: Vec3::Y,
+            up_axis: Vec3::Z,
+            world_up: Vec3::Y,
+            mix: 0.0,
+        };
+
+        constraint.apply(&skel, &mut pose);
+
+        let new_rot = pose.world_transform(&skel, bone).rotation;
+        let diff = original_rot.dot(new_rot).abs();
+        assert!(diff > 0.999, "rotation changed with mix=0");
+    }
 }

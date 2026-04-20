@@ -13,13 +13,73 @@
 //! # Usage
 //!
 //! ```ignore
-//! let result = boolean_union(&mesh_a, &mesh_b);
-//! let result = boolean_subtract(&mesh_a, &mesh_b);
-//! let result = boolean_intersect(&mesh_a, &mesh_b);
+//! let union = BooleanUnion { other: mesh_b.clone() }.apply(&mesh_a);
+//! let subtracted = BooleanSubtract { other: mesh_b.clone() }.apply(&mesh_a);
+//! let intersected = BooleanIntersect { other: mesh_b.clone() }.apply(&mesh_a);
 //! ```
 
 use crate::Mesh;
 use glam::Vec3;
+
+// ============================================================================
+// Op structs
+// ============================================================================
+
+/// Computes the union of this mesh and another (A ∪ B).
+///
+/// Returns a new mesh containing the combined volume of both meshes.
+///
+/// Note: not serializable because `Mesh` does not implement `serde`. In a node
+/// graph context, the `other` input would arrive via a wire rather than being
+/// embedded in the op struct.
+#[derive(Debug, Clone)]
+pub struct BooleanUnion {
+    /// The mesh to union with.
+    pub other: Mesh,
+}
+
+impl BooleanUnion {
+    /// Applies this operation to a mesh.
+    pub fn apply(&self, mesh: &Mesh) -> Mesh {
+        boolean_union(mesh, &self.other)
+    }
+}
+
+/// Computes the subtraction of another mesh from this one (A - B).
+///
+/// Returns a new mesh with the other mesh's volume removed.
+///
+/// Note: not serializable because `Mesh` does not implement `serde`.
+#[derive(Debug, Clone)]
+pub struct BooleanSubtract {
+    /// The mesh to subtract.
+    pub other: Mesh,
+}
+
+impl BooleanSubtract {
+    /// Applies this operation to a mesh.
+    pub fn apply(&self, mesh: &Mesh) -> Mesh {
+        boolean_subtract(mesh, &self.other)
+    }
+}
+
+/// Computes the intersection of this mesh and another (A ∩ B).
+///
+/// Returns a new mesh containing only the overlapping volume.
+///
+/// Note: not serializable because `Mesh` does not implement `serde`.
+#[derive(Debug, Clone)]
+pub struct BooleanIntersect {
+    /// The mesh to intersect with.
+    pub other: Mesh,
+}
+
+impl BooleanIntersect {
+    /// Applies this operation to a mesh.
+    pub fn apply(&self, mesh: &Mesh) -> Mesh {
+        boolean_intersect(mesh, &self.other)
+    }
+}
 
 /// Epsilon for floating point comparisons.
 const EPSILON: f32 = 1e-5;

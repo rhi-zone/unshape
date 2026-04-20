@@ -75,7 +75,7 @@ impl Mirror {
 /// Applies a [`Mirror`] op to a mesh.
 pub fn mirror(mesh: &Mesh, op: &Mirror) -> Mesh {
     // Build the mirrored copy: reflect positions and flip normals.
-    let mut mirrored = Mesh {
+    let mirrored = Mesh {
         positions: mesh
             .positions
             .iter()
