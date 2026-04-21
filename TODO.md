@@ -83,6 +83,29 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 - [x] Weight painting tools - weight smoothing, heat diffusion for skinning
 - [x] Topology analysis - genus detection, manifold testing, boundary classification
 
+### Graph / Core (from parity audit, 2026-04-21)
+
+**GraphInput / wiring (just landed):**
+- [ ] `GraphOutput` source node — mirror of `GraphInput`; lets a graph declare what it exposes as named outputs (enables sub-graph compositing)
+- [ ] `Graph::input_nodes()` / `output_nodes()` — introspect declared interface without walking all nodes
+- [ ] Typed opaque constants — `ConstantMesh`, `ConstantImage` etc. once `Mesh: Serialize` is added
+- [ ] `Mesh: Serialize + Deserialize` — all fields are plain `Vec<f32>` / `Vec<u32>`, straightforward; unlocks serializable boolean op structs
+
+**Field gaps (from parity audit):**
+- [ ] 3D SDF `Remap` / `Clamp` / `Smoothstep` combinators on `Vec3` inputs (the combinators landed but only work on `f32` outputs; verify `Vec3` path works)
+- [ ] Dual contouring — higher quality mesh extraction from SDFs vs marching cubes only
+- [ ] `CurvatureField` — expose mesh curvature as a `Field<Vec3, f32>` for use in displacement, texturing
+
+**Mesh gaps (from parity audit):**
+- [ ] `Voronoi` / fracture op — cell-based geometry decomposition
+- [ ] UV ops as `Op` structs — `ProjectBox`, `ProjectSphere`, `PackUVCharts` are free fns, not serializable ops
+
+**Rig gaps (from parity audit):**
+- [ ] Bezier / cubic keyframe interpolation — `Interpolation::Cubic` exists but falls back to linear
+- [ ] Dual-quaternion skinning — reduces candy-wrapper artefacts on extreme deformations
+- [ ] Morph target deformer — `MorphWeight` animation tracks exist, but no deformer engine applies them to geometry
+- [ ] Spine-style 2D skeleton — `unshape-motion` has 2D scene graph, needs bone + IK + mesh deform layer
+
 ## Backlog
 
 ### Compute Backend Architecture
