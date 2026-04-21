@@ -44,7 +44,30 @@ pub use crate::json::JsonFormat;
 pub use crate::registry::{NodeRegistry, SerializableNode};
 pub use crate::serial::{SerialGraph, SerialNode, SerialWire};
 
-use unshape_core::Graph;
+use unshape_core::{ConstantNode, Graph, GraphInput};
+
+/// Register the built-in core nodes (`ConstantNode` and `GraphInput`) into a registry.
+///
+/// After calling this, the registry can deserialize nodes with type names
+/// `"core::Constant"` and `"core::GraphInput"`.
+pub fn register_core_nodes(registry: &mut NodeRegistry) {
+    registry.register_with_name::<ConstantNode>("core::Constant");
+    registry.register_with_name::<GraphInput>("core::GraphInput");
+}
+
+impl SerializableNode for ConstantNode {
+    fn params(&self) -> serde_json::Value {
+        serde_json::to_value(self)
+            .unwrap_or_else(|e| serde_json::json!({ "__error": e.to_string() }))
+    }
+}
+
+impl SerializableNode for GraphInput {
+    fn params(&self) -> serde_json::Value {
+        serde_json::to_value(self)
+            .unwrap_or_else(|e| serde_json::json!({ "__error": e.to_string() }))
+    }
+}
 
 /// Converts a runtime `Graph` to a serializable `SerialGraph`.
 ///
@@ -246,20 +269,6 @@ mod tests {
         }
     }
 
-    fn make_extract_params() -> impl Fn(&dyn DynNode) -> Option<serde_json::Value> {
-        |node: &dyn DynNode| -> Option<serde_json::Value> {
-            match node.type_name() {
-                "test::Const" => {
-                    // We know it's a ConstNode, but can't downcast safely
-                    // In real usage, this would use SerializableNode
-                    Some(serde_json::json!({"value": 0.0}))
-                }
-                "test::Add" => Some(serde_json::json!({})),
-                _ => None,
-            }
-        }
-    }
-
     #[test]
     fn test_full_roundtrip_json() {
         // Build a simple graph
@@ -342,5 +351,91 @@ mod tests {
         let mut loaded = deserialize_graph(&bytes, &registry, &format).unwrap();
         let result = loaded.execute(c).unwrap();
         assert_eq!(result[0].as_f32().unwrap(), 42.0);
+    }
+
+    /// Round-trip a graph containing `ConstantNode` and `GraphInput` through JSON,
+    /// then execute the deserialized graph with a named input.
+    #[test]
+    fn test_core_nodes_roundtrip_json() {
+        use unshape_core::{ConstantNode, Graph, GraphInput, ValueType};
+
+        // Build a graph with a ConstantNode (value=10.0) and a GraphInput
+        // (name="bias", type=F32). Both are source nodes — no wires between them.
+        let mut graph = Graph::new();
+        let const_id = graph.add_node(ConstantNode::new(10.0f32));
+        let input_id = graph.add_node(GraphInput::new("bias", ValueType::F32).with_default(5.0f32));
+
+        // Register core nodes
+        let mut registry = NodeRegistry::new();
+        register_core_nodes(&mut registry);
+
+        // Build the extract function using SerializableNode
+        let extract = |node: &dyn DynNode| -> Option<serde_json::Value> {
+            match node.type_name() {
+                "core::Constant" => node
+                    .as_any()
+                    .downcast_ref::<ConstantNode>()
+                    .map(|n| n.params()),
+                "core::GraphInput" => node
+                    .as_any()
+                    .downcast_ref::<GraphInput>()
+                    .map(|n| n.params()),
+                _ => None,
+            }
+        };
+
+        // Serialize to JSON
+        let format = JsonFormat::pretty();
+        let bytes = serialize_graph(&graph, extract, &format).unwrap();
+        let json_str = String::from_utf8_lossy(&bytes);
+        assert!(json_str.contains("core::Constant"));
+        assert!(json_str.contains("core::GraphInput"));
+        assert!(json_str.contains("bias"));
+
+        // Deserialize
+        let mut loaded = deserialize_graph(&bytes, &registry, &format).unwrap();
+        assert_eq!(loaded.node_count(), 2);
+
+        // Execute ConstantNode — should return 10.0
+        let ctx = EvalContext::new().with_input("bias", 3.0f32);
+        let const_result = loaded.execute_with_context(const_id, &ctx).unwrap();
+        assert_eq!(const_result[0].as_f32().unwrap(), 10.0);
+
+        // Execute GraphInput with provided value — should return 3.0
+        let input_result = loaded.execute_with_context(input_id, &ctx).unwrap();
+        assert_eq!(input_result[0].as_f32().unwrap(), 3.0);
+
+        // Execute GraphInput without provided value — should use default 5.0
+        let ctx_no_input = EvalContext::new();
+        let default_result = loaded
+            .execute_with_context(input_id, &ctx_no_input)
+            .unwrap();
+        assert_eq!(default_result[0].as_f32().unwrap(), 5.0);
+    }
+
+    /// Attempting to serialize a `ConstantNode` with an opaque value should
+    /// produce a `__error` key in the params JSON (not silently succeed).
+    #[test]
+    fn test_constant_node_opaque_serialization_error() {
+        use unshape_core::{ConstantNode, GraphValue, Value};
+
+        #[derive(Debug)]
+        struct Dummy;
+        impl GraphValue for Dummy {
+            fn as_any(&self) -> &dyn std::any::Any {
+                self
+            }
+            fn type_name(&self) -> &'static str {
+                "Dummy"
+            }
+        }
+
+        let node = ConstantNode::new(Value::opaque(Dummy));
+        let params = node.params();
+        // Serializing an opaque value errors; params() encodes the error in the JSON
+        assert!(
+            params.get("__error").is_some(),
+            "expected __error key in params for opaque ConstantNode, got: {params}"
+        );
     }
 }

@@ -42,6 +42,7 @@ mod error;
 mod eval;
 mod graph;
 mod node;
+pub mod nodes;
 pub mod optimize;
 mod value;
 
@@ -54,5 +55,6 @@ pub use eval::{
 pub use glam;
 pub use graph::{Graph, NodeId, Wire};
 pub use node::{BoxedNode, DynNode, PortDescriptor};
+pub use nodes::{ConstantNode, GraphInput};
 pub use unshape_macros::DynNode as DynNodeDerive;
 pub use value::{DataLocation, GraphValue, Value, ValueType};
