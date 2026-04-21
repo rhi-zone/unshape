@@ -303,6 +303,46 @@ impl fmt::Display for ValueType {
     }
 }
 
+#[cfg(feature = "serde")]
+impl serde::Serialize for ValueType {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let s = match self {
+            ValueType::F32 => "f32",
+            ValueType::F64 => "f64",
+            ValueType::I32 => "i32",
+            ValueType::Bool => "bool",
+            ValueType::Vec2 => "Vec2",
+            ValueType::Vec3 => "Vec3",
+            ValueType::Vec4 => "Vec4",
+            ValueType::Custom { name, .. } => {
+                return Err(serde::ser::Error::custom(format!(
+                    "cannot serialize ValueType::Custom({name}): TypeId is not serializable"
+                )));
+            }
+        };
+        serializer.serialize_str(s)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for ValueType {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "f32" => Ok(ValueType::F32),
+            "f64" => Ok(ValueType::F64),
+            "i32" => Ok(ValueType::I32),
+            "bool" => Ok(ValueType::Bool),
+            "Vec2" => Ok(ValueType::Vec2),
+            "Vec3" => Ok(ValueType::Vec3),
+            "Vec4" => Ok(ValueType::Vec4),
+            other => Err(serde::de::Error::custom(format!(
+                "unknown ValueType: {other:?}; Custom types cannot be round-tripped via serde"
+            ))),
+        }
+    }
+}
+
 impl ValueType {
     /// Creates a `Custom` value type for a concrete type.
     ///

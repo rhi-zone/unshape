@@ -82,6 +82,24 @@ pub enum GraphError {
         /// Port name that was not found.
         name: String,
     },
+
+    /// A named graph input was not provided and has no default value.
+    #[error("graph input {name:?} was not provided and has no default")]
+    MissingInput {
+        /// Name of the missing input.
+        name: String,
+    },
+
+    /// A named graph input was provided with the wrong type.
+    #[error("graph input {name:?}: expected {expected:?}, got {got:?}")]
+    InputTypeMismatch {
+        /// Name of the input.
+        name: String,
+        /// Expected value type.
+        expected: ValueType,
+        /// Actual value type provided.
+        got: ValueType,
+    },
 }
 
 #[cfg(test)]

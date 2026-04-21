@@ -217,6 +217,10 @@ pub struct EvalContext {
     // === Determinism ===
     /// Random seed for reproducible procedural generation.
     pub seed: u64,
+
+    // === Named inputs ===
+    /// Named values injected by the host for `GraphInput` nodes.
+    inputs: HashMap<String, Value>,
 }
 
 impl Default for EvalContext {
@@ -231,6 +235,7 @@ impl Default for EvalContext {
             target_resolution: None,
             feedback_state: None,
             seed: 0,
+            inputs: HashMap::new(),
         }
     }
 }
@@ -310,6 +315,23 @@ impl EvalContext {
     pub fn with_feedback_state(mut self, state: FeedbackState) -> Self {
         self.feedback_state = Some(state);
         self
+    }
+
+    /// Inject a single named input value for `GraphInput` nodes.
+    pub fn with_input(mut self, name: impl Into<String>, value: impl Into<Value>) -> Self {
+        self.inputs.insert(name.into(), value.into());
+        self
+    }
+
+    /// Inject a map of named input values for `GraphInput` nodes.
+    pub fn with_inputs(mut self, inputs: HashMap<String, Value>) -> Self {
+        self.inputs = inputs;
+        self
+    }
+
+    /// Look up a named input value provided by the host.
+    pub fn input(&self, name: &str) -> Option<&Value> {
+        self.inputs.get(name)
     }
 }
 

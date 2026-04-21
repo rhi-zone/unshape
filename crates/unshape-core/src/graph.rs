@@ -714,7 +714,7 @@ mod tests {
 
     #[test]
     fn test_lazy_evaluator() {
-        use crate::eval::{EvalResult, Evaluator, LazyEvaluator};
+        use crate::eval::{Evaluator, LazyEvaluator};
 
         let mut graph = Graph::new();
         let const_a = graph.add_node(ConstNode(2.0));
