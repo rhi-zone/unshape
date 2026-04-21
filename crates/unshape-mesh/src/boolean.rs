@@ -18,6 +18,9 @@
 //! let intersected = BooleanIntersect { other: mesh_b.clone() }.apply(&mesh_a);
 //! ```
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::Mesh;
 use glam::Vec3;
 
@@ -28,11 +31,8 @@ use glam::Vec3;
 /// Computes the union of this mesh and another (A ∪ B).
 ///
 /// Returns a new mesh containing the combined volume of both meshes.
-///
-/// Note: not serializable because `Mesh` does not implement `serde`. In a node
-/// graph context, the `other` input would arrive via a wire rather than being
-/// embedded in the op struct.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BooleanUnion {
     /// The mesh to union with.
     pub other: Mesh,
@@ -48,9 +48,8 @@ impl BooleanUnion {
 /// Computes the subtraction of another mesh from this one (A - B).
 ///
 /// Returns a new mesh with the other mesh's volume removed.
-///
-/// Note: not serializable because `Mesh` does not implement `serde`.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BooleanSubtract {
     /// The mesh to subtract.
     pub other: Mesh,
@@ -66,9 +65,8 @@ impl BooleanSubtract {
 /// Computes the intersection of this mesh and another (A ∩ B).
 ///
 /// Returns a new mesh containing only the overlapping volume.
-///
-/// Note: not serializable because `Mesh` does not implement `serde`.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BooleanIntersect {
     /// The mesh to intersect with.
     pub other: Mesh,
@@ -241,15 +239,15 @@ impl Polygon {
                     }
                 }
 
-                if front_verts.len() >= 3 {
-                    if let Some(poly) = Polygon::new(front_verts) {
-                        front.push(poly);
-                    }
+                if front_verts.len() >= 3
+                    && let Some(poly) = Polygon::new(front_verts)
+                {
+                    front.push(poly);
                 }
-                if back_verts.len() >= 3 {
-                    if let Some(poly) = Polygon::new(back_verts) {
-                        back.push(poly);
-                    }
+                if back_verts.len() >= 3
+                    && let Some(poly) = Polygon::new(back_verts)
+                {
+                    back.push(poly);
                 }
             }
         }

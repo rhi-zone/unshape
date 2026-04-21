@@ -13,8 +13,6 @@ use crate::selection::{Edge, MeshSelection};
 /// and orphaned edges after deletion.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct DeleteFaces {
     /// Whether to remove vertices that are no longer used by any face.
     pub remove_orphaned_vertices: bool,
@@ -115,8 +113,6 @@ pub fn delete_faces(
 /// this is effectively a no-op.
 #[derive(Debug, Clone, Copy, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct TriangulateFaces;
 
 impl TriangulateFaces {
@@ -138,8 +134,6 @@ impl TriangulateFaces {
 /// the original edges to the new center vertex.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct PokeFaces {
     /// Offset along face normal for the poked vertex (0 = at face center).
     pub offset: f32,
@@ -233,8 +227,6 @@ pub fn poke_faces(mesh: &Mesh, selection: &MeshSelection, offset: f32) -> Mesh {
 /// Scales selected faces around their individual centers.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct ScaleFaces {
     /// Scale factor (1.0 = no change, 0.5 = half size, 2.0 = double).
     pub factor: f32,
@@ -316,8 +308,6 @@ pub fn scale_faces(mesh: &Mesh, selection: &MeshSelection, factor: f32) -> Mesh 
 /// Extrudes selected faces along their normals.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct ExtrudeFaces {
     /// Distance to extrude (positive = outward).
     pub amount: f32,
@@ -477,8 +467,6 @@ pub fn extrude_faces(mesh: &Mesh, selection: &MeshSelection, amount: f32) -> Mes
 /// Insets selected faces toward their centers.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct InsetFaces {
     /// Inset amount (0.0 = no change, 1.0 = shrink to center).
     pub amount: f32,
@@ -759,8 +747,6 @@ pub fn inset_faces_region(mesh: &Mesh, selection: &MeshSelection, amount: f32) -
 /// Subdivides selected faces.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct SubdivideFaces {
     /// Number of subdivision levels.
     pub levels: u32,

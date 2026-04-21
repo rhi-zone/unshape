@@ -525,13 +525,15 @@ mod tests {
     #[test]
     fn test_sphere_sdf() {
         let sdf = |p: Vec3| p.length() - 1.0;
-        let mut config = MarchingCubesConfig::default();
-        config.resolution = 16;
+        let config = MarchingCubesConfig {
+            resolution: 16,
+            ..Default::default()
+        };
 
         let mesh = marching_cubes(sdf, config);
 
-        assert!(mesh.positions.len() > 0, "Should generate vertices");
-        assert!(mesh.indices.len() > 0, "Should generate triangles");
+        assert!(!mesh.positions.is_empty(), "Should generate vertices");
+        assert!(!mesh.indices.is_empty(), "Should generate triangles");
         assert!(mesh.has_normals(), "Should compute normals");
     }
 
@@ -541,12 +543,14 @@ mod tests {
             let q = p.abs() - Vec3::splat(0.5);
             q.max(Vec3::ZERO).length() + q.x.max(q.y).max(q.z).min(0.0)
         };
-        let mut config = MarchingCubesConfig::default();
-        config.resolution = 16;
+        let config = MarchingCubesConfig {
+            resolution: 16,
+            ..Default::default()
+        };
 
         let mesh = marching_cubes(sdf, config);
 
-        assert!(mesh.positions.len() > 0);
+        assert!(!mesh.positions.is_empty());
         assert!(mesh.triangle_count() > 0);
     }
 
@@ -558,12 +562,14 @@ mod tests {
             let q = Vec2::new(Vec2::new(p.x, p.z).length() - r1, p.y);
             q.length() - r2
         };
-        let mut config = MarchingCubesConfig::default();
-        config.resolution = 24;
+        let config = MarchingCubesConfig {
+            resolution: 24,
+            ..Default::default()
+        };
 
         let mesh = marching_cubes(sdf, config);
 
-        assert!(mesh.positions.len() > 0);
+        assert!(!mesh.positions.is_empty());
     }
 
     #[test]
@@ -591,8 +597,10 @@ mod tests {
     #[test]
     fn test_custom_bounds() {
         let sdf = |p: Vec3| p.length() - 1.0;
-        let mut config = MarchingCubesConfig::with_bounds(Vec3::splat(-2.0), Vec3::splat(2.0));
-        config.resolution = 16;
+        let config = MarchingCubesConfig {
+            resolution: 16,
+            ..MarchingCubesConfig::with_bounds(Vec3::splat(-2.0), Vec3::splat(2.0))
+        };
 
         let mesh = marching_cubes(sdf, config);
 
@@ -610,16 +618,20 @@ mod tests {
         let sdf = |p: Vec3| p.length() - 0.5;
 
         // Small sphere (radius 0.5)
-        let mut config1 = MarchingCubesConfig::default();
-        config1.resolution = 8;
-        config1.iso_value = 0.0;
-        let mesh1 = marching_cubes(&sdf, config1);
+        let config1 = MarchingCubesConfig {
+            resolution: 8,
+            iso_value: 0.0,
+            ..Default::default()
+        };
+        let mesh1 = marching_cubes(sdf, config1);
 
         // Larger sphere (radius 0.7) - still fits in bounds
-        let mut config2 = MarchingCubesConfig::default();
-        config2.resolution = 8;
-        config2.iso_value = 0.2;
-        let mesh2 = marching_cubes(&sdf, config2);
+        let config2 = MarchingCubesConfig {
+            resolution: 8,
+            iso_value: 0.2,
+            ..Default::default()
+        };
+        let mesh2 = marching_cubes(sdf, config2);
 
         // Both should generate geometry
         assert!(mesh1.triangle_count() > 0);
@@ -630,12 +642,16 @@ mod tests {
     fn test_resolution() {
         let sdf = |p: Vec3| p.length() - 0.5;
 
-        let mut low_res_config = MarchingCubesConfig::default();
-        low_res_config.resolution = 4;
+        let low_res_config = MarchingCubesConfig {
+            resolution: 4,
+            ..Default::default()
+        };
         let low_res = marching_cubes(sdf, low_res_config);
 
-        let mut high_res_config = MarchingCubesConfig::default();
-        high_res_config.resolution = 16;
+        let high_res_config = MarchingCubesConfig {
+            resolution: 16,
+            ..Default::default()
+        };
         let high_res = marching_cubes(sdf, high_res_config);
 
         // Higher resolution should produce more triangles

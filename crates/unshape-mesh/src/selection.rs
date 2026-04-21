@@ -21,6 +21,9 @@
 //! selection.grow_faces(&mesh);
 //! ```
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::Mesh;
 use glam::Vec3;
 use std::collections::{HashMap, HashSet};
@@ -30,6 +33,7 @@ use std::collections::{HashMap, HashSet};
 /// Edges are stored with the smaller index first to ensure consistent hashing
 /// regardless of traversal direction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Edge(pub u32, pub u32);
 
 impl Edge {

@@ -12,8 +12,6 @@ use crate::selection::{MeshSelection, SoftSelection};
 /// Supports soft selection for smooth falloff transformations.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct TransformVertices {
     /// The transformation matrix to apply.
     pub matrix: Mat4,
@@ -127,8 +125,6 @@ pub fn transform_vertices_soft(mesh: &Mesh, soft_selection: &SoftSelection, matr
 /// Applies Laplacian smoothing to selected vertices.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct SmoothVertices {
     /// Smoothing factor per iteration (0.0 = no change, 1.0 = move to average).
     pub lambda: f32,
@@ -229,8 +225,6 @@ pub enum MergeMode {
 /// Merges selected vertices into a single vertex.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct MergeVertices {
     /// How to determine the merge position.
     pub mode: MergeMode,
@@ -391,8 +385,6 @@ pub fn merge_vertices(
 /// Rips selected vertices, disconnecting them from adjacent faces.
 #[derive(Debug, Clone, Copy, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct RipVertices;
 
 impl RipVertices {

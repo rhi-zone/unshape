@@ -189,20 +189,11 @@ pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<Smooth>("resin::Smooth");
     registry.register_type::<Sweep>("resin::Sweep");
 
-    // Selection-aware editing operations
-    registry.register_type::<DeleteFaces>("resin::DeleteFaces");
-    registry.register_type::<TransformVertices>("resin::TransformVertices");
-    registry.register_type::<TriangulateFaces>("resin::TriangulateFaces");
-    registry.register_type::<PokeFaces>("resin::PokeFaces");
-    registry.register_type::<ScaleFaces>("resin::ScaleFaces");
-    registry.register_type::<SmoothVertices>("resin::SmoothVertices");
-    registry.register_type::<MergeVertices>("resin::MergeVertices");
-    registry.register_type::<SplitEdges>("resin::SplitEdges");
-    registry.register_type::<ExtrudeFaces>("resin::ExtrudeFaces");
-    registry.register_type::<InsetFaces>("resin::InsetFaces");
-    registry.register_type::<SubdivideFaces>("resin::SubdivideFaces");
-    registry.register_type::<SlideEdges>("resin::SlideEdges");
-    registry.register_type::<RipVertices>("resin::RipVertices");
+    // Note: selection-aware editing operations (DeleteFaces, TransformVertices,
+    // TriangulateFaces, PokeFaces, ScaleFaces, SmoothVertices, MergeVertices,
+    // SplitEdges, ExtrudeFaces, InsetFaces, SubdivideFaces, SlideEdges,
+    // RipVertices) take a MeshSelection second argument and cannot be
+    // registered as single-input DynOps; they are invoked directly.
 }
 
 // ============================================================================

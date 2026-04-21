@@ -18,6 +18,7 @@ mod blend;
 mod constraint;
 mod ik;
 mod locomotion;
+mod morph;
 mod motion_matching;
 mod path3d;
 pub mod secondary;
@@ -38,6 +39,7 @@ pub use locomotion::{
     FootPlacement, Gait, GaitConfig, GaitPattern, LegState, ProceduralHop, ProceduralWalk,
     WalkAnimator,
 };
+pub use morph::{ApplyMorphTargets, DeformedMesh, MorphTarget};
 pub use motion_matching::{
     FrameRef, MatchResult, MotionClip, MotionDatabase, MotionFrame, MotionFrameBuilder,
     MotionMatcher, MotionMatching, MotionMatchingConfig, MotionQuery, apply_frame_to_pose,
@@ -50,6 +52,6 @@ pub use secondary::{
     apply_wind_to_bone, apply_wind_to_chain,
 };
 pub use skeleton::{AddBoneResult, Bone, BoneId, Pose, Skeleton};
-pub use skin::{MAX_INFLUENCES, Skin, VertexInfluences};
+pub use skin::{DualQuat, MAX_INFLUENCES, Skin, SkinningMethod, VertexInfluences};
 pub use transform::Transform3D;
 pub use unshape_transform::SpatialTransform;
