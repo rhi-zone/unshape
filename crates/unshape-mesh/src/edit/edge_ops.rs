@@ -13,8 +13,6 @@ use crate::selection::{Edge, MeshSelection};
 /// no longer share vertices, allowing distinct normals.
 #[derive(Debug, Clone, Copy, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct SplitEdges;
 
 impl SplitEdges {
@@ -150,8 +148,6 @@ impl CreaseEdges {
 /// Slides selected edges along their adjacent faces.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = Mesh, output = Mesh))]
 pub struct SlideEdges {
     /// Slide factor (-1.0 to 1.0, direction along adjacent edges).
     pub factor: f32,

@@ -458,8 +458,8 @@ pub fn quadify(mesh: &Mesh, config: &Quadify) -> QuadMesh {
     }
 
     // Add remaining triangles
-    for i in 0..mesh.triangle_count() {
-        if !used[i] {
+    for (i, &is_used) in used.iter().enumerate().take(mesh.triangle_count()) {
+        if !is_used {
             let base = i * 3;
             result.triangles.extend_from_slice(&[
                 mesh.indices[base],

@@ -319,7 +319,7 @@ mod tests {
         // Should have 16 vertices (8 per profile)
         assert_eq!(mesh.positions.len(), 16);
         // Should have 16 quads = 32 triangles = 96 indices
-        assert!(mesh.indices.len() > 0);
+        assert!(!mesh.indices.is_empty());
         assert!(mesh.has_normals());
     }
 
@@ -353,8 +353,10 @@ mod tests {
     fn test_loft_with_interpolation() {
         let profiles = vec![circle_profile(1.0, 0.0, 8), circle_profile(0.5, 1.0, 8)];
 
-        let mut config = LoftConfig::default();
-        config.interpolation_steps = 2;
+        let config = LoftConfig {
+            interpolation_steps: 2,
+            ..Default::default()
+        };
         let mesh = loft(&profiles, config);
 
         // Should have 4 profiles (original 2 + 2 interpolated)

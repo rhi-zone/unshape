@@ -58,6 +58,8 @@ impl Scatter {
 }
 
 /// Result of a [`Scatter`] operation.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ScatterResult {
     /// World-space positions of the scattered points.
     pub positions: Vec<Vec3>,

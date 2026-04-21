@@ -275,7 +275,7 @@ fn revolve_profile_impl(profile: &[Vec2], segments: usize, config: &Revolve) -> 
     // Build faces
     let mut indices: Vec<u32> = Vec::new();
 
-    let loop_segments = if is_full_rotation { segments } else { segments };
+    let loop_segments = segments;
 
     for s in 0..loop_segments {
         let base_current = (s * n) as u32;
@@ -599,7 +599,7 @@ mod tests {
         let mesh = revolve_profile(&profile, 16);
 
         // Should create a sphere-like shape
-        assert!(mesh.positions.len() > 0);
+        assert!(!mesh.positions.is_empty());
         assert!(mesh.triangle_count() > 0);
         assert!(mesh.has_normals());
     }
@@ -615,7 +615,7 @@ mod tests {
         };
         let mesh = revolve_profile_with_config(&profile, 16, config);
 
-        assert!(mesh.positions.len() > 0);
+        assert!(!mesh.positions.is_empty());
         assert!(mesh.triangle_count() > 0);
     }
 

@@ -8,6 +8,7 @@ use unshape_geometry::{HasIndices, HasNormals, HasPositions, HasUVs};
 /// Currently uses indexed representation for simplicity.
 /// Half-edge representation will be added for topology operations.
 #[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Mesh {
     /// Vertex positions.
     pub positions: Vec<Vec3>,
@@ -140,6 +141,7 @@ impl Mesh {
 
 /// Builder for constructing meshes vertex by vertex.
 #[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MeshBuilder {
     mesh: Mesh,
 }

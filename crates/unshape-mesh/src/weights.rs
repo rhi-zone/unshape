@@ -183,15 +183,15 @@ pub fn smooth_weights(
     for _ in 0..iterations {
         let current = result.clone();
 
-        for v in 0..mesh.positions.len() {
-            if adj[v].is_empty() {
+        for (v, neighbors) in adj.iter().enumerate().take(mesh.positions.len()) {
+            if neighbors.is_empty() {
                 continue;
             }
 
             for influence in 0..weights.influence_count() {
                 // Compute average of neighbors
-                let neighbor_sum: f32 = adj[v].iter().map(|&n| current.get(n, influence)).sum();
-                let neighbor_avg = neighbor_sum / adj[v].len() as f32;
+                let neighbor_sum: f32 = neighbors.iter().map(|&n| current.get(n, influence)).sum();
+                let neighbor_avg = neighbor_sum / neighbors.len() as f32;
 
                 // Blend current value with neighbor average
                 let current_val = current.get(v, influence);
@@ -564,7 +564,7 @@ mod tests {
 
         // Should have values between 0 and 1
         for &w in &weights {
-            assert!(w >= 0.0 && w <= 1.0);
+            assert!((0.0..=1.0).contains(&w));
         }
     }
 

@@ -331,44 +331,42 @@ fn point_triangle_distance(p: Vec3, v0: Vec3, v1: Vec3, v2: Vec3) -> f32 {
             s *= inv_det;
             t *= inv_det;
         }
-    } else {
-        if s < 0.0 {
-            // Region 2
-            let tmp0 = b + d;
-            let tmp1 = c + e;
-            if tmp1 > tmp0 {
-                let numer = tmp1 - tmp0;
-                let denom = a - 2.0 * b + c;
-                s = (numer / denom).min(1.0).max(0.0);
-                t = 1.0 - s;
-            } else {
-                s = 0.0;
-                t = (-e).min(c).max(0.0);
-            }
-        } else if t < 0.0 {
-            // Region 6
-            let tmp0 = b + e;
-            let tmp1 = a + d;
-            if tmp1 > tmp0 {
-                let numer = tmp1 - tmp0;
-                let denom = a - 2.0 * b + c;
-                t = (numer / denom).min(1.0).max(0.0);
-                s = 1.0 - t;
-            } else {
-                t = 0.0;
-                s = (-d).min(a).max(0.0);
-            }
-        } else {
-            // Region 1
-            let numer = (c + e) - (b + d);
-            if numer <= 0.0 {
-                s = 0.0;
-            } else {
-                let denom = a - 2.0 * b + c;
-                s = (numer / denom).min(1.0);
-            }
+    } else if s < 0.0 {
+        // Region 2
+        let tmp0 = b + d;
+        let tmp1 = c + e;
+        if tmp1 > tmp0 {
+            let numer = tmp1 - tmp0;
+            let denom = a - 2.0 * b + c;
+            s = (numer / denom).clamp(0.0, 1.0);
             t = 1.0 - s;
+        } else {
+            s = 0.0;
+            t = (-e).clamp(0.0, c);
         }
+    } else if t < 0.0 {
+        // Region 6
+        let tmp0 = b + e;
+        let tmp1 = a + d;
+        if tmp1 > tmp0 {
+            let numer = tmp1 - tmp0;
+            let denom = a - 2.0 * b + c;
+            t = (numer / denom).clamp(0.0, 1.0);
+            s = 1.0 - t;
+        } else {
+            t = 0.0;
+            s = (-d).clamp(0.0, a);
+        }
+    } else {
+        // Region 1
+        let numer = (c + e) - (b + d);
+        if numer <= 0.0 {
+            s = 0.0;
+        } else {
+            let denom = a - 2.0 * b + c;
+            s = (numer / denom).min(1.0);
+        }
+        t = 1.0 - s;
     }
 
     // Ensure s and t are clamped

@@ -87,10 +87,13 @@ pub fn extrude_with_config(mesh: &Mesh, config: ExtrudeConfig) -> Mesh {
     result.normals.extend_from_slice(&normals);
 
     // Create extruded vertices
-    for i in 0..vertex_count {
-        let extruded_pos = mesh.positions[i] + normals[i] * config.amount;
+    for (pos, normal) in mesh.positions[..vertex_count]
+        .iter()
+        .zip(normals[..vertex_count].iter())
+    {
+        let extruded_pos = *pos + *normal * config.amount;
         result.positions.push(extruded_pos);
-        result.normals.push(normals[i]);
+        result.normals.push(*normal);
     }
 
     // Copy UVs for both original and extruded vertices

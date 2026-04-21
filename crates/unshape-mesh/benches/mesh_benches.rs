@@ -3,21 +3,21 @@
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use glam::Vec3;
 use unshape_mesh::{
-    DecimateConfig, MarchingCubesConfig, decimate, marching_cubes, subdivide_loop,
-    subdivide_loop_n, uv_sphere,
+    DecimateConfig, MarchingCubesConfig, UvSphere, decimate, marching_cubes, subdivide_loop,
+    subdivide_loop_n,
 };
 
 fn bench_primitives(c: &mut Criterion) {
     c.bench_function("uv_sphere_16x8", |b| {
-        b.iter(|| uv_sphere(black_box(16), black_box(8)))
+        b.iter(|| UvSphere::new(black_box(1.0), black_box(16), black_box(8)).apply())
     });
 
     c.bench_function("uv_sphere_32x16", |b| {
-        b.iter(|| uv_sphere(black_box(32), black_box(16)))
+        b.iter(|| UvSphere::new(black_box(1.0), black_box(32), black_box(16)).apply())
     });
 
     c.bench_function("uv_sphere_64x32", |b| {
-        b.iter(|| uv_sphere(black_box(64), black_box(32)))
+        b.iter(|| UvSphere::new(black_box(1.0), black_box(64), black_box(32)).apply())
     });
 }
 
@@ -57,7 +57,7 @@ fn bench_marching_cubes(c: &mut Criterion) {
 }
 
 fn bench_subdivision(c: &mut Criterion) {
-    let mesh = uv_sphere(8, 8);
+    let mesh = UvSphere::new(1.0, 8, 8).apply();
 
     c.bench_function("subdivide_loop_1x", |b| {
         b.iter(|| subdivide_loop(black_box(&mesh)))
@@ -74,7 +74,7 @@ fn bench_subdivision(c: &mut Criterion) {
 
 fn bench_decimation(c: &mut Criterion) {
     // Create a high-poly mesh to decimate
-    let mesh = uv_sphere(32, 32);
+    let mesh = UvSphere::new(1.0, 32, 32).apply();
 
     c.bench_function("decimate_50_percent", |b| {
         let config = DecimateConfig {

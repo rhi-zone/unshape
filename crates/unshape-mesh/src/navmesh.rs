@@ -501,11 +501,11 @@ pub fn create_grid_navmesh(min: Vec2, max: Vec2, height: f32, cell_size: f32) ->
 
     // Create vertices
     let mut vertex_indices = vec![vec![0usize; cols + 1]; rows + 1];
-    for row in 0..=rows {
-        for col in 0..=cols {
+    for (row, row_v) in vertex_indices.iter_mut().enumerate().take(rows + 1) {
+        for (col, cell) in row_v.iter_mut().enumerate().take(cols + 1) {
             let x = min.x + col as f32 * cell_size;
             let z = min.y + row as f32 * cell_size;
-            vertex_indices[row][col] = navmesh.add_vertex(Vec3::new(x, height, z));
+            *cell = navmesh.add_vertex(Vec3::new(x, height, z));
         }
     }
 
