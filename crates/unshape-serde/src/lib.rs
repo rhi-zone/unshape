@@ -36,6 +36,7 @@ mod format;
 mod json;
 mod registry;
 mod serial;
+mod typed_constants;
 
 pub use crate::bincode::BincodeFormat;
 pub use crate::error::SerdeError;
@@ -43,16 +44,23 @@ pub use crate::format::GraphFormat;
 pub use crate::json::JsonFormat;
 pub use crate::registry::{NodeRegistry, SerializableNode};
 pub use crate::serial::{SerialGraph, SerialNode, SerialWire};
+pub use crate::typed_constants::{ConstantMesh, MeshValue};
 
-use unshape_core::{ConstantNode, Graph, GraphInput};
+use unshape_core::{ConstantNode, Graph, GraphInput, GraphOutput};
 
-/// Register the built-in core nodes (`ConstantNode` and `GraphInput`) into a registry.
+/// Register the built-in core nodes (`ConstantNode`, `GraphInput`, `GraphOutput`,
+/// and `ConstantMesh`) into a registry.
 ///
-/// After calling this, the registry can deserialize nodes with type names
-/// `"core::Constant"` and `"core::GraphInput"`.
+/// After calling this, the registry can deserialize nodes with type names:
+/// - `"core::Constant"`
+/// - `"core::GraphInput"`
+/// - `"core::GraphOutput"`
+/// - `"mesh::ConstantMesh"`
 pub fn register_core_nodes(registry: &mut NodeRegistry) {
     registry.register_with_name::<ConstantNode>("core::Constant");
     registry.register_with_name::<GraphInput>("core::GraphInput");
+    registry.register_with_name::<GraphOutput>("core::GraphOutput");
+    registry.register_with_name::<ConstantMesh>("mesh::ConstantMesh");
 }
 
 impl SerializableNode for ConstantNode {
@@ -63,6 +71,13 @@ impl SerializableNode for ConstantNode {
 }
 
 impl SerializableNode for GraphInput {
+    fn params(&self) -> serde_json::Value {
+        serde_json::to_value(self)
+            .unwrap_or_else(|e| serde_json::json!({ "__error": e.to_string() }))
+    }
+}
+
+impl SerializableNode for GraphOutput {
     fn params(&self) -> serde_json::Value {
         serde_json::to_value(self)
             .unwrap_or_else(|e| serde_json::json!({ "__error": e.to_string() }))

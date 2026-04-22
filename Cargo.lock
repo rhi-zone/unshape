@@ -4818,6 +4818,7 @@ dependencies = [
  "serde",
  "serde_json",
  "unshape-field-ops",
+ "unshape-mesh",
  "unshape-noise",
  "unshape-op",
 ]
@@ -5107,6 +5108,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "unshape-core",
+ "unshape-mesh",
 ]
 
 [[package]]
