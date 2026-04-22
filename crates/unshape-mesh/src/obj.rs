@@ -152,15 +152,15 @@ pub fn import_obj_from_reader<R: Read>(reader: R) -> Result<Mesh, ObjError> {
                     if pos_idx == 0 || pos_idx > positions.len() {
                         return Err(ObjError::InvalidVertexIndex(pos_idx));
                     }
-                    if let Some(ti) = tex_idx {
-                        if ti == 0 || ti > tex_coords.len() {
-                            return Err(ObjError::InvalidTexCoordIndex(ti));
-                        }
+                    if let Some(ti) = tex_idx
+                        && (ti == 0 || ti > tex_coords.len())
+                    {
+                        return Err(ObjError::InvalidTexCoordIndex(ti));
                     }
-                    if let Some(ni) = norm_idx {
-                        if ni == 0 || ni > normals.len() {
-                            return Err(ObjError::InvalidNormalIndex(ni));
-                        }
+                    if let Some(ni) = norm_idx
+                        && (ni == 0 || ni > normals.len())
+                    {
+                        return Err(ObjError::InvalidNormalIndex(ni));
                     }
 
                     // Get or create vertex

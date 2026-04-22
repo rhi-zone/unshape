@@ -967,7 +967,7 @@ mod tests {
 
         for pos in &mesh.positions {
             let dist_from_axis = (pos.x * pos.x + pos.z * pos.z).sqrt();
-            assert!(dist_from_axis >= 0.75 - 0.001 && dist_from_axis <= 1.25 + 0.001);
+            assert!((0.75 - 0.001..=1.25 + 0.001).contains(&dist_from_axis));
         }
     }
 

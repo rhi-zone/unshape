@@ -44,23 +44,25 @@ pub use crate::format::GraphFormat;
 pub use crate::json::JsonFormat;
 pub use crate::registry::{NodeRegistry, SerializableNode};
 pub use crate::serial::{SerialGraph, SerialNode, SerialWire};
-pub use crate::typed_constants::{ConstantMesh, MeshValue};
+pub use crate::typed_constants::{ConstantImage, ConstantMesh, ImageValue, MeshValue};
 
 use unshape_core::{ConstantNode, Graph, GraphInput, GraphOutput};
 
 /// Register the built-in core nodes (`ConstantNode`, `GraphInput`, `GraphOutput`,
-/// and `ConstantMesh`) into a registry.
+/// `ConstantMesh`, and `ConstantImage`) into a registry.
 ///
 /// After calling this, the registry can deserialize nodes with type names:
 /// - `"core::Constant"`
 /// - `"core::GraphInput"`
 /// - `"core::GraphOutput"`
 /// - `"mesh::ConstantMesh"`
+/// - `"image::ConstantImage"`
 pub fn register_core_nodes(registry: &mut NodeRegistry) {
     registry.register_with_name::<ConstantNode>("core::Constant");
     registry.register_with_name::<GraphInput>("core::GraphInput");
     registry.register_with_name::<GraphOutput>("core::GraphOutput");
     registry.register_with_name::<ConstantMesh>("mesh::ConstantMesh");
+    registry.register_with_name::<ConstantImage>("image::ConstantImage");
 }
 
 impl SerializableNode for ConstantNode {

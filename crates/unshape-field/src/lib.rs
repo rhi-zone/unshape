@@ -18,6 +18,7 @@
 //! let value = noise.sample(Vec2::new(0.5, 0.5), &ctx);
 //! ```
 
+mod color_ramp;
 mod erosion;
 mod fbm;
 #[cfg(feature = "mesh")]
@@ -29,7 +30,9 @@ mod pattern;
 mod sdf;
 mod spectral;
 mod terrain;
+mod view_dependent;
 
+pub use color_ramp::{ColorRamp, ColorRampInterp, ColorStop};
 pub use erosion::*;
 pub use fbm::*;
 #[cfg(feature = "mesh")]
@@ -45,6 +48,7 @@ pub use unshape_field_ops::{
     Abs, Clamp, Constant, Coordinates, EvalContext, Field, FnField, Map, Negate, Pow, Remap, Scale,
     Smoothstep, Step, Translate, Zip, Zip3, add, div, from_fn, lerp, mix, mul, sub, zip, zip3,
 };
+pub use view_dependent::{FresnelField, LayerWeight, LayerWeightMode};
 
 /// Registers all field operations with an [`OpRegistry`].
 ///

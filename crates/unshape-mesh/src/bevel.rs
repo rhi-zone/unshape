@@ -152,10 +152,10 @@ pub fn bevel_edges(mesh: &HalfEdgeMesh, config: &BevelConfig) -> HalfEdgeMesh {
 
             // Find which neighbor index corresponds to v_next
             let neighbor_idx = neighbors.iter().position(|n| *n == v_next);
-            if let Some(idx) = neighbor_idx {
-                if idx < splits.len() {
-                    new_face_verts.push(splits[idx]);
-                }
+            if let Some(idx) = neighbor_idx
+                && idx < splits.len()
+            {
+                new_face_verts.push(splits[idx]);
             }
         }
 
@@ -195,15 +195,16 @@ pub fn bevel_edges(mesh: &HalfEdgeMesh, config: &BevelConfig) -> HalfEdgeMesh {
         let idx_v0_to_v1 = neighbors_v0.iter().position(|n| *n == v1);
         let idx_v1_to_v0 = neighbors_v1.iter().position(|n| *n == v0);
 
-        if let (Some(i0), Some(i1)) = (idx_v0_to_v1, idx_v1_to_v0) {
-            if i0 < splits_v0.len() && i1 < splits_v1.len() {
-                // Create a quad for the bevel face
-                // The quad connects the split vertices
-                // Note: Full bevel edge implementation would create quad faces here
-                // connecting splits_v0[i0] and splits_v1[i1] with their opposites.
-                // This is a simplified implementation focusing on vertex caps.
-                let _ = (splits_v0[i0], splits_v1[i1], config.segments);
-            }
+        if let (Some(i0), Some(i1)) = (idx_v0_to_v1, idx_v1_to_v0)
+            && i0 < splits_v0.len()
+            && i1 < splits_v1.len()
+        {
+            // Create a quad for the bevel face
+            // The quad connects the split vertices
+            // Note: Full bevel edge implementation would create quad faces here
+            // connecting splits_v0[i0] and splits_v1[i1] with their opposites.
+            // This is a simplified implementation focusing on vertex caps.
+            let _ = (splits_v0[i0], splits_v1[i1], config.segments);
         }
     }
 
@@ -323,10 +324,10 @@ pub fn bevel_vertices(
             } else {
                 // Beveled vertex - find the split toward v_next
                 let neighbors = mesh.vertex_neighbors(v_curr);
-                if let Some(idx) = neighbors.iter().position(|n| *n == v_next) {
-                    if idx < mapped.len() {
-                        new_face_verts.push(mapped[idx]);
-                    }
+                if let Some(idx) = neighbors.iter().position(|n| *n == v_next)
+                    && idx < mapped.len()
+                {
+                    new_face_verts.push(mapped[idx]);
                 }
             }
         }

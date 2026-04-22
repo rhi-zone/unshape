@@ -53,8 +53,8 @@ pub use eval::{
     KeepAllPolicy, LazyEvaluator, NodeExecutor,
 };
 pub use glam;
-pub use graph::{Graph, NodeId, Wire};
+pub use graph::{Graph, GraphInputInfo, GraphOutputInfo, NodeId, Wire};
 pub use node::{BoxedNode, DynNode, PortDescriptor};
-pub use nodes::{ConstantNode, GraphInput};
+pub use nodes::{ConstantNode, GraphInput, GraphOutput};
 pub use unshape_macros::DynNode as DynNodeDerive;
 pub use value::{DataLocation, GraphValue, Value, ValueType};

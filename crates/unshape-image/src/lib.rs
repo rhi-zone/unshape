@@ -77,6 +77,7 @@ use dither::hilbert_d2xy;
 
 /// How to handle UV coordinates outside [0, 1].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum WrapMode {
     /// Repeat the texture (fract of coordinate).
     #[default]
@@ -89,6 +90,7 @@ pub enum WrapMode {
 
 /// How to sample between pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum FilterMode {
     /// Use the nearest pixel (blocky).
     Nearest,
@@ -101,13 +103,14 @@ pub enum FilterMode {
 ///
 /// UV coordinates go from (0, 0) at the top-left to (1, 1) at the bottom-right.
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ImageField {
     /// Image pixel data as RGBA.
-    pub(crate) data: Vec<[f32; 4]>,
+    pub data: Vec<[f32; 4]>,
     /// Image width in pixels.
-    pub(crate) width: u32,
+    pub width: u32,
     /// Image height in pixels.
-    pub(crate) height: u32,
+    pub height: u32,
     /// How to handle coordinates outside [0, 1].
     pub wrap_mode: WrapMode,
     /// How to interpolate between pixels.

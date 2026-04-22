@@ -250,12 +250,12 @@ fn count_boundary_loops(boundary_edges: &[(u32, u32)], _vertex_count: usize) -> 
         // BFS/DFS to mark all vertices in this boundary component
         let mut stack = vec![start];
         while let Some(v) = stack.pop() {
-            if visited.insert(v) {
-                if let Some(neighbors) = boundary_adj.get(&v) {
-                    for &n in neighbors {
-                        if !visited.contains(&n) {
-                            stack.push(n);
-                        }
+            if visited.insert(v)
+                && let Some(neighbors) = boundary_adj.get(&v)
+            {
+                for &n in neighbors {
+                    if !visited.contains(&n) {
+                        stack.push(n);
                     }
                 }
             }

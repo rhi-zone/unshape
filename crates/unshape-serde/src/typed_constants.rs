@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use unshape_core::{
     DynNode, EvalContext, GraphError, GraphValue, PortDescriptor, Value, ValueType,
 };
+use unshape_image::ImageField;
 use unshape_mesh::Mesh;
 
 use crate::registry::SerializableNode;
@@ -119,6 +120,107 @@ impl SerializableNode for ConstantMesh {
     }
 }
 
+// ---------------------------------------------------------------------------
+// ImageValue — a GraphValue wrapper for ImageField
+// ---------------------------------------------------------------------------
+
+/// A transparent newtype that lets [`ImageField`] flow through the graph as an opaque value.
+///
+/// Implements [`GraphValue`] so it can be wrapped in [`Value::Opaque`].
+/// Use `.0` or [`ImageValue::into_inner`] to recover the original image field.
+#[derive(Debug, Clone)]
+pub struct ImageValue(pub ImageField);
+
+impl ImageValue {
+    /// Unwrap into the inner [`ImageField`].
+    pub fn into_inner(self) -> ImageField {
+        self.0
+    }
+}
+
+impl GraphValue for ImageValue {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn type_name(&self) -> &'static str {
+        "ImageField"
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ConstantImage
+// ---------------------------------------------------------------------------
+
+/// A source node that outputs a constant [`ImageField`] value wrapped in [`ImageValue`].
+///
+/// Unlike [`ConstantNode`], this node stores the concrete image type so it can be
+/// fully serialized and deserialized. The output is a `Value::Opaque(ImageValue)`.
+///
+/// # Ports
+/// - Inputs: none
+/// - Outputs: `"image"` — `ValueType::Custom { name: "ImageField", … }`
+///
+/// # Serialization
+///
+/// Params are the full JSON representation of the image (pixel data, width, height,
+/// wrap mode, filter mode). Requires the `serde` feature on `unshape-image`.
+///
+/// # Downcasting
+///
+/// To extract the image from the output value:
+/// ```ignore
+/// let image_val = output.downcast_ref::<ImageValue>().unwrap();
+/// let image = image_val.0.clone();
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConstantImage {
+    /// The image field value this node outputs.
+    pub image: ImageField,
+}
+
+impl ConstantImage {
+    /// Create a new constant image node.
+    pub fn new(image: ImageField) -> Self {
+        Self { image }
+    }
+}
+
+impl DynNode for ConstantImage {
+    fn type_name(&self) -> &'static str {
+        "image::ConstantImage"
+    }
+
+    fn inputs(&self) -> Vec<PortDescriptor> {
+        vec![]
+    }
+
+    fn outputs(&self) -> Vec<PortDescriptor> {
+        vec![PortDescriptor::new(
+            "image",
+            ValueType::Custom {
+                type_id: std::any::TypeId::of::<ImageValue>(),
+                name: "ImageField",
+            },
+        )]
+    }
+
+    fn execute(&self, _inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+        Ok(vec![Value::opaque(ImageValue(self.image.clone()))])
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl SerializableNode for ConstantImage {
+    fn params(&self) -> serde_json::Value {
+        serde_json::to_value(self)
+            .unwrap_or_else(|e| serde_json::json!({ "__error": e.to_string() }))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,5 +259,44 @@ mod tests {
         // Deserialize back
         let restored: ConstantMesh = serde_json::from_value(params).unwrap();
         assert_eq!(restored.mesh.positions.len(), mesh.positions.len());
+    }
+
+    #[test]
+    fn test_constant_image_execute() {
+        let image = ImageField::from_raw(vec![[1.0, 0.0, 0.0, 1.0], [0.0, 1.0, 0.0, 1.0]], 2, 1);
+        let pixel_count = image.data.len();
+        let node = ConstantImage::new(image);
+
+        let ctx = EvalContext::new();
+        let outputs = node.execute(&[], &ctx).unwrap();
+        assert_eq!(outputs.len(), 1);
+
+        let extracted = outputs[0]
+            .downcast_ref::<ImageValue>()
+            .expect("should be an ImageValue");
+        assert_eq!(extracted.0.data.len(), pixel_count);
+    }
+
+    #[test]
+    fn test_constant_image_ports() {
+        let image = ImageField::from_raw(vec![[0.0, 0.0, 0.0, 1.0]], 1, 1);
+        let node = ConstantImage::new(image);
+        assert!(node.inputs().is_empty());
+        assert_eq!(node.outputs().len(), 1);
+        assert_eq!(node.outputs()[0].name, "image");
+    }
+
+    #[test]
+    fn test_constant_image_params_roundtrip() {
+        let image = ImageField::from_raw(vec![[0.5, 0.5, 0.5, 1.0], [0.1, 0.2, 0.3, 0.4]], 2, 1);
+        let original_len = image.data.len();
+        let node = ConstantImage::new(image);
+        let params = node.params();
+
+        // Deserialize back
+        let restored: ConstantImage = serde_json::from_value(params).unwrap();
+        assert_eq!(restored.image.data.len(), original_len);
+        assert_eq!(restored.image.width, 2);
+        assert_eq!(restored.image.height, 1);
     }
 }

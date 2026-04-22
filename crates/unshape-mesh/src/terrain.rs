@@ -185,7 +185,11 @@ impl Heightfield {
 
             // Square step
             for z in 0..self.depth {
-                let offset = if (z / half) % 2 == 0 { half } else { 0 };
+                let offset = if (z / half).is_multiple_of(2) {
+                    half
+                } else {
+                    0
+                };
                 for x in (offset..self.width).step_by(step) {
                     let mut sum = 0.0;
                     let mut count = 0;

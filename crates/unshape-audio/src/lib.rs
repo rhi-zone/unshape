@@ -25,6 +25,7 @@ pub mod room;
 pub mod spatial;
 #[cfg(feature = "spectral")]
 pub mod spectral;
+pub mod utility;
 #[cfg(feature = "spectral")]
 pub mod vocoder;
 pub mod wav;
@@ -95,6 +96,10 @@ pub use spectral::{
     estimate_pitch, fft, fft_complex, find_peak_frequency, hamming_window, hann_window, ifft,
     ifft_complex, istft, pitch_shift, rect_window, spectral_centroid, spectral_flatness, stft,
     stft_with_sample_rate, time_stretch, time_stretch_granular,
+};
+pub use utility::{
+    MidSideDecode, MidSideEncode, MidSidePair, PitchQuantizer, SampleAndHold, SampleAndHoldNode,
+    ScaleMode, SlewLimiter, StereoPair,
 };
 #[cfg(feature = "spectral")]
 pub use vocoder::{FilterbankVocoder, VocodeSynth, Vocoder, VocoderConfig};
