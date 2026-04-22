@@ -258,6 +258,7 @@ fn split_quadratic(
 }
 
 /// Splits a cubic bezier at parameter t using de Casteljau's algorithm.
+#[allow(clippy::type_complexity)]
 fn split_cubic(
     p0: Vec2,
     p1: Vec2,
@@ -304,6 +305,7 @@ pub fn curve_intersections(
 }
 
 /// Recursive subdivision to find curve intersections.
+#[allow(clippy::too_many_arguments)]
 fn find_intersections_recursive(
     c1: &CurveSegment,
     c2: &CurveSegment,
@@ -983,7 +985,7 @@ fn segments_intersect(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2) -> bool {
     let t = (d.x * d2.y - d.y * d2.x) / cross;
     let u = (d.x * d1.y - d.y * d1.x) / cross;
 
-    t >= 0.0 && t <= 1.0 && u >= 0.0 && u <= 1.0
+    (0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u)
 }
 
 /// Simplified Weiler-Atherton union.
@@ -1078,7 +1080,7 @@ fn segment_intersection_params(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2) -> Option
     let t = (d.x * d2.y - d.y * d2.x) / cross;
     let u = (d.x * d1.y - d.y * d1.x) / cross;
 
-    if t >= 0.0 && t <= 1.0 && u >= 0.0 && u <= 1.0 {
+    if (0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u) {
         Some((a1 + d1 * t, t, u))
     } else {
         None
@@ -1142,11 +1144,12 @@ fn build_union_boundary(a: &[Vec2], b: &[Vec2], intersections: &[Intersection]) 
         }
 
         // Check if we're back to start
-        if !result.is_empty() && result.len() > 2 {
-            if result.last().unwrap().distance(result[0]) < 0.0001 {
-                result.pop();
-                break;
-            }
+        if !result.is_empty()
+            && result.len() > 2
+            && result.last().unwrap().distance(result[0]) < 0.0001
+        {
+            result.pop();
+            break;
         }
     }
 
@@ -1261,10 +1264,9 @@ fn find_next_intersection_on_edge_for_sub(
         if visited[idx] {
             continue;
         }
-        if int.a_edge == edge {
-            if best.is_none() || int.a_param < best.as_ref().unwrap().1.a_param {
-                best = Some((idx, int.clone()));
-            }
+        if int.a_edge == edge && (best.is_none() || int.a_param < best.as_ref().unwrap().1.a_param)
+        {
+            best = Some((idx, int.clone()));
         }
     }
     best
@@ -1321,7 +1323,7 @@ mod tests {
         let result = path_intersect(&a, &b, 8);
 
         // Should have some vertices (the overlapping region)
-        assert!(result.len() > 0);
+        assert!(!result.is_empty());
     }
 
     #[test]
@@ -1332,7 +1334,7 @@ mod tests {
         let result = path_union(&a, &b, 8);
 
         // Should return one of the polygons (simplified implementation)
-        assert!(result.len() > 0);
+        assert!(!result.is_empty());
     }
 
     #[test]
@@ -1376,7 +1378,7 @@ mod tests {
         let result = path_intersect(&a, &b, 16);
 
         // Should have some vertices
-        assert!(result.len() > 0);
+        assert!(!result.is_empty());
     }
 
     // ========================================================================
@@ -1747,7 +1749,7 @@ mod tests {
         let b = rect(Vec2::new(1.0, 1.0), Vec2::new(3.0, 3.0));
 
         let result = path_union_with_fill(&a, &b, 8, FillRule::NonZero);
-        assert!(result.len() > 0);
+        assert!(!result.is_empty());
     }
 
     #[test]
@@ -1756,7 +1758,7 @@ mod tests {
         let b = rect(Vec2::new(1.0, 1.0), Vec2::new(3.0, 3.0));
 
         let result = path_intersect_with_fill(&a, &b, 8, FillRule::NonZero);
-        assert!(result.len() > 0);
+        assert!(!result.is_empty());
     }
 
     #[test]

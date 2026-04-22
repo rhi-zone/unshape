@@ -396,10 +396,10 @@ fn clip_line_to_polygon(start: Vec2, end: Vec2, polygon: &[Vec2]) -> Vec<HatchLi
         let a = polygon[i];
         let b = polygon[(i + 1) % n];
 
-        if let Some(t) = line_segment_intersection(start, end, a, b) {
-            if t >= 0.0 && t <= 1.0 {
-                intersections.push(t);
-            }
+        if let Some(t) = line_segment_intersection(start, end, a, b)
+            && (0.0..=1.0).contains(&t)
+        {
+            intersections.push(t);
         }
     }
 
@@ -455,7 +455,11 @@ fn line_segment_intersection(p0: Vec2, p1: Vec2, p2: Vec2, p3: Vec2) -> Option<f
     let s = (-s1.y * (p0.x - p2.x) + s1.x * (p0.y - p2.y)) / denom;
     let t = (s2.x * (p0.y - p2.y) - s2.y * (p0.x - p2.x)) / denom;
 
-    if s >= 0.0 && s <= 1.0 { Some(t) } else { None }
+    if (0.0..=1.0).contains(&s) {
+        Some(t)
+    } else {
+        None
+    }
 }
 
 /// Simple point-in-polygon test using ray casting.

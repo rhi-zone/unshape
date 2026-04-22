@@ -115,6 +115,7 @@ impl GradientMesh {
     ///
     /// The grid has `cols` x `rows` cells (so `cols+1` x `rows+1` vertices).
     /// Colors are computed by bilinear interpolation of the four corner colors.
+    #[allow(clippy::too_many_arguments)]
     pub fn grid(
         origin: Vec2,
         size: Vec2,

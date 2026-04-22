@@ -70,9 +70,10 @@ impl EdgeId {
 }
 
 /// Handle style at an anchor for connected edges.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum HandleStyle {
     /// No handles (sharp corner).
+    #[default]
     None,
     /// Symmetric handles (same direction and length on both sides).
     Symmetric,
@@ -80,12 +81,6 @@ pub enum HandleStyle {
     Smooth,
     /// Free handles (independent directions and lengths).
     Free,
-}
-
-impl Default for HandleStyle {
-    fn default() -> Self {
-        HandleStyle::None
-    }
 }
 
 /// An anchor point in the vector network.
@@ -114,18 +109,13 @@ pub struct EdgeHandle {
 }
 
 /// Type of edge connection.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum EdgeType {
     /// Straight line segment.
+    #[default]
     Line,
     /// Cubic Bezier curve.
     Cubic,
-}
-
-impl Default for EdgeType {
-    fn default() -> Self {
-        EdgeType::Line
-    }
 }
 
 /// An edge connecting two anchors.

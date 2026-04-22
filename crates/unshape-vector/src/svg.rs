@@ -353,9 +353,9 @@ fn write_element(svg: &mut String, element: &SvgElement, indent: usize) {
 
     match element {
         SvgElement::Path { data, style } => {
-            write!(
+            writeln!(
                 svg,
-                "{}<path d=\"{}\" {}/>\n",
+                "{}<path d=\"{}\" {}/>",
                 indent_str,
                 data,
                 style.to_attributes()
@@ -363,9 +363,9 @@ fn write_element(svg: &mut String, element: &SvgElement, indent: usize) {
             .unwrap();
         }
         SvgElement::Circle { cx, cy, r, style } => {
-            write!(
+            writeln!(
                 svg,
-                "{}<circle cx=\"{:.3}\" cy=\"{:.3}\" r=\"{:.3}\" {}/>\n",
+                "{}<circle cx=\"{:.3}\" cy=\"{:.3}\" r=\"{:.3}\" {}/>",
                 indent_str,
                 cx,
                 cy,
@@ -395,7 +395,7 @@ fn write_element(svg: &mut String, element: &SvgElement, indent: usize) {
             if *ry > 0.0 {
                 write!(svg, " ry=\"{:.3}\"", ry).unwrap();
             }
-            write!(svg, " {}/>\n", style.to_attributes()).unwrap();
+            writeln!(svg, " {}/>", style.to_attributes()).unwrap();
         }
         SvgElement::Line {
             x1,
@@ -404,9 +404,9 @@ fn write_element(svg: &mut String, element: &SvgElement, indent: usize) {
             y2,
             style,
         } => {
-            write!(
+            writeln!(
                 svg,
-                "{}<line x1=\"{:.3}\" y1=\"{:.3}\" x2=\"{:.3}\" y2=\"{:.3}\" {}/>\n",
+                "{}<line x1=\"{:.3}\" y1=\"{:.3}\" x2=\"{:.3}\" y2=\"{:.3}\" {}/>",
                 indent_str,
                 x1,
                 y1,
@@ -421,14 +421,14 @@ fn write_element(svg: &mut String, element: &SvgElement, indent: usize) {
             transform,
         } => {
             if let Some(t) = transform {
-                write!(svg, "{}<g transform=\"{}\">\n", indent_str, t).unwrap();
+                writeln!(svg, "{}<g transform=\"{}\">", indent_str, t).unwrap();
             } else {
-                write!(svg, "{}<g>\n", indent_str).unwrap();
+                writeln!(svg, "{}<g>", indent_str).unwrap();
             }
             for child in elements {
                 write_element(svg, child, indent + 1);
             }
-            write!(svg, "{}</g>\n", indent_str).unwrap();
+            writeln!(svg, "{}</g>", indent_str).unwrap();
         }
     }
 }
@@ -700,10 +700,10 @@ fn parse_number(chars: &mut std::iter::Peekable<std::str::Chars>) -> SvgParseRes
     let mut s = String::new();
 
     // Handle sign
-    if let Some(&c) = chars.peek() {
-        if c == '-' || c == '+' {
-            s.push(chars.next().unwrap());
-        }
+    if let Some(&c) = chars.peek()
+        && (c == '-' || c == '+')
+    {
+        s.push(chars.next().unwrap());
     }
 
     // Handle digits and decimal point
@@ -720,10 +720,10 @@ fn parse_number(chars: &mut std::iter::Peekable<std::str::Chars>) -> SvgParseRes
             has_exp = true;
             s.push(chars.next().unwrap());
             // Handle exponent sign
-            if let Some(&c2) = chars.peek() {
-                if c2 == '-' || c2 == '+' {
-                    s.push(chars.next().unwrap());
-                }
+            if let Some(&c2) = chars.peek()
+                && (c2 == '-' || c2 == '+')
+            {
+                s.push(chars.next().unwrap());
             }
         } else {
             break;
@@ -739,6 +739,7 @@ fn parse_number(chars: &mut std::iter::Peekable<std::str::Chars>) -> SvgParseRes
 }
 
 /// Converts an arc to cubic bezier curves.
+#[allow(clippy::too_many_arguments)]
 fn arc_to_cubics(
     mut builder: crate::PathBuilder,
     start: Vec2,
