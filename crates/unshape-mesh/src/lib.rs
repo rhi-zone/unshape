@@ -9,6 +9,7 @@ mod boolean;
 mod curvature;
 mod curve_mesh;
 mod decimate;
+mod dual_contouring;
 mod edit;
 pub mod geodesic;
 mod halfedge;
@@ -33,6 +34,7 @@ mod subdivision;
 mod terrain;
 mod topology;
 mod uv;
+mod uv_ops;
 mod voronoi;
 mod weights;
 
@@ -61,6 +63,7 @@ pub use curve_mesh::{
     sweep_profile, sweep_profile_with_config,
 };
 pub use decimate::{Decimate, DecimateConfig, decimate};
+pub use dual_contouring::{DualContouring, dual_contour};
 pub use edit::{
     // Advanced operations
     BridgeEdgeLoops,
@@ -161,6 +164,10 @@ pub use uv::{
     pack_mesh_uvs, pack_multi_mesh_uvs, pack_uv_charts, project_box, project_box_per_face,
     project_cylindrical, project_planar, project_planar_axis, project_spherical, rotate_uvs,
     scale_uvs, transform_uvs, translate_uvs,
+};
+pub use uv_ops::{
+    FlipU, FlipV, NormalizeUVs, PackUVCharts, ProjectBox, ProjectBoxPerFace, ProjectCylinder,
+    ProjectPlanar, ProjectPlanarAxis, ProjectSphere, RotateUVs, ScaleUVs, TranslateUVs,
 };
 pub use voronoi::{FractureResult, VoronoiFracture, voronoi_fracture};
 pub use weights::{
