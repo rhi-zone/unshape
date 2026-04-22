@@ -1322,22 +1322,22 @@ pub fn trim_path(path: &Path, start: f32, end: f32) -> Path {
         let segment_end = accumulated_dist + segment_len;
 
         // If this point falls within our range, add it
-        if accumulated_dist > start_dist && accumulated_dist < end_dist {
-            // Check if this point is significantly different from the last added point
-            if let Some(&last) = trimmed_points.last() {
-                if (points[i] - last).length() > 1e-6 {
-                    trimmed_points.push(points[i]);
-                }
-            }
+        if accumulated_dist > start_dist
+            && accumulated_dist < end_dist
+            && let Some(&last) = trimmed_points.last()
+            && (points[i] - last).length() > 1e-6
+        {
+            trimmed_points.push(points[i]);
         }
 
         // Same for the next point
-        if segment_end > start_dist && segment_end < end_dist && i + 1 < points.len() {
-            if let Some(&last) = trimmed_points.last() {
-                if (points[i + 1] - last).length() > 1e-6 {
-                    trimmed_points.push(points[i + 1]);
-                }
-            }
+        if segment_end > start_dist
+            && segment_end < end_dist
+            && i + 1 < points.len()
+            && let Some(&last) = trimmed_points.last()
+            && (points[i + 1] - last).length() > 1e-6
+        {
+            trimmed_points.push(points[i + 1]);
         }
 
         accumulated_dist = segment_end;

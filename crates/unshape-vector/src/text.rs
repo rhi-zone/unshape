@@ -114,10 +114,9 @@ pub fn text_to_paths(text: &str, font: &Font, config: TextConfig) -> Vec<Path> {
         let glyph_id = font.font.glyph_id(c);
         if let Some(outlined) = scaled_font
             .outline_glyph(glyph_id.with_scale_and_position(config.size, ab_glyph::point(x, y)))
+            && let Some(path) = glyph_to_path(&outlined)
         {
-            if let Some(path) = glyph_to_path(&outlined) {
-                paths.push(path);
-            }
+            paths.push(path);
         }
 
         // Advance cursor

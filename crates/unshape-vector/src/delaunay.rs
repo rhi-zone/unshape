@@ -414,7 +414,7 @@ fn order_triangles_around_point(
             None => {
                 // No adjacent triangle found - might be on boundary
                 // Just add remaining in arbitrary order
-                ordered.extend(remaining.drain(..));
+                ordered.append(&mut remaining);
             }
         }
     }

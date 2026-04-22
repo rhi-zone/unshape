@@ -266,10 +266,10 @@ fn welzl(points: &[Vec2], boundary: &mut Vec<Vec2>) -> Option<(Vec2, f32)> {
     let circle_opt = welzl(rest, boundary);
 
     // If we got a valid circle and this point is inside, we're done
-    if let Some((center, radius)) = circle_opt {
-        if point_in_circle(p, center, radius) {
-            return Some((center, radius));
-        }
+    if let Some((center, radius)) = circle_opt
+        && point_in_circle(p, center, radius)
+    {
+        return Some((center, radius));
     }
 
     // Otherwise, this point must be on the boundary

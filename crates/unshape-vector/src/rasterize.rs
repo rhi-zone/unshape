@@ -92,10 +92,10 @@ impl Rasterizer {
         }
 
         // Close the path if needed
-        if let (Some(first), Some(last)) = (points.first(), points.last()) {
-            if (*first - *last).length() > 0.001 {
-                self.add_edge(*last, *first);
-            }
+        if let (Some(first), Some(last)) = (points.first(), points.last())
+            && (*first - *last).length() > 0.001
+        {
+            self.add_edge(*last, *first);
         }
     }
 

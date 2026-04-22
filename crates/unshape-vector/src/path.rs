@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// A path command in an SVG-like path.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PathCommand {
     /// Move to a point without drawing.
     MoveTo(Vec2),
@@ -35,6 +36,7 @@ pub enum PathCommand {
 
 /// A 2D path consisting of path commands.
 #[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Path {
     commands: Vec<PathCommand>,
 }
