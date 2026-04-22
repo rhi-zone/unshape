@@ -126,6 +126,26 @@ impl Mesh {
         }
     }
 
+    /// Generates a mesh from an SDF closure using dual contouring.
+    ///
+    /// Convenience sugar for [`DualContouring::apply_fn`]. Dual contouring
+    /// preserves sharp features (corners, edges) that marching cubes rounds off.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use unshape_mesh::{Mesh, DualContouring};
+    /// # use glam::Vec3;
+    /// let mesh = Mesh::dual_contour(|p: Vec3| p.length() - 1.0, &DualContouring::default());
+    /// assert!(!mesh.positions.is_empty());
+    /// ```
+    pub fn dual_contour<F: Fn(Vec3) -> f32>(
+        sdf: F,
+        config: &crate::dual_contouring::DualContouring,
+    ) -> Self {
+        crate::dual_contouring::dual_contour(sdf, config)
+    }
+
     /// Merges another mesh into this one.
     pub fn merge(&mut self, other: &Mesh) {
         let base_index = self.positions.len() as u32;
