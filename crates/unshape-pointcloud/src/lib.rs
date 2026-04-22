@@ -41,7 +41,6 @@ pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<SphereVolume>("resin::SphereVolume");
     registry.register_type::<GridPoints>("resin::GridPoints");
     registry.register_type::<BoxVolume>("resin::BoxVolume");
-    registry.register_type::<SdfSurface>("resin::SdfSurface");
 }
 
 /// A point cloud with positions, optional normals, and optional colors.
@@ -164,7 +163,7 @@ impl PointCloud {
             self.normals.extend_from_slice(&other.normals);
         } else if self.has_normals() {
             self.normals
-                .extend(std::iter::repeat(Vec3::ZERO).take(other.len()));
+                .extend(std::iter::repeat_n(Vec3::ZERO, other.len()));
         }
 
         // Handle colors
@@ -172,7 +171,7 @@ impl PointCloud {
             self.colors.extend_from_slice(&other.colors);
         } else if self.has_colors() {
             self.colors
-                .extend(std::iter::repeat(Vec4::ONE).take(other.len()));
+                .extend(std::iter::repeat_n(Vec4::ONE, other.len()));
         }
     }
 }
@@ -812,8 +811,10 @@ pub fn voxel_downsample(cloud: &PointCloud, voxel_size: f32) -> PointCloud {
         return cloud.clone();
     }
 
+    type VoxelKey = (i32, i32, i32);
+    type VoxelAccum = (Vec3, Vec3, Vec4, u32);
     // Map voxel coordinates to accumulated points (position, normal, color, count)
-    let mut voxels: HashMap<(i32, i32, i32), (Vec3, Vec3, Vec4, u32)> = HashMap::new();
+    let mut voxels: HashMap<VoxelKey, VoxelAccum> = HashMap::new();
 
     for i in 0..cloud.len() {
         let pos = cloud.positions[i];
@@ -1012,7 +1013,7 @@ impl SphereSurface {
                 rng.next_f32_signed(),
             );
             let len = v.length();
-            if len < 1e-6 || len > 1.0 {
+            if !(1e-6..=1.0).contains(&len) {
                 continue;
             }
             let normal = v / len;
@@ -1214,10 +1215,12 @@ impl BoxVolume {
 /// points where `|sdf(p) - iso_value| < thickness`. From those candidates,
 /// `count` points are chosen at random. Normals are estimated from the SDF
 /// gradient via central finite differences.
+///
+/// Note: This op is not registered with `DynOp` because the SDF field is a
+/// generic parameter that cannot be type-erased in the op system. Call
+/// [`SdfSurface::apply_sdf`] directly with a concrete field.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
-#[cfg_attr(feature = "dynop", op(input = (), output = PointCloud))]
 pub struct SdfSurface {
     /// Minimum corner of the sampling region.
     pub min: Vec3,
@@ -1505,5 +1508,190 @@ mod tests {
         // Test mutation through trait
         cloud.colors_mut()[0] = Vec4::new(0.0, 0.0, 1.0, 1.0);
         assert_eq!(cloud.colors[0], Vec4::new(0.0, 0.0, 1.0, 1.0));
+    }
+
+    // ========================================================================
+    // Generator op tests
+    // ========================================================================
+
+    #[test]
+    fn test_sphere_surface_count() {
+        let cloud = SphereSurface {
+            center: Vec3::ZERO,
+            radius: 2.0,
+            count: 200,
+            seed: 42,
+        }
+        .apply();
+        assert_eq!(cloud.len(), 200);
+        assert!(cloud.has_normals());
+    }
+
+    #[test]
+    fn test_sphere_surface_on_surface() {
+        let radius = 3.0;
+        let cloud = SphereSurface {
+            center: Vec3::new(1.0, 2.0, 3.0),
+            radius,
+            count: 100,
+            seed: 7,
+        }
+        .apply();
+        for &p in &cloud.positions {
+            let dist = (p - Vec3::new(1.0, 2.0, 3.0)).length();
+            assert!(
+                (dist - radius).abs() < 1e-4,
+                "point {p:?} not on sphere surface: dist={dist}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_sphere_surface_normals_unit() {
+        let cloud = SphereSurface::default().apply();
+        for &n in &cloud.normals {
+            assert!((n.length() - 1.0).abs() < 1e-5, "normal not unit: {:?}", n);
+        }
+    }
+
+    #[test]
+    fn test_sphere_volume_count() {
+        let cloud = SphereVolume {
+            count: 150,
+            seed: 1,
+            ..Default::default()
+        }
+        .apply();
+        assert_eq!(cloud.len(), 150);
+        assert!(cloud.has_normals());
+    }
+
+    #[test]
+    fn test_sphere_volume_inside_sphere() {
+        let radius = 1.5;
+        let cloud = SphereVolume {
+            radius,
+            count: 200,
+            seed: 3,
+            ..Default::default()
+        }
+        .apply();
+        for &p in &cloud.positions {
+            assert!(p.length() <= radius + 1e-4, "point outside sphere: {:?}", p);
+        }
+    }
+
+    #[test]
+    fn test_grid_points_count() {
+        let cloud = GridPoints {
+            resolution: UVec3::new(3, 4, 5),
+            ..Default::default()
+        }
+        .apply();
+        assert_eq!(cloud.len(), 3 * 4 * 5);
+    }
+
+    #[test]
+    fn test_grid_points_within_bounds() {
+        let min = Vec3::new(-2.0, -1.0, 0.0);
+        let max = Vec3::new(2.0, 1.0, 4.0);
+        let cloud = GridPoints {
+            min,
+            max,
+            resolution: UVec3::splat(5),
+        }
+        .apply();
+        for &p in &cloud.positions {
+            assert!(p.x >= min.x - 1e-5 && p.x <= max.x + 1e-5);
+            assert!(p.y >= min.y - 1e-5 && p.y <= max.y + 1e-5);
+            assert!(p.z >= min.z - 1e-5 && p.z <= max.z + 1e-5);
+        }
+    }
+
+    #[test]
+    fn test_box_volume_count() {
+        let cloud = BoxVolume {
+            count: 300,
+            seed: 99,
+            ..Default::default()
+        }
+        .apply();
+        assert_eq!(cloud.len(), 300);
+    }
+
+    #[test]
+    fn test_box_volume_within_bounds() {
+        let min = Vec3::new(0.0, 0.0, 0.0);
+        let max = Vec3::new(5.0, 3.0, 2.0);
+        let cloud = BoxVolume {
+            min,
+            max,
+            count: 500,
+            seed: 0,
+        }
+        .apply();
+        for &p in &cloud.positions {
+            assert!(p.x >= min.x - 1e-5 && p.x <= max.x + 1e-5);
+            assert!(p.y >= min.y - 1e-5 && p.y <= max.y + 1e-5);
+            assert!(p.z >= min.z - 1e-5 && p.z <= max.z + 1e-5);
+        }
+    }
+
+    #[test]
+    fn test_sdf_surface_sphere() {
+        // SDF of a unit sphere: |p| - 1
+        struct UnitSphere;
+        impl Field<Vec3, f32> for UnitSphere {
+            fn sample(&self, p: Vec3, _ctx: &EvalContext) -> f32 {
+                p.length() - 1.0
+            }
+        }
+
+        let op = SdfSurface {
+            min: Vec3::splat(-1.5),
+            max: Vec3::splat(1.5),
+            resolution: 16,
+            count: 100,
+            iso_value: 0.0,
+            thickness: 0.15,
+            seed: 0,
+            gradient_eps: 0.01,
+        };
+
+        let cloud = op.apply_sdf(&UnitSphere);
+        assert!(!cloud.is_empty(), "expected points near SDF surface");
+        assert!(cloud.len() <= 100);
+        for &p in &cloud.positions {
+            let d = (p.length() - 1.0).abs();
+            assert!(d < 0.15 + 1e-4, "point not near surface: dist={d}");
+        }
+        for &n in &cloud.normals {
+            let len = n.length();
+            assert!(len > 0.9 && len <= 1.0 + 1e-5, "normal not unit: {len}");
+        }
+    }
+
+    #[test]
+    fn test_sdf_surface_count_capped() {
+        struct PlaneSdf;
+        impl Field<Vec3, f32> for PlaneSdf {
+            fn sample(&self, p: Vec3, _ctx: &EvalContext) -> f32 {
+                p.y
+            }
+        }
+
+        let cloud = SdfSurface {
+            min: Vec3::splat(-1.0),
+            max: Vec3::splat(1.0),
+            resolution: 10,
+            count: 5,
+            iso_value: 0.0,
+            thickness: 0.5,
+            seed: 1,
+            gradient_eps: 0.01,
+        }
+        .apply_sdf(&PlaneSdf);
+
+        assert!(cloud.len() <= 5);
     }
 }
