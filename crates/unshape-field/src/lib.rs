@@ -20,6 +20,8 @@
 
 mod erosion;
 mod fbm;
+#[cfg(feature = "mesh")]
+mod mesh_field;
 mod metaball;
 mod network;
 mod noise;
@@ -30,6 +32,8 @@ mod terrain;
 
 pub use erosion::*;
 pub use fbm::*;
+#[cfg(feature = "mesh")]
+pub use mesh_field::{CurvatureKind, MeshCurvatureField};
 pub use metaball::*;
 pub use network::*;
 pub use noise::*;

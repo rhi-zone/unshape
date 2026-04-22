@@ -12,11 +12,13 @@ default = []
 invariant-tests = []
 serde = ["dep:serde", "glam/serde"]
 dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
+mesh = ["dep:unshape-mesh"]
 
 [dependencies]
 glam.workspace = true
 unshape-field-ops = { path = "../unshape-field-ops" }
 unshape-noise = { path = "../unshape-noise" }
+unshape-mesh = { path = "../unshape-mesh", optional = true }
 unshape-op = { path = "../unshape-op", optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }

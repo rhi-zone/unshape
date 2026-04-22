@@ -184,3 +184,47 @@ where
         self.field.sample(input, ctx).powf(self.exponent)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A minimal `Field<Vec3, f32>` to use in tests without depending on external crates.
+    struct SphereSdfLocal {
+        radius: f32,
+    }
+
+    impl Field<glam::Vec3, f32> for SphereSdfLocal {
+        fn sample(&self, input: glam::Vec3, _ctx: &EvalContext) -> f32 {
+            input.length() - self.radius
+        }
+    }
+
+    #[test]
+    fn test_combinators_with_vec3_input() {
+        use glam::Vec3;
+
+        // sphere SDF centered at origin with radius 1: Field<Vec3, f32>
+        let field = SphereSdfLocal { radius: 1.0 };
+        let ctx = EvalContext::new();
+
+        // chain: sphere SDF → negate → clamp(-2,2) → remap(-2,2, 0,1)
+        let result = Remap {
+            field: Clamp {
+                field: Negate { field },
+                min: -2.0,
+                max: 2.0,
+            },
+            in_min: -2.0,
+            in_max: 2.0,
+            out_min: 0.0,
+            out_max: 1.0,
+        }
+        .sample(Vec3::new(0.5, 0.0, 0.0), &ctx);
+
+        assert!(
+            (0.0..=1.0).contains(&result),
+            "expected result in [0,1], got {result}"
+        );
+    }
+}
