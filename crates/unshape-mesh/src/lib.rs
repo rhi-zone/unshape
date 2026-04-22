@@ -33,6 +33,7 @@ mod subdivision;
 mod terrain;
 mod topology;
 mod uv;
+mod voronoi;
 mod weights;
 
 pub use ao::{
@@ -161,6 +162,7 @@ pub use uv::{
     project_cylindrical, project_planar, project_planar_axis, project_spherical, rotate_uvs,
     scale_uvs, transform_uvs, translate_uvs,
 };
+pub use voronoi::{FractureResult, VoronoiFracture, voronoi_fracture};
 pub use weights::{
     HeatDiffusionConfig, VertexWeights, blur_weights, compute_automatic_weights, gradient_weights,
     heat_diffusion, invert_weights, limit_influences, radial_weights, scale_weights,
