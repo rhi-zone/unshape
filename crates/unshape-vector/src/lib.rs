@@ -13,6 +13,7 @@ mod gradient_mesh;
 mod hatching;
 mod network;
 mod path;
+mod path_ops;
 pub mod rasterize;
 mod stroke;
 pub mod svg;
@@ -86,6 +87,7 @@ pub use path::{
     squircle_with_segments,
     star,
 };
+pub use path_ops::{ArraySpacing, DashPath, PathArray, PathArrayInput, PathBlend, PathBlendInput};
 pub use stroke::{
     CapStyle, DashPattern, JoinStyle, PressurePoint, PressureStroke, PressureStrokeConfig,
     PressureStrokeRender, Stroke, StrokeConfig, Trim, TrimResult, dash_path, offset_path,
@@ -103,9 +105,30 @@ pub use text::{
 /// Call this to enable deserialization of vector ops from saved pipelines.
 #[cfg(feature = "dynop")]
 pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
+    // Stroke ops
     registry.register_type::<Stroke>("resin::Stroke");
     registry.register_type::<PressureStrokeRender>("resin::PressureStrokeRender");
     registry.register_type::<Trim>("resin::Trim");
+
+    // Path primitive generators
+    registry.register_type::<LinePath>("resin::LinePath");
+    registry.register_type::<Polyline>("resin::Polyline");
+    registry.register_type::<Polygon>("resin::Polygon");
+    registry.register_type::<Rect>("resin::Rect");
+    registry.register_type::<RectCentered>("resin::RectCentered");
+    registry.register_type::<Circle>("resin::Circle");
+    registry.register_type::<Ellipse>("resin::Ellipse");
+    registry.register_type::<RegularPolygon>("resin::RegularPolygon");
+    registry.register_type::<RoundedRect>("resin::RoundedRect");
+    registry.register_type::<RoundedRectCorners>("resin::RoundedRectCorners");
+    registry.register_type::<Star>("resin::Star");
+    registry.register_type::<Squircle>("resin::Squircle");
+    registry.register_type::<Pill>("resin::Pill");
+
+    // Higher-level path ops
+    registry.register_type::<PathBlend>("resin::PathBlend");
+    registry.register_type::<PathArray>("resin::PathArray");
+    registry.register_type::<DashPath>("resin::DashPath");
 }
 
 /// Invariant tests for vector operations.
