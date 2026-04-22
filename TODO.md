@@ -83,28 +83,54 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 - [x] Weight painting tools - weight smoothing, heat diffusion for skinning
 - [x] Topology analysis - genus detection, manifold testing, boundary classification
 
-### Graph / Core (from parity audit, 2026-04-21)
+### Graph / Core (from parity audit, 2026-04-21) ✅
 
-**GraphInput / wiring (just landed):**
-- [ ] `GraphOutput` source node — mirror of `GraphInput`; lets a graph declare what it exposes as named outputs (enables sub-graph compositing)
-- [ ] `Graph::input_nodes()` / `output_nodes()` — introspect declared interface without walking all nodes
-- [ ] Typed opaque constants — `ConstantMesh`, `ConstantImage` etc. once `Mesh: Serialize` is added
-- [ ] `Mesh: Serialize + Deserialize` — all fields are plain `Vec<f32>` / `Vec<u32>`, straightforward; unlocks serializable boolean op structs
+**GraphInput / wiring:**
+- [x] `GraphOutput` sink node + `execute_named_outputs()` + `input_nodes()` / `output_nodes()` introspection
+- [x] `ConstantNode`, `ConstantMesh`, `ConstantImage` — typed constant nodes; `register_core_nodes()` in unshape-serde
+- [x] `Mesh: Serialize + Deserialize` — unlocked serializable boolean op structs
+- [x] `Image: Serialize + Deserialize`
 
-**Field gaps (from parity audit):**
-- [ ] 3D SDF `Remap` / `Clamp` / `Smoothstep` combinators on `Vec3` inputs (the combinators landed but only work on `f32` outputs; verify `Vec3` path works)
-- [ ] Dual contouring — higher quality mesh extraction from SDFs vs marching cubes only
-- [ ] `CurvatureField` — expose mesh curvature as a `Field<Vec3, f32>` for use in displacement, texturing
+**Field (from parity audit):**
+- [x] 3D SDF primitives — `SphereSdf`, `BoxSdf`, `CylinderSdf`, `CapsuleSdf`, `TorusSdf`, `ConeSdf`, `PlaneSdf`, `TriangleSdf`, `RoundedBoxSdf`, `LineSegmentSdf`
+- [x] Field output combinators — `Remap`, `Clamp`, `Smoothstep`, `Step`, `Abs`, `Negate`, `Pow`; verified for `Vec3` inputs
+- [x] `ColorRamp` — gradient map field (`Field<I, [f32;4]>`) with Linear/Constant/Ease interpolation
+- [x] `FresnelField`, `LayerWeight` — view-dependent falloff fields (Schlick approximation)
+- [x] `CurvatureField` — nearest-vertex curvature lookup (`Gaussian`/`Mean`/`Max`/`Min`)
+- [x] Dual contouring — QEF vertex placement, sharper features than marching cubes
 
-**Mesh gaps (from parity audit):**
-- [ ] `Voronoi` / fracture op — cell-based geometry decomposition
-- [ ] UV ops as `Op` structs — `ProjectBox`, `ProjectSphere`, `PackUVCharts` are free fns, not serializable ops
+**Mesh (from parity audit):**
+- [x] `VoronoiFracture` — Sutherland-Hodgman cell clipping with `interior_offset`
+- [x] UV op structs — 13 ops: `ProjectPlanar`, `ProjectCylinder`, `ProjectSphere`, `ProjectBox`, `PackUVCharts`, `ScaleUVs`, `TranslateUVs`, `RotateUVs`, `NormalizeUVs`, `FlipU`, `FlipV`
+- [x] `BooleanUnion`, `BooleanSubtract`, `BooleanIntersect` — serializable op structs (now that `Mesh: Serialize`)
 
-**Rig gaps (from parity audit):**
-- [ ] Bezier / cubic keyframe interpolation — `Interpolation::Cubic` exists but falls back to linear
-- [ ] Dual-quaternion skinning — reduces candy-wrapper artefacts on extreme deformations
-- [ ] Morph target deformer — `MorphWeight` animation tracks exist, but no deformer engine applies them to geometry
-- [ ] Spine-style 2D skeleton — `unshape-motion` has 2D scene graph, needs bone + IK + mesh deform layer
+**Rig (from parity audit):**
+- [x] Cubic Bezier keyframe interpolation — `Tangent<T>` per keyframe, Newton's method time solve
+- [x] Dual-quaternion skinning — `DualQuat`, `SkinningMethod` enum, antipodality correction
+- [x] `ApplyMorphTargets` — sparse vertex delta deformer
+- [x] `SolveTwoBone` — analytical 2-bone IK; pole vectors for FABRIK; `AimConstraint`
+
+**Audio (from parity audit):**
+- [x] `PitchQuantizer` — snap to scale (Major, Minor, Pentatonic, Blues, Custom)
+- [x] `SampleAndHold`, `SlewLimiter` — utility DSP nodes
+- [x] `MidSideEncode` / `MidSideDecode` — stereo M/S matrix
+
+**Voxel:**
+- [x] `SmoothVoxels`, `BlurVoxels`, `ThresholdVoxels` — new ops with dynop registration
+- [x] `CompositeVoxels` — element-wise blend of two density grids (not dynop: two inputs)
+
+**Point cloud:**
+- [x] `SphereSurface`, `SphereVolume`, `GridPoints`, `BoxVolume`, `SdfSurface` — generator ops
+
+**Vector 2D:**
+- [x] `PathBlend`, `PathArray`, `DashPath` — new path ops
+- [x] 13 path primitive ops registered with dynop (`LinePath`, `Circle`, `Star`, `Squircle`, etc.)
+- [x] `Path`, `PathCommand` serializable
+
+**Open:**
+- [ ] Spine-style 2D skeleton — `unshape-motion` has 2D scene graph; needs bone + IK + mesh deform layer (design discussion needed)
+- [ ] `CompositeVoxels` dynop — blocked on multi-input op pattern design
+- [ ] `ConstantAudio` — would need `AudioBuffer: Serialize`
 
 ## Backlog
 
