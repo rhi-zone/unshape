@@ -40,7 +40,30 @@ use std::collections::HashMap;
 use crate::error::GraphError;
 use crate::eval::EvalContext;
 use crate::node::{BoxedNode, DynNode};
-use crate::value::Value;
+use crate::nodes::{GraphInput, GraphOutput};
+use crate::value::{Value, ValueType};
+
+/// Information about a [`GraphInput`] node in the graph.
+#[derive(Debug, Clone)]
+pub struct GraphInputInfo {
+    /// The ID of the `GraphInput` node.
+    pub node_id: NodeId,
+    /// The host-facing name used to look up the value in [`EvalContext`].
+    pub name: String,
+    /// The declared value type for this input.
+    pub value_type: ValueType,
+}
+
+/// Information about a [`GraphOutput`] node in the graph.
+#[derive(Debug, Clone)]
+pub struct GraphOutputInfo {
+    /// The ID of the `GraphOutput` node.
+    pub node_id: NodeId,
+    /// The host-facing name identifying this output.
+    pub name: String,
+    /// The declared value type for this output.
+    pub value_type: ValueType,
+}
 
 /// Unique identifier for a node in a graph.
 pub type NodeId = u32;
@@ -388,6 +411,81 @@ impl Graph {
         self.nodes.insert(id, node);
         self.topo_order = None;
         Ok(old)
+    }
+
+    /// Returns information about all [`GraphInput`] nodes in the graph.
+    ///
+    /// Each entry carries the node's ID, its host-facing name, and declared value type.
+    /// The order of the returned slice is unspecified (depends on `HashMap` iteration).
+    pub fn input_nodes(&self) -> Vec<GraphInputInfo> {
+        self.nodes
+            .iter()
+            .filter_map(|(&id, node)| {
+                node.as_any()
+                    .downcast_ref::<GraphInput>()
+                    .map(|gi| GraphInputInfo {
+                        node_id: id,
+                        name: gi.name.clone(),
+                        value_type: gi.value_type,
+                    })
+            })
+            .collect()
+    }
+
+    /// Returns information about all [`GraphOutput`] nodes in the graph.
+    ///
+    /// Each entry carries the node's ID, its host-facing name, and declared value type.
+    /// The order of the returned slice is unspecified (depends on `HashMap` iteration).
+    pub fn output_nodes(&self) -> Vec<GraphOutputInfo> {
+        self.nodes
+            .iter()
+            .filter_map(|(&id, node)| {
+                node.as_any()
+                    .downcast_ref::<GraphOutput>()
+                    .map(|go| GraphOutputInfo {
+                        node_id: id,
+                        name: go.name.clone(),
+                        value_type: go.value_type,
+                    })
+            })
+            .collect()
+    }
+
+    /// Executes all [`GraphOutput`] nodes and returns a map of output name → value.
+    ///
+    /// For each `GraphOutput` node the graph finds the wire feeding its `"value"`
+    /// input port, executes the upstream source node (using the normal topological
+    /// execution path), and maps the output name to the resulting value.
+    ///
+    /// # Notes
+    ///
+    /// - If two `GraphOutput` nodes share the same name, the last one processed
+    ///   wins (order is unspecified). Prefer unique names.
+    /// - The supplied `EvalContext` is shared across all output nodes; host inputs
+    ///   should be injected there.
+    pub fn execute_named_outputs(
+        &mut self,
+        ctx: &EvalContext,
+    ) -> Result<HashMap<String, Value>, GraphError> {
+        let output_infos = self.output_nodes();
+        let mut results = HashMap::with_capacity(output_infos.len());
+        for info in output_infos {
+            // Find the wire feeding input port 0 of this GraphOutput node.
+            let wire = self
+                .wires
+                .iter()
+                .find(|w| w.to_node == info.node_id && w.to_port == 0)
+                .copied();
+
+            if let Some(w) = wire {
+                // Execute the upstream source node and pick the correct output port.
+                let upstream_outputs = self.execute_with_context(w.from_node, ctx)?;
+                if let Some(value) = upstream_outputs.into_iter().nth(w.from_port) {
+                    results.insert(info.name, value);
+                }
+            }
+        }
+        Ok(results)
     }
 }
 
@@ -850,5 +948,61 @@ mod tests {
 
         graph.disconnect_named(const_a, "value", add, "a").unwrap();
         assert_eq!(graph.wire_count(), 0);
+    }
+
+    #[test]
+    fn test_input_nodes_and_output_nodes() {
+        use crate::nodes::{GraphInput, GraphOutput};
+
+        let mut graph = Graph::new();
+        let in_id = graph.add_node(GraphInput::new("x", ValueType::F32));
+        let out_id = graph.add_node(GraphOutput::new("result", ValueType::F32));
+
+        let inputs = graph.input_nodes();
+        assert_eq!(inputs.len(), 1);
+        assert_eq!(inputs[0].node_id, in_id);
+        assert_eq!(inputs[0].name, "x");
+        assert_eq!(inputs[0].value_type, ValueType::F32);
+
+        let outputs = graph.output_nodes();
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(outputs[0].node_id, out_id);
+        assert_eq!(outputs[0].name, "result");
+        assert_eq!(outputs[0].value_type, ValueType::F32);
+    }
+
+    #[test]
+    fn test_execute_named_outputs_two_outputs() {
+        use crate::nodes::{GraphInput, GraphOutput};
+
+        // Graph:
+        //   GraphInput("a", F32)  --> GraphOutput("out_a", F32)
+        //   GraphInput("b", F32)  --> GraphOutput("out_b", F32)
+        let mut graph = Graph::new();
+
+        let in_a = graph.add_node(GraphInput::new("a", ValueType::F32));
+        let in_b = graph.add_node(GraphInput::new("b", ValueType::F32));
+        let out_a = graph.add_node(GraphOutput::new("out_a", ValueType::F32));
+        let out_b = graph.add_node(GraphOutput::new("out_b", ValueType::F32));
+
+        graph.connect(in_a, 0, out_a, 0).unwrap();
+        graph.connect(in_b, 0, out_b, 0).unwrap();
+
+        let ctx = EvalContext::new()
+            .with_input("a", 1.0f32)
+            .with_input("b", 2.0f32);
+
+        let results = graph.execute_named_outputs(&ctx).unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results["out_a"].as_f32().unwrap(), 1.0);
+        assert_eq!(results["out_b"].as_f32().unwrap(), 2.0);
+    }
+
+    #[test]
+    fn test_execute_named_outputs_empty() {
+        let mut graph = Graph::new();
+        let ctx = EvalContext::new();
+        let results = graph.execute_named_outputs(&ctx).unwrap();
+        assert!(results.is_empty());
     }
 }

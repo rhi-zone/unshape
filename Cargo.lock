@@ -5108,6 +5108,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "unshape-core",
+ "unshape-image",
  "unshape-mesh",
 ]
 

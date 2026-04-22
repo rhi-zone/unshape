@@ -18,7 +18,7 @@
 //! assert!(cloud.len() >= 100); // Some points generated
 //! ```
 
-use glam::{Vec3, Vec4};
+use glam::{UVec3, Vec3, Vec4};
 use rand::Rng;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -37,6 +37,11 @@ pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<CropBounds>("resin::CropBounds");
     registry.register_type::<EstimateNormals>("resin::EstimateNormals");
     registry.register_type::<UniformSampling>("resin::UniformSampling");
+    registry.register_type::<SphereSurface>("resin::SphereSurface");
+    registry.register_type::<SphereVolume>("resin::SphereVolume");
+    registry.register_type::<GridPoints>("resin::GridPoints");
+    registry.register_type::<BoxVolume>("resin::BoxVolume");
+    registry.register_type::<SdfSurface>("resin::SdfSurface");
 }
 
 /// A point cloud with positions, optional normals, and optional colors.
@@ -918,6 +923,404 @@ pub fn transform(cloud: &PointCloud, matrix: glam::Mat4) -> PointCloud {
             Vec::new()
         },
         colors: cloud.colors.clone(),
+    }
+}
+
+// ============================================================================
+// Seeded RNG (splitmix64, no external dependency)
+// ============================================================================
+
+/// Simple splitmix64 bijection for u64 → u64.
+fn splitmix64(x: u64) -> u64 {
+    let x = x.wrapping_add(0x9e37_79b9_7f4a_7c15);
+    let x = (x ^ (x >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    let x = (x ^ (x >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    x ^ (x >> 31)
+}
+
+/// Minimal seeded RNG backed by splitmix64.
+struct SeededRng(u64);
+
+impl SeededRng {
+    fn new(seed: u64) -> Self {
+        Self(splitmix64(seed.wrapping_add(1)))
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        self.0 = splitmix64(self.0);
+        self.0
+    }
+
+    /// Returns a value in [0, 1).
+    fn next_f32(&mut self) -> f32 {
+        (self.next_u64() >> 11) as f32 / (1u64 << 53) as f32
+    }
+
+    /// Returns a value in [-1, 1).
+    fn next_f32_signed(&mut self) -> f32 {
+        self.next_f32() * 2.0 - 1.0
+    }
+}
+
+// ============================================================================
+// Generator ops — produce a PointCloud with no input
+// ============================================================================
+
+/// Generates random points on the surface of a sphere.
+///
+/// Uses rejection sampling in the unit cube to achieve a uniform distribution
+/// on the sphere surface. Each point's normal equals the outward direction from
+/// the center.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = (), output = PointCloud))]
+pub struct SphereSurface {
+    /// Center of the sphere.
+    pub center: Vec3,
+    /// Radius of the sphere.
+    pub radius: f32,
+    /// Number of points to generate.
+    pub count: usize,
+    /// Seed for the RNG. Same seed → same result.
+    pub seed: u64,
+}
+
+impl Default for SphereSurface {
+    fn default() -> Self {
+        Self {
+            center: Vec3::ZERO,
+            radius: 1.0,
+            count: 1000,
+            seed: 0,
+        }
+    }
+}
+
+impl SphereSurface {
+    /// Generates the point cloud.
+    pub fn apply(&self) -> PointCloud {
+        let mut rng = SeededRng::new(self.seed);
+        let mut positions = Vec::with_capacity(self.count);
+        let mut normals = Vec::with_capacity(self.count);
+
+        while positions.len() < self.count {
+            // Rejection sample a unit direction.
+            let v = Vec3::new(
+                rng.next_f32_signed(),
+                rng.next_f32_signed(),
+                rng.next_f32_signed(),
+            );
+            let len = v.length();
+            if len < 1e-6 || len > 1.0 {
+                continue;
+            }
+            let normal = v / len;
+            positions.push(self.center + normal * self.radius);
+            normals.push(normal);
+        }
+
+        PointCloud {
+            positions,
+            normals,
+            colors: Vec::new(),
+        }
+    }
+}
+
+/// Generates random points uniformly distributed inside a sphere volume.
+///
+/// Each point's normal equals the outward direction from the center (useful
+/// for downstream processing; set to zero if you need interior points without normals).
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = (), output = PointCloud))]
+pub struct SphereVolume {
+    /// Center of the sphere.
+    pub center: Vec3,
+    /// Radius of the sphere.
+    pub radius: f32,
+    /// Number of points to generate.
+    pub count: usize,
+    /// Seed for the RNG.
+    pub seed: u64,
+}
+
+impl Default for SphereVolume {
+    fn default() -> Self {
+        Self {
+            center: Vec3::ZERO,
+            radius: 1.0,
+            count: 1000,
+            seed: 0,
+        }
+    }
+}
+
+impl SphereVolume {
+    /// Generates the point cloud.
+    pub fn apply(&self) -> PointCloud {
+        let mut rng = SeededRng::new(self.seed);
+        let mut positions = Vec::with_capacity(self.count);
+        let mut normals = Vec::with_capacity(self.count);
+
+        while positions.len() < self.count {
+            let v = Vec3::new(
+                rng.next_f32_signed(),
+                rng.next_f32_signed(),
+                rng.next_f32_signed(),
+            );
+            if v.length_squared() > 1.0 {
+                continue;
+            }
+            let point = self.center + v * self.radius;
+            let normal = (point - self.center).normalize_or_zero();
+            positions.push(point);
+            normals.push(normal);
+        }
+
+        PointCloud {
+            positions,
+            normals,
+            colors: Vec::new(),
+        }
+    }
+}
+
+/// Generates a regular grid of points inside a box.
+///
+/// Points are placed at uniform intervals along each axis. The total number of
+/// points equals `resolution.x * resolution.y * resolution.z`.
+/// Normals are set to `Vec3::Z`.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = (), output = PointCloud))]
+pub struct GridPoints {
+    /// Minimum corner of the bounding box.
+    pub min: Vec3,
+    /// Maximum corner of the bounding box.
+    pub max: Vec3,
+    /// Number of points along each axis.
+    pub resolution: UVec3,
+}
+
+impl Default for GridPoints {
+    fn default() -> Self {
+        Self {
+            min: Vec3::splat(-1.0),
+            max: Vec3::splat(1.0),
+            resolution: UVec3::splat(10),
+        }
+    }
+}
+
+impl GridPoints {
+    /// Generates the point cloud.
+    pub fn apply(&self) -> PointCloud {
+        let rx = self.resolution.x as usize;
+        let ry = self.resolution.y as usize;
+        let rz = self.resolution.z as usize;
+        let total = rx * ry * rz;
+
+        let mut positions = Vec::with_capacity(total);
+        let extent = self.max - self.min;
+
+        for iz in 0..rz {
+            for iy in 0..ry {
+                for ix in 0..rx {
+                    // Place on grid; for resolution=1 put at 0.5 (center of cell).
+                    let tx = if rx > 1 {
+                        ix as f32 / (rx - 1) as f32
+                    } else {
+                        0.5
+                    };
+                    let ty = if ry > 1 {
+                        iy as f32 / (ry - 1) as f32
+                    } else {
+                        0.5
+                    };
+                    let tz = if rz > 1 {
+                        iz as f32 / (rz - 1) as f32
+                    } else {
+                        0.5
+                    };
+                    positions.push(self.min + extent * Vec3::new(tx, ty, tz));
+                }
+            }
+        }
+
+        PointCloud {
+            normals: vec![Vec3::Z; positions.len()],
+            positions,
+            colors: Vec::new(),
+        }
+    }
+}
+
+/// Generates random points uniformly distributed inside a box volume.
+///
+/// Normals are set to `Vec3::Z` (no meaningful outward direction for axis-aligned boxes).
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = (), output = PointCloud))]
+pub struct BoxVolume {
+    /// Minimum corner of the bounding box.
+    pub min: Vec3,
+    /// Maximum corner of the bounding box.
+    pub max: Vec3,
+    /// Number of points to generate.
+    pub count: usize,
+    /// Seed for the RNG.
+    pub seed: u64,
+}
+
+impl Default for BoxVolume {
+    fn default() -> Self {
+        Self {
+            min: Vec3::splat(-1.0),
+            max: Vec3::splat(1.0),
+            count: 1000,
+            seed: 0,
+        }
+    }
+}
+
+impl BoxVolume {
+    /// Generates the point cloud.
+    pub fn apply(&self) -> PointCloud {
+        let mut rng = SeededRng::new(self.seed);
+        let extent = self.max - self.min;
+        let mut positions = Vec::with_capacity(self.count);
+
+        for _ in 0..self.count {
+            let t = Vec3::new(rng.next_f32(), rng.next_f32(), rng.next_f32());
+            positions.push(self.min + extent * t);
+        }
+
+        PointCloud {
+            normals: vec![Vec3::Z; positions.len()],
+            positions,
+            colors: Vec::new(),
+        }
+    }
+}
+
+/// Samples points from an SDF field where the SDF value is close to `iso_value`.
+///
+/// Probes a regular grid at the given `resolution` and accepts candidate
+/// points where `|sdf(p) - iso_value| < thickness`. From those candidates,
+/// `count` points are chosen at random. Normals are estimated from the SDF
+/// gradient via central finite differences.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = (), output = PointCloud))]
+pub struct SdfSurface {
+    /// Minimum corner of the sampling region.
+    pub min: Vec3,
+    /// Maximum corner of the sampling region.
+    pub max: Vec3,
+    /// Grid resolution for candidate generation (resolution³ probes).
+    pub resolution: usize,
+    /// Maximum number of output points.
+    pub count: usize,
+    /// Surface iso-value (0 for a standard zero-level-set SDF).
+    pub iso_value: f32,
+    /// Half-width of the accepted band: `|sdf(p) - iso_value| < thickness`.
+    pub thickness: f32,
+    /// Seed for the RNG (used when sub-sampling candidates).
+    pub seed: u64,
+    /// Step size for gradient finite differences (relative to cell size).
+    pub gradient_eps: f32,
+}
+
+impl Default for SdfSurface {
+    fn default() -> Self {
+        Self {
+            min: Vec3::splat(-1.0),
+            max: Vec3::splat(1.0),
+            resolution: 32,
+            count: 1000,
+            iso_value: 0.0,
+            thickness: 0.05,
+            seed: 0,
+            gradient_eps: 0.01,
+        }
+    }
+}
+
+impl SdfSurface {
+    /// Generates the point cloud from an SDF field.
+    ///
+    /// The field is evaluated at each grid point; candidates within the
+    /// iso-band are collected, shuffled with the seeded RNG, then truncated
+    /// to `self.count`.
+    pub fn apply_sdf<F: Field<Vec3, f32>>(&self, sdf: &F) -> PointCloud {
+        let ctx = EvalContext::new();
+        let extent = self.max - self.min;
+        let res = self.resolution.max(1);
+        let step = extent / res as f32;
+        let eps = self.gradient_eps;
+
+        let mut candidates: Vec<Vec3> = Vec::new();
+
+        for iz in 0..res {
+            for iy in 0..res {
+                for ix in 0..res {
+                    let t = Vec3::new(
+                        (ix as f32 + 0.5) / res as f32,
+                        (iy as f32 + 0.5) / res as f32,
+                        (iz as f32 + 0.5) / res as f32,
+                    );
+                    let p = self.min + extent * t;
+                    let d = sdf.sample(p, &ctx);
+                    if (d - self.iso_value).abs() < self.thickness {
+                        candidates.push(p);
+                    }
+                }
+            }
+        }
+
+        // Shuffle candidates with seeded RNG, then take `count`.
+        let mut rng = SeededRng::new(self.seed);
+        // Fisher-Yates shuffle
+        for i in (1..candidates.len()).rev() {
+            let j = (rng.next_u64() as usize) % (i + 1);
+            candidates.swap(i, j);
+        }
+        candidates.truncate(self.count);
+
+        // Estimate normals via central finite differences.
+        let half_step = step * 0.5;
+        let fd_eps = Vec3::new(
+            eps.max(half_step.x * 0.5),
+            eps.max(half_step.y * 0.5),
+            eps.max(half_step.z * 0.5),
+        );
+
+        let mut positions = Vec::with_capacity(candidates.len());
+        let mut normals = Vec::with_capacity(candidates.len());
+
+        for p in candidates {
+            let dx = sdf.sample(p + Vec3::new(fd_eps.x, 0.0, 0.0), &ctx)
+                - sdf.sample(p - Vec3::new(fd_eps.x, 0.0, 0.0), &ctx);
+            let dy = sdf.sample(p + Vec3::new(0.0, fd_eps.y, 0.0), &ctx)
+                - sdf.sample(p - Vec3::new(0.0, fd_eps.y, 0.0), &ctx);
+            let dz = sdf.sample(p + Vec3::new(0.0, 0.0, fd_eps.z), &ctx)
+                - sdf.sample(p - Vec3::new(0.0, 0.0, fd_eps.z), &ctx);
+            let grad = Vec3::new(dx, dy, dz).normalize_or_zero();
+            positions.push(p);
+            normals.push(grad);
+        }
+
+        PointCloud {
+            positions,
+            normals,
+            colors: Vec::new(),
+        }
     }
 }
 

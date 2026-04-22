@@ -172,15 +172,10 @@ pub struct KnifePoint {
 /// Cuts the mesh along a path.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Default)]
 pub struct KnifeCut {
     /// Points defining the cut path.
     pub points: Vec<KnifePoint>,
-}
-
-impl Default for KnifeCut {
-    fn default() -> Self {
-        Self { points: Vec::new() }
-    }
 }
 
 impl KnifeCut {

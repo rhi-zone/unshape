@@ -117,7 +117,7 @@ pub fn subdivide_linear(mesh: &Mesh) -> Mesh {
 
         for &(a, b) in &[(i0, i1), (i1, i2), (i2, i0)] {
             let key = edge_key(a, b);
-            if !edge_vertices.contains_key(&key) {
+            if let std::collections::hash_map::Entry::Vacant(e) = edge_vertices.entry(key) {
                 let mid_pos = (mesh.positions[a as usize] + mesh.positions[b as usize]) * 0.5;
                 let new_idx = result.positions.len() as u32;
                 result.positions.push(mid_pos);
@@ -135,7 +135,7 @@ pub fn subdivide_linear(mesh: &Mesh) -> Mesh {
                     result.uvs.push(mid_uv);
                 }
 
-                edge_vertices.insert(key, new_idx);
+                e.insert(new_idx);
             }
         }
     }

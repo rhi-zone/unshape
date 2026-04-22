@@ -484,11 +484,10 @@ pub fn dilate(grid: &BinaryVoxelGrid) -> BinaryVoxelGrid {
                 if !is_solid {
                     for &(dx, dy, dz) in &NEIGHBORS_6 {
                         if let Some(&v) = grid.try_get(x as i32 + dx, y as i32 + dy, z as i32 + dz)
+                            && v
                         {
-                            if v {
-                                is_solid = true;
-                                break;
-                            }
+                            is_solid = true;
+                            break;
                         }
                     }
                 }
@@ -836,6 +835,267 @@ pub fn count_solid(grid: &BinaryVoxelGrid) -> usize {
     grid.iter().filter(|&(_, v)| *v).count()
 }
 
+// ============================================================================
+// Density grid operations
+// ============================================================================
+
+/// Operation to apply Laplacian smoothing to a scalar density grid.
+///
+/// For each voxel, averages with its 6 face-adjacent neighbours, then lerps
+/// by `strength` toward that average. Uses the ops-as-values pattern.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = DensityVoxelGrid, output = DensityVoxelGrid))]
+pub struct SmoothVoxels {
+    /// Number of smoothing iterations.
+    pub iterations: u32,
+    /// Blend strength with the averaged neighbourhood (0.0 = no change, 1.0 = full average).
+    pub strength: f32,
+}
+
+impl SmoothVoxels {
+    /// Creates a new SmoothVoxels operation.
+    pub fn new(iterations: u32, strength: f32) -> Self {
+        Self {
+            iterations,
+            strength,
+        }
+    }
+
+    /// Applies the smoothing operation to a density grid.
+    pub fn apply(&self, grid: &DensityVoxelGrid) -> DensityVoxelGrid {
+        let mut result = grid.clone();
+        for _ in 0..self.iterations {
+            result = smooth_voxels_once(&result, self.strength);
+        }
+        result
+    }
+}
+
+fn smooth_voxels_once(grid: &DensityVoxelGrid, strength: f32) -> DensityVoxelGrid {
+    let size = grid.size();
+    let mut result = VoxelGrid::new(size.x, size.y, size.z, 0.0f32);
+
+    for z in 0..size.z {
+        for y in 0..size.y {
+            for x in 0..size.x {
+                let current = *grid.get(x, y, z);
+                let mut sum = 0.0f32;
+                let mut count = 0u32;
+
+                for &(dx, dy, dz) in &NEIGHBORS_6 {
+                    if let Some(&v) = grid.try_get(x as i32 + dx, y as i32 + dy, z as i32 + dz) {
+                        sum += v;
+                        count += 1;
+                    }
+                }
+
+                let avg = if count > 0 {
+                    sum / count as f32
+                } else {
+                    current
+                };
+                result.set(x, y, z, current + (avg - current) * strength);
+            }
+        }
+    }
+
+    result
+}
+
+/// Operation to apply a separable Gaussian blur to a density voxel grid.
+///
+/// Performs three 1D Gaussian passes (X, Y, Z) for efficiency.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = DensityVoxelGrid, output = DensityVoxelGrid))]
+pub struct BlurVoxels {
+    /// Kernel radius in voxels.
+    pub radius: u32,
+    /// Standard deviation for the Gaussian kernel.
+    pub sigma: f32,
+}
+
+impl BlurVoxels {
+    /// Creates a new BlurVoxels operation.
+    pub fn new(radius: u32, sigma: f32) -> Self {
+        Self { radius, sigma }
+    }
+
+    /// Applies the Gaussian blur to a density grid.
+    pub fn apply(&self, grid: &DensityVoxelGrid) -> DensityVoxelGrid {
+        let kernel = build_gaussian_kernel(self.radius, self.sigma);
+        let tmp_x = blur_axis(grid, &kernel, 0);
+        let tmp_y = blur_axis(&tmp_x, &kernel, 1);
+        blur_axis(&tmp_y, &kernel, 2)
+    }
+}
+
+fn build_gaussian_kernel(radius: u32, sigma: f32) -> Vec<f32> {
+    let r = radius as i32;
+    let len = (2 * r + 1) as usize;
+    let mut kernel = vec![0.0f32; len];
+    let two_sigma_sq = 2.0 * sigma * sigma;
+
+    for (i, slot) in kernel.iter_mut().enumerate() {
+        let x = (i as i32 - r) as f32;
+        *slot = (-x * x / two_sigma_sq).exp();
+    }
+
+    let sum: f32 = kernel.iter().sum();
+    for v in &mut kernel {
+        *v /= sum;
+    }
+
+    kernel
+}
+
+fn blur_axis(grid: &DensityVoxelGrid, kernel: &[f32], axis: u8) -> DensityVoxelGrid {
+    let size = grid.size();
+    let mut result = VoxelGrid::new(size.x, size.y, size.z, 0.0f32);
+    let radius = (kernel.len() / 2) as i32;
+
+    for z in 0..size.z {
+        for y in 0..size.y {
+            for x in 0..size.x {
+                let mut acc = 0.0f32;
+                let mut weight_sum = 0.0f32;
+
+                for (k, &w) in kernel.iter().enumerate() {
+                    let offset = k as i32 - radius;
+                    let (sx, sy, sz) = match axis {
+                        0 => (x as i32 + offset, y as i32, z as i32),
+                        1 => (x as i32, y as i32 + offset, z as i32),
+                        _ => (x as i32, y as i32, z as i32 + offset),
+                    };
+
+                    if let Some(&v) = grid.try_get(sx, sy, sz) {
+                        acc += v * w;
+                        weight_sum += w;
+                    }
+                }
+
+                let val = if weight_sum > 0.0 {
+                    acc / weight_sum
+                } else {
+                    *grid.get(x, y, z)
+                };
+                result.set(x, y, z, val);
+            }
+        }
+    }
+
+    result
+}
+
+/// Compositing mode for two voxel grids.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum VoxelCompositeMode {
+    /// Sum of both values.
+    Add,
+    /// Difference (a - b).
+    Subtract,
+    /// Maximum of both values.
+    Max,
+    /// Minimum of both values.
+    Min,
+    /// Product of both values.
+    Multiply,
+}
+
+/// Operation to composite two density voxel grids element-wise.
+///
+/// Both grids must have the same dimensions.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct CompositeVoxels {
+    /// How to combine the two grids.
+    pub mode: VoxelCompositeMode,
+}
+
+impl CompositeVoxels {
+    /// Creates a new CompositeVoxels operation.
+    pub fn new(mode: VoxelCompositeMode) -> Self {
+        Self { mode }
+    }
+
+    /// Applies the compositing operation to two density grids.
+    ///
+    /// # Panics
+    /// Panics if the two grids have different sizes.
+    pub fn apply(&self, a: &DensityVoxelGrid, b: &DensityVoxelGrid) -> DensityVoxelGrid {
+        assert_eq!(
+            a.size(),
+            b.size(),
+            "CompositeVoxels: grids must have the same size"
+        );
+        let size = a.size();
+        let mut result = VoxelGrid::new(size.x, size.y, size.z, 0.0f32);
+
+        for z in 0..size.z {
+            for y in 0..size.y {
+                for x in 0..size.x {
+                    let va = *a.get(x, y, z);
+                    let vb = *b.get(x, y, z);
+                    let out = match self.mode {
+                        VoxelCompositeMode::Add => va + vb,
+                        VoxelCompositeMode::Subtract => va - vb,
+                        VoxelCompositeMode::Max => va.max(vb),
+                        VoxelCompositeMode::Min => va.min(vb),
+                        VoxelCompositeMode::Multiply => va * vb,
+                    };
+                    result.set(x, y, z, out);
+                }
+            }
+        }
+
+        result
+    }
+}
+
+/// Operation to threshold a density grid into a binary-valued density grid.
+///
+/// Values at or above the threshold become 1.0; values below become 0.0.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = DensityVoxelGrid, output = DensityVoxelGrid))]
+pub struct ThresholdVoxels {
+    /// Density value at which voxels become solid (>= threshold → 1.0).
+    pub threshold: f32,
+}
+
+impl ThresholdVoxels {
+    /// Creates a new ThresholdVoxels operation.
+    pub fn new(threshold: f32) -> Self {
+        Self { threshold }
+    }
+
+    /// Applies the threshold operation to a density grid.
+    pub fn apply(&self, grid: &DensityVoxelGrid) -> DensityVoxelGrid {
+        let size = grid.size();
+        let mut result = VoxelGrid::new(size.x, size.y, size.z, 0.0f32);
+
+        for z in 0..size.z {
+            for y in 0..size.y {
+                for x in 0..size.x {
+                    let val = if *grid.get(x, y, z) >= self.threshold {
+                        1.0
+                    } else {
+                        0.0
+                    };
+                    result.set(x, y, z, val);
+                }
+            }
+        }
+
+        result
+    }
+}
+
 /// Registers all voxel operations with an [`OpRegistry`].
 ///
 /// Call this to enable deserialization of voxel ops from saved pipelines.
@@ -847,6 +1107,9 @@ pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<FillSphere>("resin::FillSphere");
     registry.register_type::<SparseVoxelsToMesh>("resin::SparseVoxelsToMesh");
     registry.register_type::<VoxelsToMesh>("resin::VoxelsToMesh");
+    registry.register_type::<SmoothVoxels>("resin::SmoothVoxels");
+    registry.register_type::<BlurVoxels>("resin::BlurVoxels");
+    registry.register_type::<ThresholdVoxels>("resin::ThresholdVoxels");
 }
 
 #[cfg(test)]

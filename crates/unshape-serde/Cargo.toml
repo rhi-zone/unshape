@@ -7,6 +7,7 @@ description = "Core types and traits for unshape graphs"
 
 [dependencies]
 unshape-core = { path = "../unshape-core", features = ["serde"] }
+unshape-image = { path = "../unshape-image", features = ["serde"] }
 unshape-mesh = { path = "../unshape-mesh", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

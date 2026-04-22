@@ -275,10 +275,10 @@ fn dijkstra(
             continue;
         }
 
-        if let Some(max) = max_distance {
-            if distance > max {
-                continue;
-            }
+        if let Some(max) = max_distance
+            && distance > max
+        {
+            continue;
         }
 
         for &neighbor in &adjacency[vertex] {
@@ -344,10 +344,10 @@ fn fast_marching(
             continue;
         }
 
-        if let Some(max) = max_distance {
-            if distance > max {
-                continue;
-            }
+        if let Some(max) = max_distance
+            && distance > max
+        {
+            continue;
         }
 
         frozen[vertex] = true;
@@ -477,7 +477,7 @@ fn solve_triangle_update(target: Vec3, v1: Vec3, v2: Vec3, d1: f32, d2: f32) -> 
     let mut result = f32::INFINITY;
 
     for t in [t1, t2] {
-        if t >= 0.0 && t <= 1.0 {
+        if (0.0..=1.0).contains(&t) {
             let interp = e1 * (1.0 - t) + e2 * t;
             let dist = d1 * (1.0 - t) + d2 * t + interp.length();
             result = result.min(dist);

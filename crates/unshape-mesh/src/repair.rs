@@ -438,20 +438,15 @@ pub fn fill_all_holes(mesh: &mut Mesh, method: HoleFillMethod) {
 }
 
 /// Method for filling holes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HoleFillMethod {
     /// Fan triangulation from centroid. Fast, good for convex holes.
     Fan,
     /// Ear clipping algorithm. Works for concave holes.
+    #[default]
     EarClip,
     /// Minimum area triangulation. Often produces cleaner results.
     MinimumArea,
-}
-
-impl Default for HoleFillMethod {
-    fn default() -> Self {
-        Self::EarClip
-    }
 }
 
 /// Checks if a mesh is watertight (no boundary edges).

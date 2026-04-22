@@ -256,15 +256,15 @@ impl AoAccelerator {
         }
 
         // Check children
-        if let Some(left) = &node.left {
-            if self.occluded_bvh(left, origin, direction, dir_inv, max_distance) {
-                return true;
-            }
+        if let Some(left) = &node.left
+            && self.occluded_bvh(left, origin, direction, dir_inv, max_distance)
+        {
+            return true;
         }
-        if let Some(right) = &node.right {
-            if self.occluded_bvh(right, origin, direction, dir_inv, max_distance) {
-                return true;
-            }
+        if let Some(right) = &node.right
+            && self.occluded_bvh(right, origin, direction, dir_inv, max_distance)
+        {
+            return true;
         }
 
         false
@@ -377,7 +377,7 @@ fn hemisphere_sample(index: u32, total: u32, cosine_weighted: bool) -> (Vec3, f3
     let i = index as f32;
     let n = total as f32;
 
-    let phi = 2.0 * std::f32::consts::PI * (i * 0.618033988749895); // Golden ratio
+    let phi = 2.0 * std::f32::consts::PI * (i * 0.618_034); // Golden ratio
     let cos_theta = if cosine_weighted {
         (1.0 - (i + 0.5) / n).sqrt()
     } else {
@@ -523,13 +523,15 @@ pub fn bake_ao_texture(mesh: &Mesh, config: &BakeAo, width: u32, height: u32) ->
                 let v = (py as f32 + 0.5) / height as f32;
 
                 // Check if point is in triangle
-                if let Some((w0, w1, w2)) = barycentric_2d(glam::Vec2::new(u, v), uv0, uv1, uv2) {
-                    if w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0 {
-                        // Interpolate position
-                        let pos = p0 * w0 + p1 * w1 + p2 * w2;
-                        let ao = compute_ao_at_point(&accel, pos, face_normal, config);
-                        texture.set_pixel(px as u32, py as u32, ao);
-                    }
+                if let Some((w0, w1, w2)) = barycentric_2d(glam::Vec2::new(u, v), uv0, uv1, uv2)
+                    && w0 >= 0.0
+                    && w1 >= 0.0
+                    && w2 >= 0.0
+                {
+                    // Interpolate position
+                    let pos = p0 * w0 + p1 * w1 + p2 * w2;
+                    let ao = compute_ao_at_point(&accel, pos, face_normal, config);
+                    texture.set_pixel(px as u32, py as u32, ao);
                 }
             }
         }
@@ -660,7 +662,7 @@ mod tests {
 
         assert_eq!(ao_values.len(), mesh.positions.len());
         for &ao in &ao_values {
-            assert!(ao >= 0.0 && ao <= 1.0);
+            assert!((0.0..=1.0).contains(&ao));
         }
     }
 

@@ -277,17 +277,16 @@ pub fn bend_lattice(lattice: &mut Lattice, axis: usize, angle: f32, center: f32)
                 let radius_t = [t.x, t.y, t.z][radius_axis];
                 let out_t = [t.x, t.y, t.z][out_axis];
 
-                let radius = (radius_t - 0.5) * size[radius_axis as usize];
-                let new_radius = radius * bend_amount.cos()
-                    - out_t * size[out_axis as usize] * bend_amount.sin();
-                let new_out = radius * bend_amount.sin()
-                    + out_t * size[out_axis as usize] * bend_amount.cos();
+                let radius = (radius_t - 0.5) * size[radius_axis];
+                let new_radius =
+                    radius * bend_amount.cos() - out_t * size[out_axis] * bend_amount.sin();
+                let new_out =
+                    radius * bend_amount.sin() + out_t * size[out_axis] * bend_amount.cos();
 
                 let mut new_pos = pos;
-                new_pos[radius_axis as usize] = lattice.bounds_min[radius_axis as usize]
-                    + size[radius_axis as usize] * 0.5
-                    + new_radius;
-                new_pos[out_axis as usize] = lattice.bounds_min[out_axis as usize] + new_out;
+                new_pos[radius_axis] =
+                    lattice.bounds_min[radius_axis] + size[radius_axis] * 0.5 + new_radius;
+                new_pos[out_axis] = lattice.bounds_min[out_axis] + new_out;
 
                 lattice.set(ix, iy, iz, new_pos);
             }
