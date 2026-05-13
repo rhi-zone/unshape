@@ -239,6 +239,9 @@ See `docs/design/ops-as-values.md` for full rationale.
 
 **unshape-field** - Lazy evaluation:
 - `Field<I, O>` trait - composable function abstraction for noise, SDFs, textures
+- Re-exports from `unshape-field-ops` (where the `Field` trait actually lives)
+
+**Expression language naming:** The "dew" expression language is `wick-core` on crates.io. `Expr::free_vars()` is enabled by default via the `introspect` feature.
 
 ### Updating CLAUDE.md
 
@@ -251,6 +254,7 @@ Proactively add features, ideas, patterns, technical debt.
 - Next Up: 3-5 concrete tasks for immediate work
 - Backlog: pending items
 - When completing items: mark as `[x]`, don't delete
+- TODO.md drifts stale — items marked `[ ]` may already be implemented; verify against code before assuming work is needed
 
 ### Documenting New Features
 
