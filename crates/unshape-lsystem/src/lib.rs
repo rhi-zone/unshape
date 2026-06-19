@@ -321,7 +321,7 @@ fn interpret_turtle_2d(input: &str, config: &TurtleConfigInternal) -> Vec<Turtle
             'f' | 'g' => {
                 // Move forward, no line
                 let dir = Vec2::new(state.angle.cos(), state.angle.sin());
-                state.position = state.position + dir * state.step;
+                state.position += dir * state.step;
             }
             '+' => {
                 state.angle += angle_rad;
@@ -421,7 +421,7 @@ fn interpret_turtle_3d(input: &str, config: &TurtleConfigInternal) -> Vec<Turtle
                 state.position = new_pos;
             }
             'f' | 'g' => {
-                state.position = state.position + state.heading * state.step;
+                state.position += state.heading * state.step;
             }
             '+' => {
                 // Turn left (yaw)

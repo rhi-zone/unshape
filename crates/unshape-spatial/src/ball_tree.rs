@@ -183,10 +183,10 @@ impl<T> BallTree2D<T> {
                 let dist_to_center = position.distance(*center);
                 let min_possible_dist = (dist_to_center - radius).max(0.0);
 
-                if let Some((_, _, best_dist)) = best {
-                    if min_possible_dist >= *best_dist {
-                        return;
-                    }
+                if let Some((_, _, best_dist)) = best
+                    && min_possible_dist >= *best_dist
+                {
+                    return;
                 }
 
                 // Visit closer child first
@@ -522,10 +522,10 @@ impl<T> BallTree3D<T> {
                 let dist_to_center = position.distance(*center);
                 let min_possible_dist = (dist_to_center - radius).max(0.0);
 
-                if let Some((_, _, best_dist)) = best {
-                    if min_possible_dist >= *best_dist {
-                        return;
-                    }
+                if let Some((_, _, best_dist)) = best
+                    && min_possible_dist >= *best_dist
+                {
+                    return;
                 }
 
                 let left_center = Self::get_center(left);

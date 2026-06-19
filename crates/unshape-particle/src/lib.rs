@@ -1368,13 +1368,13 @@ mod tests {
         // Should produce values in [0, 1)
         for _ in 0..100 {
             let v = rng.next_f32();
-            assert!(v >= 0.0 && v < 1.0);
+            assert!((0.0..1.0).contains(&v));
         }
 
         // Range should work
         for _ in 0..100 {
             let v = rng.range(5.0, 10.0);
-            assert!(v >= 5.0 && v < 10.0);
+            assert!((5.0..10.0).contains(&v));
         }
     }
 

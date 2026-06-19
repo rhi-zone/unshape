@@ -28,6 +28,7 @@ fn create_complex_expr() -> FieldExpr {
     )
 }
 
+#[cfg(feature = "cranelift")]
 fn create_trig_expr() -> FieldExpr {
     // sin(x * 3.14159) * cos(y * 3.14159)
     FieldExpr::Mul(
@@ -42,6 +43,7 @@ fn create_trig_expr() -> FieldExpr {
     )
 }
 
+#[cfg(feature = "cranelift")]
 fn create_sdf_expr() -> FieldExpr {
     // sdf_circle(x, y, 0.5)
     FieldExpr::SdfCircle {

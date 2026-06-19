@@ -62,7 +62,7 @@ pub struct Vertices2DView<'a> {
 impl<'a> Vertices2DView<'a> {
     /// Creates a new 2D vertex view. Data length must be even.
     pub fn new(data: &'a [f32]) -> Option<Self> {
-        if data.len() % 2 == 0 {
+        if data.len().is_multiple_of(2) {
             Some(Self { data })
         } else {
             None
@@ -104,7 +104,7 @@ pub struct Vertices3DView<'a> {
 impl<'a> Vertices3DView<'a> {
     /// Creates a new 3D vertex view. Data length must be divisible by 3.
     pub fn new(data: &'a [f32]) -> Option<Self> {
-        if data.len() % 3 == 0 {
+        if data.len().is_multiple_of(3) {
             Some(Self { data })
         } else {
             None
@@ -146,7 +146,7 @@ pub struct PixelView<'a> {
 impl<'a> PixelView<'a> {
     /// Creates a new pixel view. Data length must be divisible by 4.
     pub fn new(data: &'a [f32]) -> Option<Self> {
-        if data.len() % 4 == 0 {
+        if data.len().is_multiple_of(4) {
             Some(Self { data })
         } else {
             None

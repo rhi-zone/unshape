@@ -243,10 +243,10 @@ impl SynthPatch {
     /// Applies modulation from a source.
     pub fn apply_modulation(&mut self, source: ModSource, value: f32) {
         for routing in &self.mod_routings {
-            if routing.source == source {
-                if let Some(param) = self.parameters.get_mut(&routing.target) {
-                    param.modulation = value * routing.amount;
-                }
+            if routing.source == source
+                && let Some(param) = self.parameters.get_mut(&routing.target)
+            {
+                param.modulation = value * routing.amount;
             }
         }
     }
@@ -475,10 +475,10 @@ pub fn interpolate_patches(a: &SynthPatch, b: &SynthPatch, t: f32) -> SynthPatch
     result.name = format!("{} -> {} ({:.0}%)", a.name, b.name, t * 100.0);
 
     for (name, param_a) in &a.parameters {
-        if let Some(param_b) = b.parameters.get(name) {
-            if let Some(result_param) = result.parameters.get_mut(name) {
-                result_param.value = param_a.value * (1.0 - t) + param_b.value * t;
-            }
+        if let Some(param_b) = b.parameters.get(name)
+            && let Some(result_param) = result.parameters.get_mut(name)
+        {
+            result_param.value = param_a.value * (1.0 - t) + param_b.value * t;
         }
     }
 
@@ -624,6 +624,7 @@ mod tests {
 
         // With enough randomization, they should differ
         // (might occasionally be the same, but very unlikely)
+        assert_ne!(orig_cutoff, rand_cutoff);
         assert!(randomized.name.contains("Random"));
     }
 

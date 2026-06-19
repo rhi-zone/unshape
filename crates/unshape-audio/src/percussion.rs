@@ -215,8 +215,8 @@ impl Membrane {
         let num_modes = config.num_modes.min(bessel_ratios.len());
         let mut modes = Vec::with_capacity(num_modes);
 
-        for i in 0..num_modes {
-            let ratio = bessel_ratios[i] * config.tension;
+        for (i, &bessel_ratio) in bessel_ratios.iter().take(num_modes).enumerate() {
+            let ratio = bessel_ratio * config.tension;
             let freq = config.fundamental * ratio;
 
             // Higher modes have lower amplitude and faster decay
@@ -386,9 +386,9 @@ impl Bar {
         let num_modes = config.num_modes.min(bar_ratios.len());
         let mut modes = Vec::with_capacity(num_modes);
 
-        for i in 0..num_modes {
+        for (i, &bar_ratio) in bar_ratios.iter().take(num_modes).enumerate() {
             // Apply stiffness to affect inharmonicity
-            let ratio = bar_ratios[i].powf(config.stiffness.sqrt());
+            let ratio = bar_ratio.powf(config.stiffness.sqrt());
             let freq = config.fundamental * ratio;
 
             // Amplitude falls off with mode number, affected by brightness

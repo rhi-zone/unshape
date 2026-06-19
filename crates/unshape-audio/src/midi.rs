@@ -488,7 +488,7 @@ pub fn parse_note_name(name: &str) -> Option<Note> {
     };
 
     let octave: i8 = octave_part.parse().ok()?;
-    let note = ((octave + 1) as i16 * 12 + base_note as i16) as i16;
+    let note = (octave + 1) as i16 * 12 + base_note as i16;
 
     if (0..=127).contains(&note) {
         Some(note as Note)

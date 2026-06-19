@@ -242,8 +242,9 @@ impl Vocoder {
             .iter()
             .map(|band| {
                 let mut sum = 0.0;
-                for bin in band.start_bin..band.end_bin.min(spectrum.len()) {
-                    sum += spectrum[bin].mag();
+                let end = band.end_bin.min(spectrum.len());
+                for c in &spectrum[band.start_bin..end] {
+                    sum += c.mag();
                 }
                 let count = (band.end_bin - band.start_bin).max(1);
                 sum / count as f32
@@ -258,8 +259,9 @@ impl Vocoder {
         for band in &self.bands {
             // Compute current band energy in carrier
             let mut carrier_energy = 0.0f32;
-            for bin in band.start_bin..band.end_bin.min(spectrum.len()) {
-                carrier_energy += spectrum[bin].mag();
+            let end = band.end_bin.min(spectrum.len());
+            for c in &spectrum[band.start_bin..end] {
+                carrier_energy += c.mag();
             }
             let count = (band.end_bin - band.start_bin).max(1);
             let avg_carrier = carrier_energy / count as f32;

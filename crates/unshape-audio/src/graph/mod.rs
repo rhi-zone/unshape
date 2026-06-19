@@ -279,9 +279,7 @@ impl AudioGraph {
         let exec_info = self.exec_info.as_ref().unwrap();
 
         // Process each node in order
-        for i in 0..self.nodes.len() {
-            let info = &exec_info[i];
-
+        for (i, info) in exec_info.iter().enumerate() {
             // Apply parameter modulation only at control rate
             if update_params {
                 for &(from, param, base, scale) in &info.param_mods {
@@ -535,7 +533,7 @@ mod tests {
         let ctx = AudioContext::new(44100.0);
 
         let sample = osc.process(0.0, &ctx);
-        assert!(sample >= -1.0 && sample <= 1.0);
+        assert!((-1.0..=1.0).contains(&sample));
     }
 
     #[test]

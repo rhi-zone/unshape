@@ -431,7 +431,7 @@ impl TimeStretch {
     /// Creates a config with the given stretch factor.
     pub fn with_factor(factor: f32) -> Self {
         Self {
-            stretch_factor: factor.max(0.1).min(10.0),
+            stretch_factor: factor.clamp(0.1, 10.0),
             ..Default::default()
         }
     }

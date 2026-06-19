@@ -142,14 +142,13 @@ impl<T> KdTree2D<T> {
     /// Returns `None` if the tree is empty.
     pub fn nearest(&self, position: Vec2) -> Option<(Vec2, &T, f32)> {
         let mut best: Option<(Vec2, &T, f32)> = None;
-        Self::nearest_recursive(&self.root, position, 0, &mut best);
+        Self::nearest_recursive(&self.root, position, &mut best);
         best
     }
 
     fn nearest_recursive<'a>(
         node: &'a KdNode2D<T>,
         position: Vec2,
-        depth: usize,
         best: &mut Option<(Vec2, &'a T, f32)>,
     ) {
         match node {
@@ -186,12 +185,12 @@ impl<T> KdTree2D<T> {
                     (right.as_ref(), left.as_ref())
                 };
 
-                Self::nearest_recursive(first, position, depth + 1, best);
+                Self::nearest_recursive(first, position, best);
 
                 // Only search the other side if it could contain a closer point
                 let axis_dist = (axis_val - split_val).abs();
                 if best.is_none() || axis_dist < best.as_ref().unwrap().2 {
-                    Self::nearest_recursive(second, position, depth + 1, best);
+                    Self::nearest_recursive(second, position, best);
                 }
             }
         }
@@ -206,7 +205,7 @@ impl<T> KdTree2D<T> {
         }
 
         let mut heap: BinaryHeap<KNearestCandidate2D<T>> = BinaryHeap::new();
-        Self::k_nearest_recursive(&self.root, position, 0, k, &mut heap);
+        Self::k_nearest_recursive(&self.root, position, k, &mut heap);
 
         let mut results: Vec<_> = heap
             .into_iter()
@@ -219,7 +218,6 @@ impl<T> KdTree2D<T> {
     fn k_nearest_recursive<'a>(
         node: &'a KdNode2D<T>,
         position: Vec2,
-        depth: usize,
         k: usize,
         heap: &mut BinaryHeap<KNearestCandidate2D<'a, T>>,
     ) {
@@ -278,11 +276,11 @@ impl<T> KdTree2D<T> {
                     (right.as_ref(), left.as_ref())
                 };
 
-                Self::k_nearest_recursive(first, position, depth + 1, k, heap);
+                Self::k_nearest_recursive(first, position, k, heap);
 
                 let axis_dist = (axis_val - split_val).abs();
                 if heap.len() < k || axis_dist < heap.peek().unwrap().distance {
-                    Self::k_nearest_recursive(second, position, depth + 1, k, heap);
+                    Self::k_nearest_recursive(second, position, k, heap);
                 }
             }
         }
@@ -291,14 +289,13 @@ impl<T> KdTree2D<T> {
     /// Queries all points within the given region.
     pub fn query_region(&self, region: &Aabb2) -> Vec<(Vec2, &T)> {
         let mut results = Vec::new();
-        Self::query_region_recursive(&self.root, region, 0, &mut results);
+        Self::query_region_recursive(&self.root, region, &mut results);
         results
     }
 
     fn query_region_recursive<'a>(
         node: &'a KdNode2D<T>,
         region: &Aabb2,
-        depth: usize,
         results: &mut Vec<(Vec2, &'a T)>,
     ) {
         match node {
@@ -336,11 +333,11 @@ impl<T> KdTree2D<T> {
 
                 // Search left if region overlaps
                 if region_min < split_val {
-                    Self::query_region_recursive(left, region, depth + 1, results);
+                    Self::query_region_recursive(left, region, results);
                 }
                 // Search right if region overlaps
                 if region_max >= split_val {
-                    Self::query_region_recursive(right, region, depth + 1, results);
+                    Self::query_region_recursive(right, region, results);
                 }
             }
         }
@@ -349,7 +346,7 @@ impl<T> KdTree2D<T> {
     /// Queries all points within a given radius of the center.
     pub fn query_radius(&self, center: Vec2, radius: f32) -> Vec<(Vec2, &T, f32)> {
         let mut results = Vec::new();
-        Self::query_radius_recursive(&self.root, center, radius, 0, &mut results);
+        Self::query_radius_recursive(&self.root, center, radius, &mut results);
         results
     }
 
@@ -357,7 +354,6 @@ impl<T> KdTree2D<T> {
         node: &'a KdNode2D<T>,
         center: Vec2,
         radius: f32,
-        depth: usize,
         results: &mut Vec<(Vec2, &'a T, f32)>,
     ) {
         match node {
@@ -388,11 +384,11 @@ impl<T> KdTree2D<T> {
 
                 // Search left if it could contain points within radius
                 if axis_val - radius < split_val {
-                    Self::query_radius_recursive(left, center, radius, depth + 1, results);
+                    Self::query_radius_recursive(left, center, radius, results);
                 }
                 // Search right if it could contain points within radius
                 if axis_val + radius >= split_val {
-                    Self::query_radius_recursive(right, center, radius, depth + 1, results);
+                    Self::query_radius_recursive(right, center, radius, results);
                 }
             }
         }
@@ -533,14 +529,13 @@ impl<T> KdTree3D<T> {
     /// Returns `None` if the tree is empty.
     pub fn nearest(&self, position: Vec3) -> Option<(Vec3, &T, f32)> {
         let mut best: Option<(Vec3, &T, f32)> = None;
-        Self::nearest_recursive(&self.root, position, 0, &mut best);
+        Self::nearest_recursive(&self.root, position, &mut best);
         best
     }
 
     fn nearest_recursive<'a>(
         node: &'a KdNode3D<T>,
         position: Vec3,
-        depth: usize,
         best: &mut Option<(Vec3, &'a T, f32)>,
     ) {
         match node {
@@ -579,11 +574,11 @@ impl<T> KdTree3D<T> {
                     (right.as_ref(), left.as_ref())
                 };
 
-                Self::nearest_recursive(first, position, depth + 1, best);
+                Self::nearest_recursive(first, position, best);
 
                 let axis_dist = (axis_val - split_val).abs();
                 if best.is_none() || axis_dist < best.as_ref().unwrap().2 {
-                    Self::nearest_recursive(second, position, depth + 1, best);
+                    Self::nearest_recursive(second, position, best);
                 }
             }
         }
@@ -598,7 +593,7 @@ impl<T> KdTree3D<T> {
         }
 
         let mut heap: BinaryHeap<KNearestCandidate3D<T>> = BinaryHeap::new();
-        Self::k_nearest_recursive(&self.root, position, 0, k, &mut heap);
+        Self::k_nearest_recursive(&self.root, position, k, &mut heap);
 
         let mut results: Vec<_> = heap
             .into_iter()
@@ -611,7 +606,6 @@ impl<T> KdTree3D<T> {
     fn k_nearest_recursive<'a>(
         node: &'a KdNode3D<T>,
         position: Vec3,
-        depth: usize,
         k: usize,
         heap: &mut BinaryHeap<KNearestCandidate3D<'a, T>>,
     ) {
@@ -673,11 +667,11 @@ impl<T> KdTree3D<T> {
                     (right.as_ref(), left.as_ref())
                 };
 
-                Self::k_nearest_recursive(first, position, depth + 1, k, heap);
+                Self::k_nearest_recursive(first, position, k, heap);
 
                 let axis_dist = (axis_val - split_val).abs();
                 if heap.len() < k || axis_dist < heap.peek().unwrap().distance {
-                    Self::k_nearest_recursive(second, position, depth + 1, k, heap);
+                    Self::k_nearest_recursive(second, position, k, heap);
                 }
             }
         }
@@ -686,14 +680,13 @@ impl<T> KdTree3D<T> {
     /// Queries all points within the given region.
     pub fn query_region(&self, region: &Aabb3) -> Vec<(Vec3, &T)> {
         let mut results = Vec::new();
-        Self::query_region_recursive(&self.root, region, 0, &mut results);
+        Self::query_region_recursive(&self.root, region, &mut results);
         results
     }
 
     fn query_region_recursive<'a>(
         node: &'a KdNode3D<T>,
         region: &Aabb3,
-        depth: usize,
         results: &mut Vec<(Vec3, &'a T)>,
     ) {
         match node {
@@ -730,10 +723,10 @@ impl<T> KdTree3D<T> {
                 };
 
                 if region_min < split_val {
-                    Self::query_region_recursive(left, region, depth + 1, results);
+                    Self::query_region_recursive(left, region, results);
                 }
                 if region_max >= split_val {
-                    Self::query_region_recursive(right, region, depth + 1, results);
+                    Self::query_region_recursive(right, region, results);
                 }
             }
         }
@@ -742,7 +735,7 @@ impl<T> KdTree3D<T> {
     /// Queries all points within a given radius of the center.
     pub fn query_radius(&self, center: Vec3, radius: f32) -> Vec<(Vec3, &T, f32)> {
         let mut results = Vec::new();
-        Self::query_radius_recursive(&self.root, center, radius, 0, &mut results);
+        Self::query_radius_recursive(&self.root, center, radius, &mut results);
         results
     }
 
@@ -750,7 +743,6 @@ impl<T> KdTree3D<T> {
         node: &'a KdNode3D<T>,
         center: Vec3,
         radius: f32,
-        depth: usize,
         results: &mut Vec<(Vec3, &'a T, f32)>,
     ) {
         match node {
@@ -784,10 +776,10 @@ impl<T> KdTree3D<T> {
                 };
 
                 if axis_val - radius < split_val {
-                    Self::query_radius_recursive(left, center, radius, depth + 1, results);
+                    Self::query_radius_recursive(left, center, radius, results);
                 }
                 if axis_val + radius >= split_val {
-                    Self::query_radius_recursive(right, center, radius, depth + 1, results);
+                    Self::query_radius_recursive(right, center, radius, results);
                 }
             }
         }

@@ -770,7 +770,7 @@ impl Distortion {
             DistortionMode::Hard => driven.clamp(-1.0, 1.0),
             DistortionMode::Foldback => {
                 let mut x = driven;
-                while x > 1.0 || x < -1.0 {
+                while !(-1.0..=1.0).contains(&x) {
                     if x > 1.0 {
                         x = 2.0 - x;
                     }
@@ -811,13 +811,12 @@ impl AudioNode for Distortion {
 #[cfg(feature = "spectral")]
 use crate::spectral::{Complex, fft, ifft};
 
-#[cfg(feature = "spectral")]
-
 /// Convolution reverb using impulse responses.
 ///
 /// Provides high-quality reverb by convolving audio with a recorded
 /// impulse response from a real space. Uses partitioned convolution
 /// with FFT for efficient real-time processing.
+#[cfg(feature = "spectral")]
 pub struct ConvolutionReverb {
     /// Pre-computed FFT of IR partitions.
     ir_partitions: Vec<Vec<Complex>>,
@@ -857,7 +856,7 @@ impl ConvolutionReverb {
         let spectrum_size = fft_size / 2 + 1;
 
         // Partition the IR and compute FFT of each partition
-        let num_partitions = (impulse_response.len() + block_size - 1) / block_size;
+        let num_partitions = impulse_response.len().div_ceil(block_size);
         let num_partitions = num_partitions.max(1); // At least 1 partition
         let mut ir_partitions = Vec::with_capacity(num_partitions);
 
@@ -1127,7 +1126,7 @@ pub fn generate_room_ir(size: f32, damping: f32, duration: f32, sample_rate: f32
 
     // Add diffuse tail
     let decay_time = duration * 0.7;
-    for i in 0..samples {
+    for (i, sample) in ir.iter_mut().enumerate() {
         let t = i as f32 / sample_rate;
 
         // Exponential decay
@@ -1136,7 +1135,7 @@ pub fn generate_room_ir(size: f32, damping: f32, duration: f32, sample_rate: f32
         // Add noise for diffusion (after early reflections)
         if t > 0.1 * size {
             let noise = simple_hash(i as u32) as f32 / u32::MAX as f32 * 2.0 - 1.0;
-            ir[i] += noise * decay * 0.1;
+            *sample += noise * decay * 0.1;
         }
     }
 
@@ -1545,9 +1544,7 @@ impl Bitcrusher {
 
         // Bit reduction
         let levels = (1u32 << self.bits.min(31)) as f32;
-        let quantized = (self.held_sample * levels).round() / levels;
-
-        quantized
+        (self.held_sample * levels).round() / levels
     }
 
     /// Resets the effect state.

@@ -140,9 +140,9 @@ impl PitchQuantizer {
 ///
 /// let mut sh = SampleAndHold::default();
 /// // Trigger high → sample the input.
-/// assert_eq!(sh.process(3.14, 1.0), 3.14);
+/// assert_eq!(sh.process(2.5, 1.0), 2.5);
 /// // Trigger low → return held value.
-/// assert_eq!(sh.process(9.99, 0.0), 3.14);
+/// assert_eq!(sh.process(9.99, 0.0), 2.5);
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct SampleAndHold {
@@ -437,18 +437,18 @@ mod tests {
     #[test]
     fn sample_and_hold_captures_on_trigger() {
         let mut sh = SampleAndHold::new();
-        let out = sh.process(3.14, 1.0);
-        assert!((out - 3.14).abs() < 1e-6);
+        let out = sh.process(2.5, 1.0);
+        assert!((out - 2.5).abs() < 1e-6);
     }
 
     #[test]
     fn sample_and_hold_holds_between_triggers() {
         let mut sh = SampleAndHold::new();
-        sh.process(3.14, 1.0); // capture 3.14
+        sh.process(2.5, 1.0); // capture 2.5
         let out1 = sh.process(9.99, 0.0); // no trigger → hold
         let out2 = sh.process(0.0, 0.0); // still no trigger → hold
-        assert!((out1 - 3.14).abs() < 1e-6, "Expected 3.14, got {out1}");
-        assert!((out2 - 3.14).abs() < 1e-6, "Expected 3.14, got {out2}");
+        assert!((out1 - 2.5).abs() < 1e-6, "Expected 2.5, got {out1}");
+        assert!((out2 - 2.5).abs() < 1e-6, "Expected 2.5, got {out2}");
     }
 
     #[test]

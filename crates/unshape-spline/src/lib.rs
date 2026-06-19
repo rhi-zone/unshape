@@ -711,9 +711,9 @@ impl<T: Interpolatable> Nurbs<T> {
 
         for i in 0..=n {
             if i <= span - k {
-                new_points.push(self.points[i].clone());
+                new_points.push(self.points[i]);
             } else if i > span {
-                new_points.push(self.points[i - 1].clone());
+                new_points.push(self.points[i - 1]);
             } else {
                 let alpha = (t - self.knots[i]) / (self.knots[i + k] - self.knots[i]);
                 let wp_prev = &self.points[i - 1];

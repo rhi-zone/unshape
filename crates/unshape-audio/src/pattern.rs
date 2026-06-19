@@ -187,7 +187,7 @@ impl<T: Clone + Send + Sync + 'static> Pattern<T> {
         F: Fn(T) -> U + Send + Sync + 'static,
     {
         let query = self.query;
-        Pattern::from_query(move |arc| query(arc).into_iter().map(|e| e.map(|v| f(v))).collect())
+        Pattern::from_query(move |arc| query(arc).into_iter().map(|e| e.map(&f)).collect())
     }
 
     /// Filters events by a predicate.
@@ -343,6 +343,8 @@ impl Continuous<f64> {
     }
 
     /// Adds two continuous patterns.
+    // Inherent builder method by design; `Add` would require a different signature.
+    #[allow(clippy::should_implement_trait)]
     pub fn add(self, other: Self) -> Self {
         let eval_a = self.eval;
         let eval_b = other.eval;
@@ -350,6 +352,8 @@ impl Continuous<f64> {
     }
 
     /// Multiplies two continuous patterns.
+    // Inherent builder method by design; `Mul` would require a different signature.
+    #[allow(clippy::should_implement_trait)]
     pub fn mul(self, other: Self) -> Self {
         let eval_a = self.eval;
         let eval_b = other.eval;
@@ -530,7 +534,7 @@ where
                     intersection.end - cycle as f64,
                 );
 
-                let events = if (cycle as usize) % n == 0 {
+                let events = if (cycle as usize).is_multiple_of(n) {
                     transformed.query(local_arc)
                 } else {
                     query(local_arc)
@@ -615,8 +619,7 @@ fn onset_hash(onset: f64, seed: u64) -> u64 {
     let h = h.wrapping_mul(0xff51afd7ed558ccd);
     let h = h ^ (h >> 33);
     let h = h.wrapping_mul(0xc4ceb9fe1a85ec53);
-    let h = h ^ (h >> 33);
-    h
+    h ^ (h >> 33)
 }
 
 // Helper: deterministic hash from cycle, index, and seed (used by shuffle)
@@ -632,8 +635,7 @@ fn shuffle_hash(cycle: i64, index: usize, seed: u64) -> u64 {
     let h = h.wrapping_mul(0xff51afd7ed558ccd);
     let h = h ^ (h >> 33);
     let h = h.wrapping_mul(0xc4ceb9fe1a85ec53);
-    let h = h ^ (h >> 33);
-    h
+    h ^ (h >> 33)
 }
 
 // Helper: convert hash to f64 in [0, 1)
@@ -752,7 +754,7 @@ pub fn shuffle<T: Clone + Send + Sync + 'static>(seed: u64, pattern: Pattern<T>)
             let cycle_arc = TimeArc::new(cycle_f, cycle_f + 1.0);
 
             // Get all events for this cycle
-            let events = query(cycle_arc.clone());
+            let events = query(cycle_arc);
             if events.is_empty() {
                 continue;
             }
@@ -774,14 +776,15 @@ pub fn shuffle<T: Clone + Send + Sync + 'static>(seed: u64, pattern: Pattern<T>)
 
             // Reassign values to shuffled onsets
             for (onset, (duration, value)) in onsets.into_iter().zip(values) {
-                if let Some(intersection) = arc.intersect(&TimeArc::new(onset, onset + duration)) {
-                    if intersection.start >= arc.start && intersection.start < arc.end {
-                        result.push(Event {
-                            onset,
-                            duration,
-                            value,
-                        });
-                    }
+                if let Some(intersection) = arc.intersect(&TimeArc::new(onset, onset + duration))
+                    && intersection.start >= arc.start
+                    && intersection.start < arc.end
+                {
+                    result.push(Event {
+                        onset,
+                        duration,
+                        value,
+                    });
                 }
             }
         }
@@ -860,11 +863,11 @@ pub fn euclid<T: Clone + Send + Sync + 'static>(hits: usize, steps: usize, value
 
     // Bjorklund's algorithm
     let mut bucket = 0;
-    for i in 0..steps {
+    for slot in pattern.iter_mut() {
         bucket += hits;
         if bucket >= steps {
             bucket -= steps;
-            pattern[i] = true;
+            *slot = true;
         }
     }
 
