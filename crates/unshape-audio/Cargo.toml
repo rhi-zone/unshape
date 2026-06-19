@@ -23,12 +23,12 @@ codegen = ["dep:unshape-audio-codegen", "serde", "dep:serde_json"]
 codegen-bench = ["codegen"]
 
 [dependencies]
-unshape-core = { path = "../unshape-core" }
-unshape-expr-field = { path = "../unshape-expr-field" }
-unshape-spectral = { path = "../unshape-spectral", optional = true }
+unshape-core = { workspace = true }
+unshape-expr-field = { workspace = true }
+unshape-spectral = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
-unshape-op = { path = "../unshape-op", optional = true }
-unshape-audio-codegen = { path = "../unshape-audio-codegen", optional = true }
+unshape-op = { workspace = true, optional = true }
+unshape-audio-codegen = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
 thiserror.workspace = true
 
@@ -41,7 +41,7 @@ cranelift-jit = { workspace = true, optional = true }
 unshape-jit = { workspace = true, optional = true }
 
 [build-dependencies]
-unshape-audio-codegen = { path = "../unshape-audio-codegen" }
+unshape-audio-codegen = { workspace = true }
 
 [dev-dependencies]
 criterion.workspace = true

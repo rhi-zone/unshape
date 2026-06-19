@@ -80,6 +80,14 @@ unshape-audio-codegen = { path = "crates/unshape-audio-codegen" }
 unshape-jit = { path = "crates/unshape-jit" }
 unshape-gpu = { path = "crates/unshape-gpu" }
 unshape-spectral = { path = "crates/unshape-spectral" }
+unshape-macros = { path = "crates/unshape-macros" }
+unshape-color = { path = "crates/unshape-color" }
+unshape-bytes = { path = "crates/unshape-bytes" }
+unshape-serde = { path = "crates/unshape-serde" }
+unshape-geometry = { path = "crates/unshape-geometry" }
+unshape-easing = { path = "crates/unshape-easing" }
+unshape-transform = { path = "crates/unshape-transform" }
+unshape-expr-field = { path = "crates/unshape-expr-field" }
 
 [package]
 name = "unshape-examples"

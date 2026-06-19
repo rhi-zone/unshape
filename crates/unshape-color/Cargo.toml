@@ -12,5 +12,5 @@ serde = ["dep:serde"]
 
 [dependencies]
 glam.workspace = true
-unshape-easing = { path = "../unshape-easing" }
+unshape-easing = { workspace = true }
 serde = { workspace = true, optional = true }

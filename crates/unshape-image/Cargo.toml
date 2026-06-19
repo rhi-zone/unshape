@@ -19,10 +19,10 @@ wgsl = ["wick", "wick-linalg/wgsl"]
 [dependencies]
 glam.workspace = true
 image.workspace = true
-unshape-color = { path = "../unshape-color" }
-unshape-field = { path = "../unshape-field" }
-unshape-spectral = { path = "../unshape-spectral" }
-unshape-op = { path = "../unshape-op", optional = true }
+unshape-color = { workspace = true }
+unshape-field = { workspace = true }
+unshape-spectral = { workspace = true }
+unshape-op = { workspace = true, optional = true }
 wick-core = { version = "0.1.0", features = ["cond"], optional = true }
 wick-linalg = { version = "0.1.0", features = ["4d"], optional = true }
 num-traits = { version = "0.2", optional = true }

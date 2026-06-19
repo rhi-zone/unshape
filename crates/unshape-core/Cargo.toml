@@ -13,5 +13,5 @@ named-ports = []
 [dependencies]
 glam.workspace = true
 thiserror.workspace = true
-unshape-macros = { path = "../unshape-macros" }
+unshape-macros = { workspace = true }
 serde = { version = "1", features = ["derive"], optional = true }

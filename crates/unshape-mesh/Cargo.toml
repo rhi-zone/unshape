@@ -16,8 +16,8 @@ invariant-tests = []
 glam.workspace = true
 ordered-float.workspace = true
 thiserror.workspace = true
-unshape-geometry = { path = "../unshape-geometry" }
-unshape-op = { path = "../unshape-op", optional = true }
+unshape-geometry = { workspace = true }
+unshape-op = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
 

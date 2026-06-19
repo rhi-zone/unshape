@@ -12,11 +12,11 @@ serde = ["dep:serde", "glam/serde", "unshape-color/serde"]
 
 [dependencies]
 glam.workspace = true
-unshape-color = { path = "../unshape-color" }
-unshape-easing = { path = "../unshape-easing" }
-unshape-motion-fn = { path = "../unshape-motion-fn" }
-unshape-noise = { path = "../unshape-noise" }
-unshape-transform = { path = "../unshape-transform" }
+unshape-color = { workspace = true }
+unshape-easing = { workspace = true }
+unshape-motion-fn = { workspace = true }
+unshape-noise = { workspace = true }
+unshape-transform = { workspace = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]

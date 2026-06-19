@@ -18,8 +18,8 @@ pollster = "0.4"
 thiserror = { workspace = true }
 unshape-core = { workspace = true }
 unshape-backend = { workspace = true }
-unshape-op = { path = "../unshape-op", optional = true }
-unshape-image = { path = "../unshape-image", features = ["wgsl"], optional = true }
+unshape-op = { workspace = true, optional = true }
+unshape-image = { workspace = true, features = ["wgsl"], optional = true }
 wick-linalg = { version = "0.1.0", features = ["4d", "wgsl"], optional = true }
 wick-core = { version = "0.1.0", optional = true }
 serde = { workspace = true, optional = true }

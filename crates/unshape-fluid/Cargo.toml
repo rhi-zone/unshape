@@ -13,7 +13,7 @@ dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
 [dependencies]
 glam = { workspace = true }
 rand = { workspace = true }
-unshape-op = { path = "../unshape-op", optional = true }
+unshape-op = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
 

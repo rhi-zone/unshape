@@ -16,10 +16,10 @@ mesh = ["dep:unshape-mesh"]
 
 [dependencies]
 glam.workspace = true
-unshape-field-ops = { path = "../unshape-field-ops" }
-unshape-noise = { path = "../unshape-noise" }
-unshape-mesh = { path = "../unshape-mesh", optional = true }
-unshape-op = { path = "../unshape-op", optional = true }
+unshape-field-ops = { workspace = true }
+unshape-noise = { workspace = true }
+unshape-mesh = { workspace = true, optional = true }
+unshape-op = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
 
