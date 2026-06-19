@@ -210,8 +210,8 @@ pub fn generate_noise_texture_gpu(
         pass.set_bind_group(0, &bind_group, &[]);
 
         // Dispatch workgroups (8x8 threads per workgroup)
-        let workgroups_x = (width + 7) / 8;
-        let workgroups_y = (height + 7) / 8;
+        let workgroups_x = width.div_ceil(8);
+        let workgroups_y = height.div_ceil(8);
         pass.dispatch_workgroups(workgroups_x, workgroups_y, 1);
     }
 

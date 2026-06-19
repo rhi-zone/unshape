@@ -140,7 +140,7 @@ impl unshape_core::GraphValue for CpuNoiseData {
 
 /// Simple hash-based noise for CPU fallback.
 fn simple_noise(x: f32, y: f32, seed: u32) -> f32 {
-    let n = (x * 12.9898 + y * 78.233 + seed as f32 * 0.1) * 43758.5453;
+    let n = (x * 12.9898 + y * 78.233 + seed as f32 * 0.1) * 43758.547;
     n.fract()
 }
 

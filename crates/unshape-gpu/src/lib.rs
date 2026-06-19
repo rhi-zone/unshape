@@ -62,7 +62,7 @@ pub use noise::{NoiseConfig, NoiseType, generate_noise_texture_gpu, noise_textur
 pub use texture::{GpuTexture, TextureFormat};
 
 #[cfg(feature = "image-expr")]
-pub use image_expr::{map_pixels_gpu, remap_uv_gpu};
+pub use image_expr::{map_pixels_ast_gpu, map_pixels_gpu, remap_uv_ast_gpu, remap_uv_gpu};
 
 /// Registers all GPU operations with an [`OpRegistry`].
 ///

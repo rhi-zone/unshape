@@ -120,6 +120,56 @@ impl GpuTexture {
         })
     }
 
+    /// Uploads RGBA8 pixel data from the CPU into a new sampleable GPU texture.
+    ///
+    /// The resulting texture is created with `TEXTURE_BINDING` usage (so it can be
+    /// sampled / `textureLoad`-ed as the input of an image-expr pass) in addition to
+    /// `COPY_DST` (for this upload) and `COPY_SRC` (for read-back). The format is
+    /// always [`TextureFormat::Rgba8Unorm`]; `bytes` must contain exactly
+    /// `width * height * 4` values in row-major RGBA order.
+    pub fn from_rgba8(ctx: &GpuContext, width: u32, height: u32, bytes: &[u8]) -> GpuResult<Self> {
+        let expected = (width as usize) * (height as usize) * 4;
+        if bytes.len() != expected {
+            return Err(GpuError::InvalidDimensions(format!(
+                "from_rgba8 expected {expected} bytes for {width}x{height} RGBA8, got {}",
+                bytes.len()
+            )));
+        }
+
+        let texture = Self::with_usage(
+            ctx,
+            width,
+            height,
+            TextureFormat::Rgba8Unorm,
+            wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::COPY_SRC,
+        )?;
+
+        ctx.queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &texture.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            bytes,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(width * 4),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+        ctx.queue.submit(std::iter::empty());
+
+        Ok(texture)
+    }
+
     /// Returns the texture width.
     pub fn width(&self) -> u32 {
         self.width
@@ -146,7 +196,7 @@ impl GpuTexture {
         let bytes_per_pixel = self.format.bytes_per_pixel();
         let unpadded_row_bytes = self.width * bytes_per_pixel;
         let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
-        let padded_row_bytes = (unpadded_row_bytes + align - 1) / align * align;
+        let padded_row_bytes = unpadded_row_bytes.div_ceil(align) * align;
 
         let buffer_size = (padded_row_bytes * self.height) as u64;
 
