@@ -212,8 +212,8 @@ pub fn gaussian_blur_gpu(
         .device
         .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("gaussian_pipeline_layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&bind_group_layout)],
+            immediate_size: 0,
         });
 
     let pipeline = ctx
@@ -625,8 +625,8 @@ pub fn convolve_gpu(
         .device
         .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("convolve_pipeline_layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&bind_group_layout)],
+            immediate_size: 0,
         });
 
     let pipeline = ctx
@@ -898,8 +898,8 @@ pub fn levels_gpu(
         .device
         .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("levels_pipeline_layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&bind_group_layout)],
+            immediate_size: 0,
         });
 
     let pipeline = ctx
@@ -993,7 +993,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use unshape_image::{GaussianBlur, Kernel, Levels};
+    use unshape_image::{Kernel, Levels};
 
     #[test]
     fn test_gaussian_blur_node_cpu_fallback_errors() {
@@ -1027,7 +1027,6 @@ mod tests {
         };
         let big_kernel = Kernel::new(vec![1.0 / (17.0 * 17.0); 17 * 17], 17);
         let node = ConvolveNode::new(big_kernel);
-        let eval_ctx = EvalContext::new();
 
         // We can't easily make a real GpuTexture without a device, so just test
         // the size validation path by checking MAX_KERNEL_SIZE directly.

@@ -122,7 +122,7 @@ pub fn remap_uv_ast_gpu(ctx: &GpuContext, input: &GpuTexture, ast: &Ast) -> GpuR
         address_mode_w: wgpu::AddressMode::ClampToEdge,
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::FilterMode::Nearest,
+        mipmap_filter: wgpu::MipmapFilterMode::Nearest,
         ..Default::default()
     });
 
@@ -205,8 +205,8 @@ pub fn remap_uv_ast_gpu(ctx: &GpuContext, input: &GpuTexture, ast: &Ast) -> GpuR
         .device
         .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("remap_uv_pipeline_layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&bind_group_layout)],
+            immediate_size: 0,
         });
 
     let pipeline = ctx
@@ -439,8 +439,8 @@ pub fn map_pixels_ast_gpu(
         .device
         .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("map_pixels_pipeline_layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&bind_group_layout)],
+            immediate_size: 0,
         });
 
     let pipeline = ctx

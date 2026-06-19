@@ -12,7 +12,7 @@ image-expr = ["dep:unshape-image", "dep:wick-linalg", "dep:wick-core"]
 
 [dependencies]
 glam = { workspace = true }
-wgpu = "23"
+wgpu = "29"
 bytemuck = { version = "1.14", features = ["derive"] }
 pollster = "0.4"
 thiserror = { workspace = true }
