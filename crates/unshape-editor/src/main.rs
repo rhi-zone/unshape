@@ -11,7 +11,10 @@ use wick_core::Expr;
 const TEX_SIZE: u32 = 256;
 
 fn main() -> eframe::Result<()> {
-    let options = eframe::NativeOptions::default();
+    let options = eframe::NativeOptions {
+        renderer: eframe::Renderer::Wgpu,
+        ..Default::default()
+    };
     eframe::run_native(
         "unshape projectional editor",
         options,
@@ -68,16 +71,17 @@ impl EditorApp {
 }
 
 impl eframe::App for EditorApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         if self.dirty {
-            self.rerender(ctx);
+            let ctx = ui.ctx().clone();
+            self.rerender(&ctx);
             self.dirty = false;
         }
 
-        egui::SidePanel::left("op_stack")
+        egui::Panel::left("op_stack")
             .resizable(true)
-            .default_width(320.0)
-            .show(ctx, |ui| {
+            .default_size(320.0)
+            .show_inside(ui, |ui| {
                 ui.heading("Op-stack (editable)");
                 ui.label("Ordered modifiers applied to the source texture.");
                 ui.separator();
@@ -90,7 +94,7 @@ impl eframe::App for EditorApp {
                 self.formula_ui(ui);
             });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
             ui.heading("Live preview");
             if let Some(err) = &self.error {
                 ui.colored_label(egui::Color32::RED, format!("Render error: {err}"));

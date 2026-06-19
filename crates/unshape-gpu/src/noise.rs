@@ -179,8 +179,8 @@ pub fn generate_noise_texture_gpu(
         .device
         .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("noise_pipeline_layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&bind_group_layout)],
+            immediate_size: 0,
         });
 
     let pipeline = ctx
@@ -436,7 +436,7 @@ mod tests {
 
         // Values should be in [0, 1] range
         for &v in &data {
-            assert!(v >= 0.0 && v <= 1.0, "noise value {} out of range", v);
+            assert!((0.0..=1.0).contains(&v), "noise value {} out of range", v);
         }
     }
 

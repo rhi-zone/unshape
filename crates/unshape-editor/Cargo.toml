@@ -11,4 +11,10 @@ unshape-gpu = { workspace = true, features = ["image-expr"] }
 unshape-image = { workspace = true, features = ["wick", "serde"] }
 wick-core = { version = "0.1.0", features = ["cond"] }
 serde = { workspace = true }
-eframe = "0.33"
+eframe = { version = "0.34", default-features = false, features = ["wgpu", "default_fonts", "wayland", "x11"] }
+# Feature-unification only (we do not use wgpu directly here): eframe 0.34's wgpu backend
+# pulls wgpu 29 with default-features off, so no platform backend is compiled and
+# Instance::new panics with "No wgpu backend feature ... enabled" on Linux. This dep
+# unifies the vulkan (+ gles fallback) backend features onto eframe's same wgpu 29 build,
+# which is the same wgpu 29 used by unshape-gpu.
+wgpu = { version = "29", default-features = false, features = ["vulkan", "gles"] }
