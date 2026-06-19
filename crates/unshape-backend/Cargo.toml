@@ -9,5 +9,5 @@ description = "Core types and traits for unshape (CPU, GPU, etc.)"
 default = []
 
 [dependencies]
-unshape-core = { path = "../unshape-core" }
+unshape-core = { workspace = true }
 thiserror.workspace = true

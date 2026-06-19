@@ -12,9 +12,9 @@ dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
 [dependencies]
 glam.workspace = true
 thiserror.workspace = true
-unshape-curve = { path = "../unshape-curve" }
-unshape-easing = { path = "../unshape-easing" }
-unshape-transform = { path = "../unshape-transform" }
-unshape-op = { path = "../unshape-op", optional = true }
+unshape-curve = { workspace = true }
+unshape-easing = { workspace = true }
+unshape-transform = { workspace = true }
+unshape-op = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }

@@ -8,4 +8,4 @@ repository = "https://github.com/rhi-zone/unshape"
 
 [dependencies]
 glam.workspace = true
-unshape-easing = { path = "../unshape-easing" }
+unshape-easing = { workspace = true }

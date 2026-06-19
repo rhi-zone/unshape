@@ -13,10 +13,10 @@ invariant-tests = []
 
 [dependencies]
 glam.workspace = true
-unshape-core = { path = "../unshape-core" }
-unshape-color = { path = "../unshape-color" }
-unshape-curve = { path = "../unshape-curve" }
-unshape-op = { path = "../unshape-op", optional = true }
+unshape-core = { workspace = true }
+unshape-color = { workspace = true }
+unshape-curve = { workspace = true }
+unshape-op = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
 thiserror.workspace = true
