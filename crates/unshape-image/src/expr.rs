@@ -422,16 +422,36 @@ impl UvExpr {
                 Ast::BinOp(BinOp::Add, Box::new(c), Box::new(rotated))
             }
             Self::Scale { center, scale } => {
-                // center + (uv - center) * scale
+                // Component-wise: center + (uv - center) ⊙ scale.
+                //
+                // wick deliberately does NOT define `*` between two vectors
+                // (it would be ambiguous: dot/cross/wedge/outer/Hadamard), so a
+                // naive `(uv - center) * scale` Vec2×Vec2 fails WGSL codegen with
+                // a TypeMismatch. Lower to explicit per-component scalar ops, all
+                // of which wick supports:
+                //   vec2(
+                //     x(center) + (x(uv) - x(center)) * x(scale),
+                //     y(center) + (y(uv) - y(center)) * y(scale),
+                //   )
+                // This is correct for both uniform and non-uniform scale and for
+                // arbitrary center/scale expressions.
                 let c = center.to_dew_ast();
                 let s = scale.to_dew_ast();
-                let delta = Ast::BinOp(
-                    BinOp::Sub,
-                    Box::new(Ast::Var("uv".into())),
-                    Box::new(c.clone()),
-                );
-                let scaled = Ast::BinOp(BinOp::Mul, Box::new(delta), Box::new(s));
-                Ast::BinOp(BinOp::Add, Box::new(c), Box::new(scaled))
+                let uv = Ast::Var("uv".into());
+
+                let component = |extract: &str| -> Ast {
+                    let cc = Ast::Call(extract.into(), vec![c.clone()]);
+                    let sc = Ast::Call(extract.into(), vec![s.clone()]);
+                    let uvc = Ast::Call(extract.into(), vec![uv.clone()]);
+                    // (uv.i - center.i)
+                    let delta = Ast::BinOp(BinOp::Sub, Box::new(uvc), Box::new(cc.clone()));
+                    // (uv.i - center.i) * scale.i  — scalar * scalar
+                    let scaled = Ast::BinOp(BinOp::Mul, Box::new(delta), Box::new(sc));
+                    // center.i + ...
+                    Ast::BinOp(BinOp::Add, Box::new(cc), Box::new(scaled))
+                };
+
+                Ast::Call("vec2".into(), vec![component("x"), component("y")])
             }
         }
     }

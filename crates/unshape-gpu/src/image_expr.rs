@@ -560,6 +560,72 @@ mod tests {
         assert!(shader.contains("let result = vec4(dot(rgba.rgb, vec3(0.299, 0.587, 0.114)));"));
     }
 
+    /// Lowering an expr to its wick AST and feeding it to `emit_wgsl` must
+    /// succeed for the variants the editor can produce. This guards against the
+    /// "op lowers to invalid wick" class of bugs, e.g. `UvExpr::Scale` formerly
+    /// emitted `(uv - center) * scale` as a Vec2×Vec2 multiply, which wick's
+    /// WGSL codegen rejects (it has no component-wise vec×vec `*`).
+    #[test]
+    fn test_uv_scale_lowers_to_valid_wgsl() {
+        let mut var_types = HashMap::new();
+        var_types.insert("uv".to_string(), Type::Vec2);
+
+        // Non-uniform scale around an off-center point — the general case.
+        let expr = UvExpr::Scale {
+            center: Box::new(UvExpr::Constant2(0.3, 0.7)),
+            scale: Box::new(UvExpr::Constant2(1.5, 2.5)),
+        };
+        let ast = expr.to_dew_ast();
+        let result = emit_wgsl(&ast, &var_types);
+        assert!(
+            result.is_ok(),
+            "non-uniform UvExpr::Scale failed WGSL codegen: {:?}",
+            result.err()
+        );
+
+        // The editor's seeded default: scale_centered(1.5, 1.5).
+        let seeded = UvExpr::scale_centered(1.5, 1.5);
+        let seeded_ast = seeded.to_dew_ast();
+        assert!(
+            emit_wgsl(&seeded_ast, &var_types).is_ok(),
+            "seeded-default UvExpr::Scale failed WGSL codegen"
+        );
+
+        // Rotate around an off-center point — uses rotate2d + vec+vec add.
+        let rot = UvExpr::Rotate {
+            center: Box::new(UvExpr::Constant2(0.3, 0.7)),
+            angle: Box::new(UvExpr::Constant(0.5)),
+        };
+        assert!(
+            emit_wgsl(&rot.to_dew_ast(), &var_types).is_ok(),
+            "UvExpr::Rotate failed WGSL codegen"
+        );
+    }
+
+    /// Representative `ColorExpr` variants must lower to WGSL-emittable ASTs.
+    #[test]
+    fn test_color_expr_lowers_to_valid_wgsl() {
+        let mut var_types = HashMap::new();
+        var_types.insert("rgba".to_string(), Type::Vec4);
+
+        for (label, expr) in [
+            ("grayscale", ColorExpr::grayscale()),
+            ("invert", ColorExpr::invert()),
+            ("threshold", ColorExpr::threshold(0.5)),
+            ("brightness", ColorExpr::brightness(1.2)),
+            ("contrast", ColorExpr::contrast(1.5)),
+            ("tint", ColorExpr::tint(1.0, 0.5, 0.5)),
+            ("gamma", ColorExpr::gamma(2.2)),
+        ] {
+            let ast = expr.to_dew_ast();
+            assert!(
+                emit_wgsl(&ast, &var_types).is_ok(),
+                "ColorExpr::{label} failed WGSL codegen: {:?}",
+                emit_wgsl(&ast, &var_types).err()
+            );
+        }
+    }
+
     #[test]
     #[ignore] // Requires GPU
     fn test_map_pixels_gpu_identity() {
