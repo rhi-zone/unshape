@@ -10,6 +10,7 @@ use bytemuck::{Pod, Zeroable};
 use std::collections::HashMap;
 use unshape_image::{ColorExpr, UvExpr};
 use wgpu::util::DeviceExt;
+use wick_core::Ast;
 use wick_linalg::{Type, wgsl::emit_wgsl};
 
 /// Uniform buffer for image transforms.
@@ -59,13 +60,24 @@ struct ImageUniforms {
 /// let output = remap_uv_gpu(&ctx, &input, &wave)?;
 /// ```
 pub fn remap_uv_gpu(ctx: &GpuContext, input: &GpuTexture, expr: &UvExpr) -> GpuResult<GpuTexture> {
-    // Convert expression to dew AST, then to WGSL
-    let ast = expr.to_dew_ast();
+    remap_uv_ast_gpu(ctx, input, &expr.to_dew_ast())
+}
 
+/// Remaps UV coordinates using a raw dew [`Ast`], executed on the GPU.
+///
+/// This is the expression-level entry point behind [`remap_uv_gpu`]: it compiles
+/// an arbitrary `uv: vec2<f32>` → `vec2<f32>` expression directly, without going
+/// through the typed [`UvExpr`] representation. The AST is expected to reference
+/// the bound variable `uv` (a `vec2<f32>`).
+///
+/// [`remap_uv_gpu`] is a thin wrapper that calls this with `expr.to_dew_ast()`,
+/// so a typed `UvExpr` and a hand-written formula that lowers to the same AST
+/// produce byte-identical shaders and identical output.
+pub fn remap_uv_ast_gpu(ctx: &GpuContext, input: &GpuTexture, ast: &Ast) -> GpuResult<GpuTexture> {
     let mut var_types = HashMap::new();
     var_types.insert("uv".to_string(), Type::Vec2);
 
-    let wgsl_expr = emit_wgsl(&ast, &var_types)
+    let wgsl_expr = emit_wgsl(ast, &var_types)
         .map_err(|e| GpuError::ShaderError(format!("WGSL codegen failed: {e:?}")))?;
 
     // Generate the complete shader
@@ -225,8 +237,8 @@ pub fn remap_uv_gpu(ctx: &GpuContext, input: &GpuTexture, expr: &UvExpr) -> GpuR
         pass.set_bind_group(0, &bind_group, &[]);
 
         // Dispatch workgroups (8x8 threads per workgroup)
-        let workgroups_x = (input.width() + 7) / 8;
-        let workgroups_y = (input.height() + 7) / 8;
+        let workgroups_x = input.width().div_ceil(8);
+        let workgroups_y = input.height().div_ceil(8);
         pass.dispatch_workgroups(workgroups_x, workgroups_y, 1);
     }
 
@@ -301,13 +313,28 @@ pub fn map_pixels_gpu(
     input: &GpuTexture,
     expr: &ColorExpr,
 ) -> GpuResult<GpuTexture> {
-    // Convert expression to dew AST, then to WGSL
-    let ast = expr.to_dew_ast();
+    map_pixels_ast_gpu(ctx, input, &expr.to_dew_ast())
+}
 
+/// Applies a per-pixel color transform using a raw dew [`Ast`], executed on the GPU.
+///
+/// This is the expression-level entry point behind [`map_pixels_gpu`]: it compiles
+/// an arbitrary `rgba: vec4<f32>` → `vec4<f32>` expression directly, without going
+/// through the typed [`ColorExpr`] representation. The AST is expected to reference
+/// the bound variable `rgba` (a `vec4<f32>`).
+///
+/// [`map_pixels_gpu`] is a thin wrapper that calls this with `expr.to_dew_ast()`,
+/// so a typed `ColorExpr` and a hand-written formula that lowers to the same AST
+/// produce byte-identical shaders and identical output.
+pub fn map_pixels_ast_gpu(
+    ctx: &GpuContext,
+    input: &GpuTexture,
+    ast: &Ast,
+) -> GpuResult<GpuTexture> {
     let mut var_types = HashMap::new();
     var_types.insert("rgba".to_string(), Type::Vec4);
 
-    let wgsl_expr = emit_wgsl(&ast, &var_types)
+    let wgsl_expr = emit_wgsl(ast, &var_types)
         .map_err(|e| GpuError::ShaderError(format!("WGSL codegen failed: {e:?}")))?;
 
     // Generate the complete shader
@@ -444,8 +471,8 @@ pub fn map_pixels_gpu(
         pass.set_bind_group(0, &bind_group, &[]);
 
         // Dispatch workgroups (8x8 threads per workgroup)
-        let workgroups_x = (input.width() + 7) / 8;
-        let workgroups_y = (input.height() + 7) / 8;
+        let workgroups_x = input.width().div_ceil(8);
+        let workgroups_y = input.height().div_ceil(8);
         pass.dispatch_workgroups(workgroups_x, workgroups_y, 1);
     }
 
