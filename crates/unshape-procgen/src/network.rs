@@ -1391,7 +1391,7 @@ mod tests {
         let network = RiverNetwork::from_heightfield(&heights, width, height, config);
 
         // Should have some rivers
-        assert!(network.nodes().len() > 0);
+        assert!(!network.nodes().is_empty());
     }
 
     #[test]

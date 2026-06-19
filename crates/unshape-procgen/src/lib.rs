@@ -1439,8 +1439,8 @@ mod tests {
 
         // Verify vertical adjacency (south matches north)
         for y in 0..grid.len() - 1 {
-            for x in 0..grid[0].len() {
-                let top_tile = set.get(grid[y][x]).unwrap();
+            for (x, &top) in grid[y].iter().enumerate() {
+                let top_tile = set.get(top).unwrap();
                 let bottom_tile = set.get(grid[y + 1][x]).unwrap();
                 assert_eq!(
                     top_tile.south, bottom_tile.north,

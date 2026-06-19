@@ -746,7 +746,7 @@ mod tests {
 
         // All values should be in [0, 1]
         for v in normalized {
-            assert!(v >= 0.0 && v <= 1.0);
+            assert!((0.0..=1.0).contains(&v));
         }
     }
 

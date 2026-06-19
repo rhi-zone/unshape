@@ -228,18 +228,18 @@ impl<T> Bvh<T> {
         };
 
         // Early exit if we already have a closer hit
-        if let Some((_, _, closest_t)) = closest {
-            if t_min > *closest_t {
-                return;
-            }
+        if let Some((_, _, closest_t)) = closest
+            && t_min > *closest_t
+        {
+            return;
         }
 
         match node {
             BvhNode::Leaf { bounds, data } => {
-                if let Some((t_hit, _)) = ray.intersect_aabb(bounds) {
-                    if closest.is_none() || t_hit < closest.unwrap().2 {
-                        *closest = Some((bounds, data, t_hit));
-                    }
+                if let Some((t_hit, _)) = ray.intersect_aabb(bounds)
+                    && (closest.is_none() || t_hit < closest.unwrap().2)
+                {
+                    *closest = Some((bounds, data, t_hit));
                 }
             }
             BvhNode::Internal { left, right, .. } => {

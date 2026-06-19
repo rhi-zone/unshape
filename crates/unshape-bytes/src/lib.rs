@@ -40,7 +40,7 @@
 /// }
 /// ```
 pub fn bytes_as_f32(bytes: &[u8]) -> Option<&[f32]> {
-    if bytes.len() % 4 != 0 {
+    if !bytes.len().is_multiple_of(4) {
         return None;
     }
     Some(bytemuck::cast_slice(bytes))
@@ -50,7 +50,7 @@ pub fn bytes_as_f32(bytes: &[u8]) -> Option<&[f32]> {
 ///
 /// Common format for raw PCM audio. Length must be divisible by 2.
 pub fn bytes_as_i16(bytes: &[u8]) -> Option<&[i16]> {
-    if bytes.len() % 2 != 0 {
+    if !bytes.len().is_multiple_of(2) {
         return None;
     }
     Some(bytemuck::cast_slice(bytes))
@@ -60,7 +60,7 @@ pub fn bytes_as_i16(bytes: &[u8]) -> Option<&[i16]> {
 ///
 /// Length must be divisible by 2.
 pub fn bytes_as_u16(bytes: &[u8]) -> Option<&[u16]> {
-    if bytes.len() % 2 != 0 {
+    if !bytes.len().is_multiple_of(2) {
         return None;
     }
     Some(bytemuck::cast_slice(bytes))
@@ -70,7 +70,7 @@ pub fn bytes_as_u16(bytes: &[u8]) -> Option<&[u16]> {
 ///
 /// Length must be divisible by 4.
 pub fn bytes_as_i32(bytes: &[u8]) -> Option<&[i32]> {
-    if bytes.len() % 4 != 0 {
+    if !bytes.len().is_multiple_of(4) {
         return None;
     }
     Some(bytemuck::cast_slice(bytes))
@@ -80,7 +80,7 @@ pub fn bytes_as_i32(bytes: &[u8]) -> Option<&[i32]> {
 ///
 /// Length must be divisible by 4.
 pub fn bytes_as_u32(bytes: &[u8]) -> Option<&[u32]> {
-    if bytes.len() % 4 != 0 {
+    if !bytes.len().is_multiple_of(4) {
         return None;
     }
     Some(bytemuck::cast_slice(bytes))
@@ -90,7 +90,7 @@ pub fn bytes_as_u32(bytes: &[u8]) -> Option<&[u32]> {
 ///
 /// Returns pixel data as [u8; 4] arrays.
 pub fn bytes_as_rgba(bytes: &[u8]) -> Option<&[[u8; 4]]> {
-    if bytes.len() % 4 != 0 {
+    if !bytes.len().is_multiple_of(4) {
         return None;
     }
     Some(bytemuck::cast_slice(bytes))
@@ -100,7 +100,7 @@ pub fn bytes_as_rgba(bytes: &[u8]) -> Option<&[[u8; 4]]> {
 ///
 /// Returns pixel data as [u8; 3] arrays.
 pub fn bytes_as_rgb(bytes: &[u8]) -> Option<&[[u8; 3]]> {
-    if bytes.len() % 3 != 0 {
+    if !bytes.len().is_multiple_of(3) {
         return None;
     }
     Some(bytemuck::cast_slice(bytes))
@@ -108,7 +108,7 @@ pub fn bytes_as_rgb(bytes: &[u8]) -> Option<&[[u8; 3]]> {
 
 /// Reinterprets raw bytes as 2D float coordinates (8 bytes per point).
 pub fn bytes_as_xy(bytes: &[u8]) -> Option<&[[f32; 2]]> {
-    if bytes.len() % 8 != 0 {
+    if !bytes.len().is_multiple_of(8) {
         return None;
     }
     Some(bytemuck::cast_slice(bytes))
@@ -116,7 +116,7 @@ pub fn bytes_as_xy(bytes: &[u8]) -> Option<&[[f32; 2]]> {
 
 /// Reinterprets raw bytes as 3D float coordinates (12 bytes per point).
 pub fn bytes_as_xyz(bytes: &[u8]) -> Option<&[[f32; 3]]> {
-    if bytes.len() % 12 != 0 {
+    if !bytes.len().is_multiple_of(12) {
         return None;
     }
     Some(bytemuck::cast_slice(bytes))
@@ -124,7 +124,7 @@ pub fn bytes_as_xyz(bytes: &[u8]) -> Option<&[[f32; 3]]> {
 
 /// Reinterprets raw bytes as 4D float values (16 bytes per element).
 pub fn bytes_as_xyzw(bytes: &[u8]) -> Option<&[[f32; 4]]> {
-    if bytes.len() % 16 != 0 {
+    if !bytes.len().is_multiple_of(16) {
         return None;
     }
     Some(bytemuck::cast_slice(bytes))

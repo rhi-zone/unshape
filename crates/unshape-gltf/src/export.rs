@@ -564,17 +564,15 @@ fn build_glb(root: &json::Root, buffer_data: &[u8]) -> GltfResult<Vec<u8>> {
     output.extend_from_slice(&(json_chunk_len as u32).to_le_bytes()); // chunk length
     output.extend_from_slice(&0x4E4F534Au32.to_le_bytes()); // chunk type "JSON"
     output.extend_from_slice(&json_bytes);
-    for _ in 0..json_padding {
-        output.push(b' '); // JSON padding uses spaces
-    }
+    // JSON padding uses spaces
+    output.resize(output.len() + json_padding, b' ');
 
     // BIN chunk
     output.extend_from_slice(&(buffer_chunk_len as u32).to_le_bytes()); // chunk length
     output.extend_from_slice(&0x004E4942u32.to_le_bytes()); // chunk type "BIN\0"
     output.extend_from_slice(buffer_data);
-    for _ in 0..buffer_padding {
-        output.push(0); // BIN padding uses zeros
-    }
+    // BIN padding uses zeros
+    output.resize(output.len() + buffer_padding, 0);
 
     Ok(output)
 }
@@ -603,6 +601,11 @@ fn bytemuck_cast_slice<T: bytemuck::Pod>(slice: &[T]) -> &[u8] {
 
 // Need bytemuck for safe casting
 mod bytemuck {
+    /// # Safety
+    ///
+    /// Implementors must be plain-old-data: any byte pattern is a valid value,
+    /// the type contains no padding, pointers, or references, and is safe to
+    /// reinterpret as a byte slice.
     pub unsafe trait Pod: Copy + 'static {}
     unsafe impl Pod for f32 {}
     unsafe impl Pod for u32 {}

@@ -108,7 +108,7 @@ mod tests {
     fn test_sph_2d_add_block() {
         let mut sph = Sph2D::new(SphConfig::default(), (Vec2::ZERO, Vec2::new(100.0, 100.0)));
         sph.add_block(Vec2::new(10.0, 10.0), Vec2::new(30.0, 30.0), 5.0, 1.0);
-        assert!(sph.particles.len() > 0);
+        assert!(!sph.particles.is_empty());
     }
 
     #[test]
@@ -145,7 +145,7 @@ mod tests {
             0.05,
             0.001,
         );
-        assert!(sph.particles.len() > 0);
+        assert!(!sph.particles.is_empty());
     }
 
     #[test]

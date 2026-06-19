@@ -920,7 +920,7 @@ mod tests {
         let instances = scatter_poisson_2d(Vec2::ZERO, Vec2::splat(10.0), 1.0, 42, 30);
 
         // Should have generated some instances
-        assert!(instances.len() > 0);
+        assert!(!instances.is_empty());
 
         // Check minimum distance constraint
         for i in 0..instances.len() {

@@ -1080,8 +1080,10 @@ mod tests {
 
     #[test]
     fn test_hrtf_basic() {
-        let mut config = Spatialize::default();
-        config.hrtf_mode = HrtfMode::Basic;
+        let config = Spatialize {
+            hrtf_mode: HrtfMode::Basic,
+            ..Default::default()
+        };
         let mut spatializer = Spatializer::with_config(44100, config);
 
         let input: Vec<f32> = (0..1024).map(|i| (i as f32 * 0.1).sin()).collect();
@@ -1121,9 +1123,11 @@ mod tests {
     fn test_streaming_api_matches_batch() {
         // Test that sample-by-sample processing matches batch processing
         // (when Doppler is disabled)
-        let mut config = Spatialize::default();
-        config.enable_doppler = false;
-        config.hrtf_mode = HrtfMode::Simple;
+        let config = Spatialize {
+            enable_doppler: false,
+            hrtf_mode: HrtfMode::Simple,
+            ..Default::default()
+        };
 
         let input: Vec<f32> = (0..256).map(|i| (i as f32 * 0.1).sin()).collect();
         let source = SpatialSource::at(Vec3::new(1.0, 0.0, 0.0));
@@ -1167,9 +1171,11 @@ mod tests {
 
     #[test]
     fn test_streaming_api_hrtf_basic() {
-        let mut config = Spatialize::default();
-        config.enable_doppler = false;
-        config.hrtf_mode = HrtfMode::Basic;
+        let config = Spatialize {
+            enable_doppler: false,
+            hrtf_mode: HrtfMode::Basic,
+            ..Default::default()
+        };
 
         let input: Vec<f32> = (0..256).map(|i| (i as f32 * 0.1).sin()).collect();
         let source = SpatialSource::at(Vec3::new(1.0, 0.0, 0.0));

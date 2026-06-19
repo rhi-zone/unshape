@@ -228,7 +228,7 @@ pub fn calculate_rt60_sabine(geometry: &RoomGeometry, surfaces: &RoomSurfaces) -
 
     let mut rt60 = [0.0; 6];
 
-    for i in 0..6 {
+    for (i, slot) in rt60.iter_mut().enumerate() {
         // Total absorption at this frequency
         let floor_abs = surfaces.floor.0.absorption[i] * surfaces.floor.1 * floor_area;
         let ceiling_abs = surfaces.ceiling.absorption[i] * ceiling_area;
@@ -236,7 +236,7 @@ pub fn calculate_rt60_sabine(geometry: &RoomGeometry, surfaces: &RoomSurfaces) -
         let total_abs = floor_abs + ceiling_abs + wall_abs;
 
         // Sabine formula: RT60 = 0.161 * V / A
-        rt60[i] = 0.161 * volume / total_abs.max(0.001);
+        *slot = 0.161 * volume / total_abs.max(0.001);
     }
 
     rt60
@@ -252,7 +252,7 @@ pub fn calculate_rt60_eyring(geometry: &RoomGeometry, surfaces: &RoomSurfaces) -
 
     let mut rt60 = [0.0; 6];
 
-    for i in 0..6 {
+    for (i, slot) in rt60.iter_mut().enumerate() {
         // Average absorption coefficient at this frequency
         let floor_abs = surfaces.floor.0.absorption[i] * surfaces.floor.1;
         let ceiling_abs = surfaces.ceiling.absorption[i];
@@ -268,7 +268,7 @@ pub fn calculate_rt60_eyring(geometry: &RoomGeometry, surfaces: &RoomSurfaces) -
             -(1.0 - avg_abs).ln()
         };
 
-        rt60[i] = 0.161 * volume / (surface_area * absorption_term).max(0.001);
+        *slot = 0.161 * volume / (surface_area * absorption_term).max(0.001);
     }
 
     rt60
@@ -399,23 +399,28 @@ pub fn calculate_early_reflections(
     let direct_distance = (source - listener).length();
     let direct_delay = direct_distance / speed_of_sound;
 
-    // Generate image sources for each order
-    fn generate_images(
-        geometry: &RoomGeometry,
+    // Invariant context shared across all reflection orders.
+    struct ImageSourceContext<'a> {
+        geometry: &'a RoomGeometry,
         source: Vec3,
         listener: Vec3,
-        order: u32,
         max_order: u32,
         absorption: f32,
-        reflections: &mut Vec<EarlyReflection>,
         speed_of_sound: f32,
         direct_delay: f32,
+    }
+
+    // Generate image sources for each order
+    fn generate_images(
+        ctx: &ImageSourceContext,
+        order: u32,
+        reflections: &mut Vec<EarlyReflection>,
     ) {
-        if order > max_order {
+        if order > ctx.max_order {
             return;
         }
 
-        let reflection_coeff = (1.0 - absorption).powi(order as i32);
+        let reflection_coeff = (1.0 - ctx.absorption).powi(order as i32);
 
         // Iterate through all possible reflection combinations
         for ix in -(order as i32)..=(order as i32) {
@@ -429,17 +434,17 @@ pub fn calculate_early_reflections(
 
                     // Calculate image source position
                     let image = Vec3::new(
-                        mirror_position(source.x, geometry.width, ix),
-                        mirror_position(source.y, geometry.height, iy),
-                        mirror_position(source.z, geometry.depth, iz),
+                        mirror_position(ctx.source.x, ctx.geometry.width, ix),
+                        mirror_position(ctx.source.y, ctx.geometry.height, iy),
+                        mirror_position(ctx.source.z, ctx.geometry.depth, iz),
                     );
 
-                    let distance = (image - listener).length();
-                    let delay = distance / speed_of_sound;
+                    let distance = (image - ctx.listener).length();
+                    let delay = distance / ctx.speed_of_sound;
                     let amplitude = reflection_coeff / distance.max(0.1);
 
                     // Relative delay to direct sound
-                    let relative_delay = delay - direct_delay;
+                    let relative_delay = delay - ctx.direct_delay;
 
                     if relative_delay > 0.0 {
                         reflections.push(EarlyReflection {
@@ -453,30 +458,19 @@ pub fn calculate_early_reflections(
             }
         }
 
-        generate_images(
-            geometry,
-            source,
-            listener,
-            order + 1,
-            max_order,
-            absorption,
-            reflections,
-            speed_of_sound,
-            direct_delay,
-        );
+        generate_images(ctx, order + 1, reflections);
     }
 
-    generate_images(
+    let ctx = ImageSourceContext {
         geometry,
         source,
         listener,
-        1,
         max_order,
         absorption,
-        &mut reflections,
         speed_of_sound,
         direct_delay,
-    );
+    };
+    generate_images(&ctx, 1, &mut reflections);
 
     // Sort by delay
     reflections.sort_by(|a, b| a.delay.partial_cmp(&b.delay).unwrap());
@@ -589,15 +583,16 @@ impl RoomAcoustics {
         let tail_start_idx = ((direct_delay + tail_start) * sample_rate) as usize;
 
         let mut rng_state = 12345u32;
-        for i in tail_start_idx..samples {
-            let t = (i - tail_start_idx) as f32 / sample_rate;
+        let tail_start_idx = tail_start_idx.min(samples);
+        for (offset, slot) in ir[tail_start_idx..].iter_mut().enumerate() {
+            let t = offset as f32 / sample_rate;
             let decay = (-decay_rate * t).exp();
 
             // Simple noise
             rng_state = rng_state.wrapping_mul(1103515245).wrapping_add(12345);
             let noise = (rng_state as f32 / u32::MAX as f32) * 2.0 - 1.0;
 
-            ir[i] += noise * decay * 0.02;
+            *slot += noise * decay * 0.02;
         }
 
         // Normalize

@@ -377,9 +377,9 @@ pub fn additive_wavetable(harmonics: &[(u32, f32)], size: usize) -> Wavetable {
     let mut samples = vec![0.0f32; size];
 
     for (harmonic, amplitude) in harmonics {
-        for i in 0..size {
+        for (i, sample) in samples.iter_mut().enumerate() {
             let phase = (i as f32 / size as f32) * (*harmonic as f32);
-            samples[i] += amplitude * (phase * TAU).sin();
+            *sample += amplitude * (phase * TAU).sin();
         }
     }
 
@@ -406,9 +406,9 @@ pub fn supersaw_wavetable(voices: usize, detune: f32, size: usize) -> Wavetable 
             1.0 / detune_ratio + t * (detune_ratio - 1.0 / detune_ratio)
         };
 
-        for i in 0..size {
+        for (i, sample) in samples.iter_mut().enumerate() {
             let phase = (i as f32 / size as f32) * ratio;
-            samples[i] += saw(phase);
+            *sample += saw(phase);
         }
     }
 
@@ -886,7 +886,7 @@ mod tests {
         // triangle at 0.25 ≈ 1.0, saw at 0.25 ≈ -0.5
         // blended result should be in valid [-1, 1] range
         let mid_sample = bank.sample(0.25, 0.5);
-        assert!(mid_sample >= -1.0 && mid_sample <= 1.0);
+        assert!((-1.0..=1.0).contains(&mid_sample));
     }
 
     #[test]

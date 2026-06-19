@@ -213,23 +213,22 @@ fn find_ops(file: &syn::File, file_path: &str) -> Vec<OpInfo> {
 
     // Find impl blocks with apply methods
     for item in &file.items {
-        if let Item::Impl(impl_block) = item {
-            if let Some((struct_name, input_type, output_type)) = has_apply_method(impl_block) {
-                if let Some((struct_def, line)) = structs.get(&struct_name) {
-                    let doc = extract_doc_comment(&struct_def.attrs);
-                    let fields = extract_fields(&struct_def.fields);
+        if let Item::Impl(impl_block) = item
+            && let Some((struct_name, input_type, output_type)) = has_apply_method(impl_block)
+            && let Some((struct_def, line)) = structs.get(&struct_name)
+        {
+            let doc = extract_doc_comment(&struct_def.attrs);
+            let fields = extract_fields(&struct_def.fields);
 
-                    ops.push(OpInfo {
-                        name: struct_name,
-                        doc,
-                        fields,
-                        input_type,
-                        output_type,
-                        file: file_path.to_string(),
-                        line: *line,
-                    });
-                }
-            }
+            ops.push(OpInfo {
+                name: struct_name,
+                doc,
+                fields,
+                input_type,
+                output_type,
+                file: file_path.to_string(),
+                line: *line,
+            });
         }
     }
 
@@ -250,30 +249,30 @@ fn has_apply_method(impl_block: &ItemImpl) -> Option<(String, Option<String>, Op
 
     // Look for apply method
     for item in &impl_block.items {
-        if let syn::ImplItem::Fn(method) = item {
-            if method.sig.ident == "apply" {
-                // Extract input type from first non-self parameter
-                let input_type = method
-                    .sig
-                    .inputs
-                    .iter()
-                    .filter_map(|arg| {
-                        if let syn::FnArg::Typed(pat) = arg {
-                            Some(type_to_string(&pat.ty))
-                        } else {
-                            None
-                        }
-                    })
-                    .next();
+        if let syn::ImplItem::Fn(method) = item
+            && method.sig.ident == "apply"
+        {
+            // Extract input type from first non-self parameter
+            let input_type = method
+                .sig
+                .inputs
+                .iter()
+                .filter_map(|arg| {
+                    if let syn::FnArg::Typed(pat) = arg {
+                        Some(type_to_string(&pat.ty))
+                    } else {
+                        None
+                    }
+                })
+                .next();
 
-                // Extract output type
-                let output_type = match &method.sig.output {
-                    syn::ReturnType::Type(_, ty) => Some(type_to_string(ty)),
-                    syn::ReturnType::Default => None,
-                };
+            // Extract output type
+            let output_type = match &method.sig.output {
+                syn::ReturnType::Type(_, ty) => Some(type_to_string(ty)),
+                syn::ReturnType::Default => None,
+            };
 
-                return Some((struct_name, input_type, output_type));
-            }
+            return Some((struct_name, input_type, output_type));
         }
     }
 
@@ -284,14 +283,12 @@ fn extract_doc_comment(attrs: &[Attribute]) -> Option<String> {
     let docs: Vec<String> = attrs
         .iter()
         .filter_map(|attr| {
-            if attr.path().is_ident("doc") {
-                if let Meta::NameValue(nv) = &attr.meta {
-                    if let syn::Expr::Lit(expr_lit) = &nv.value {
-                        if let Lit::Str(s) = &expr_lit.lit {
-                            return Some(s.value().trim().to_string());
-                        }
-                    }
-                }
+            if attr.path().is_ident("doc")
+                && let Meta::NameValue(nv) = &attr.meta
+                && let syn::Expr::Lit(expr_lit) = &nv.value
+                && let Lit::Str(s) = &expr_lit.lit
+            {
+                return Some(s.value().trim().to_string());
             }
             None
         })

@@ -123,7 +123,7 @@ fn import_primitive(
 
     // Read positions (required)
     if let Some(positions) = reader.read_positions() {
-        mesh.positions = positions.map(|p| Vec3::from(p)).collect();
+        mesh.positions = positions.map(Vec3::from).collect();
     } else {
         return Err(GltfError::InvalidMesh(
             "Primitive has no position data".to_string(),
@@ -132,12 +132,12 @@ fn import_primitive(
 
     // Read normals (optional)
     if let Some(normals) = reader.read_normals() {
-        mesh.normals = normals.map(|n| Vec3::from(n)).collect();
+        mesh.normals = normals.map(Vec3::from).collect();
     }
 
     // Read UVs (optional, first set)
     if let Some(uvs) = reader.read_tex_coords(0) {
-        mesh.uvs = uvs.into_f32().map(|uv| Vec2::from(uv)).collect();
+        mesh.uvs = uvs.into_f32().map(Vec2::from).collect();
     }
 
     // Read indices

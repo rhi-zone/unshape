@@ -1,3 +1,8 @@
+// Stable-fluids grid solver kernels take several separately-borrowed mutable
+// field buffers plus grid/physical scalars; these cannot collapse into one
+// params struct without fighting the borrow checker over disjoint &mut slices.
+#![allow(clippy::too_many_arguments)]
+
 use glam::Vec2;
 
 pub(crate) fn idx2d(x: usize, y: usize, width: usize) -> usize {

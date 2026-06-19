@@ -517,7 +517,8 @@ mod tests {
 
     #[test]
     fn test_all_easings_bounds() {
-        let easings: &[(fn(FieldExpr) -> FieldExpr, &str)] = &[
+        type EasingFn = fn(FieldExpr) -> FieldExpr;
+        let easings: &[(EasingFn, &str)] = &[
             (linear, "linear"),
             (quad_in, "quad_in"),
             (quad_out, "quad_out"),

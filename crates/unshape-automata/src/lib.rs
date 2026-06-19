@@ -814,7 +814,7 @@ mod tests {
         // After several steps, values should still be in [0, 1]
         for row in sl.cells() {
             for &cell in row {
-                assert!(cell >= 0.0 && cell <= 1.0);
+                assert!((0.0..=1.0).contains(&cell));
             }
         }
     }

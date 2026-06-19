@@ -431,6 +431,8 @@ impl Smoother {
     }
 
     /// Get the next smoothed value.
+    // Inherent DSP step method; not an `Iterator` (infinite, no `Option`).
+    #[allow(clippy::should_implement_trait)]
     #[inline]
     pub fn next(&mut self) -> f32 {
         self.value = self.coeff * self.value + (1.0 - self.coeff) * self.target;

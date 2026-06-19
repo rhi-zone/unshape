@@ -305,11 +305,11 @@ impl SpaceColonization {
             }
 
             // Record influence
-            if let Some(node_idx) = nearest_node {
-                if !points_to_remove.contains(&point_idx) {
-                    let direction = (point - self.nodes[node_idx].position).normalize();
-                    influences.entry(node_idx).or_default().push(direction);
-                }
+            if let Some(node_idx) = nearest_node
+                && !points_to_remove.contains(&point_idx)
+            {
+                let direction = (point - self.nodes[node_idx].position).normalize();
+                influences.entry(node_idx).or_default().push(direction);
             }
         }
 
@@ -339,15 +339,14 @@ impl SpaceColonization {
             }
 
             // Apply smoothing with parent direction
-            if self.config.smoothing > 0.0 {
-                if let Some(parent_idx) = self.nodes[node_idx].parent {
-                    let parent_dir = (self.nodes[node_idx].position
-                        - self.nodes[parent_idx].position)
-                        .normalize();
-                    avg_direction = avg_direction
-                        .lerp(parent_dir, self.config.smoothing)
-                        .normalize();
-                }
+            if self.config.smoothing > 0.0
+                && let Some(parent_idx) = self.nodes[node_idx].parent
+            {
+                let parent_dir =
+                    (self.nodes[node_idx].position - self.nodes[parent_idx].position).normalize();
+                avg_direction = avg_direction
+                    .lerp(parent_dir, self.config.smoothing)
+                    .normalize();
             }
 
             // Create new node
@@ -414,15 +413,14 @@ impl SpaceColonization {
 
                 // Check if all children are processed
                 let parent_children = children.get(&parent_idx);
-                if let Some(kids) = parent_children {
-                    if kids.iter().all(|c| processed.contains(c)) {
-                        // Compute parent radius
-                        let radius_sq: f32 =
-                            kids.iter().map(|&c| self.nodes[c].radius.powi(2)).sum();
-                        self.nodes[parent_idx].radius = radius_sq.sqrt();
-                        processed.insert(parent_idx);
-                        to_process.push(parent_idx);
-                    }
+                if let Some(kids) = parent_children
+                    && kids.iter().all(|c| processed.contains(c))
+                {
+                    // Compute parent radius
+                    let radius_sq: f32 = kids.iter().map(|&c| self.nodes[c].radius.powi(2)).sum();
+                    self.nodes[parent_idx].radius = radius_sq.sqrt();
+                    processed.insert(parent_idx);
+                    to_process.push(parent_idx);
                 }
             }
         }
@@ -491,13 +489,15 @@ pub fn generate_tree(
 ) -> SpaceColonization {
     let trunk_to_crown = (crown_center - trunk_base).length();
 
-    let mut config = SpaceColonizationConfig::default();
     // Use distances relative to the total height for better coverage
-    config.attraction_distance = (trunk_to_crown + crown_radius) * 0.8;
-    config.kill_distance = crown_radius * 0.15;
-    config.segment_length = crown_radius * 0.1;
-    config.tropism = Vec3::Y; // Grow upward
-    config.tropism_strength = 0.1;
+    let config = SpaceColonizationConfig {
+        attraction_distance: (trunk_to_crown + crown_radius) * 0.8,
+        kill_distance: crown_radius * 0.15,
+        segment_length: crown_radius * 0.1,
+        tropism: Vec3::Y, // Grow upward
+        tropism_strength: 0.1,
+        ..Default::default()
+    };
 
     let mut sc = SpaceColonization::new(config);
     sc.add_attraction_points_sphere(crown_center, crown_radius, attraction_points, seed);
@@ -518,12 +518,14 @@ pub fn generate_lightning(
     let direction = end - start;
     let length = direction.length();
 
-    let mut config = SpaceColonizationConfig::default();
-    config.attraction_distance = length * 0.3;
-    config.kill_distance = length * 0.05;
-    config.segment_length = length * 0.02;
-    config.tropism = direction.normalize();
-    config.tropism_strength = 0.3;
+    let config = SpaceColonizationConfig {
+        attraction_distance: length * 0.3,
+        kill_distance: length * 0.05,
+        segment_length: length * 0.02,
+        tropism: direction.normalize(),
+        tropism_strength: 0.3,
+        ..Default::default()
+    };
 
     let mut sc = SpaceColonization::new(config);
 

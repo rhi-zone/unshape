@@ -168,7 +168,7 @@ mod tests {
 
         // Sphere should be resting on ground (radius = 1, so y should be around 1)
         let y = world.bodies[1].position.y;
-        assert!(y >= 0.9 && y <= 1.5, "y = {}", y);
+        assert!((0.9..=1.5).contains(&y), "y = {}", y);
     }
 
     #[test]
@@ -232,7 +232,7 @@ mod tests {
 
         // Box should be resting on ground
         let y = world.bodies[1].position.y;
-        assert!(y >= 0.4 && y <= 1.0, "y = {}", y);
+        assert!((0.4..=1.0).contains(&y), "y = {}", y);
     }
 
     #[test]

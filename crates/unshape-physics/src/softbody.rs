@@ -715,8 +715,10 @@ mod tests {
 
     #[test]
     fn test_soft_body_step() {
-        let mut config = SoftBodyConfig::default();
-        config.gravity = Vec3::new(0.0, -9.81, 0.0);
+        let config = SoftBodyConfig {
+            gravity: Vec3::new(0.0, -9.81, 0.0),
+            ..Default::default()
+        };
 
         let mut body = SoftBody::cube(Vec3::Y * 2.0, 1.0, 1, config);
         body.fix_above_y(2.4);

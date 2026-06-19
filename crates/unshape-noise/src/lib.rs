@@ -1462,8 +1462,8 @@ mod tests {
     #[test]
     fn test_noise_deterministic() {
         let perlin = Perlin2D::new();
-        let v1 = perlin.sample(3.14, 2.71);
-        let v2 = perlin.sample(3.14, 2.71);
+        let v1 = perlin.sample(3.5, 2.25);
+        let v2 = perlin.sample(3.5, 2.25);
         assert_eq!(v1, v2);
     }
 

@@ -197,12 +197,12 @@ impl NurbsSurface {
         let mut sum = Vec3::ZERO;
         let mut weight_sum = 0.0;
 
-        for i in 0..=self.degree_u {
+        for (i, &bu) in basis_u.iter().enumerate() {
             let u_idx = span_u - self.degree_u + i;
-            for j in 0..=self.degree_v {
+            for (j, &bv) in basis_v.iter().enumerate() {
                 let v_idx = span_v - self.degree_v + j;
                 let cp = self.control_point(u_idx, v_idx);
-                let basis = basis_u[i] * basis_v[j] * cp.weight;
+                let basis = bu * bv * cp.weight;
                 sum += cp.point * basis;
                 weight_sum += basis;
             }
