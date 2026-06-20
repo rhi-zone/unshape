@@ -5,7 +5,7 @@
 //!
 //! # Algorithm
 //!
-//! 1. Generate seed points on the mesh surface using [`Scatter`].
+//! 1. Generate seed points on the mesh surface using [`SurfaceScatter`].
 //! 2. Assign each triangle to its nearest seed (nearest centroid).
 //! 3. Clip triangles that straddle cell boundaries using Sutherland-Hodgman
 //!    clipping against bisector half-planes.
@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 
 use glam::Vec3;
 
-use crate::{Mesh, Scatter};
+use crate::{Mesh, SurfaceScatter};
 
 // ============================================================================
 // Op struct
@@ -107,7 +107,7 @@ pub fn voronoi_fracture(mesh: &Mesh, op: &VoronoiFracture) -> FractureResult {
     }
 
     // --- Step 1: generate seed points (cell centers) on the mesh surface ----
-    let scatter = Scatter {
+    let scatter = SurfaceScatter {
         count: cell_count as u32,
         seed: op.seed,
         weight_by_area: true,

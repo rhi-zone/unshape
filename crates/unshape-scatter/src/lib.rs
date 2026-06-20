@@ -94,7 +94,7 @@ impl Instance {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
 #[cfg_attr(feature = "dynop", op(input = (), output = Vec<Instance>))]
-pub struct Scatter {
+pub struct VolumeScatter {
     /// Minimum bounds of the scatter volume.
     pub min: Vec3,
     /// Maximum bounds of the scatter volume.
@@ -113,7 +113,7 @@ pub struct Scatter {
     pub align_axis: Option<Vec3>,
 }
 
-impl Default for Scatter {
+impl Default for VolumeScatter {
     fn default() -> Self {
         Self {
             min: Vec3::ZERO,
@@ -128,7 +128,7 @@ impl Default for Scatter {
     }
 }
 
-impl Scatter {
+impl VolumeScatter {
     /// Creates a new scatter operation with given bounds and count.
     pub fn new(min: Vec3, max: Vec3, count: usize) -> Self {
         Self {
@@ -146,7 +146,7 @@ impl Scatter {
 }
 
 /// Backwards-compatible type alias.
-pub type ScatterConfig = Scatter;
+pub type ScatterConfig = VolumeScatter;
 
 /// Simple LCG random number generator for deterministic scattering.
 struct Rng {
@@ -844,7 +844,7 @@ pub fn stagger_spread(count: usize, total_duration: f32) -> Vec<f32> {
 /// Call this to enable deserialization of scatter ops from saved pipelines.
 #[cfg(feature = "dynop")]
 pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
-    registry.register_type::<Scatter>("resin::Scatter");
+    registry.register_type::<VolumeScatter>("resin::VolumeScatter");
 }
 
 #[cfg(test)]

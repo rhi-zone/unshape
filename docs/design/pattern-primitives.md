@@ -34,7 +34,7 @@ Design decisions for the rhythmic pattern system in `unshape-audio`.
 
 ```rust
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Warp {
+pub struct TimeWarp {
     pub time_expr: FieldExpr,
 }
 ```
@@ -126,15 +126,15 @@ impl<T: Clone + Send + Sync + 'static> Euclid<T> {
 
 Note: `Pattern<T>` itself contains `Arc<dyn Fn>` and is NOT serializable. The ops describe how to build patterns, not the patterns themselves.
 
-### Warp Implementation
+### TimeWarp Implementation
 
 ```rust
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Warp {
+pub struct TimeWarp {
     pub time_expr: FieldExpr,
 }
 
-impl Warp {
+impl TimeWarp {
     pub fn apply<T: Clone + Send + Sync + 'static>(&self, pattern: Pattern<T>) -> Pattern<T> {
         let query = pattern.query;
         let expr = self.time_expr.clone();

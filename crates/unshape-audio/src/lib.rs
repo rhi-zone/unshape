@@ -69,8 +69,9 @@ pub use patch::{
     randomize_patch,
 };
 pub use pattern::{
-    Continuous, Event, Pattern, TimeArc as PatternArc, Warp, cat, choose, chop, degrade, euclid,
-    every, fast, jux, ply, polymeter, polyrhythm, rand, rev, shift, shuffle, slow, stack, warp,
+    Continuous, Event, Pattern, TimeArc as PatternArc, TimeWarp, cat, choose, chop, degrade,
+    euclid, every, fast, jux, ply, polymeter, polyrhythm, rand, rev, shift, shuffle, slow, stack,
+    warp,
 };
 pub use percussion::{
     Bar, BarConfig, BarSynth, Membrane, MembraneConfig, MembraneSynth, Plate, PlateConfig,

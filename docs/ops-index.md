@@ -18,7 +18,7 @@ Regenerate: `cargo run -p extract-ops -- --names > docs/ops-index.md`
 - `Stft`
 - `TimeStretch`
 - `VocodeSynth`
-- `Warp`
+- `TimeWarp`
 
 ## unshape-automata
 
@@ -195,7 +195,7 @@ Regenerate: `cargo run -p extract-ops -- --names > docs/ops-index.md`
 
 ## unshape-scatter
 
-- `Scatter`
+- `VolumeScatter`
 - `Stagger`
 
 ## unshape-space-colonization

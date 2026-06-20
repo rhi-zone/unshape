@@ -1082,7 +1082,7 @@ pub fn polyrhythm<T: Clone + Send + Sync + 'static, U: Clone + Send + Sync + 'st
 }
 
 // ============================================================================
-// Warp (time remapping)
+// TimeWarp (time remapping)
 // ============================================================================
 
 /// Time remapping operation via Dew expression.
@@ -1100,13 +1100,13 @@ pub fn polyrhythm<T: Clone + Send + Sync + 'static, U: Clone + Send + Sync + 'st
 /// # Example
 ///
 /// ```
-/// use unshape_audio::pattern::{Pattern, Warp};
+/// use unshape_audio::pattern::{Pattern, TimeWarp};
 /// use unshape_expr_field::FieldExpr;
 ///
 /// let pattern = Pattern::from_events(vec![(0.25, 0.5, "hit")]);
 ///
 /// // Quantize to 0.5 grid (floor)
-/// let quantize = Warp {
+/// let quantize = TimeWarp {
 ///     time_expr: FieldExpr::Mul(
 ///         Box::new(FieldExpr::Floor(Box::new(FieldExpr::Mul(
 ///             Box::new(FieldExpr::X),
@@ -1119,12 +1119,12 @@ pub fn polyrhythm<T: Clone + Send + Sync + 'static, U: Clone + Send + Sync + 'st
 /// ```
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Warp {
+pub struct TimeWarp {
     /// Expression that maps old onset time (x) to new onset time.
     pub time_expr: FieldExpr,
 }
 
-impl Warp {
+impl TimeWarp {
     /// Creates a new warp operation with the given time expression.
     pub fn new(time_expr: FieldExpr) -> Self {
         Self { time_expr }
@@ -1163,7 +1163,7 @@ pub fn warp<T: Clone + Send + Sync + 'static>(
     time_expr: FieldExpr,
     pattern: Pattern<T>,
 ) -> Pattern<T> {
-    Warp::new(time_expr).apply(pattern)
+    TimeWarp::new(time_expr).apply(pattern)
 }
 
 #[cfg(test)]
@@ -1346,7 +1346,7 @@ mod tests {
     fn test_warp_identity() {
         // x -> x should leave pattern unchanged
         let pattern = Pattern::from_events(vec![(0.25, 0.5, "hit")]);
-        let warped = Warp::new(FieldExpr::X).apply(pattern);
+        let warped = TimeWarp::new(FieldExpr::X).apply(pattern);
 
         let events = warped.query_cycle(0);
         assert_eq!(events.len(), 1);
@@ -1358,7 +1358,7 @@ mod tests {
         // x -> x + 0.1 should shift events forward
         let pattern = Pattern::from_events(vec![(0.2, 0.5, "hit")]);
         let shift_expr = FieldExpr::Add(Box::new(FieldExpr::X), Box::new(FieldExpr::Constant(0.1)));
-        let warped = Warp::new(shift_expr).apply(pattern);
+        let warped = TimeWarp::new(shift_expr).apply(pattern);
 
         let events = warped.query_cycle(0);
         assert_eq!(events.len(), 1);
@@ -1376,7 +1376,7 @@ mod tests {
             )))),
             Box::new(FieldExpr::Constant(4.0)),
         );
-        let warped = Warp::new(quantize_expr).apply(pattern);
+        let warped = TimeWarp::new(quantize_expr).apply(pattern);
 
         let events = warped.query_cycle(0);
         assert_eq!(events.len(), 1);
@@ -1399,7 +1399,7 @@ mod tests {
         let pattern =
             Pattern::from_events(vec![(0.0, 0.1, "a"), (0.25, 0.1, "b"), (0.5, 0.1, "c")]);
         let shift = FieldExpr::Add(Box::new(FieldExpr::X), Box::new(FieldExpr::Constant(0.05)));
-        let warped = Warp::new(shift).apply(pattern);
+        let warped = TimeWarp::new(shift).apply(pattern);
 
         let events = warped.query_cycle(0);
         assert_eq!(events.len(), 3);
