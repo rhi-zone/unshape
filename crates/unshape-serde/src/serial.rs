@@ -114,6 +114,7 @@ impl SerialWire {
             from_port,
             to_node: to_node_id,
             to_port,
+            feedback: false,
         })
     }
 }
@@ -237,6 +238,7 @@ mod tests {
             from_port: 0,
             to_node: 7,
             to_port: 0,
+            feedback: false,
         };
         let serial = SerialWire::from_wire(&wire, &ConstNode, &AddNode);
         assert_eq!(serial.from, "42:value");
@@ -257,6 +259,7 @@ mod tests {
             from_port: 0,
             to_node: 2,
             to_port: 1,
+            feedback: false,
         };
         let serial = SerialWire::from_wire(&wire, &AddNode, &AddNode);
         assert_eq!(serial.from, "1:result");
@@ -329,6 +332,7 @@ mod tests {
                 from_port: 0,
                 to_node: 0,
                 to_port: 0,
+                feedback: false,
             },
             &ConstNode,
             &AddNode,

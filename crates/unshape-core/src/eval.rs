@@ -377,6 +377,72 @@ impl FeedbackState {
     pub fn clear(&mut self) {
         self.values.clear();
     }
+
+    /// Number of stored feedback values.
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    /// Whether any feedback values are stored.
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
+    /// Iterate over stored `((from_node, from_port), value)` entries.
+    pub fn iter(&self) -> impl Iterator<Item = (&(NodeId, usize), &Value)> {
+        self.values.iter()
+    }
+}
+
+/// How to reach a target tick when the requested tick is in the past or the
+/// current state is unknown (e.g. after a seek).
+///
+/// Recurrence is statefulness: a recurrent graph generally cannot jump to an
+/// arbitrary tick without consequences (see `docs/design/time-models.md`).
+/// This enum lets the caller choose the trade-off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SeekBehavior {
+    /// Replay deterministically from tick 0 (or a checkpoint) up to the target.
+    ///
+    /// Correct but O(N) in the number of ticks. This is the safe default for
+    /// reproducible/offline work. **Implemented** by
+    /// [`Graph::run_to_tick`](crate::Graph::run_to_tick).
+    #[default]
+    Resimulate,
+
+    /// Jump directly using whatever feedback state is currently held.
+    ///
+    /// Fast but may glitch (the state is from a different point in time).
+    /// Intended for interactive preview. **Hook only** — the recurrent driver
+    /// applies a single tick at the target without replay; full per-domain
+    /// discontinuity handling is left to callers.
+    Discontinuity,
+
+    /// Refuse to seek backwards / into an unknown state; fail safe.
+    ///
+    /// **Hook only** — surfaced as
+    /// [`GraphError::SeekUnsupported`](crate::GraphError::SeekUnsupported).
+    Error,
+}
+
+/// Outcome of a single recurrent evaluation tick.
+///
+/// Returned by [`Graph::tick`](crate::Graph::tick). The feedback state for the
+/// *next* tick is written back into the [`FeedbackState`] passed to `tick`; this
+/// struct carries the per-node outputs computed during the tick.
+#[derive(Debug, Clone)]
+pub struct TickResult {
+    /// The tick index that was evaluated.
+    pub tick: u64,
+    /// Computed outputs for every node, keyed by `(node_id, output_port)`.
+    pub outputs: HashMap<(NodeId, usize), Value>,
+}
+
+impl TickResult {
+    /// Look up a single output value by node id and output port.
+    pub fn get(&self, node: NodeId, port: usize) -> Option<&Value> {
+        self.outputs.get(&(node, port))
+    }
 }
 
 // ============================================================================
@@ -502,7 +568,12 @@ impl EvalCache {
     /// Get a cached result if available.
     pub fn get(&mut self, key: &CacheKey) -> Option<&CacheEntry> {
         if let Some(entry) = self.entries.get_mut(key) {
-            entry.last_accessed = Instant::now();
+            // Determinism guard exemption: LRU cache bookkeeping (eviction
+            // recency), not node/op output. Reading the clock here never affects
+            // a node's computed value. See clippy.toml.
+            #[allow(clippy::disallowed_methods)]
+            let now = Instant::now();
+            entry.last_accessed = now;
             Some(entry)
         } else {
             None
@@ -512,6 +583,9 @@ impl EvalCache {
     /// Store a result in the cache.
     pub fn insert(&mut self, key: CacheKey, outputs: Vec<Value>) {
         let size_bytes = outputs.iter().map(|_| 64).sum(); // rough estimate
+        // Determinism guard exemption: cache entry timestamps for LRU eviction,
+        // not node/op output. See clippy.toml / docs/design/determinism-guard.md.
+        #[allow(clippy::disallowed_methods)]
         let now = Instant::now();
         self.entries.insert(
             key,
@@ -780,6 +854,10 @@ impl<E: NodeExecutor> Evaluator for LazyEvaluator<E> {
         outputs: &[NodeId],
         ctx: &EvalContext,
     ) -> Result<EvalResult, GraphError> {
+        // Determinism guard exemption: measures wall-time spent evaluating (a
+        // perf metric reported in EvalResult), never feeds a node's output. See
+        // clippy.toml / docs/design/determinism-guard.md.
+        #[allow(clippy::disallowed_methods)]
         let start = Instant::now();
         let mut computed = Vec::new();
         let mut cached = Vec::new();
@@ -819,6 +897,9 @@ impl<E: NodeExecutor> Evaluator for LazyEvaluator<E> {
 }
 
 #[cfg(test)]
+// Determinism guard exemption for test code: tests may use Instant::now() etc.
+// to construct fixtures. The guard targets node/op *production* logic.
+#[allow(clippy::disallowed_methods)]
 mod tests {
     use super::*;
 

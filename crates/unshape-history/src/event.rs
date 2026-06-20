@@ -81,12 +81,7 @@ impl GraphEvent {
     /// Creates a Connect event.
     pub fn connect(from_node: NodeId, from_port: usize, to_node: NodeId, to_port: usize) -> Self {
         Self::Connect {
-            wire: Wire {
-                from_node,
-                from_port,
-                to_node,
-                to_port,
-            },
+            wire: Wire::direct(from_node, from_port, to_node, to_port),
         }
     }
 
@@ -98,12 +93,7 @@ impl GraphEvent {
         to_port: usize,
     ) -> Self {
         Self::Disconnect {
-            wire: Wire {
-                from_node,
-                from_port,
-                to_node,
-                to_port,
-            },
+            wire: Wire::direct(from_node, from_port, to_node, to_port),
         }
     }
 
