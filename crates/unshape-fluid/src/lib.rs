@@ -12,6 +12,9 @@ mod grid;
 mod smoke;
 mod sph;
 
+#[cfg(feature = "feedback")]
+pub mod feedback;
+
 pub use grid::*;
 pub use smoke::*;
 pub use sph::*;

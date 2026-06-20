@@ -41,7 +41,7 @@ pub type FluidConfig = Fluid;
 /// 2D grid-based fluid simulation using stable fluids method.
 ///
 /// Based on Jos Stam's "Stable Fluids" (1999).
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FluidGrid2D {
     width: usize,
     height: usize,
