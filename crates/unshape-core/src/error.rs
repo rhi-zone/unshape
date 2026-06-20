@@ -90,6 +90,15 @@ pub enum GraphError {
         name: String,
     },
 
+    /// A recurrent-graph seek was requested with [`SeekBehavior::Error`](crate::SeekBehavior).
+    #[error("seek to tick {target} is unsupported (current tick {current}, SeekBehavior::Error)")]
+    SeekUnsupported {
+        /// The tick that was requested.
+        target: u64,
+        /// The tick the driver is currently at.
+        current: u64,
+    },
+
     /// A named graph input was provided with the wrong type.
     #[error("graph input {name:?}: expected {expected:?}, got {got:?}")]
     InputTypeMismatch {

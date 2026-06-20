@@ -148,6 +148,7 @@ mod tests {
                 from_port: 0,
                 to_node: 1,
                 to_port: 0,
+                feedback: false,
             },
             &SingleOutNode,
             &SingleInNode,
