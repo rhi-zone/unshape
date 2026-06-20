@@ -21,7 +21,7 @@ use crate::Mesh;
 /// density). When false, each face gets an equal share (biased toward small faces).
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Scatter {
+pub struct SurfaceScatter {
     /// Number of points to scatter.
     pub count: u32,
     /// Seed for the random number generator. Same seed → same result.
@@ -31,7 +31,7 @@ pub struct Scatter {
     pub weight_by_area: bool,
 }
 
-impl Default for Scatter {
+impl Default for SurfaceScatter {
     fn default() -> Self {
         Self {
             count: 100,
@@ -41,7 +41,7 @@ impl Default for Scatter {
     }
 }
 
-impl Scatter {
+impl SurfaceScatter {
     /// Creates a new scatter operation with the given count and seed.
     pub fn new(count: u32, seed: u64) -> Self {
         Self {
@@ -52,15 +52,15 @@ impl Scatter {
     }
 
     /// Applies this operation to a mesh, returning scattered point data.
-    pub fn apply(&self, mesh: &Mesh) -> ScatterResult {
-        scatter(mesh, self)
+    pub fn apply(&self, mesh: &Mesh) -> SurfaceScatterResult {
+        surface_scatter(mesh, self)
     }
 }
 
-/// Result of a [`Scatter`] operation.
+/// Result of a [`SurfaceScatter`] operation.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ScatterResult {
+pub struct SurfaceScatterResult {
     /// World-space positions of the scattered points.
     pub positions: Vec<Vec3>,
     /// Surface normals at each scattered point (interpolated from face normal).
@@ -106,10 +106,10 @@ fn triangle_area(a: Vec3, b: Vec3, c: Vec3) -> f32 {
     (b - a).cross(c - a).length() * 0.5
 }
 
-/// Applies a [`Scatter`] op to a mesh.
-pub fn scatter(mesh: &Mesh, op: &Scatter) -> ScatterResult {
+/// Applies a [`SurfaceScatter`] op to a mesh.
+pub fn surface_scatter(mesh: &Mesh, op: &SurfaceScatter) -> SurfaceScatterResult {
     if mesh.indices.is_empty() || op.count == 0 {
-        return ScatterResult {
+        return SurfaceScatterResult {
             positions: Vec::new(),
             normals: Vec::new(),
             face_indices: Vec::new(),
@@ -187,7 +187,7 @@ pub fn scatter(mesh: &Mesh, op: &Scatter) -> ScatterResult {
         face_indices_out.push(fi);
     }
 
-    ScatterResult {
+    SurfaceScatterResult {
         positions,
         normals,
         face_indices: face_indices_out,
@@ -201,9 +201,9 @@ pub fn scatter(mesh: &Mesh, op: &Scatter) -> ScatterResult {
 impl Mesh {
     /// Scatters `count` points on this mesh surface.
     ///
-    /// Sugar for `Scatter::new(count, seed).apply(self)`.
-    pub fn scatter(&self, count: u32, seed: u64) -> ScatterResult {
-        Scatter::new(count, seed).apply(self)
+    /// Sugar for `SurfaceScatter::new(count, seed).apply(self)`.
+    pub fn scatter(&self, count: u32, seed: u64) -> SurfaceScatterResult {
+        SurfaceScatter::new(count, seed).apply(self)
     }
 }
 
@@ -215,7 +215,7 @@ mod tests {
     #[test]
     fn test_scatter_count() {
         let mesh = Cuboid::default().apply();
-        let result = Scatter::new(50, 42).apply(&mesh);
+        let result = SurfaceScatter::new(50, 42).apply(&mesh);
         assert_eq!(result.positions.len(), 50);
         assert_eq!(result.normals.len(), 50);
         assert_eq!(result.face_indices.len(), 50);
@@ -224,8 +224,8 @@ mod tests {
     #[test]
     fn test_scatter_reproducible() {
         let mesh = Cuboid::default().apply();
-        let r1 = Scatter::new(20, 7).apply(&mesh);
-        let r2 = Scatter::new(20, 7).apply(&mesh);
+        let r1 = SurfaceScatter::new(20, 7).apply(&mesh);
+        let r2 = SurfaceScatter::new(20, 7).apply(&mesh);
         for (a, b) in r1.positions.iter().zip(r2.positions.iter()) {
             assert!(a.distance(*b) < 1e-6, "same seed must give same result");
         }
@@ -234,8 +234,8 @@ mod tests {
     #[test]
     fn test_scatter_different_seeds() {
         let mesh = Cuboid::default().apply();
-        let r1 = Scatter::new(20, 0).apply(&mesh);
-        let r2 = Scatter::new(20, 1).apply(&mesh);
+        let r1 = SurfaceScatter::new(20, 0).apply(&mesh);
+        let r2 = SurfaceScatter::new(20, 1).apply(&mesh);
         // Very unlikely all points are identical with different seeds.
         let identical = r1
             .positions
@@ -249,7 +249,7 @@ mod tests {
     fn test_scatter_face_indices_in_bounds() {
         let mesh = Cuboid::default().apply();
         let face_count = mesh.indices.len() / 3;
-        let result = Scatter::new(100, 0).apply(&mesh);
+        let result = SurfaceScatter::new(100, 0).apply(&mesh);
         for fi in &result.face_indices {
             assert!(*fi < face_count);
         }
@@ -258,14 +258,14 @@ mod tests {
     #[test]
     fn test_scatter_empty_mesh() {
         let mesh = Mesh::new();
-        let result = Scatter::new(10, 0).apply(&mesh);
+        let result = SurfaceScatter::new(10, 0).apply(&mesh);
         assert!(result.positions.is_empty());
     }
 
     #[test]
     fn test_scatter_normals_unit_length() {
         let mesh = Cuboid::default().apply();
-        let result = Scatter::new(50, 0).apply(&mesh);
+        let result = SurfaceScatter::new(50, 0).apply(&mesh);
         for (i, n) in result.normals.iter().enumerate() {
             let len = n.length();
             assert!(

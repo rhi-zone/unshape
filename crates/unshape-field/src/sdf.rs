@@ -1059,13 +1059,13 @@ impl<O, F: Field<Vec2, O>> Field<Vec2, O> for Mirror<F> {
 }
 
 /// Domain warping - distorts input coordinates using another field.
-pub struct Warp<F, D> {
+pub struct DomainWarp<F, D> {
     pub field: F,
     pub displacement: D,
     pub amount: f32,
 }
 
-impl<F, D> Warp<F, D> {
+impl<F, D> DomainWarp<F, D> {
     pub fn new(field: F, displacement: D, amount: f32) -> Self {
         Self {
             field,
@@ -1075,7 +1075,7 @@ impl<F, D> Warp<F, D> {
     }
 }
 
-impl<F, D> Field<Vec2, f32> for Warp<F, D>
+impl<F, D> Field<Vec2, f32> for DomainWarp<F, D>
 where
     F: Field<Vec2, f32>,
     D: Field<Vec2, Vec2>,

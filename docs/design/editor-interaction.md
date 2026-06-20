@@ -43,7 +43,7 @@ The middle two are a pair in tension that must hold *everywhere*: surface the re
 
 - There are ~a few hundred primitives, **partitioned by implementation domain** (mesh / audio / image / vector / field / …). The op registry imposes no categories; grouping is by crate.
 - The **one** genuine cross-domain abstraction in code is `Field<I, O>` (~107 impls across 6 crates). `SpatialTransform` and the noise generator→field layering partially unify; most else does not.
-- Human-recurring concepts are **reimplemented per domain**: filter/convolve/smooth, blend/mix/composite, warp/deform, oscillator/LFO each exist as separate per-domain types. Some **names collide** — two unrelated `Scatter`s, two unrelated `Warp`s.
+- Human-recurring concepts are **reimplemented per domain**: filter/convolve/smooth, blend/mix/composite, warp/deform, oscillator/LFO each exist as separate per-domain types. These were sometimes given **colliding names** — now disambiguated descriptively (e.g. surface vs volume scatter: `SurfaceScatter`/`VolumeScatter`; domain vs time warp: `DomainWarp`/`TimeWarp`).
 - So the human-concept ↔ codebase mismatch is real, and in places the naming is genuinely broken.
 
 ## Rejected (do not reintroduce without explicit approval)

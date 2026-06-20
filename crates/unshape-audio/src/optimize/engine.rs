@@ -93,6 +93,10 @@ fn build_node_type_registry() -> HashMap<TypeId, NodeType> {
     map
 }
 
+// Immutable const lookup table (built once from a fixed map), read-only, used by
+// the optimizer for pattern matching. Holds no mutable/ambient state and never
+// affects op output values.
+// determinism-guard: allow -- immutable read-only const lookup table
 thread_local! {
     static NODE_TYPE_REGISTRY: HashMap<TypeId, NodeType> = build_node_type_registry();
 }

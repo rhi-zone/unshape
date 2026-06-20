@@ -194,7 +194,7 @@ Configuration for the vocoder.
 
 *Source: `crates/unshape-audio/src/vocoder.rs:44`*
 
-### `Warp`
+### `TimeWarp`
 
 Time remapping operation via Dew expression.
 
@@ -2092,7 +2092,7 @@ FABRIK (Forward And Backward Reaching Inverse Kinematics) solver as an op struct
 
 ## unshape-scatter
 
-### `Scatter`
+### `VolumeScatter`
 
 Scatters instances randomly within a box volume.
 

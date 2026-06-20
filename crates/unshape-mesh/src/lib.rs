@@ -146,7 +146,7 @@ pub use remesh::{
     QuadMesh, Quadify, QuadifyConfig, Remesh, RemeshConfig, average_edge_length, isotropic_remesh,
     quadify,
 };
-pub use scatter::{Scatter, ScatterResult, scatter};
+pub use scatter::{SurfaceScatter, SurfaceScatterResult, surface_scatter};
 pub use sdf::{GenerateSdf, SdfConfig, SdfGrid, mesh_to_sdf, mesh_to_sdf_fast, raymarch};
 pub use selection::{Edge, Falloff, MeshSelection, SelectionMode, SoftSelection};
 pub use subdivision::{
