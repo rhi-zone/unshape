@@ -149,7 +149,7 @@ fn bench_sample_mesh_uniform(c: &mut Criterion) {
 
     for count in [100, 1000, 5000] {
         group.bench_with_input(BenchmarkId::from_parameter(count), &count, |b, &n| {
-            b.iter(|| black_box(sample_mesh_uniform(&mesh, n)))
+            b.iter(|| black_box(sample_mesh_uniform(&mesh, n, 42)))
         });
     }
 
@@ -186,7 +186,7 @@ fn bench_estimate_normals(c: &mut Criterion) {
     let mesh = Cuboid::unit().apply();
 
     for size in [50, 100, 200] {
-        let cloud = sample_mesh_uniform(&mesh, size);
+        let cloud = sample_mesh_uniform(&mesh, size, 42);
         let cloud_no_normals = PointCloud::from_positions(cloud.positions);
 
         for k in [5, 10] {
@@ -209,7 +209,7 @@ fn bench_voxel_downsample(c: &mut Criterion) {
     let mut group = c.benchmark_group("voxel_downsample");
 
     let mesh = Cuboid::unit().apply();
-    let cloud = sample_mesh_uniform(&mesh, 5000);
+    let cloud = sample_mesh_uniform(&mesh, 5000, 42);
 
     for voxel_size in [0.05, 0.1, 0.2] {
         group.bench_with_input(
@@ -229,7 +229,7 @@ fn bench_remove_outliers(c: &mut Criterion) {
     let mesh = Cuboid::unit().apply();
 
     for size in [100, 200, 500] {
-        let cloud = sample_mesh_uniform(&mesh, size);
+        let cloud = sample_mesh_uniform(&mesh, size, 42);
 
         for k in [5, 10] {
             let config = RemoveOutliers::new(k);
@@ -250,7 +250,7 @@ fn bench_crop_to_bounds(c: &mut Criterion) {
     let mesh = Cuboid::unit().apply();
 
     for size in [1000, 5000, 10000] {
-        let cloud = sample_mesh_uniform(&mesh, size);
+        let cloud = sample_mesh_uniform(&mesh, size, 42);
 
         group.bench_with_input(BenchmarkId::from_parameter(size), &cloud, |b, cloud| {
             b.iter(|| {
@@ -278,7 +278,7 @@ fn bench_transform(c: &mut Criterion) {
         * Mat4::from_rotation_y(std::f32::consts::PI / 4.0);
 
     for size in [1000, 5000, 10000] {
-        let cloud = sample_mesh_uniform(&mesh, size);
+        let cloud = sample_mesh_uniform(&mesh, size, 42);
 
         group.bench_with_input(
             BenchmarkId::new("positions_only", size),
@@ -302,8 +302,8 @@ fn bench_merge(c: &mut Criterion) {
     let mesh = Cuboid::unit().apply();
 
     for size in [1000, 5000] {
-        let cloud1 = sample_mesh_uniform(&mesh, size);
-        let cloud2 = sample_mesh_uniform(&mesh, size);
+        let cloud1 = sample_mesh_uniform(&mesh, size, 42);
+        let cloud2 = sample_mesh_uniform(&mesh, size, 43);
 
         group.bench_with_input(
             BenchmarkId::from_parameter(size),
