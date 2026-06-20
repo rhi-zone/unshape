@@ -96,29 +96,80 @@ impl VocodeSynth {
 pub type VocoderConfig = VocodeSynth;
 
 /// Band definition for filterbank vocoder.
+///
+/// This holds only the *static* bin layout of a band; the smoothed envelope (the
+/// mutable per-tick value) lives in [`VocoderState`] so the analysis stage can be
+/// expressed as a pure function (see the `feedback` module).
 #[derive(Debug, Clone)]
 struct Band {
     /// Start bin index (inclusive).
     start_bin: usize,
     /// End bin index (exclusive).
     end_bin: usize,
-    /// Current envelope value.
-    envelope: f32,
+}
+
+/// The entire mutable, cross-block state of a [`Vocoder`].
+///
+/// Everything that must survive from one processed block to the next: the
+/// per-band smoothed envelopes, the carrier/modulator input ring buffers, the
+/// overlap-add output buffer, and the output read position. The static parts
+/// (config, analysis window, band bin layout) are *not* here — they are derived
+/// from [`VocodeSynth`] and held by the [`Vocoder`] / step node.
+///
+/// Bundling the state like this is what lets the vocoder be driven by a pure
+/// `&self` feedback-edge node: the state rides the wire, not the node. See the
+/// [`feedback`](crate::vocoder::feedback) module.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct VocoderState {
+    /// Smoothed envelope per band (length == `num_bands`).
+    envelopes: Vec<f32>,
+    /// Input ring buffer for carrier (length == `window_size`).
+    carrier_buffer: Vec<f32>,
+    /// Input ring buffer for modulator (length == `window_size`).
+    modulator_buffer: Vec<f32>,
+    /// Overlap-add output buffer (length == `window_size * 2`).
+    output_buffer: Vec<f32>,
+    /// Read/write position into the output buffer.
+    output_position: usize,
+}
+
+impl VocoderState {
+    /// Creates the zero initial state for the given configuration.
+    pub fn new(config: &VocodeSynth) -> Self {
+        Self {
+            envelopes: vec![0.0; config.num_bands],
+            carrier_buffer: vec![0.0; config.window_size],
+            modulator_buffer: vec![0.0; config.window_size],
+            output_buffer: vec![0.0; config.window_size * 2],
+            output_position: 0,
+        }
+    }
+
+    /// Resets all buffers and envelopes to zero (keeps allocation).
+    pub fn reset(&mut self) {
+        self.envelopes.fill(0.0);
+        self.carrier_buffer.fill(0.0);
+        self.modulator_buffer.fill(0.0);
+        self.output_buffer.fill(0.0);
+        self.output_position = 0;
+    }
 }
 
 /// A phase vocoder for spectral cross-synthesis.
+///
+/// Holds only the *static* configuration: parameters, the analysis window, and
+/// the band bin layout. The mutable state is [`VocoderState`]. The classic
+/// `&mut self` [`process`](Self::process) API keeps an embedded `VocoderState`
+/// for backward compatibility, but the underlying step
+/// ([`step`](Self::step)) is pure — that pure step is what the feedback-edge
+/// node uses.
 pub struct Vocoder {
     config: VocodeSynth,
     window: Vec<f32>,
     bands: Vec<Band>,
-    /// Input buffer for carrier.
-    carrier_buffer: Vec<f32>,
-    /// Input buffer for modulator.
-    modulator_buffer: Vec<f32>,
-    /// Output buffer with overlap-add.
-    output_buffer: Vec<f32>,
-    /// Position in the output buffer.
-    output_position: usize,
+    /// Embedded state for the convenience `&mut self` API.
+    state: VocoderState,
 }
 
 impl Vocoder {
@@ -130,23 +181,47 @@ impl Vocoder {
         // Create logarithmically spaced frequency bands
         let bands = create_bands(num_bins, config.num_bands);
 
+        let state = VocoderState::new(&config);
         Self {
             config: config.clone(),
             window,
             bands,
-            carrier_buffer: vec![0.0; config.window_size],
-            modulator_buffer: vec![0.0; config.window_size],
-            output_buffer: vec![0.0; config.window_size * 2],
-            output_position: 0,
+            state,
         }
     }
 
-    /// Processes a block of audio.
+    /// Returns the vocoder configuration.
+    pub fn config(&self) -> &VocodeSynth {
+        &self.config
+    }
+
+    /// Processes a block of audio, mutating the embedded state.
     ///
     /// Both carrier and modulator should have the same length.
-    /// Returns the vocoded output.
+    /// Returns the vocoded output. Equivalent to calling [`step`](Self::step)
+    /// on the embedded state and keeping the result.
     pub fn process(&mut self, carrier: &[f32], modulator: &[f32]) -> Vec<f32> {
+        let state = std::mem::replace(&mut self.state, VocoderState::new(&self.config));
+        let result = self.step(&state, carrier, modulator);
+        self.state = result.state;
+        result.output
+    }
+
+    /// Pure single-block step: clones-and-advances the supplied state.
+    ///
+    /// Reads `state`, processes one block of `carrier`/`modulator`, and returns
+    /// the new state alongside the vocoded `output`. Does not touch the embedded
+    /// state, so it is safe to call from a `&self` graph node.
+    ///
+    /// Both inputs must have the same length.
+    pub fn step(&self, state: &VocoderState, carrier: &[f32], modulator: &[f32]) -> VocoderStep {
         assert_eq!(carrier.len(), modulator.len());
+
+        let mut envelopes = state.envelopes.clone();
+        let mut carrier_buffer = state.carrier_buffer.clone();
+        let mut modulator_buffer = state.modulator_buffer.clone();
+        let mut output_buffer = state.output_buffer.clone();
+        let mut output_position = state.output_position;
 
         let mut output = Vec::with_capacity(carrier.len());
         let mut pos = 0;
@@ -158,52 +233,66 @@ impl Vocoder {
 
             // Shift buffers left
             let shift = self.config.window_size - self.config.hop_size;
-            self.carrier_buffer.copy_within(self.config.hop_size.., 0);
-            self.modulator_buffer.copy_within(self.config.hop_size.., 0);
+            carrier_buffer.copy_within(self.config.hop_size.., 0);
+            modulator_buffer.copy_within(self.config.hop_size.., 0);
 
             // Add new samples
-            self.carrier_buffer[shift..shift + to_copy]
-                .copy_from_slice(&carrier[pos..pos + to_copy]);
-            self.modulator_buffer[shift..shift + to_copy]
+            carrier_buffer[shift..shift + to_copy].copy_from_slice(&carrier[pos..pos + to_copy]);
+            modulator_buffer[shift..shift + to_copy]
                 .copy_from_slice(&modulator[pos..pos + to_copy]);
 
             // Process when we have enough samples
             if to_copy == self.config.hop_size {
-                let frame = self.process_frame();
+                let frame = self.process_frame(&carrier_buffer, &modulator_buffer, &mut envelopes);
 
                 // Overlap-add
                 for (i, &sample) in frame.iter().enumerate() {
-                    let out_idx = (self.output_position + i) % self.output_buffer.len();
-                    self.output_buffer[out_idx] += sample;
+                    let out_idx = (output_position + i) % output_buffer.len();
+                    output_buffer[out_idx] += sample;
                 }
             }
 
             // Output samples
             for _ in 0..to_copy {
-                let out_idx = self.output_position % self.output_buffer.len();
-                output.push(self.output_buffer[out_idx]);
-                self.output_buffer[out_idx] = 0.0;
-                self.output_position += 1;
+                let out_idx = output_position % output_buffer.len();
+                output.push(output_buffer[out_idx]);
+                output_buffer[out_idx] = 0.0;
+                output_position += 1;
             }
 
             pos += to_copy;
         }
 
-        output
+        VocoderStep {
+            state: VocoderState {
+                envelopes,
+                carrier_buffer,
+                modulator_buffer,
+                output_buffer,
+                output_position,
+            },
+            output,
+        }
     }
 
-    /// Processes a single frame.
-    fn process_frame(&mut self) -> Vec<f32> {
+    /// Processes a single frame against the supplied buffers and envelopes.
+    ///
+    /// Pure except for the in-place envelope smoothing on `envelopes` (the
+    /// caller owns that slice). Returns the windowed output frame.
+    fn process_frame(
+        &self,
+        carrier_buffer: &[f32],
+        modulator_buffer: &[f32],
+        envelopes: &mut [f32],
+    ) -> Vec<f32> {
         // Apply window to both signals
-        let carrier_windowed: Vec<f32> = self
-            .carrier_buffer
+        let carrier_windowed: Vec<f32> = carrier_buffer
             .iter()
             .zip(&self.window)
             .map(|(s, w)| s * w)
             .collect();
 
-        let modulator_windowed: Vec<f32> = self
-            .modulator_buffer
+        let modulator_windowed: Vec<f32> = modulator_buffer
             .iter()
             .zip(&self.window)
             .map(|(s, w)| s * w)
@@ -217,13 +306,13 @@ impl Vocoder {
         let modulator_envelopes = self.compute_band_envelopes(&modulator_spectrum);
 
         // Update smoothed envelopes
-        for (band, env) in self.bands.iter_mut().zip(modulator_envelopes.iter()) {
-            band.envelope = band.envelope * self.config.envelope_smoothing
-                + env * (1.0 - self.config.envelope_smoothing);
+        for (env, &target) in envelopes.iter_mut().zip(modulator_envelopes.iter()) {
+            *env = *env * self.config.envelope_smoothing
+                + target * (1.0 - self.config.envelope_smoothing);
         }
 
         // Apply envelopes to carrier
-        let output_spectrum = self.apply_envelopes(&carrier_spectrum);
+        let output_spectrum = self.apply_envelopes(&carrier_spectrum, envelopes);
 
         // IFFT
         let output_frame = ifft(&output_spectrum);
@@ -253,10 +342,10 @@ impl Vocoder {
     }
 
     /// Applies band envelopes to a spectrum.
-    fn apply_envelopes(&self, spectrum: &[Complex]) -> Vec<Complex> {
+    fn apply_envelopes(&self, spectrum: &[Complex], envelopes: &[f32]) -> Vec<Complex> {
         let mut output = spectrum.to_vec();
 
-        for band in &self.bands {
+        for (band, &envelope) in self.bands.iter().zip(envelopes) {
             // Compute current band energy in carrier
             let mut carrier_energy = 0.0f32;
             let end = band.end_bin.min(spectrum.len());
@@ -268,7 +357,7 @@ impl Vocoder {
 
             // Compute gain to match modulator envelope
             let gain = if avg_carrier > 1e-10 {
-                band.envelope / avg_carrier
+                envelope / avg_carrier
             } else {
                 0.0
             };
@@ -282,17 +371,24 @@ impl Vocoder {
         output
     }
 
-    /// Resets the vocoder state.
+    /// Resets the embedded vocoder state.
     pub fn reset(&mut self) {
-        self.carrier_buffer.fill(0.0);
-        self.modulator_buffer.fill(0.0);
-        self.output_buffer.fill(0.0);
-        self.output_position = 0;
-        for band in &mut self.bands {
-            band.envelope = 0.0;
-        }
+        self.state.reset();
     }
 }
+
+/// Result of a pure vocoder [`step`](Vocoder::step): the new state plus the
+/// vocoded output block for this tick.
+#[derive(Debug, Clone)]
+pub struct VocoderStep {
+    /// The advanced vocoder state, to carry to the next block.
+    pub state: VocoderState,
+    /// The vocoded output samples for this block.
+    pub output: Vec<f32>,
+}
+
+#[cfg(feature = "feedback")]
+pub mod feedback;
 
 /// Creates logarithmically spaced frequency bands.
 fn create_bands(num_bins: usize, num_bands: usize) -> Vec<Band> {
@@ -314,7 +410,6 @@ fn create_bands(num_bins: usize, num_bands: usize) -> Vec<Band> {
         bands.push(Band {
             start_bin: start.min(num_bins - 1),
             end_bin: end.min(num_bins),
-            envelope: 0.0,
         });
     }
 
@@ -531,8 +626,8 @@ mod tests {
         vocoder.reset();
 
         // After reset, internal buffers should be zero
-        assert!(vocoder.carrier_buffer.iter().all(|&x| x == 0.0));
-        assert!(vocoder.modulator_buffer.iter().all(|&x| x == 0.0));
+        assert!(vocoder.state.carrier_buffer.iter().all(|&x| x == 0.0));
+        assert!(vocoder.state.modulator_buffer.iter().all(|&x| x == 0.0));
     }
 
     #[test]

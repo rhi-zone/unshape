@@ -15,6 +15,8 @@ dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
 optimize = []
 # Spectral analysis (FFT, STFT, time-stretch, pitch-shift)
 spectral = ["dep:unshape-spectral"]
+# Pure feedback-edge DynNode wrapper for the vocoder (recurrent graph integration).
+feedback = ["spectral"]
 # Experimental: JIT compilation for audio graphs
 cranelift = ["dep:cranelift", "dep:cranelift-frontend", "dep:cranelift-native", "dep:cranelift-module", "dep:cranelift-jit", "dep:unshape-jit", "unshape-jit/cranelift"]
 # Build-time codegen (requires serde)
