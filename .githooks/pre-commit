@@ -8,6 +8,9 @@ if [ -n "$staged" ]; then
   echo "$staged" | xargs git add
 fi
 
+echo "Running determinism guard..."
+"$(git rev-parse --show-toplevel)/tooling/check-determinism.sh"
+
 echo "Running cargo clippy..."
 cargo clippy --all-targets --all-features -- -D warnings
 
