@@ -5818,6 +5818,7 @@ dependencies = [
  "rand 0.9.2",
  "serde",
  "serde_json",
+ "unshape-core",
  "unshape-op",
 ]
 
@@ -6005,6 +6006,7 @@ dependencies = [
  "glam",
  "serde",
  "serde_json",
+ "unshape-core",
  "unshape-noise",
  "unshape-op",
 ]
@@ -6052,6 +6054,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "unshape-core",
  "unshape-op",
 ]
 
