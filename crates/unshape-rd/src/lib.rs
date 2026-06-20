@@ -27,6 +27,9 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "feedback")]
+pub mod feedback;
+
 /// Registers all reaction-diffusion operations with an [`OpRegistry`].
 ///
 /// Call this to enable deserialization of rd ops from saved pipelines.
