@@ -8,6 +8,9 @@ use glam::{Vec2, Vec3};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "feedback")]
+pub mod feedback;
+
 /// A single particle with position, velocity, and lifetime.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -628,7 +631,7 @@ impl ParticleRng {
 }
 
 /// Particle system that manages particles and their simulation.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ParticleSystem {
     /// Active particles.
     particles: Vec<Particle>,
@@ -730,6 +733,15 @@ impl ParticleSystem {
     /// Clears all particles.
     pub fn clear(&mut self) {
         self.particles.clear();
+    }
+
+    /// Removes dead particles (those whose age has reached their lifetime).
+    ///
+    /// This is the cull step used at the end of an update; exposed so external
+    /// per-tick drivers (e.g. the feedback-edge step node) can reproduce the
+    /// update semantics without owning the buffer.
+    pub fn retain_alive(&mut self) {
+        self.particles.retain(|p| p.is_alive());
     }
 }
 
