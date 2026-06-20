@@ -26,6 +26,12 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+      # Determinism guard (macro/static half): bans thread_local!, static mut,
+      # and thread::spawn in node/op crate src. The function-call half
+      # (clock/unseeded-RNG/env) is enforced by clippy via clippy.toml below.
+      - name: Determinism guard
+        run: tooling/check-determinism.sh
+
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 

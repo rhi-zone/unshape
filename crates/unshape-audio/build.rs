@@ -16,6 +16,9 @@ fn generate_benchmark_effects() {
         SerialAudioGraph, SerialAudioNode, SerialParamWire, generate_effect, generate_header,
     };
 
+    // Determinism guard exemption: build scripts are not node/op code; OUT_DIR
+    // is the standard cargo build-time variable. See clippy.toml.
+    #[allow(clippy::disallowed_methods)]
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("codegen_bench.rs");
 

@@ -1,0 +1,39 @@
+# Determinism guard for node/op crates.
+#
+# Nodes (`impl DynNode`) and ops (`#[derive(unshape_op::Op)]` / `impl DynOp`)
+# MUST be deterministic: given the same inputs they MUST produce the same
+# outputs. This is the invariant that makes the graph a project file (replayable,
+# diffable, cacheable) and a live signal substrate at once. See
+# `docs/design/determinism-guard.md`.
+#
+# Ambient non-determinism — reading the wall clock, drawing from an unseeded
+# RNG, reading process environment — would break that invariant silently. This
+# file mechanizes the ban for the function-call cases clippy can see. The
+# macro/static cases clippy cannot see (`thread_local!`, `static mut`) are
+# covered by `tooling/check-determinism.sh`, wired into CI.
+#
+# `clippy.toml` is workspace-global; there is no per-crate scoping. So this bans
+# the APIs everywhere and legitimate *runtime/optimizer* uses inside node/op
+# crates (e.g. the evaluator's perf timing and LRU cache bookkeeping in
+# `unshape-core::eval`) carry an explicit, documented
+# `#[allow(clippy::disallowed_methods)]` at the use site. Seeded RNG (an `Rng`
+# instance constructed from an explicit seed, e.g. `rng.random()`) is FINE and
+# is not matched here — only the unseeded free functions are.
+
+disallowed-methods = [
+    { path = "std::time::SystemTime::now", reason = "nodes/ops must be deterministic: do not read the wall clock. Drive time via an explicit input/signal instead." },
+    { path = "std::time::Instant::now", reason = "nodes/ops must be deterministic: do not read the monotonic clock. Drive time via an explicit input/signal instead. (Runtime perf-timing/cache bookkeeping may #[allow] this with a documented reason.)" },
+    # rand 0.9 unseeded entry points. `rand::rng` / `rand::random` / `rand::thread_rng`
+    # all resolve through cfg(feature = "thread_rng") re-exports, and `rand::rng`
+    # additionally collides with the `rand::rng` *module*. clippy's config validator
+    # cannot always resolve these surface aliases to a single function (it reports
+    # "not reachable" / "found a module"), but the lint still fires at the actual
+    # call site. `allow-invalid = true` suppresses the spurious config-validation
+    # warning while keeping the call-site lint active (verified: an unseeded
+    # `rand::rng()` is still caught).
+    { path = "rand::random", reason = "nodes/ops must be deterministic: unseeded randomness. Construct a seeded Rng from an explicit seed parameter and call rng.random() instead.", allow-invalid = true },
+    { path = "rand::thread_rng", reason = "nodes/ops must be deterministic: thread_rng is unseeded. Construct a seeded Rng from an explicit seed parameter instead.", allow-invalid = true },
+    { path = "rand::rng", reason = "nodes/ops must be deterministic: rand::rng() is unseeded. Construct a seeded Rng from an explicit seed parameter instead.", allow-invalid = true },
+    { path = "std::env::var", reason = "nodes/ops must be deterministic: do not read process environment. Pass configuration as explicit inputs. (build.rs is exempt; it is not node/op code.)" },
+    { path = "std::env::vars", reason = "nodes/ops must be deterministic: do not read process environment. Pass configuration as explicit inputs." },
+]
