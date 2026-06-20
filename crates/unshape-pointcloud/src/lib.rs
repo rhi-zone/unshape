@@ -13,13 +13,13 @@
 //! use unshape_mesh::Cuboid;
 //!
 //! let mesh = Cuboid::unit().apply();
-//! let cloud = sample_mesh_uniform(&mesh, 1000);
+//! let cloud = sample_mesh_uniform(&mesh, 1000, 42);
 //!
 //! assert!(cloud.len() >= 100); // Some points generated
 //! ```
 
 use glam::{UVec3, Vec3, Vec4};
-use rand::Rng;
+use rand::{Rng, SeedableRng, rngs::StdRng};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use unshape_field::{EvalContext, Field};
@@ -222,8 +222,10 @@ impl HasColors for PointCloud {
 ///
 /// Uses random barycentric coordinates on each triangle,
 /// with probability proportional to triangle area.
-pub fn sample_mesh_uniform(mesh: &Mesh, count: usize) -> PointCloud {
-    let mut rng = rand::rng();
+///
+/// Deterministic: the same `seed` yields the same point cloud.
+pub fn sample_mesh_uniform(mesh: &Mesh, count: usize, seed: u64) -> PointCloud {
+    let mut rng = StdRng::seed_from_u64(seed);
     sample_mesh_uniform_with_rng(mesh, count, &mut rng)
 }
 
@@ -317,13 +319,16 @@ pub fn sample_mesh_uniform_with_rng<R: Rng>(mesh: &Mesh, count: usize, rng: &mut
 ///
 /// Samples points where the SDF value is within `threshold` of zero.
 /// The `bounds` parameter specifies the sampling region (min, max).
+///
+/// Deterministic: the same `seed` yields the same point cloud.
 pub fn sample_sdf<F: Field<Vec3, f32>>(
     sdf: &F,
     bounds: (Vec3, Vec3),
     count: usize,
     threshold: f32,
+    seed: u64,
 ) -> PointCloud {
-    let mut rng = rand::rng();
+    let mut rng = StdRng::seed_from_u64(seed);
     sample_sdf_with_rng(sdf, bounds, count, threshold, &mut rng)
 }
 
@@ -376,6 +381,8 @@ pub struct Poisson {
     pub min_distance: f32,
     /// Maximum attempts to place each point.
     pub max_attempts: u32,
+    /// Seed for the random number generator. Same seed → same result.
+    pub seed: u64,
 }
 
 impl Default for Poisson {
@@ -383,6 +390,7 @@ impl Default for Poisson {
         Self {
             min_distance: 0.1,
             max_attempts: 30,
+            seed: 0,
         }
     }
 }
@@ -410,7 +418,7 @@ pub type PoissonConfig = Poisson;
 /// This creates a more uniform distribution than pure random sampling.
 pub fn sample_mesh_poisson(mesh: &Mesh, config: &Poisson) -> PointCloud {
     // First sample many points uniformly
-    let oversampled = sample_mesh_uniform(mesh, 10000);
+    let oversampled = sample_mesh_uniform(mesh, 10000, config.seed);
     if oversampled.is_empty() {
         return PointCloud::new();
     }
@@ -721,23 +729,28 @@ impl EstimateNormals {
 pub struct UniformSampling {
     /// Number of points to sample.
     pub count: usize,
+    /// Seed for the random number generator. Same seed → same result.
+    pub seed: u64,
 }
 
 impl Default for UniformSampling {
     fn default() -> Self {
-        Self { count: 1000 }
+        Self {
+            count: 1000,
+            seed: 0,
+        }
     }
 }
 
 impl UniformSampling {
-    /// Creates a new uniform sampling operation with the given point count.
-    pub fn new(count: usize) -> Self {
-        Self { count }
+    /// Creates a new uniform sampling operation with the given point count and seed.
+    pub fn new(count: usize, seed: u64) -> Self {
+        Self { count, seed }
     }
 
     /// Applies this uniform sampling operation to a mesh.
     pub fn apply(&self, mesh: &Mesh) -> PointCloud {
-        sample_mesh_uniform(mesh, self.count)
+        sample_mesh_uniform(mesh, self.count, self.seed)
     }
 }
 
@@ -1373,7 +1386,7 @@ mod tests {
     #[test]
     fn test_sample_mesh_uniform() {
         let mesh = Cuboid::unit().apply();
-        let cloud = sample_mesh_uniform(&mesh, 100);
+        let cloud = sample_mesh_uniform(&mesh, 100, 42);
 
         assert!(cloud.len() >= 50); // Should get most of the requested points
         assert!(cloud.has_normals());
@@ -1432,7 +1445,7 @@ mod tests {
     #[test]
     fn test_estimate_normals() {
         let mesh = Cuboid::unit().apply();
-        let cloud = sample_mesh_uniform(&mesh, 100);
+        let cloud = sample_mesh_uniform(&mesh, 100, 42);
 
         // Remove existing normals to test estimation
         let cloud_no_normals = PointCloud::from_positions(cloud.positions.clone());
@@ -1448,6 +1461,7 @@ mod tests {
         let config = PoissonConfig {
             min_distance: 0.2,
             max_attempts: 30,
+            seed: 42,
         };
 
         let cloud = sample_mesh_poisson(&mesh, &config);
