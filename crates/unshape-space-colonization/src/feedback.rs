@@ -21,11 +21,10 @@
 //!
 //! Attraction-point generation is fully seeded (`add_attraction_points_*` take a
 //! `u64` seed), so the same [`GrowInit`] config always seeds the same points; no
-//! RNG runs inside `step`. The growth geometry (the set of grown node positions)
-//! is therefore deterministic. The processing *order* within a step uses a
-//! `HashMap`/`HashSet` and so is not index-stable across runs, but the resulting
-//! geometry set is — the reproduction test compares positions as an
-//! order-independent set.
+//! RNG runs inside `step`. The native `step` sorts its `HashSet`/`HashMap`
+//! iteration so growth is index-stable and bit-reproducible across runs and
+//! drivers — the reproduction test compares grown node positions directly,
+//! bit-for-bit.
 
 use std::any::Any;
 
