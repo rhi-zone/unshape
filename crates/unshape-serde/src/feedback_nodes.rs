@@ -298,6 +298,29 @@ mod space_colonization {
 pub use space_colonization::register as register_space_colonization_feedback_nodes;
 
 // ===========================================================================
+// Procedural generation / Wave Function Collapse (unshape-procgen)
+// ===========================================================================
+
+#[cfg(feature = "procgen-feedback")]
+mod procgen {
+    use super::*;
+    use unshape_procgen::feedback::{WfcInit, WfcStep};
+
+    impl_serializable_node!(WfcInit, WfcStep);
+
+    /// Registers the procgen (Wave Function Collapse) feedback nodes.
+    ///
+    /// Type names: `"procgen::feedback::WfcInit"`, `"procgen::feedback::WfcStep"`.
+    pub fn register(registry: &mut NodeRegistry) {
+        registry.register_with_name::<WfcInit>("procgen::feedback::WfcInit");
+        registry.register_with_name::<WfcStep>("procgen::feedback::WfcStep");
+    }
+}
+
+#[cfg(feature = "procgen-feedback")]
+pub use procgen::register as register_procgen_feedback_nodes;
+
+// ===========================================================================
 // Umbrella
 // ===========================================================================
 
@@ -324,6 +347,8 @@ pub fn register_all_feedback_nodes(registry: &mut NodeRegistry) {
     register_physics_feedback_nodes(registry);
     #[cfg(feature = "space-colonization-feedback")]
     register_space_colonization_feedback_nodes(registry);
+    #[cfg(feature = "procgen-feedback")]
+    register_procgen_feedback_nodes(registry);
 }
 
 #[cfg(all(test, feature = "rd-feedback"))]
