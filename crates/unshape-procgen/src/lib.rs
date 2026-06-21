@@ -20,6 +20,8 @@
 //! let grid = maze.to_grid();
 //! ```
 
+#[cfg(feature = "feedback")]
+pub mod feedback;
 pub mod maze;
 pub mod network;
 
@@ -502,6 +504,16 @@ impl<A: AdjacencySource> WfcSolver<A> {
         Ok(())
     }
 
+    /// Seeds the internal RNG state deterministically.
+    ///
+    /// Drives the same RNG stream as [`run`](Self::run) (which sets
+    /// `seed.wrapping_add(1)` internally), so seeding then repeatedly calling
+    /// [`step`](Self::step) reproduces `run(seed)` exactly. Used by the recurrent
+    /// (feedback) integration to carry the RNG on the feedback edge.
+    pub fn set_seed(&mut self, seed: u64) {
+        self.rng_state = seed.wrapping_add(1);
+    }
+
     /// Runs the WFC algorithm to completion.
     pub fn run(&mut self, seed: u64) -> Result<(), WfcError> {
         self.rng_state = seed.wrapping_add(1);
@@ -618,8 +630,12 @@ impl<A: AdjacencySource> WfcSolver<A> {
             return Err(WfcError::Contradiction);
         }
 
-        // Weighted random selection
-        let possibilities: Vec<TileId> = cell.possibilities.iter().copied().collect();
+        // Weighted random selection. `possibilities` is a `HashSet`, whose
+        // iteration order is not stable across runs; sort by tile index so the
+        // weighted pick (which depends on iteration order) is deterministic and
+        // the whole solve is reproducible for a given seed.
+        let mut possibilities: Vec<TileId> = cell.possibilities.iter().copied().collect();
+        possibilities.sort_unstable_by_key(|t| t.index());
         let total_weight: f32 = possibilities
             .iter()
             .map(|&t| self.adjacency.weight(t))
