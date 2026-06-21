@@ -10,10 +10,13 @@ description = "Core types and traits for unshape"
 default = []
 serde = ["dep:serde", "glam/serde"]
 dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
+# Pure feedback-edge DynNode wrappers (recurrent graph integration).
+feedback = ["dep:unshape-core"]
 invariant-tests = []
 
 [dependencies]
 glam = { workspace = true }
+unshape-core = { workspace = true, optional = true }
 unshape-op = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }

@@ -13,6 +13,10 @@ particle-feedback = ["dep:unshape-particle"]
 fluid-feedback = ["dep:unshape-fluid"]
 audio-feedback = ["dep:unshape-audio"]
 automata-feedback = ["dep:unshape-automata"]
+spring-feedback = ["dep:unshape-spring"]
+physics-feedback = ["dep:unshape-physics"]
+space-colonization-feedback = ["dep:unshape-space-colonization"]
+procgen-feedback = ["dep:unshape-procgen"]
 # Convenience: register every feedback node from all sim crates.
 feedback-nodes = [
     "rd-feedback",
@@ -20,6 +24,10 @@ feedback-nodes = [
     "fluid-feedback",
     "audio-feedback",
     "automata-feedback",
+    "spring-feedback",
+    "physics-feedback",
+    "space-colonization-feedback",
+    "procgen-feedback",
 ]
 
 [dependencies]
@@ -40,6 +48,22 @@ unshape-audio = { workspace = true, features = [
     "serde",
 ], optional = true }
 unshape-automata = { workspace = true, features = [
+    "feedback",
+    "serde",
+], optional = true }
+unshape-spring = { workspace = true, features = [
+    "feedback",
+    "serde",
+], optional = true }
+unshape-physics = { workspace = true, features = [
+    "feedback",
+    "serde",
+], optional = true }
+unshape-space-colonization = { workspace = true, features = [
+    "feedback",
+    "serde",
+], optional = true }
+unshape-procgen = { workspace = true, features = [
     "feedback",
     "serde",
 ], optional = true }

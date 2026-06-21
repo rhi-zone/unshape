@@ -36,6 +36,9 @@ use serde::{Deserialize, Serialize};
 
 use glam::Vec3;
 
+#[cfg(feature = "feedback")]
+pub mod feedback;
+
 /// Registers all spring operations with an [`OpRegistry`].
 ///
 /// Call this to enable deserialization of spring ops from saved pipelines.
