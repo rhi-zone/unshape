@@ -29,14 +29,30 @@ proposed answer to that.
 These were checked against current source *this session* and are stated as
 established, not conjectured:
 
-- **Statefulness is NOT an unsolved problem for carving.**
-  `DynNode::execute(&self, ...)` is pure. Simulation state rides a *feedback
-  edge* (`Wire { feedback: bool }`): an `*Init` source node seeds the state,
-  and a pure `*Step` node evolves it by clone-and-advance. So there is already
-  a clean *typed* axis available to any carving: **pure morphism vs. recurrent
-  (Init + Step pair).** (An earlier audit's claim that "no carving models
-  state" was an artifact of reading the native `step(&mut self)` kernels
-  instead of the pure feedback nodes — it does not hold.)
+- **Statefulness-as-feedback-edge is implemented for a SUBSET of recurrent
+  sims, not all.** For *ported* nodes, `DynNode::execute(&self, ...)` is pure
+  and simulation state rides a *feedback edge* (`Wire { feedback: bool }`): an
+  `*Init` source node seeds the state, and a pure `*Step` node evolves it by
+  clone-and-advance. But the feedback-node migration is **incomplete**. Audit
+  (source-verified):
+  - **PORTED** to pure `&self` Step + Init nodes on a feedback edge —
+    `unshape-rd`, `unshape-fluid`, `unshape-particle`, `unshape-audio`
+    (vocoder): **4 crates.**
+  - **NATIVE-ONLY** (still `step(&mut self)`, no feedback feature) —
+    `unshape-automata`, `unshape-physics`, `unshape-spring`,
+    `unshape-space-colonization`, `unshape-procgen`: **5 crates.**
+  - **NOT recurrent** (correctly no feedback) — `unshape-rig`/IK, a pure
+    functional solver `solve(&self, chain, skeleton, pose: &mut Pose)`.
+
+  So: **4 of 9 genuinely-recurrent sims are ported; the migration is
+  incomplete.** The accurate claim is: for ported sims, statefulness rides a
+  feedback edge with a pure `&self` Step node; native-only sims still mutate
+  internal state via `&mut self`. The **pure-vs-recurrent** carving axis and any
+  state-TypeId bucketing / behavioral probing therefore **only apply to PORTED
+  sims today.** (An earlier audit's claim that "no carving models state" was an
+  artifact of reading the native `step(&mut self)` kernels instead of the pure
+  feedback nodes — but the inverse overclaim, that *all* sim state rides a
+  feedback edge, is equally wrong: only 4 of 9 do.)
 
 - **`Field<I, O>` is a pure `coord → value` function.** Stateful grid
   simulations correctly do *not* implement it, because their value depends on
@@ -144,10 +160,11 @@ recency-weighted centroid in the manifold.
   the model is the vector, not the picture.
 - *Cold-start* buries the rare-but-powerful primitive (e.g. erosion) under the
   common ones.
-- Feature extraction was *claimed* to fail for stateful sims — but per the
-  verified facts above, the feedback-edge axis (recurrent vs. pure) actually
-  rescues that case, so **this particular crack is weaker than originally
-  stated.**
+- Feature extraction was *claimed* to fail for stateful sims — per the
+  verified facts above, the feedback-edge axis (recurrent vs. pure) rescues
+  that case **only for the 4 ported sims**; the 5 native-only sims still have
+  no graph-level state node to extract from, so this crack is weaker than
+  originally stated **but not closed**.
 
 ## Adversarial findings
 
@@ -193,8 +210,10 @@ not blessed.
 ### The three layers
 
 1. **Membership = hard, machine-extracted typed/structural filter.** OpType
-   match + arity + domain-dimensionality + the verified pure-vs-recurrent axis +
-   facet. Deterministic by construction; CI-enforceable (machine-extracted axes
+   match + arity + domain-dimensionality + the pure-vs-recurrent axis (which
+   discriminates only the **4 ported** sims today — native-only sims carry no
+   graph-level state node) + facet. Deterministic by construction; CI-enforceable
+   (machine-extracted axes
    can be asserted at build time; subjective tags cannot). This is the legality
    layer — "a sharper domain tab." Position within it is stable. It is the only
    layer that organizes the structural/behavioral third of the catalogue by real
@@ -235,12 +254,14 @@ is legitimate exactly like window layout.
 ### Two gaps NONE of the five candidates solved (the open frontier)
 
 1. **The recurrent/stateful third needs its own organizing story.** "Recurrent
-   vs pure" correctly **bins** GrayScott / fluid / cellular-automata / particle
-   steppers / IK, but gives no intra-bin ordering, and the fingerprint/preview
-   mechanisms structurally cannot sample them (they are not pure Fields; e.g. rd
-   `Step` is `&mut self step()`, IK `SolveCcd`/`SolveFabrik` take
-   `(&Skeleton, &mut Pose)`). The Init+Step recurrence pair needs a first-class
-   organizing treatment the morphism-centric carvings do not provide.
+   vs pure" can **bin** the ported steppers (rd / fluid / particle / vocoder),
+   but only those — the 5 native-only sims (automata / physics / spring /
+   space-colonization / procgen) have no graph-level state node to bin on. Even
+   for ported sims it gives no intra-bin ordering, and the fingerprint/preview
+   mechanisms structurally cannot sample the native ones (they are not pure
+   Fields; e.g. native `step()` is `&mut self`, IK `solve` takes a `&mut Pose`).
+   The Init+Step recurrence pair needs a first-class organizing treatment the
+   morphism-centric carvings do not provide.
 2. **Config-enum variants: a primitive is often a family, not a point.**
    `Worley2D` is 9 behaviors (3 distance functions × 3 return types — verified in
    source), visually ranging from cells to cracks, yet all five candidates
@@ -250,3 +271,76 @@ is legitimate exactly like window layout.
 
 STATUS of this synthesis: candidate, unblessed. A further decorrelated pass on
 the two open gaps is underway.
+
+## Refinement after second adversarial round (unblessed)
+
+> **UNBLESSED.** This subsection refines — and in places **corrects** — the
+> candidate synthesis above. It is the result of three decorrelated gap-designs
+> (probe / structure / template) put through three adversarial judges
+> (determinism, curation, projectional-coherence). Nothing here is blessed; the
+> `STATUS: OPEN` at the top of the doc still governs.
+
+1. **PRECONDITION (blocking).** Per *finish migrations before building on top*:
+   the recurrent-axis carving — state-TypeId bucketing (read off
+   `Step.outputs()` `ValueType::Custom`) and behavioral probing — works only for
+   the **4 ported** sims. The **5 native-only** sims (automata, physics, spring,
+   space-colonization, procgen) have no graph-level state node and nothing pure
+   to sample. Before the carving can claim to cover sims, those 5 must be
+   **ported to feedback nodes OR explicitly fenced as legacy native-step
+   kernels.** Note: `ValueType::Custom` carries a **non-serializable `TypeId`**,
+   so the *persisted* bucket key must be the **stable type-name string**, not the
+   TypeId.
+
+2. **The "two gaps are one gap" collapse is REJECTED.** A config-enum family
+   (e.g. Worley's 9 = `DistanceFunction` × `WorleyReturn`) is a pure selection
+   over a **stateless morphism** — no tick/seed/seek. A sim is a **recurrence**
+   needing `connect_recurrence` / `run_to_tick` / seek / `Init`. They share no
+   machinery; merging them papers over an asymmetry that resurfaces at preview
+   (a Worley variant previews by pure re-eval; a sim only by `run_to_tick` from a
+   seed) and at the feedback wire. They stay **DISTINCT.** Furthermore: a
+   config-enum family is the **enumerable case of the already-committed
+   first-class variant-set** (compare-variants / vary-per-X in
+   `editor-interaction.md`) — it should **collapse into that existing
+   primitive** (the enum *is* the variant axis), not spawn a parallel
+   "config-family" notion. (*collapse-asymmetries-to-primitives.*)
+
+3. **Templates-as-unit via INLINING is REJECTED.** Inlining a recipe into the
+   project graph as anonymous nodes either destroys the abstraction (the
+   node-editor abstraction-blindness we reject) or forces reconstructing identity
+   from provenance tags — which is the forbidden *string-matching-when-structure-
+   exists* anti-pattern. The coherence-preserving form of the legitimate need (a
+   reusable, nameable, abstraction-preserving sim/recipe unit): a template
+   instantiates as a **collapsed group node that STAYS in the project graph.**
+   Identity is structural (the group node), show/hide-body is a projection, holes
+   are real input ports (so painted-density / live-signal inputs enter as
+   faithful wires rather than escaping a frozen subgraph), it unifies with
+   first-class variants instead of duplicating them, and the sim/morphism
+   asymmetry stays visible (a recurrent group carries its `connect_recurrence` +
+   seed inside the boundary; a Worley-family node does not).
+
+4. **Layer assignment after the round.**
+   - **Membership / recall backbone = STRUCTURE (machine-derived):**
+     state-type-name buckets for ported sims; family variant axes read off the
+     existing serde/schemars enum schema. `worley` → **ONE entry + enum
+     dropdowns** (NOT 9 rows). Lowest marginal cost per new op; no
+     silent-omission failure; rot-proof because derived from types the compiler
+     keeps consistent.
+   - **Discovery soft signal = PROBE (behavioral fingerprint),** build-time-
+     pinned, and STRICTLY: never the canonical list, never an op input.
+     Determinism conditions it must meet: (a) no op-input path; (b) hermetic
+     build OR tolerance-banded fuzzy fingerprints (raw settle-time /
+     oscillation-count / DCT reductions flip ±1 at cross-platform float
+     boundaries and reintroduce the FFT platform-dependence already fenced —
+     "pin as build-time data" only relocates this to non-hermetic builds); (c) no
+     runtime / author-time recomputation; (d) it structurally cannot sample
+     native-only sims, so it covers only ported ones.
+   - **Curated layer discipline:** the human layer may only **ADD** synonyms /
+     labels / demotions to machine-derived entries — it may **never BE** an
+     entry. Build must **FAIL** if a hand-written synonym/template references an
+     op or enum variant that no longer resolves. (Outcome-naming alone is
+     strictly worse than tagging for recall — one primary string must coincide
+     with the query — so names are a display+synonym overlay on the machine
+     index, not the recall key.)
+
+STATUS: still OPEN. Precondition (port-or-fence the 5 native-only sims) is the
+gating next step before sim coverage is real.
