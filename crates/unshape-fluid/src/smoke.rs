@@ -51,7 +51,7 @@ impl Smoke {
 pub type SmokeConfig = Smoke;
 
 /// 2D smoke/gas simulation with buoyancy.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SmokeGrid2D {
     width: usize,
     height: usize,
@@ -276,7 +276,7 @@ impl SmokeGrid2D {
 }
 
 /// 3D smoke/gas simulation with buoyancy.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SmokeGrid3D {
     width: usize,
     height: usize,

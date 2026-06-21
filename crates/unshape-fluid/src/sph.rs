@@ -81,6 +81,7 @@ impl SphParticle2D {
 }
 
 /// 2D SPH fluid simulation.
+#[derive(Clone, Debug)]
 pub struct Sph2D {
     /// All particles in the simulation.
     pub particles: Vec<SphParticle2D>,
@@ -325,6 +326,7 @@ impl SphParams3D {
 pub type SphConfig3D = SphParams3D;
 
 /// 3D SPH fluid simulation.
+#[derive(Clone, Debug)]
 pub struct Sph3D {
     /// All particles in the simulation.
     pub particles: Vec<SphParticle3D>,
