@@ -3,9 +3,7 @@
 //! This module implements the generic `JitCompilable` trait from `unshape-jit`
 //! for audio-specific node types. Both scalar and SIMD implementations are provided.
 
-#![cfg(feature = "cranelift")]
-
-use cranelift::ir::{InstBuilder, Value, types};
+use cranelift::ir::{InstBuilder, Value};
 use cranelift_frontend::FunctionBuilder;
 use unshape_jit::{JitCategory, JitCompilable, JitContext, SimdCompilable, SimdWidth};
 
@@ -245,7 +243,6 @@ impl SimdCompilable for Constant {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use unshape_jit::{JitCompiler, JitConfig};
 
     #[test]
     fn test_affine_category() {

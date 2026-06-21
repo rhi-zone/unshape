@@ -1700,6 +1700,7 @@ mod tests {
     // Convolution Reverb tests
     // ========================================================================
 
+    #[cfg(feature = "spectral")]
     #[test]
     fn test_convolution_reverb_creates() {
         let ir = vec![1.0, 0.5, 0.25, 0.125];
@@ -1707,12 +1708,14 @@ mod tests {
         assert_eq!(reverb.latency(), 512);
     }
 
+    #[cfg(feature = "spectral")]
     #[test]
     fn test_convolution_reverb_from_decay() {
         let reverb = ConvolutionReverb::from_decay(0.5, 44100.0, 512);
         assert!(reverb.ir_length() > 0);
     }
 
+    #[cfg(feature = "spectral")]
     #[test]
     fn test_convolution_reverb_process() {
         // Create simple IR - just a delta function for identity convolution
@@ -1741,6 +1744,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "spectral")]
     #[test]
     fn test_convolution_reverb_clear() {
         let ir = vec![1.0; 1024];
@@ -1758,6 +1762,7 @@ mod tests {
         assert!(out.abs() < 0.01);
     }
 
+    #[cfg(feature = "spectral")]
     #[test]
     fn test_convolution_reverb_block_process() {
         let ir = vec![1.0, 0.8, 0.6, 0.4, 0.2, 0.1];
@@ -1772,6 +1777,7 @@ mod tests {
         assert_eq!(output.len(), 256);
     }
 
+    #[cfg(feature = "spectral")]
     #[test]
     fn test_generate_room_ir() {
         let ir = generate_room_ir(0.5, 0.3, 1.0, 44100.0);
@@ -1788,6 +1794,7 @@ mod tests {
         assert!(sum > 0.0);
     }
 
+    #[cfg(feature = "spectral")]
     #[test]
     fn test_convolution_config() {
         let config = ConvolutionConfig::default();
@@ -1796,6 +1803,7 @@ mod tests {
         assert!((config.gain - 1.0).abs() < 0.001);
     }
 
+    #[cfg(feature = "spectral")]
     #[test]
     fn test_convolution_reverb_helper() {
         let ir = generate_room_ir(0.3, 0.5, 0.5, 44100.0);
@@ -1810,6 +1818,7 @@ mod tests {
         assert!((reverb.gain - 0.8).abs() < 0.001);
     }
 
+    #[cfg(feature = "spectral")]
     #[test]
     fn test_convolution_as_audio_node() {
         let ir = vec![1.0; 256];

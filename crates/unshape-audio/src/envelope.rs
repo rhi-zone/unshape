@@ -548,14 +548,14 @@ mod invariant_tests {
 
         for _ in 0..10000 {
             let value = env.process(DT);
-            assert!(value >= 0.0 && value <= 1.0, "ADSR out of range: {}", value);
+            assert!((0.0..=1.0).contains(&value), "ADSR out of range: {}", value);
         }
 
         env.release();
         for _ in 0..10000 {
             let value = env.process(DT);
             assert!(
-                value >= 0.0 && value <= 1.0,
+                (0.0..=1.0).contains(&value),
                 "ADSR out of range during release: {}",
                 value
             );
@@ -677,7 +677,7 @@ mod invariant_tests {
             let phase = i as f32 / 1000.0;
             let value = lfo.sample_at(phase);
             assert!(
-                value >= -1.0 && value <= 1.0,
+                (-1.0..=1.0).contains(&value),
                 "LFO out of range at phase {}: {}",
                 phase,
                 value
@@ -704,7 +704,7 @@ mod invariant_tests {
                 let phase = i as f32 / 1000.0;
                 let value = lfo.sample_at(phase);
                 assert!(
-                    value >= -1.0 && value <= 1.0,
+                    (-1.0..=1.0).contains(&value),
                     "{:?} LFO out of range at phase {}: {}",
                     waveform,
                     phase,
@@ -767,7 +767,7 @@ mod invariant_tests {
 
         for _ in 0..20000 {
             let value = env.process(DT);
-            assert!(value >= 0.0 && value <= 1.0, "AR out of range: {}", value);
+            assert!((0.0..=1.0).contains(&value), "AR out of range: {}", value);
         }
     }
 

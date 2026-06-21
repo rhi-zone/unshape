@@ -1,11 +1,7 @@
 use std::any::TypeId;
 use std::collections::HashMap;
 
-use crate::graph::{
-    AdsrNode, AffineNode, ArNode, AudioGraph, AudioNode, BiquadNode, Clip, Constant,
-    FeedbackDelayNode, HighPassNode, LowPassNode, NodeIndex, Oscillator, Silence, SoftClip,
-};
-use crate::primitive::{AllpassNode, DelayNode, EnvelopeNode, LfoNode, MixNode};
+use crate::graph::{AudioGraph, AudioNode, NodeIndex};
 
 /// Enumeration of known audio node types for fingerprinting.
 ///
@@ -282,7 +278,7 @@ pub fn structural_match(graph: &AudioGraph, pattern: &Pattern) -> Option<MatchRe
     // Try to find an assignment of pattern nodes to graph nodes
     let mut assignment = vec![None; structure.nodes.len()];
 
-    if find_assignment(graph, &graph_info, pattern, &mut assignment, 0) {
+    if find_assignment(&graph_info, pattern, &mut assignment, 0) {
         // Build match result from assignment
         let node_mapping: Vec<NodeIndex> = assignment.into_iter().map(|o| o.unwrap()).collect();
 
@@ -350,7 +346,6 @@ impl GraphInfo {
 
 /// Recursive backtracking to find a valid assignment.
 fn find_assignment(
-    graph: &AudioGraph,
     info: &GraphInfo,
     pattern: &Pattern,
     assignment: &mut [Option<NodeIndex>],
@@ -372,7 +367,7 @@ fn find_assignment(
 
     for &candidate in candidates {
         // Skip if already assigned
-        if assignment.iter().any(|&a| a == Some(candidate)) {
+        if assignment.contains(&Some(candidate)) {
             continue;
         }
 
@@ -380,7 +375,7 @@ fn find_assignment(
         assignment[pattern_idx] = Some(candidate);
 
         // Recurse to assign remaining nodes
-        if find_assignment(graph, info, pattern, assignment, pattern_idx + 1) {
+        if find_assignment(info, pattern, assignment, pattern_idx + 1) {
             return true;
         }
 
@@ -518,7 +513,7 @@ pub fn optimize_graph(graph: &mut AudioGraph, patterns: &[Pattern]) {
 
         for pattern in candidates {
             if let Some(result) = structural_match(graph, pattern) {
-                let dominated = best.as_ref().map_or(false, |(b, bp)| {
+                let dominated = best.as_ref().is_some_and(|(b, bp)| {
                     // Prefer: larger size, then higher priority
                     result.size() < b.size()
                         || (result.size() == b.size() && pattern.priority <= bp.priority)
@@ -542,7 +537,7 @@ pub fn optimize_graph(graph: &mut AudioGraph, patterns: &[Pattern]) {
 }
 
 /// Compute fingerprint for a graph.
-fn compute_fingerprint(graph: &AudioGraph) -> GraphFingerprint {
+pub(crate) fn compute_fingerprint(graph: &AudioGraph) -> GraphFingerprint {
     let mut fp = GraphFingerprint::new();
 
     for i in 0..graph.node_count() {
@@ -574,16 +569,16 @@ fn replace_subgraph(
     }
 
     // Handle input/output node references
-    if let Some(input_node) = graph.input_node() {
-        if match_result.node_mapping.contains(&input_node) {
-            graph.connect_input(new_id);
-        }
+    if let Some(input_node) = graph.input_node()
+        && match_result.node_mapping.contains(&input_node)
+    {
+        graph.connect_input(new_id);
     }
 
-    if let Some(output_node) = graph.output_node() {
-        if match_result.node_mapping.contains(&output_node) {
-            graph.set_output(new_id);
-        }
+    if let Some(output_node) = graph.output_node()
+        && match_result.node_mapping.contains(&output_node)
+    {
+        graph.set_output(new_id);
     }
 
     // Remove matched nodes (in reverse order to preserve indices)

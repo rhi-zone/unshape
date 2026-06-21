@@ -34,8 +34,6 @@
 //! For compile-time known graphs, prefer Tier 4 (codegen) which has zero overhead.
 //! For common effect patterns, prefer Tier 2 (pattern matching).
 
-#![cfg(feature = "cranelift")]
-
 use cranelift::Context;
 use cranelift::ir::types;
 use cranelift::ir::{AbiParam, InstBuilder};
@@ -50,7 +48,7 @@ use std::mem;
 pub enum JitError {
     /// Cranelift module creation failed.
     #[error("module error: {0}")]
-    Module(#[from] cranelift_module::ModuleError),
+    Module(#[from] Box<cranelift_module::ModuleError>),
 
     /// Unsupported node type for JIT compilation.
     #[error("unsupported node type: {0}")]
@@ -59,6 +57,12 @@ pub enum JitError {
     /// Graph structure not suitable for JIT.
     #[error("graph error: {0}")]
     Graph(String),
+}
+
+impl From<cranelift_module::ModuleError> for JitError {
+    fn from(e: cranelift_module::ModuleError) -> Self {
+        JitError::Module(Box::new(e))
+    }
 }
 
 /// Result type for JIT operations.
@@ -320,8 +324,6 @@ pub struct CompiledGraph {
     func: fn(*const f32, *mut f32, usize, *mut GraphState),
     /// Mutable state for stateful nodes.
     state: Box<GraphState>,
-    /// Sample rate for context updates.
-    sample_rate: f32,
 }
 
 /// State container for a compiled graph.
@@ -335,8 +337,11 @@ struct GraphState {
     /// Per-node values (current output).
     values: Vec<f32>,
     /// Stateful processors - closures that process input with context.
-    processors: Vec<Box<dyn FnMut(f32, &AudioContext) -> f32 + Send>>,
+    processors: Vec<StatefulProcessor>,
 }
+
+/// A boxed stateful node processor: maps an input sample plus context to an output sample.
+type StatefulProcessor = Box<dyn FnMut(f32, &AudioContext) -> f32 + Send>;
 
 impl crate::graph::BlockProcessor for CompiledGraph {
     fn process_block(&mut self, input: &[f32], output: &mut [f32], ctx: &mut AudioContext) {
@@ -514,6 +519,7 @@ impl JitCompiler {
 
                 // Generate code based on node type
                 let output_val = match info {
+                    #[cfg(feature = "optimize")]
                     NodeInfo::PureMath { op } => {
                         // Generate inline math
                         match op {
@@ -557,11 +563,6 @@ impl JitCompiler {
                                 builder.ins().fdiv(node_input, denom)
                             }
                             MathOp::Constant(c) => builder.ins().f32const(*c),
-                            MathOp::RingMod => {
-                                // Ring mod multiplies input by modulator
-                                // For now, treat as passthrough if no modulator value
-                                node_input
-                            }
                         }
                     }
                     NodeInfo::Stateful { processor_idx } => {
@@ -640,11 +641,13 @@ impl JitCompiler {
 
         // Create state with processors for stateful nodes
         // Take ownership of stateful nodes from the graph
-        let mut processors: Vec<Box<dyn FnMut(f32, &AudioContext) -> f32 + Send>> = Vec::new();
+        let mut processors: Vec<StatefulProcessor> = Vec::new();
         let num_nodes = order.len();
 
         for &idx in &order {
-            if let NodeInfo::Stateful { .. } = &node_info[&idx] {
+            // Only stateful nodes need a callback processor. With the `optimize`
+            // feature off, every node is stateful so this matches unconditionally.
+            if matches!(&node_info[&idx], NodeInfo::Stateful { .. }) {
                 // Take the node from the graph and wrap it in a processor closure
                 if let Some(mut node) = graph.take_node(idx) {
                     processors.push(Box::new(move |input, ctx| node.process(input, ctx)));
@@ -661,26 +664,28 @@ impl JitCompiler {
             ctx: AudioContext::new(sample_rate),
         });
 
-        Ok(CompiledGraph {
-            func,
-            state,
-            sample_rate,
-        })
+        Ok(CompiledGraph { func, state })
     }
 
     /// Analyzes graph nodes to determine compilation strategy.
+    ///
+    /// The `graph` argument is only consulted when the `optimize` feature is
+    /// enabled (it provides the `NodeType` classification); without it every
+    /// node is treated as stateful.
     fn analyze_graph(
         &self,
         graph: &AudioGraph,
         order: &[NodeIndex],
     ) -> JitResult<HashMap<NodeIndex, NodeInfo>> {
         let mut info = HashMap::new();
+        #[cfg(feature = "optimize")]
         let mut stateful_count = 0;
 
-        for &idx in order {
+        for (node_position, &idx) in order.iter().enumerate() {
             // Use node_type if optimize feature is enabled
             #[cfg(feature = "optimize")]
             let node_info = {
+                let _ = node_position;
                 use crate::optimize::NodeType;
                 match graph.node_type(idx) {
                     Some(NodeType::Affine) => {
@@ -724,12 +729,13 @@ impl JitCompiler {
 
             #[cfg(not(feature = "optimize"))]
             let node_info = {
-                // Without optimize feature, treat all as stateful
-                let result = NodeInfo::Stateful {
-                    processor_idx: stateful_count,
-                };
-                stateful_count += 1;
-                result
+                // Without the optimize feature there is no NodeType classification,
+                // so every node is treated as stateful and processed via callback.
+                // All nodes are stateful here, so the order index is the processor index.
+                let _ = graph;
+                NodeInfo::Stateful {
+                    processor_idx: node_position,
+                }
             };
 
             info.insert(idx, node_info);
@@ -742,12 +748,17 @@ impl JitCompiler {
 /// Information about a node for JIT compilation.
 enum NodeInfo {
     /// Pure math operation - can be fully inlined.
+    ///
+    /// Only produced when the `optimize` feature is enabled, which provides the
+    /// `NodeType` classification needed to recognize inlinable math nodes.
+    #[cfg(feature = "optimize")]
     PureMath { op: MathOp },
     /// Stateful node - requires external processor call.
     Stateful { processor_idx: usize },
 }
 
 /// Pure math operations that can be inlined.
+#[cfg(feature = "optimize")]
 #[derive(Clone, Copy)]
 enum MathOp {
     /// Linear transform: output = input * gain + offset
@@ -762,7 +773,6 @@ enum MathOp {
     },
     SoftClip,
     Constant(f32),
-    RingMod,
 }
 
 /// Computes processing order for a graph (topological sort).
@@ -1029,7 +1039,7 @@ mod tests {
         // Output values should be in [-1, 1] range
         for (i, &sample) in output.iter().enumerate() {
             assert!(
-                sample >= -1.0 && sample <= 1.0,
+                (-1.0..=1.0).contains(&sample),
                 "sample {} out of range: {}",
                 i,
                 sample
