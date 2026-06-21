@@ -5667,6 +5667,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "unshape-core",
  "unshape-op",
 ]
 
@@ -6019,6 +6020,7 @@ dependencies = [
  "glam",
  "serde",
  "serde_json",
+ "unshape-core",
  "unshape-op",
 ]
 
@@ -6045,6 +6047,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "unshape-core",
  "unshape-op",
 ]
 
@@ -6091,12 +6094,17 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "unshape-audio",
+ "unshape-automata",
  "unshape-core",
  "unshape-fluid",
  "unshape-image",
  "unshape-mesh",
  "unshape-particle",
+ "unshape-physics",
+ "unshape-procgen",
  "unshape-rd",
+ "unshape-space-colonization",
+ "unshape-spring",
 ]
 
 [[package]]
@@ -6106,6 +6114,7 @@ dependencies = [
  "glam",
  "serde",
  "serde_json",
+ "unshape-core",
  "unshape-op",
 ]
 
@@ -6141,6 +6150,7 @@ dependencies = [
  "glam",
  "serde",
  "serde_json",
+ "unshape-core",
  "unshape-op",
 ]
 
