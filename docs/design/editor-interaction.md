@@ -51,3 +51,24 @@ The middle two are a pair in tension that must hold *everywhere*: surface the re
 - The "Reading Stack + Command Twin" synthesis, and the broader five-candidate editor design pass it came from — rejected as redecorating the op-stack paradigm rather than designing for the medium.
 - Direct manipulation as *the* thesis.
 - Unconfirmed framings raised in discussion but not agreed: "representation follows definition," the storage-vs-display split, "the user never sees modes."
+
+## Validation — clean-context convergence
+
+A clean-context agent (no access to this session's history, given only realistic creative tasks + a minimal "surface the relevant few" lens) independently reproduced these principles: promote-a-constant-to-a-signal in place; late-binding via named signals; per-connection remap; drag/type interchangeable; compare-variants; context-derived next-actions; edit-earlier-without-redoing; continuous audition; gesture-as-editable-data. Independent convergence from an unpoisoned agent is *evidence* (not proof) that these are intrinsic to the problem, not median defaults imposed by the main session.
+
+## Additional agreed principles
+
+- **Invariants are owned by the tool, not the user.** Tiling, loop-seamlessness, rig re-solving on a proportion change, UV preservation under topology change — these are properties you *request and the system maintains*, never constraints you babysit by hand. (A differentiator: incumbents make you babysit them.)
+- **Variants and sets are first-class** — editing is not a single `(op, value)` cursor. Three forms: *compare-variants* (audition N parameter values / seeds / palettes side by side, live, pick one, discard the rest, at any granularity); *vary-per-X* (per-instance variation — per brick, per leaf, per rock); *shared-tokens* (one value across many things, with local override that doesn't sever the link). Spread-one-across-many and collapse-many-into-one are duals.
+- **Per-connection remap.** When one source drives many targets, each connection carries its own range + curve + retiming. The fan-out is one source; the shaping is local to each edge.
+- **Promote-in-place.** Turning a constant into a signal / variation / formula is one in-place gesture; the graph forms behind you — openable, never the primary surface.
+- **Continuous audition.** Edit *during* playback/preview; scrub the playhead and everything updates live; no bake/render/play cycle. Realtime is the default, not an export mode.
+- **Gesture = authored data.** A recorded live gesture lands as the *same* editable curve you'd author by hand (unifies with the constant|curve|signal model); hand-edited and recorded points coexist on one track.
+
+## Relevance — the carving direction (agreed; some detail open)
+
+Relevance is computed from multiple signals — never a single metric: **system-assigned tags/aliases + frecency (frequency + recency) + context**. It is automatic and zero-burden (the system assigns the tags/aliases and ranks by frecency + context), over a *candidate pool* (the dusklight shape: return all qualifying candidates ranked, user-switchable; a composed affordance is just another candidate in the same pool). A clever auto-derived taxonomy is NOT required — system-tags + frecency + context suffice. Open: the exact signal set and weighting. Note: dusklight's docs contain no relevance/tagging/frecency design (only a single-scalar confidence rank) — this direction is net-new.
+
+## Config
+
+Zero-config automatic defaults, with deep power-user configurability layered on (own tags, aliases, ranking weights, keybinds, layout). Because **config is data**, it is portable, shareable, and — the part missing from essentially all existing software — **temporarily applicable to someone else's install**: an overlay you apply and pop, like a layer, not an install-time mutation. First-class, not an afterthought.
