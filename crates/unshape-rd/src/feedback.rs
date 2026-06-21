@@ -194,6 +194,7 @@ impl DynNode for GrayScottInit {
 /// - Input `0` `"state"`: `Custom(ReactionDiffusion)` — previous-tick state.
 /// - Output `0` `"state"`: `Custom(ReactionDiffusion)` — advanced state.
 #[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Step;
 
 impl DynNode for Step {

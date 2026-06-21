@@ -32,6 +32,7 @@
 
 mod bincode;
 mod error;
+mod feedback_nodes;
 mod format;
 mod json;
 mod registry;
@@ -40,6 +41,15 @@ mod typed_constants;
 
 pub use crate::bincode::BincodeFormat;
 pub use crate::error::SerdeError;
+pub use crate::feedback_nodes::register_all_feedback_nodes;
+#[cfg(feature = "audio-feedback")]
+pub use crate::feedback_nodes::register_audio_feedback_nodes;
+#[cfg(feature = "fluid-feedback")]
+pub use crate::feedback_nodes::register_fluid_feedback_nodes;
+#[cfg(feature = "particle-feedback")]
+pub use crate::feedback_nodes::register_particle_feedback_nodes;
+#[cfg(feature = "rd-feedback")]
+pub use crate::feedback_nodes::register_rd_feedback_nodes;
 pub use crate::format::GraphFormat;
 pub use crate::json::JsonFormat;
 pub use crate::registry::{NodeRegistry, SerializableNode};

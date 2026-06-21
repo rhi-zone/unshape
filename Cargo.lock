@@ -6090,9 +6090,13 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "unshape-audio",
  "unshape-core",
+ "unshape-fluid",
  "unshape-image",
  "unshape-mesh",
+ "unshape-particle",
+ "unshape-rd",
 ]
 
 [[package]]
