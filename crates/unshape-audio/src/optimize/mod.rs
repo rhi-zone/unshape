@@ -200,6 +200,7 @@ impl OptimizerPipeline {
 mod tests {
     use super::*;
     use crate::AudioContext;
+    use crate::fingerprint;
 
     #[test]
     fn test_fingerprint_contains() {

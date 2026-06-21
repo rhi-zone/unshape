@@ -9,7 +9,7 @@ description = "Core types and traits for unshape"
 default = []
 # Enable thorough statistical/invariant tests (slower, for CI)
 invariant-tests = []
-serde = ["dep:serde"]
+serde = ["dep:serde", "unshape-expr-field/serde"]
 dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
 # Graph pattern matching and optimization
 optimize = []

@@ -4,6 +4,7 @@ use crate::primitive::{DelayLine, PhaseOsc};
 use super::engine::{
     GraphFingerprint, MatchResult, NodeType, Pattern, PatternNode, PatternStructure,
 };
+use crate::fingerprint;
 
 /// Optimized tremolo effect (LFO modulating gain).
 ///
