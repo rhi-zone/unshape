@@ -274,6 +274,30 @@ mod physics {
 pub use physics::register as register_physics_feedback_nodes;
 
 // ===========================================================================
+// Space colonization (unshape-space-colonization)
+// ===========================================================================
+
+#[cfg(feature = "space-colonization-feedback")]
+mod space_colonization {
+    use super::*;
+    use unshape_space_colonization::feedback::{GrowInit, GrowStep};
+
+    impl_serializable_node!(GrowInit, GrowStep);
+
+    /// Registers the space-colonization feedback nodes.
+    ///
+    /// Type names: `"space_colonization::feedback::GrowInit"`,
+    /// `"space_colonization::feedback::GrowStep"`.
+    pub fn register(registry: &mut NodeRegistry) {
+        registry.register_with_name::<GrowInit>("space_colonization::feedback::GrowInit");
+        registry.register_with_name::<GrowStep>("space_colonization::feedback::GrowStep");
+    }
+}
+
+#[cfg(feature = "space-colonization-feedback")]
+pub use space_colonization::register as register_space_colonization_feedback_nodes;
+
+// ===========================================================================
 // Umbrella
 // ===========================================================================
 
@@ -298,6 +322,8 @@ pub fn register_all_feedback_nodes(registry: &mut NodeRegistry) {
     register_spring_feedback_nodes(registry);
     #[cfg(feature = "physics-feedback")]
     register_physics_feedback_nodes(registry);
+    #[cfg(feature = "space-colonization-feedback")]
+    register_space_colonization_feedback_nodes(registry);
 }
 
 #[cfg(all(test, feature = "rd-feedback"))]
