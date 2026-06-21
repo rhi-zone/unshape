@@ -102,22 +102,76 @@ Iteration N:
 
 This is deterministic and reproducible.
 
-### Initial Values
+### Recurrence: seed input + evolve output
 
-What's the feedback value on first iteration?
+A **recurrence** is a first-class, declared relationship, not an emergent
+"feedback wire that happens to win a precedence tiebreak". Its definition:
 
-Options:
-1. Zero / default
-2. Explicit initial value on wire
-3. "Undefined" - let it warm up
+> A recurrent state input is **SEEDED** by its incoming (non-feedback) edge at
+> tick 0, and **EVOLVED** by a looped output thereafter.
 
-```rust
-struct FeedbackWire {
-    from: NodeId,
-    to: NodeId,
-    initial: Value,  // value for iteration 0
-}
-```
+It is declared with one call, `graph.connect_recurrence(output, state_input)`,
+which marks `state_input` as recurrent and names the `output` that evolves it.
+The recurrence is made of **two edges into the same input**:
+
+- a **seed** — an ordinary `connect` (direct) edge from an in-graph source node
+  (the `Init` node): produces the initial state from config, pure and
+  deterministic, no inputs. This is the tick-0 value.
+- an **evolve** — the `connect_recurrence` (back-)edge from the step's own
+  output: carries the previous-tick output back into the state input on ticks
+  ≥ 1.
+
+The seed is an **ordinary, swappable input**. `dup`-ing the step forks the state
+(each fork can share or re-point its seed); pinning swaps the `Init` seed source
+for a baked-state source. Nothing about the recurrence is special-cased on the
+wire — the seed is just an input edge, the evolve is just a marked input edge.
+
+At evaluation of tick N, a recurrent input resolves as:
+
+1. **Evolve (carried value)** — if `FeedbackState` holds the evolving source's
+   previous-tick output (ticks ≥ 1), use it.
+2. **Seed (direct edge)** — otherwise (tick 0) evaluate the direct seed edge.
+
+There is **no zero-value fallback**. A recurrence declared *without* a seed edge
+is a declaration error, reported by `tick`, uniformly for scalar and opaque
+state alike. Seeding is uniform: every recurrence — an `f32` accumulator loop and
+an opaque reaction-diffusion grid — is seeded by an explicit source node. (This
+removed an earlier inconsistency where scalar loops silently fell back to a
+`zero_value` while opaque sims errored.)
+
+Because the seed is an in-graph node, `run_to_tick` / `seek(Resimulate)` work for
+*opaque* (`Custom`) state types — reaction-diffusion grids, particle systems,
+fluid grids, vocoder state — which have no `zero_value`. `run_to_tick` clears
+`FeedbackState` and replays from tick 0; tick 0 re-seeds via the seed node, so no
+manual pre-seed is needed and the sim is fully rewindable.
+
+Per-domain `Init` seed-source nodes (behind each crate's `feedback` feature):
+
+| Crate              | Init node       | Produces                          |
+|--------------------|-----------------|-----------------------------------|
+| `unshape-rd`       | `GrayScottInit` | seeded `ReactionDiffusion` grid   |
+| `unshape-particle` | `ParticleInit`  | emitted `ParticleSystem` (seeded RNG) |
+| `unshape-fluid`    | `FluidInit`     | sourced `FluidGrid2D`             |
+| `unshape-audio`    | `VocoderInit`   | zeroed (defined) `VocoderState`   |
+
+Options considered and rejected:
+
+- **Zero / default** — opaque state has no zero value, and a silent default makes
+  the recurrence implicit rather than declared.
+- **Explicit initial value stored on the wire** — a `Value` is not `Copy` (so
+  `Wire` would lose `Copy`), and a baked initial value is not generative.
+
+A seed *node* is parameterized, serializable, inspectable, swappable, and
+composable — consistent with the generative-mindset and operations-as-values
+principles.
+
+### Policy-free core
+
+The recurrence primitive bakes in **no** checkpoint / record / preview policy.
+The zero-cost base is plain recompute: `run_to_tick` replays from tick 0, which
+is the dependency-free default. Checkpointing and recording are not implemented
+here and are not forced on consumers — the seam stays bare so callers compose
+their own policy (and unused machinery tree-shakes away).
 
 ## State Model
 
