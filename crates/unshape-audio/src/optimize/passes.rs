@@ -1,5 +1,4 @@
-use crate::graph::{AudioGraph, Constant, NodeIndex};
-use crate::primitive::DelayNode;
+use crate::graph::{AudioGraph, NodeIndex};
 
 use super::engine::NodeType;
 
@@ -18,23 +17,6 @@ impl AffineOp {
     fn to_affine(self) -> AffineNode {
         match self {
             AffineOp::Affine { gain, offset } => AffineNode::new(gain, offset),
-        }
-    }
-
-    /// Compose two affine operations.
-    fn then(self, other: Self) -> Self {
-        let AffineOp::Affine {
-            gain: g1,
-            offset: o1,
-        } = self;
-        let AffineOp::Affine {
-            gain: g2,
-            offset: o2,
-        } = other;
-        // (x * g1 + o1) * g2 + o2 = x * (g1*g2) + (o1*g2 + o2)
-        AffineOp::Affine {
-            gain: g1 * g2,
-            offset: o1 * g2 + o2,
         }
     }
 }
@@ -240,15 +222,15 @@ pub fn eliminate_identities(graph: &mut AudioGraph) -> usize {
         }
 
         // Update input/output references
-        if graph.input_node() == Some(idx) {
-            if let Some(&succ) = successors.first() {
-                graph.connect_input(succ);
-            }
+        if graph.input_node() == Some(idx)
+            && let Some(&succ) = successors.first()
+        {
+            graph.connect_input(succ);
         }
-        if graph.output_node() == Some(idx) {
-            if let Some(&pred) = predecessors.first() {
-                graph.set_output(pred);
-            }
+        if graph.output_node() == Some(idx)
+            && let Some(&pred) = predecessors.first()
+        {
+            graph.set_output(pred);
         }
 
         graph.remove_node(idx);

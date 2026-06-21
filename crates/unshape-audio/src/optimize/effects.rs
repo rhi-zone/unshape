@@ -1,9 +1,4 @@
-use crate::graph::{AudioContext, AudioNode};
-use crate::primitive::{DelayLine, PhaseOsc};
-
-use super::engine::{
-    GraphFingerprint, MatchResult, NodeType, Pattern, PatternNode, PatternStructure,
-};
+use super::engine::{MatchResult, NodeType, Pattern, PatternNode, PatternStructure};
 use crate::fingerprint;
 
 /// Optimized tremolo effect (LFO modulating gain).
@@ -220,7 +215,7 @@ pub fn default_patterns() -> Vec<Pattern> {
 }
 
 /// Pattern for tremolo: LFO modulating an affine (gain) node.
-fn tremolo_pattern() -> Pattern {
+pub(crate) fn tremolo_pattern() -> Pattern {
     Pattern {
         name: "tremolo",
         required: fingerprint!(Lfo: 1, Affine: 1),
@@ -246,7 +241,7 @@ fn tremolo_pattern() -> Pattern {
 }
 
 /// Pattern for flanger: LFO modulating delay time (no mixer).
-fn flanger_pattern() -> Pattern {
+pub(crate) fn flanger_pattern() -> Pattern {
     Pattern {
         name: "flanger",
         required: fingerprint!(Lfo: 1, Delay: 1),
@@ -272,7 +267,7 @@ fn flanger_pattern() -> Pattern {
 }
 
 /// Pattern for chorus: LFO modulating delay time with mixer.
-fn chorus_pattern() -> Pattern {
+pub(crate) fn chorus_pattern() -> Pattern {
     Pattern {
         name: "chorus",
         required: fingerprint!(Lfo: 1, Delay: 1, Mix: 1),

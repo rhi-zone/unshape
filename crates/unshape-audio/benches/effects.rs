@@ -399,6 +399,9 @@ fn bench_chain_block(c: &mut Criterion) {
 
 #[cfg(feature = "codegen-bench")]
 mod codegen_bench {
+    // Machine-generated code (see `unshape-audio-codegen`); style lints are not
+    // meaningful against generated output and are silenced for this module only.
+    #![allow(clippy::let_and_return, dead_code)]
     include!(concat!(env!("OUT_DIR"), "/codegen_bench.rs"));
 }
 

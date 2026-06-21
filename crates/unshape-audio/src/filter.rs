@@ -855,8 +855,8 @@ mod invariant_tests {
         // Generate impulse response
         let mut ir = vec![0.0f32; FFT_SIZE];
         ir[0] = filter.process(1.0);
-        for i in 1..FFT_SIZE {
-            ir[i] = filter.process(0.0);
+        for sample in ir.iter_mut().skip(1) {
+            *sample = filter.process(0.0);
         }
 
         // FFT
@@ -868,11 +868,6 @@ mod invariant_tests {
 
         // Magnitude spectrum (first half)
         buffer[..FFT_SIZE / 2].iter().map(|c| c.norm()).collect()
-    }
-
-    /// Convert bin index to frequency
-    fn bin_to_freq(bin: usize) -> f32 {
-        bin as f32 * SAMPLE_RATE / FFT_SIZE as f32
     }
 
     /// Find bin index closest to frequency

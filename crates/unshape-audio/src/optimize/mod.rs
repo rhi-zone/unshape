@@ -183,7 +183,7 @@ impl OptimizerPipeline {
     }
 
     /// Adds an optimizer to the pipeline.
-    pub fn add<O: Optimizer<AudioGraph> + 'static>(mut self, optimizer: O) -> Self {
+    pub fn with<O: Optimizer<AudioGraph> + 'static>(mut self, optimizer: O) -> Self {
         self.inner = self.inner.add(optimizer);
         self
     }

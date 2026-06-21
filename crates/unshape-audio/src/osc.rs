@@ -1111,8 +1111,10 @@ mod invariant_tests {
 
     #[test]
     fn test_oscillator_output_range() {
+        // A named oscillator function for parameterized testing.
+        type NamedOsc = (&'static str, fn(f32) -> f32);
         // All oscillators should output values in [-1, 1]
-        let oscillators: Vec<(&str, fn(f32) -> f32)> = vec![
+        let oscillators: Vec<NamedOsc> = vec![
             ("sine", sine),
             ("square", square),
             ("saw", saw),
@@ -1125,7 +1127,7 @@ mod invariant_tests {
                 let phase = i as f32 / 1000.0;
                 let value = osc_fn(phase);
                 assert!(
-                    value >= -1.0 && value <= 1.0,
+                    (-1.0..=1.0).contains(&value),
                     "{} out of range at phase {}: {}",
                     name,
                     phase,
