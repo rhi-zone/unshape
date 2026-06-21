@@ -210,7 +210,7 @@ impl FluidGrid2D {
 }
 
 /// 3D grid-based fluid simulation.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FluidGrid3D {
     width: usize,
     height: usize,
