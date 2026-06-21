@@ -8,6 +8,8 @@
 pub mod cloth;
 pub mod collision;
 pub mod constraint;
+#[cfg(feature = "feedback")]
+pub mod feedback;
 pub mod rigidbody;
 pub mod softbody;
 pub mod world;

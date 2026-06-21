@@ -49,6 +49,7 @@ impl Physics {
 pub type PhysicsConfig = Physics;
 
 /// The physics simulation world.
+#[derive(Clone, Debug)]
 pub struct PhysicsWorld {
     /// All rigid bodies.
     pub bodies: Vec<RigidBody>,

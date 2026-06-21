@@ -251,6 +251,29 @@ mod spring {
 pub use spring::register as register_spring_feedback_nodes;
 
 // ===========================================================================
+// Rigid-body physics (unshape-physics)
+// ===========================================================================
+
+#[cfg(feature = "physics-feedback")]
+mod physics {
+    use super::*;
+    use unshape_physics::feedback::{PhysicsInit, PhysicsStep};
+
+    impl_serializable_node!(PhysicsInit, PhysicsStep);
+
+    /// Registers the rigid-body physics feedback nodes.
+    ///
+    /// Type names: `"physics::feedback::PhysicsInit"`, `"physics::feedback::PhysicsStep"`.
+    pub fn register(registry: &mut NodeRegistry) {
+        registry.register_with_name::<PhysicsInit>("physics::feedback::PhysicsInit");
+        registry.register_with_name::<PhysicsStep>("physics::feedback::PhysicsStep");
+    }
+}
+
+#[cfg(feature = "physics-feedback")]
+pub use physics::register as register_physics_feedback_nodes;
+
+// ===========================================================================
 // Umbrella
 // ===========================================================================
 
@@ -273,6 +296,8 @@ pub fn register_all_feedback_nodes(registry: &mut NodeRegistry) {
     register_automata_feedback_nodes(registry);
     #[cfg(feature = "spring-feedback")]
     register_spring_feedback_nodes(registry);
+    #[cfg(feature = "physics-feedback")]
+    register_physics_feedback_nodes(registry);
 }
 
 #[cfg(all(test, feature = "rd-feedback"))]
