@@ -287,3 +287,101 @@ mod tests {
         assert_eq!(direct_wires, 1, "exactly one direct seed wire expected");
     }
 }
+
+#[cfg(all(test, feature = "audio-feedback"))]
+mod audio_tests {
+    use super::*;
+    use crate::{JsonFormat, deserialize_graph, graph_to_serial, serialize_graph};
+    use serde_json::Value as JsonValue;
+    use unshape_audio::vocoder::VocodeSynth;
+    use unshape_audio::vocoder::feedback::{Step, VocoderInit};
+    use unshape_core::Graph;
+
+    fn extract_params(node: &dyn unshape_core::DynNode) -> Option<JsonValue> {
+        let any = node.as_any();
+        if let Some(n) = any.downcast_ref::<VocoderInit>() {
+            Some(n.params())
+        } else {
+            any.downcast_ref::<Step>().map(|n| n.params())
+        }
+    }
+
+    /// A non-default config so the round-trip exercises real parameter values.
+    fn config() -> VocodeSynth {
+        VocodeSynth {
+            window_size: 512,
+            hop_size: 128,
+            num_bands: 24,
+            envelope_smoothing: 0.75,
+        }
+    }
+
+    /// Builds `Init --direct--> Step.state`, `Step --feedback--> Step.state`.
+    fn build() -> Graph {
+        let cfg = config();
+        let mut graph = Graph::new();
+        let init = graph.add_node(VocoderInit::new(cfg.clone()));
+        let step = graph.add_node(Step::new(cfg));
+        // VocoderInit.state (out 0) -> Step.state (in 0): direct tick-0 seed.
+        graph.connect(init, 0, step, 0).unwrap();
+        // Step.state (out 0) -> Step.state (in 0): recurrence self-loop.
+        graph.connect_recurrence(step, 0, step, 0).unwrap();
+        graph
+    }
+
+    #[test]
+    fn vocoder_feedback_nodes_register() {
+        let mut registry = NodeRegistry::new();
+        register_audio_feedback_nodes(&mut registry);
+        assert!(registry.contains("vocoder::feedback::VocoderInit"));
+        assert!(registry.contains("vocoder::feedback::Step"));
+    }
+
+    #[test]
+    fn vocoder_recurrent_graph_round_trips() {
+        let graph = build();
+        let bytes = serialize_graph(&graph, extract_params, &JsonFormat::default()).unwrap();
+
+        // The serialized form must carry the recurrence wire as `feedback: true`.
+        let json = String::from_utf8(bytes.clone()).unwrap();
+        assert!(
+            json.contains("\"feedback\":true"),
+            "recurrence wire must serialize with feedback flag set:\n{json}"
+        );
+
+        // Deserialize against a registry with the audio vocoder nodes registered.
+        let mut registry = NodeRegistry::new();
+        register_audio_feedback_nodes(&mut registry);
+        let restored = deserialize_graph(&bytes, &registry, &JsonFormat::default()).unwrap();
+
+        // The restored graph must preserve the recurrence (feedback) wire.
+        assert!(
+            restored.wires().iter().any(|w| w.feedback),
+            "restored graph lost its recurrence wire"
+        );
+
+        // Both vocoder node types must round-trip with their config intact.
+        let restored_step = restored
+            .nodes_iter()
+            .find_map(|(_, n)| n.as_any().downcast_ref::<Step>())
+            .expect("restored graph lost its Step node");
+        assert_eq!(restored_step.config.window_size, config().window_size);
+        assert_eq!(restored_step.config.num_bands, config().num_bands);
+
+        let restored_init = restored
+            .nodes_iter()
+            .find_map(|(_, n)| n.as_any().downcast_ref::<VocoderInit>())
+            .expect("restored graph lost its VocoderInit node");
+        assert_eq!(restored_init.config.hop_size, config().hop_size);
+    }
+
+    #[test]
+    fn graph_to_serial_marks_recurrence_wire() {
+        let graph = build();
+        let serial = graph_to_serial(&graph, extract_params).unwrap();
+        let feedback_wires = serial.wires.iter().filter(|w| w.feedback).count();
+        assert_eq!(feedback_wires, 1, "exactly one recurrence wire expected");
+        let direct_wires = serial.wires.iter().filter(|w| !w.feedback).count();
+        assert_eq!(direct_wires, 1, "exactly one direct seed wire expected");
+    }
+}

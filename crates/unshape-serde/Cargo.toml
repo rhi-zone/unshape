@@ -13,12 +13,12 @@ particle-feedback = ["dep:unshape-particle"]
 fluid-feedback = ["dep:unshape-fluid"]
 audio-feedback = ["dep:unshape-audio"]
 # Convenience: register every feedback node from all sim crates.
-# NOTE: `audio-feedback` is intentionally excluded here because `unshape-audio`
-# does not currently compile with its `serde` feature enabled (a pre-existing
-# latent bug: `FieldExpr` in `pattern.rs` lacks serde derives). The
-# `audio-feedback` feature and its registration are wired and correct; enable it
-# explicitly once that upstream bug is fixed.
-feedback-nodes = ["rd-feedback", "particle-feedback", "fluid-feedback"]
+feedback-nodes = [
+    "rd-feedback",
+    "particle-feedback",
+    "fluid-feedback",
+    "audio-feedback",
+]
 
 [dependencies]
 unshape-core = { workspace = true, features = ["serde"] }
