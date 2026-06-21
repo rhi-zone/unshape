@@ -657,6 +657,18 @@ impl ParticleSystem {
         }
     }
 
+    /// Creates a new particle system with the given capacity and RNG seed.
+    ///
+    /// Use this for reproducible emission: the same seed yields the same
+    /// particles for the same emitter sequence.
+    pub fn with_seed(max_particles: usize, seed: u64) -> Self {
+        Self {
+            particles: Vec::with_capacity(max_particles),
+            max_particles,
+            rng: ParticleRng::new(seed),
+        }
+    }
+
     /// Returns the current particle count.
     pub fn count(&self) -> usize {
         self.particles.len()
