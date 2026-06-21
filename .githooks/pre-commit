@@ -1,17 +1,54 @@
 #!/usr/bin/env bash
-set -e
+#
+# Pre-commit hook: auto-format, determinism guard, and enforced clippy.
+#
+# This is the canonical, version-controlled hook. Activate it with:
+#   git config core.hooksPath .githooks
+#
+# Behavior:
+#   1. cargo fmt --all (auto-formats and re-stages changed files; matches the
+#      CLAUDE.md "formatting is handled automatically" guarantee).
+#   2. determinism guard (blocks on banned non-deterministic constructs).
+#   3. cargo clippy with -D warnings (BLOCKS the commit on any warning).
+#
+# All steps are blocking: a failure aborts the commit. There is no warn-and-pass.
 
-echo "Running cargo fmt..."
-staged=$(git diff --cached --name-only)
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+# cargo MUST be available and must be the project toolchain (>=1.92, provided by
+# the nix devShell / direnv). A missing or wrong toolchain is a hard failure --
+# we never silently skip checks, because that lets defects slip into commits.
+if ! command -v cargo &> /dev/null; then
+  echo "error: cargo not found in PATH." >&2
+  echo "       Enter the project devShell first (direnv allow, or: nix develop)." >&2
+  exit 1
+fi
+
+echo "Running cargo fmt (auto-format + re-stage)..."
+staged="$(git diff --cached --name-only --diff-filter=ACM)"
 cargo fmt --all
 if [ -n "$staged" ]; then
-  echo "$staged" | xargs git add
+  # Re-stage any files that fmt touched and that were already staged.
+  # `grep` exits non-zero when no staged file is a .rs file (e.g. a docs- or
+  # hook-only commit); tolerate that so `set -euo pipefail` doesn't abort.
+  staged_rs="$(printf '%s\n' "$staged" | grep -E '\.rs$' || true)"
+  if [ -n "$staged_rs" ]; then
+    printf '%s\n' "$staged_rs" | xargs -r git add
+  fi
 fi
 
 echo "Running determinism guard..."
-"$(git rev-parse --show-toplevel)/tooling/check-determinism.sh"
+"$repo_root/tooling/check-determinism.sh"
 
-echo "Running cargo clippy..."
-cargo clippy --all-targets --all-features -- -D warnings
+# Clippy on default features across all targets: fast enough for a pre-commit
+# while still covering lib/tests/benches and the determinism `disallowed-methods`
+# lints from clippy.toml. Feature-gated code paths (e.g. audio `cranelift`/`serde`,
+# GPU) are intentionally NOT exercised here to keep the hook fast; run
+# `cargo clippy --all-features` (or rely on CI) for full feature coverage.
+echo "Running cargo clippy (-D warnings, blocking)..."
+cargo clippy --workspace --all-targets -- -D warnings
 
 echo "Pre-commit checks passed!"
