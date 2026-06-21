@@ -513,18 +513,34 @@ Cons: More validation logic
 
    No new concept - feedback edges already handle this.
 
-9. **Determinism**: Best effort by default, optional strict mode.
+9. **Determinism**: Deterministic by default; best-effort-parallel is a future opt-in.
+
+   **Current reality (as implemented):** evaluation is single-threaded and
+   deterministic. No parallel reduction exists — the evaluator folds multi-input
+   ports with a plain sequential `for` loop (`graph.rs`, `eval.rs`), there is no
+   `rayon` dependency anywhere in the workspace, and there is no `EvalOptions`
+   type in the code. Reproducibility is supported today via the `EvalContext`
+   seed (`with_seed`) and tick-0 replay.
+
+   Because nothing is parallel yet, there is **no perf to trade**: determinism is
+   free now, so it is the default and the only behavior.
+
+   **Future opt-in (not yet built):** a best-effort-parallel mode could be added
+   later for large stateless DAG regions, behind an explicit option:
 
    ```rust
+   // SKETCH — not implemented. Default would remain deterministic.
    struct EvalOptions {
-       deterministic: bool,  // sacrifice perf for reproducibility
+       deterministic: bool,  // true (default) = reproducible; false = opt-in parallel
    }
    ```
 
-   - **Default (false)**: Fast, parallel, platform-optimized. Same inputs *usually* give same outputs.
-   - **Strict (true)**: Single-threaded, no fast-math, explicit seeds. Reproducible across runs/platforms.
-
-   Full determinism is expensive. Most use cases don't need it. Strict mode for those that do (automated testing, regression checks).
+   Adopting a non-deterministic fast path is gated on **measuring an actual,
+   meaningful speedup on a representative graph first** (the owner's rule: choose
+   the faster method only for a meaningful perf gain, otherwise keep
+   deterministic). Until that measurement exists and clears the bar, the default
+   stays deterministic. See also `evaluation-strategy.md`, which sketches a
+   pluggable `Rayon { min_nodes }` strategy in the same not-yet-implemented vein.
 
 ## Implementation Notes
 
