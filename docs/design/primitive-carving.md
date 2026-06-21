@@ -172,3 +172,81 @@ Recorded faithfully from the attack pass:
 **OPEN. None selected.** A fresh decorrelated design exploration is underway.
 The four carvings above are *inputs* to that exploration — generated candidate
 material with their own attacks attached — **not the answer.**
+
+## Candidate synthesis (unblessed): organize by job, in layers
+
+> **UNBLESSED CANDIDATE. Not a decision, not a recommendation, not settled.**
+> This is the *output* of a decorrelated design exploration + adversarial
+> judging — a candidate recorded **under** the `STATUS: OPEN` above, **not** a
+> resolution of it. The four carvings, their cracks, and the open framing all
+> remain live.
+
+This emerged from five decorrelated candidate designs (a learned multi-signal
+ranker; intent/verb transitions; an enriched machine-extractable signature;
+selection×lens affordance; example/output retrieval) put through three
+adversarial judges (determinism, expert-recall, coverage/honesty). The
+candidates disagreed on the surface but **converged at the root**: the organizer
+is not one mechanism — it splits into layers by **job**, and most candidate
+failures came from making one mechanism do two jobs. Recorded as a candidate;
+not blessed.
+
+### The three layers
+
+1. **Membership = hard, machine-extracted typed/structural filter.** OpType
+   match + arity + domain-dimensionality + the verified pure-vs-recurrent axis +
+   facet. Deterministic by construction; CI-enforceable (machine-extracted axes
+   can be asserted at build time; subjective tags cannot). This is the legality
+   layer — "a sharper domain tab." Position within it is stable. It is the only
+   layer that organizes the structural/behavioral third of the catalogue by real
+   signal.
+2. **Recall surface = canonical list sorted by query alone.** The decisive rule
+   from the expert-recall judge: context/frecency/usage signals may only **add**
+   to a separate, visually distinct "suggested" zone — they must **never**
+   reorder the canonical list. The moment a soft signal reorders the memorized
+   list, expert muscle-memory recall is forfeit. This is the VS Code palette
+   pattern already cited in `editor-interaction.md` (fuzzy + light recency as a
+   top stratum over otherwise-stable order). For recall, the plain-search
+   baseline **is** the right answer — preserve it, don't try to beat it.
+3. **Discovery = additive, spatially-separate channels** that never touch the
+   canonical order: (a) soft context/frecency/corpus-transition suggestions in a
+   distinct "suggested" strip; (b) output-demonstration retrieval
+   (point/sketch/example) — found to be the **only** mechanism that beats plain
+   search at no-name discovery. Every other candidate's "discovery win" reduced
+   to "better tags or a better filter" — so harvest the tags/filter, don't build
+   a ranker around them.
+
+### The reproducibility crux (resolved)
+
+Per-user personalization is **not** a determinism violation: ranking/relevance
+is UI/view state, not project state. Fence it: ranker code lives in a crate that
+node/op crates must not depend on, so a relevance score can never become a node
+input. Membership is the only reproducible-by-contract layer. Per-user frecency
+is legitimate exactly like window layout.
+
+### Determinism fences (left unstated by the candidates; required if adopted)
+
+- (a) The crate firewall above (ranker not a dependency of node/op crates).
+- (b) Build-time fingerprints/embeddings pinned as data, never recomputed at
+  runtime (FFT spectra are platform-dependent — fine if frozen, fatal if live).
+- (c) cooc/frecency accumulators need defined undo/branch semantics or event-log
+  replay diverges; plus stable total-order tiebreaks (Rust `HashMap` iteration
+  is randomized — a real leak the candidates did not address).
+
+### Two gaps NONE of the five candidates solved (the open frontier)
+
+1. **The recurrent/stateful third needs its own organizing story.** "Recurrent
+   vs pure" correctly **bins** GrayScott / fluid / cellular-automata / particle
+   steppers / IK, but gives no intra-bin ordering, and the fingerprint/preview
+   mechanisms structurally cannot sample them (they are not pure Fields; e.g. rd
+   `Step` is `&mut self step()`, IK `SolveCcd`/`SolveFabrik` take
+   `(&Skeleton, &mut Pose)`). The Init+Step recurrence pair needs a first-class
+   organizing treatment the morphism-centric carvings do not provide.
+2. **Config-enum variants: a primitive is often a family, not a point.**
+   `Worley2D` is 9 behaviors (3 distance functions × 3 return types — verified in
+   source), visually ranging from cells to cracks, yet all five candidates
+   collapse it to one node. The enriched-signature candidate is worst here (it
+   fingerprints only the default config). The organizer must surface family
+   members, not just the family.
+
+STATUS of this synthesis: candidate, unblessed. A further decorrelated pass on
+the two open gaps is underway.
