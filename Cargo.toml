@@ -69,6 +69,10 @@ unshape-fluid = { path = "crates/unshape-fluid" }
 unshape-rd = { path = "crates/unshape-rd" }
 unshape-particle = { path = "crates/unshape-particle" }
 unshape-physics = { path = "crates/unshape-physics" }
+unshape-automata = { path = "crates/unshape-automata" }
+unshape-spring = { path = "crates/unshape-spring" }
+unshape-space-colonization = { path = "crates/unshape-space-colonization" }
+unshape-procgen = { path = "crates/unshape-procgen" }
 unshape-noise = { path = "crates/unshape-noise" }
 unshape-field = { path = "crates/unshape-field" }
 unshape-field-ops = { path = "crates/unshape-field-ops" }

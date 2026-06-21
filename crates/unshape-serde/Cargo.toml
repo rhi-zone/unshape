@@ -12,12 +12,14 @@ rd-feedback = ["dep:unshape-rd"]
 particle-feedback = ["dep:unshape-particle"]
 fluid-feedback = ["dep:unshape-fluid"]
 audio-feedback = ["dep:unshape-audio"]
+automata-feedback = ["dep:unshape-automata"]
 # Convenience: register every feedback node from all sim crates.
 feedback-nodes = [
     "rd-feedback",
     "particle-feedback",
     "fluid-feedback",
     "audio-feedback",
+    "automata-feedback",
 ]
 
 [dependencies]
@@ -34,6 +36,10 @@ unshape-fluid = { workspace = true, features = [
     "serde",
 ], optional = true }
 unshape-audio = { workspace = true, features = [
+    "feedback",
+    "serde",
+], optional = true }
+unshape-automata = { workspace = true, features = [
     "feedback",
     "serde",
 ], optional = true }

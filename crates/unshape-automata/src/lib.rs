@@ -27,6 +27,8 @@
 use serde::{Deserialize, Serialize};
 
 mod elementary;
+#[cfg(feature = "feedback")]
+pub mod feedback;
 mod hash_life;
 mod larger_than_life;
 mod life;
