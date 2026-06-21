@@ -45,6 +45,15 @@ pub struct SerialWire {
     pub from: String,
     /// Destination endpoint: `"nodeId:portName"`.
     pub to: String,
+    /// Whether this is a recurrence (feedback) edge: the destination input is
+    /// seeded by its non-feedback edge on tick 0 and carried by this edge on
+    /// later ticks. Absent in old graphs (defaults to `false`).
+    ///
+    /// Always serialized (no `skip_serializing_if`) so non-self-describing
+    /// formats like bincode keep a stable field layout; `#[serde(default)]`
+    /// still lets older JSON graphs without the field deserialize.
+    #[serde(default)]
+    pub feedback: bool,
 }
 
 impl SerialWire {
@@ -57,6 +66,7 @@ impl SerialWire {
         Self {
             from: format!("{}:{}", w.from_node, from_name),
             to: format!("{}:{}", w.to_node, to_name),
+            feedback: w.feedback,
         }
     }
 
@@ -114,7 +124,7 @@ impl SerialWire {
             from_port,
             to_node: to_node_id,
             to_port,
-            feedback: false,
+            feedback: self.feedback,
         })
     }
 }
@@ -275,18 +285,21 @@ mod tests {
         let bad = SerialWire {
             from: "not-valid".to_string(),
             to: "0:a".to_string(),
+            feedback: false,
         };
         assert!(bad.to_wire(&ConstNode, &AddNode).is_err());
 
         let bad_node_id = SerialWire {
             from: "abc:value".to_string(),
             to: "0:a".to_string(),
+            feedback: false,
         };
         assert!(bad_node_id.to_wire(&ConstNode, &AddNode).is_err());
 
         let unknown_port = SerialWire {
             from: "0:nonexistent".to_string(),
             to: "1:a".to_string(),
+            feedback: false,
         };
         assert!(unknown_port.to_wire(&ConstNode, &AddNode).is_err());
     }
