@@ -115,6 +115,7 @@ where
                     _ => SerialWire {
                         from: format!("{}:out", w.from_node),
                         to: format!("{}:in", w.to_node),
+                        feedback: w.feedback,
                     },
                 }
             })
@@ -170,7 +171,11 @@ pub fn serial_to_graph(serial: SerialGraph, registry: &NodeRegistry) -> Result<G
         })?;
 
         let wire = serial_wire.to_wire(from_node.as_ref(), to_node.as_ref())?;
-        graph.connect(wire.from_node, wire.from_port, wire.to_node, wire.to_port)?;
+        if wire.feedback {
+            graph.connect_recurrence(wire.from_node, wire.from_port, wire.to_node, wire.to_port)?;
+        } else {
+            graph.connect(wire.from_node, wire.from_port, wire.to_node, wire.to_port)?;
+        }
     }
 
     Ok(graph)
