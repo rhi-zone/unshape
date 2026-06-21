@@ -9,33 +9,38 @@
 //!
 //! # Usage
 //!
+//! The initial state is produced by an in-graph [`GrayScottInit`] source node
+//! (a pure `&self` `DynNode` taking no state input), wired into the [`Step`]'s
+//! state port with a **direct** edge, alongside the **feedback** self-loop. On
+//! tick 0 the `Init` node seeds the state; on later ticks the carried feedback
+//! value is used. This makes the graph fully rewindable via
+//! [`Graph::run_to_tick`](unshape_core::Graph::run_to_tick) with no manual seed.
+//!
 //! ```
-//! use unshape_rd::ReactionDiffusion;
-//! use unshape_rd::feedback::Step;
-//! use unshape_core::{Graph, FeedbackState, EvalContext, Value};
+//! use unshape_rd::feedback::{GrayScottInit, Step};
+//! use unshape_core::{Graph, FeedbackState, EvalContext};
 //!
 //! let mut graph = Graph::new();
+//! let init = graph.add_node(GrayScottInit::circle(32, 32, 16, 16, 4));
 //! let step = graph.add_node(Step);
-//! // self-wire: state output -> state input (back-edge)
-//! graph.connect_feedback(step, 0, step, 0).unwrap();
+//! graph.connect(init, 0, step, 0).unwrap();           // Init -> state (direct)
+//! graph.connect_recurrence(step, 0, step, 0).unwrap();  // evolve: state -> state (recurrence)
 //!
-//! // Pre-seed the initial state (opaque types have no zero value).
-//! let mut rd = ReactionDiffusion::new(32, 32);
-//! rd.add_seed_circle(16, 16, 4);
 //! let mut state = FeedbackState::new();
-//! state.set(step, 0, Value::opaque(rd));
-//!
-//! let r = graph.tick(0, &mut state, &EvalContext::new()).unwrap();
+//! // Resimulate to tick 5 — no manual pre-seed; tick 0 resolves via Init.
+//! let r = graph.run_to_tick(5, &mut state, |_t| EvalContext::new()).unwrap();
 //! assert!(r.get(step, 0).is_some());
 //! ```
 
 use std::any::Any;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use unshape_core::{
     DataLocation, DynNode, EvalContext, GraphError, GraphValue, PortDescriptor, Value, ValueType,
 };
 
-use crate::ReactionDiffusion;
+use crate::{GrayScottPreset, ReactionDiffusion};
 
 /// The opaque value type name for [`ReactionDiffusion`] state on a wire.
 pub const RD_STATE_NAME: &str = "ReactionDiffusion";
@@ -57,6 +62,126 @@ impl GraphValue for ReactionDiffusion {
 /// Returns the [`ValueType`] used for [`ReactionDiffusion`] state on a wire.
 pub fn rd_state_type() -> ValueType {
     ValueType::of::<ReactionDiffusion>(RD_STATE_NAME)
+}
+
+/// The initial seed pattern for a [`GrayScottInit`] source node.
+///
+/// Pure-data description of how to seed chemical V into a fresh grid; mirrors the
+/// imperative seeding helpers on [`ReactionDiffusion`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum SeedPattern {
+    /// A single circular seed of V at `(cx, cy)` with the given radius.
+    Circle {
+        /// Center x.
+        cx: usize,
+        /// Center y.
+        cy: usize,
+        /// Radius.
+        radius: usize,
+    },
+    /// `count` random circular seeds of `radius`, placed with the given seed.
+    Random {
+        /// Number of seeds.
+        count: usize,
+        /// Radius of each seed.
+        radius: usize,
+        /// RNG seed (deterministic).
+        seed: u64,
+    },
+}
+
+/// Pure in-graph **source** node producing the initial Gray-Scott state.
+///
+/// Takes no inputs; outputs a freshly seeded [`ReactionDiffusion`] grid from its
+/// config (grid size, preset, and [`SeedPattern`]). Deterministic — the random
+/// seed pattern is fully seeded, so the same config always yields the same grid.
+///
+/// Wire this into a [`Step`]'s state port with a *direct* edge (the tick-0 seed),
+/// alongside the [`Step`]'s feedback self-loop.
+///
+/// # Ports
+/// - Output `0` `"state"`: `Custom(ReactionDiffusion)` — initial state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct GrayScottInit {
+    /// Grid width.
+    pub width: usize,
+    /// Grid height.
+    pub height: usize,
+    /// Gray-Scott parameter preset.
+    pub preset: GrayScottPreset,
+    /// Initial seed pattern for chemical V.
+    pub seed: SeedPattern,
+}
+
+impl GrayScottInit {
+    /// Creates an init node with a single circular seed.
+    pub fn circle(width: usize, height: usize, cx: usize, cy: usize, radius: usize) -> Self {
+        Self {
+            width,
+            height,
+            preset: GrayScottPreset::Coral,
+            seed: SeedPattern::Circle { cx, cy, radius },
+        }
+    }
+
+    /// Creates an init node with random seeds.
+    pub fn random(width: usize, height: usize, count: usize, radius: usize, seed: u64) -> Self {
+        Self {
+            width,
+            height,
+            preset: GrayScottPreset::Coral,
+            seed: SeedPattern::Random {
+                count,
+                radius,
+                seed,
+            },
+        }
+    }
+
+    /// Sets the Gray-Scott parameter preset.
+    pub fn with_preset(mut self, preset: GrayScottPreset) -> Self {
+        self.preset = preset;
+        self
+    }
+
+    /// Builds the initial [`ReactionDiffusion`] grid from this config (pure).
+    pub fn build(&self) -> ReactionDiffusion {
+        let mut rd = ReactionDiffusion::new(self.width, self.height);
+        rd.set_preset(self.preset);
+        match self.seed {
+            SeedPattern::Circle { cx, cy, radius } => rd.add_seed_circle(cx, cy, radius),
+            SeedPattern::Random {
+                count,
+                radius,
+                seed,
+            } => rd.add_random_seeds(count, radius, seed),
+        }
+        rd
+    }
+}
+
+impl DynNode for GrayScottInit {
+    fn type_name(&self) -> &'static str {
+        "rd::feedback::GrayScottInit"
+    }
+
+    fn inputs(&self) -> Vec<PortDescriptor> {
+        vec![]
+    }
+
+    fn outputs(&self) -> Vec<PortDescriptor> {
+        vec![PortDescriptor::new("state", rd_state_type())]
+    }
+
+    fn execute(&self, _inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+        Ok(vec![Value::opaque(self.build())])
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 /// Pure step node for the Gray-Scott simulation.
@@ -108,21 +233,28 @@ mod tests {
     use crate::GrayScottPreset;
     use unshape_core::{FeedbackState, Graph};
 
-    fn seeded_rd() -> ReactionDiffusion {
-        let mut rd = ReactionDiffusion::new(32, 32);
-        rd.set_preset(GrayScottPreset::Coral);
-        rd.add_seed_circle(16, 16, 4);
-        rd
+    fn init_node() -> GrayScottInit {
+        GrayScottInit::circle(32, 32, 16, 16, 4).with_preset(GrayScottPreset::Coral)
     }
 
-    /// Build the self-wired step graph and seed initial state into `FeedbackState`.
-    fn build() -> (Graph, u32, FeedbackState) {
+    fn seeded_rd() -> ReactionDiffusion {
+        init_node().build()
+    }
+
+    /// A built feedback graph: `Init --direct--> Step.state`, `Step --feedback--> Step.state`.
+    struct Built {
+        graph: Graph,
+        step: u32,
+    }
+
+    /// Build the Init-seeded, self-wired step graph (no manual FeedbackState seed).
+    fn build() -> Built {
         let mut graph = Graph::new();
+        let init = graph.add_node(init_node());
         let step = graph.add_node(Step);
-        graph.connect_feedback(step, 0, step, 0).unwrap();
-        let mut state = FeedbackState::new();
-        state.set(step, 0, Value::opaque(seeded_rd()));
-        (graph, step, state)
+        graph.connect(init, 0, step, 0).unwrap(); // Init -> state (direct seed)
+        graph.connect_recurrence(step, 0, step, 0).unwrap(); // evolve: state -> state (recurrence)
+        Built { graph, step }
     }
 
     fn v_sum(rd: &ReactionDiffusion) -> f64 {
@@ -140,7 +272,8 @@ mod tests {
 
         // Feedback driver: tick 0..n (n+1 ticks would over-step; we want N steps).
         // tick 0 applies step #1, ..., tick N-1 applies step #N.
-        let (mut graph, step, mut state) = build();
+        let Built { mut graph, step } = build();
+        let mut state = FeedbackState::new();
         let mut last = None;
         for t in 0..n {
             let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
@@ -166,15 +299,16 @@ mod tests {
 
     #[test]
     fn node_is_pure_fresh_state_restarts() {
-        // (b) the node holds no state: a fresh FeedbackState restarts from seed.
-        let (mut graph, step, mut state) = build();
+        // (b) the node holds no state: a fresh FeedbackState restarts from seed
+        // (the Init source re-seeds tick 0).
+        let Built { mut graph, step } = build();
+        let mut state = FeedbackState::new();
         for t in 0..5 {
             graph.tick(t, &mut state, &EvalContext::new()).unwrap();
         }
 
-        // Fresh seeded state, single tick -> equals one step from the seed.
+        // Fresh feedback state, single tick -> equals one step from the seed.
         let mut fresh = FeedbackState::new();
-        fresh.set(step, 0, Value::opaque(seeded_rd()));
         let r = graph.tick(0, &mut fresh, &EvalContext::new()).unwrap();
         let one = r
             .get(step, 0)
@@ -194,7 +328,8 @@ mod tests {
     fn deterministic() {
         // (c) same seed + inputs + N -> identical output.
         let run = || {
-            let (mut graph, step, mut state) = build();
+            let Built { mut graph, step } = build();
+            let mut state = FeedbackState::new();
             let mut last = 0.0;
             for t in 0..15 {
                 let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
@@ -211,19 +346,16 @@ mod tests {
     }
 
     #[test]
-    fn stepping_0_to_n_is_deterministic() {
-        // (d) stepping 0..=N is reproducible (the per-tick logic the resimulate
-        // driver replays). NOTE: `Graph::run_to_tick` cannot be used directly
-        // here because it calls `state.clear()` before tick 0, and an opaque
-        // state type has no `zero_value()` to re-seed from — see
-        // `run_to_tick_errors_on_opaque_seed` below. Resimulating an
-        // opaque-state sim requires a seed source (e.g. a const/seed node) rather
-        // than a pre-seeded FeedbackState; that is a follow-on, not a defect of
-        // this port.
+    fn run_to_tick_matches_manual_stepping() {
+        // (d) run_to_tick now SUCCEEDS for the opaque-state sim: the in-graph
+        // GrayScottInit source re-seeds tick 0 after run_to_tick clears state.
+        // The resimulated result equals manually stepping 0..=N from the seed.
         let target = 8u64;
 
-        let step_manually = || {
-            let (mut graph, step, mut state) = build();
+        // Manual stepping (the old &mut-style loop, via the feedback driver).
+        let manual = {
+            let Built { mut graph, step } = build();
+            let mut state = FeedbackState::new();
             let mut last = None;
             for t in 0..=target {
                 let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
@@ -237,20 +369,51 @@ mod tests {
             }
             last.unwrap()
         };
-        let a = step_manually();
-        let b = step_manually();
-        for (x, y) in a.v_buffer().iter().zip(b.v_buffer()) {
+
+        // run_to_tick / Resimulate — no manual pre-seed.
+        let Built { mut graph, step } = build();
+        let mut state = FeedbackState::new();
+        let r = graph
+            .run_to_tick(target, &mut state, |_t| EvalContext::new())
+            .unwrap();
+        let resimulated = r
+            .get(step, 0)
+            .unwrap()
+            .downcast_ref::<ReactionDiffusion>()
+            .unwrap();
+
+        assert_eq!(resimulated.width(), manual.width());
+        for (x, y) in resimulated.v_buffer().iter().zip(manual.v_buffer()) {
+            assert_eq!(x, y);
+        }
+        for (x, y) in resimulated.u_buffer().iter().zip(manual.u_buffer()) {
             assert_eq!(x, y);
         }
     }
 
     #[test]
-    fn run_to_tick_errors_on_opaque_seed() {
-        // Documents the opaque-state + run_to_tick limitation: run_to_tick clears
-        // state, then tick 0 finds no seed and no zero_value for the Custom type.
-        let (mut graph, step, mut state) = build();
-        let _ = step;
-        let r = graph.run_to_tick(3, &mut state, |_t| EvalContext::new());
-        assert!(matches!(r, Err(GraphError::ExecutionError(_))));
+    fn seek_resimulate_is_deterministic_and_reproducible() {
+        // (e) seek(Resimulate) works; same config + N -> identical; fresh run
+        // reproduces.
+        let seek_to = |target: u64| {
+            let Built { mut graph, step } = build();
+            let mut state = FeedbackState::new();
+            let r = graph
+                .seek(
+                    target,
+                    0,
+                    unshape_core::SeekBehavior::Resimulate,
+                    &mut state,
+                    |_t| EvalContext::new(),
+                )
+                .unwrap();
+            v_sum(
+                r.get(step, 0)
+                    .unwrap()
+                    .downcast_ref::<ReactionDiffusion>()
+                    .unwrap(),
+            )
+        };
+        assert_eq!(seek_to(6), seek_to(6));
     }
 }

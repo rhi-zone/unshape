@@ -19,9 +19,14 @@
 //!
 //! # Tick-0 state
 //!
-//! Opaque types have no zero value, so the initial [`VocoderState`]
-//! ([`VocoderState::new`]) must be pre-seeded into
-//! [`FeedbackState`](unshape_core::FeedbackState) before the first tick.
+//! The initial [`VocoderState`] is produced by an in-graph [`VocoderInit`]
+//! source node (a pure `&self` `DynNode` taking no inputs) wired into the
+//! [`Step`]'s state port with a *direct* edge, alongside the feedback self-loop.
+//! On tick 0 the `Init` node supplies the (zeroed, but *defined*) streaming
+//! state; later ticks use the carried feedback value. This makes the vocoder
+//! rewindable via [`Graph::run_to_tick`](unshape_core::Graph::run_to_tick) with
+//! no manual seed, provided the carrier/modulator blocks are produced by
+//! deterministic, tick-addressed source nodes.
 
 use std::any::Any;
 
@@ -92,6 +97,64 @@ pub fn vocoder_state_type() -> ValueType {
 /// Returns the [`ValueType`] used for an [`AudioBlock`] on a wire.
 pub fn audio_block_type() -> ValueType {
     ValueType::of::<AudioBlock>(AUDIO_BLOCK_NAME)
+}
+
+/// Pure in-graph **source** node producing the initial [`VocoderState`].
+///
+/// Takes no inputs; outputs the zeroed (but fully *defined*) streaming state
+/// matching `config` — empty ring/overlap buffers and zero per-band envelopes,
+/// which is the valid initial state for a streaming vocoder. Deterministic.
+///
+/// Wire this into a [`Step`]'s state port with a *direct* edge (the tick-0 seed),
+/// alongside the [`Step`]'s feedback self-loop.
+///
+/// # Ports
+/// - Output `0` `"state"`: `Custom(VocoderState)` — initial state.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct VocoderInit {
+    /// Static vocoder configuration (must match the [`Step`]'s config).
+    pub config: VocodeSynth,
+}
+
+impl VocoderInit {
+    /// Creates an init node from a vocoder configuration.
+    pub fn new(config: VocodeSynth) -> Self {
+        Self { config }
+    }
+
+    /// Builds the initial [`VocoderState`] from this config (pure).
+    pub fn build(&self) -> VocoderState {
+        VocoderState::new(&self.config)
+    }
+}
+
+impl Default for VocoderInit {
+    fn default() -> Self {
+        Self::new(VocodeSynth::default())
+    }
+}
+
+impl DynNode for VocoderInit {
+    fn type_name(&self) -> &'static str {
+        "vocoder::feedback::VocoderInit"
+    }
+
+    fn inputs(&self) -> Vec<PortDescriptor> {
+        vec![]
+    }
+
+    fn outputs(&self) -> Vec<PortDescriptor> {
+        vec![PortDescriptor::new("state", vocoder_state_type())]
+    }
+
+    fn execute(&self, _inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+        Ok(vec![Value::opaque(self.build())])
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 /// Pure per-tick vocoder step node.
@@ -249,6 +312,120 @@ mod tests {
         }
     }
 
+    /// A tick-addressed sine source: block index comes from `ctx.frame`, so a
+    /// fixed graph driven by `run_to_tick` produces a different block each tick
+    /// (block `t` at tick `t`). `freq` selects carrier vs modulator.
+    struct SineBlockSource {
+        freq: f32,
+        len: usize,
+    }
+
+    impl DynNode for SineBlockSource {
+        fn type_name(&self) -> &'static str {
+            "vocoder::test::SineBlockSource"
+        }
+        fn inputs(&self) -> Vec<PortDescriptor> {
+            vec![]
+        }
+        fn outputs(&self) -> Vec<PortDescriptor> {
+            vec![PortDescriptor::new("block", audio_block_type())]
+        }
+        fn execute(&self, _inputs: &[Value], ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+            let block = ctx.frame as usize;
+            let samples: Vec<f32> = (0..self.len)
+                .map(|i| {
+                    let t = (block * self.len + i) as f32;
+                    (2.0 * PI * self.freq * t / 44100.0).sin()
+                })
+                .collect();
+            Ok(vec![Value::opaque(AudioBlock(samples))])
+        }
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
+
+    #[test]
+    fn run_to_tick_matches_mut_process_loop() {
+        // (d) run_to_tick now SUCCEEDS for the streaming vocoder: VocoderInit
+        // seeds tick 0, and tick-addressed sine sources (block = ctx.frame)
+        // supply the per-tick carrier/modulator. Resimulating to tick N equals
+        // calling Vocoder::process for blocks 0..=N.
+        let len = 256usize;
+        let target = 5u64;
+
+        // Reference: imperative &mut process loop.
+        let mut reference = Vocoder::new(config());
+        let mut ref_last = Vec::new();
+        for b in 0..=target as usize {
+            ref_last = reference.process(&carrier_block(b, len), &modulator_block(b, len));
+        }
+
+        // Fixed graph: Init --direct--> state, feedback self-loop, sine sources.
+        let mut graph = Graph::new();
+        let init = graph.add_node(VocoderInit::new(config()));
+        let car = graph.add_node(SineBlockSource { freq: 440.0, len });
+        let modn = graph.add_node(SineBlockSource { freq: 110.0, len });
+        let step = graph.add_node(Step::new(config()));
+        graph.connect(init, 0, step, 0).unwrap(); // Init -> state (direct seed)
+        graph.connect(car, 0, step, 1).unwrap();
+        graph.connect(modn, 0, step, 2).unwrap();
+        graph.connect_recurrence(step, 0, step, 0).unwrap(); // evolve: state -> state (recurrence)
+
+        let mut state = FeedbackState::new();
+        let r = graph
+            .run_to_tick(target, &mut state, |t| {
+                EvalContext::new().with_time(0.0, t, 1.0 / 60.0)
+            })
+            .unwrap();
+        let resimulated = r
+            .get(step, 1)
+            .unwrap()
+            .downcast_ref::<AudioBlock>()
+            .unwrap()
+            .0
+            .clone();
+
+        assert_eq!(resimulated.len(), ref_last.len());
+        for (a, b) in resimulated.iter().zip(&ref_last) {
+            assert!((a - b).abs() < 1e-5, "ref={b} fb={a}");
+        }
+    }
+
+    #[test]
+    fn run_to_tick_is_deterministic() {
+        // (e) seek(Resimulate) / run_to_tick reproduces.
+        let len = 256usize;
+        let build_and_run = |target: u64| {
+            let mut graph = Graph::new();
+            let init = graph.add_node(VocoderInit::new(config()));
+            let car = graph.add_node(SineBlockSource { freq: 440.0, len });
+            let modn = graph.add_node(SineBlockSource { freq: 110.0, len });
+            let step = graph.add_node(Step::new(config()));
+            graph.connect(init, 0, step, 0).unwrap();
+            graph.connect(car, 0, step, 1).unwrap();
+            graph.connect(modn, 0, step, 2).unwrap();
+            graph.connect_recurrence(step, 0, step, 0).unwrap();
+            let mut state = FeedbackState::new();
+            let r = graph
+                .seek(
+                    target,
+                    0,
+                    unshape_core::SeekBehavior::Resimulate,
+                    &mut state,
+                    |t| EvalContext::new().with_time(0.0, t, 1.0 / 60.0),
+                )
+                .unwrap();
+            r.get(step, 1)
+                .unwrap()
+                .downcast_ref::<AudioBlock>()
+                .unwrap()
+                .0
+                .clone()
+        };
+        assert_eq!(build_and_run(4), build_and_run(4));
+    }
+
     #[test]
     fn evolves_like_mut_process_loop() {
         // (a) feedback stepping N blocks matches calling Vocoder::process N times.
@@ -280,7 +457,7 @@ mod tests {
             let step = graph.add_node(Step::new(config()));
             graph.connect(car, 0, step, 1).unwrap();
             graph.connect(modn, 0, step, 2).unwrap();
-            graph.connect_feedback(step, 0, step, 0).unwrap();
+            graph.connect_recurrence(step, 0, step, 0).unwrap();
 
             // Seed the state port: on the first block, the zero initial state;
             // afterwards, the carried state. Because we rebuild the graph each
@@ -328,7 +505,7 @@ mod tests {
         let step = graph.add_node(Step::new(cfg.clone()));
         graph.connect(car, 0, step, 1).unwrap();
         graph.connect(modn, 0, step, 2).unwrap();
-        graph.connect_feedback(step, 0, step, 0).unwrap();
+        graph.connect_recurrence(step, 0, step, 0).unwrap();
 
         let mut state = FeedbackState::new();
         state.set(step, 0, Value::opaque(VocoderState::new(&cfg)));
@@ -372,7 +549,7 @@ mod tests {
                 let step = graph.add_node(Step::new(config()));
                 graph.connect(car, 0, step, 1).unwrap();
                 graph.connect(modn, 0, step, 2).unwrap();
-                graph.connect_feedback(step, 0, step, 0).unwrap();
+                graph.connect_recurrence(step, 0, step, 0).unwrap();
                 if b == 0 {
                     state.set(step, 0, Value::opaque(VocoderState::new(&config())));
                 }

@@ -99,10 +99,14 @@ pub struct Wire {
     /// Feedback wires (`true`) are excluded from it and instead seed their
     /// destination input from [`FeedbackState`](crate::FeedbackState).
     ///
-    /// Kept as a plain `bool` so `Wire` stays `Copy`. Per-edge initial values for
-    /// tick 0 are not stored on the wire (a `Value` is not `Copy`); pre-seed them
-    /// into the [`FeedbackState`](crate::FeedbackState) before tick 0, otherwise
-    /// the destination port's zero value is used (see [`Graph::tick`]).
+    /// This flag marks the **recurrence (back-)edge** half of a recurrence (see
+    /// [`Graph::connect_recurrence`]). Kept as a plain `bool` so `Wire` stays
+    /// `Copy`. The recurrence's tick-0 **seed** is *not* stored on the wire (a
+    /// `Value` is not `Copy`); it is the *direct* edge into the same input, from
+    /// an in-graph `Init` source node. On tick 0 the direct seed edge supplies the
+    /// initial state; on later ticks the carried previous-tick value flows through
+    /// this recurrence edge (see [`Graph::tick`]). A recurrence with no seed edge
+    /// is an error — there is no zero-value fallback.
     #[cfg_attr(feature = "serde", serde(default))]
     pub feedback: bool,
 }
@@ -214,16 +218,35 @@ impl Graph {
         Ok(())
     }
 
-    /// Connects an output port to an input port as a **feedback (back-)edge**.
+    /// Declares `to_node`'s `to_port` input as a **recurrence**, evolved by
+    /// `from_node`'s `from_port` output.
     ///
-    /// A feedback wire carries the source's value from the *previous* tick. It
-    /// does not participate in the within-tick topological order, so it may form
-    /// a cycle that a direct wire could not. The destination input is seeded from
-    /// [`FeedbackState`](crate::FeedbackState) (or an initial value on tick 0) by
-    /// the recurrent driver — see [`Graph::tick`].
+    /// A recurrence is defined by two edges into the same state input:
+    ///
+    /// - a **seed**: an ordinary [`connect`](Self::connect) (direct) edge from an
+    ///   in-graph source node, which supplies the state on **tick 0**, and
+    /// - this **recurrence** (back-)edge, which feeds the source's output from the
+    ///   *previous* tick back into the state input on **ticks ≥ 1**.
+    ///
+    /// In other words: the state input is **seeded by its incoming direct edge and
+    /// evolved by `from`'s output**. That two-edge pair *is* the recurrence — not
+    /// an accidental coexistence resolved by precedence.
+    ///
+    /// The recurrence edge does not participate in the within-tick topological
+    /// order, so it may form a cycle that a direct wire could not. The carried
+    /// value lives in [`FeedbackState`](crate::FeedbackState); the seed lives in
+    /// the graph (the seed node is an ordinary, swappable input: `dup` forks the
+    /// state, sharing or re-pointing the seed; pinning swaps the seed source for a
+    /// baked-state source). See [`Graph::tick`] for evaluation and
+    /// `docs/design/recurrent-graphs.md` for the full model.
+    ///
+    /// A recurrence **must** have exactly one seed source (a direct edge into the
+    /// same input). The seed is required uniformly — scalar loops and opaque sims
+    /// alike — and its absence is reported by [`tick`](Self::tick) as a clear
+    /// error rather than silently defaulting to a zero value.
     ///
     /// Type checking is identical to [`connect`](Self::connect).
-    pub fn connect_feedback(
+    pub fn connect_recurrence(
         &mut self,
         from_node: NodeId,
         from_port: usize,
@@ -607,15 +630,23 @@ impl Graph {
     /// (`docs/design/recurrent-graphs.md`). Nodes stay pure (`&self`); all state
     /// that crosses tick boundaries lives in `state`.
     ///
-    /// Per tick:
-    /// 1. **Seed** each feedback wire's *destination* input from `state` (the
-    ///    value its source produced last tick). On tick 0, or whenever `state`
-    ///    has no entry for that source, the zero value of the destination port
-    ///    type is used (see [`ValueType::zero_value`](crate::ValueType::zero_value)).
-    /// 2. **Evaluate** the now-acyclic DAG in topological order. Direct wires
-    ///    read from values computed this tick; feedback wires read from the seed.
-    /// 3. **Write back** each feedback wire's *source* output into `state` for
-    ///    the next tick.
+    /// Per tick, each input is resolved by the recurrence definition (see
+    /// [`connect_recurrence`](Self::connect_recurrence)):
+    /// 1. **Evolve (carried value)** — if a recurrence edge feeds the input *and*
+    ///    `state` holds the source's output from a previous tick (ticks ≥ 1), use
+    ///    it. This is the recurrence *evolving*.
+    /// 2. **Seed / direct edge** — otherwise evaluate the direct wire feeding the
+    ///    input. For a recurrence on tick 0 this is the in-graph **`Init` seed
+    ///    source**; for a non-recurrent input it is the ordinary upstream wire.
+    ///
+    /// There is **no zero-value fallback**. A recurrence with a recurrence edge
+    /// but no seed (direct) edge is a declaration error: tick 0 has nothing to
+    /// seed from. It is reported as a [`GraphError::ExecutionError`] uniformly for
+    /// scalar and opaque (`Custom`) state alike — every recurrence is seeded by an
+    /// explicit source node.
+    ///
+    /// After evaluation, each recurrence edge's *source* output is written back
+    /// into `state` for the next tick.
     ///
     /// # Caching interaction
     ///
@@ -651,8 +682,25 @@ impl Graph {
             let num_inputs = inputs_desc.len();
 
             let mut inputs = Vec::with_capacity(num_inputs);
-            for (port, desc) in inputs_desc.iter().enumerate() {
-                // Prefer a direct wire; fall back to a feedback wire (seeded).
+            for (port, _desc) in inputs_desc.iter().enumerate() {
+                // A recurrence is two edges into one input: a recurrence
+                // (back-)edge that EVOLVES the state, and a direct seed edge that
+                // SEEDS it on tick 0. On ticks ≥1 `state` holds the source's
+                // previous-tick output, so the recurrence edge evolves the state.
+                let recurrence = self
+                    .wires
+                    .iter()
+                    .find(|w| w.feedback && w.to_node == node_id && w.to_port == port);
+
+                if let Some(rec) = recurrence
+                    && let Some(v) = state.get(rec.from_node, rec.from_port)
+                {
+                    inputs.push(v.clone());
+                    continue;
+                }
+
+                // No carried value yet. Take the direct edge: the recurrence's
+                // seed on tick 0, or an ordinary non-recurrent upstream wire.
                 let direct = self
                     .wires
                     .iter()
@@ -672,25 +720,19 @@ impl Graph {
                     continue;
                 }
 
-                let feedback = self
-                    .wires
-                    .iter()
-                    .find(|w| w.feedback && w.to_node == node_id && w.to_port == port);
-
-                match feedback {
-                    Some(fb) => {
-                        // Seed from previous-tick state, else the port's zero value.
-                        let seeded = match state.get(fb.from_node, fb.from_port) {
-                            Some(v) => v.clone(),
-                            None => desc.value_type.zero_value().ok_or_else(|| {
-                                GraphError::ExecutionError(format!(
-                                    "feedback input node {} port {} has no initial value and \
-                                     type {:?} has no zero value; seed it via FeedbackState",
-                                    node_id, port, desc.value_type
-                                ))
-                            })?,
-                        };
-                        inputs.push(seeded);
+                // No direct edge. A recurrence edge without a seed (direct) edge
+                // is a declaration error: there is nothing to seed tick 0 from.
+                // This is enforced uniformly — scalar and opaque state alike — so
+                // there is NO zero-value fallback. Plain unconnected inputs (no
+                // edge at all) are a separate error.
+                match recurrence {
+                    Some(rec) => {
+                        return Err(GraphError::ExecutionError(format!(
+                            "recurrence into node {node_id} port {port} (evolved by source {} \
+                             port {}) has no seed: add a direct edge from an Init source node \
+                             into this input so tick 0 can be seeded",
+                            rec.from_node, rec.from_port
+                        )));
                     }
                     None => {
                         return Err(GraphError::UnconnectedInput {
@@ -707,7 +749,7 @@ impl Graph {
             }
         }
 
-        // Write feedback sources back into state for the next tick.
+        // Write each recurrence source's output back into state for the next tick.
         for w in self.wires.iter().filter(|w| w.feedback) {
             if let Some(v) = values.get(&(w.from_node, w.from_port)) {
                 state.set(w.from_node, w.from_port, v.clone());
@@ -727,6 +769,11 @@ impl Graph {
     /// replays every tick `0..=target_tick`, so the result is identical to
     /// stepping [`tick`](Self::tick) that many times from a fresh state. This is
     /// the correct (if O(N)) way to seek a stateful graph.
+    ///
+    /// Clearing `state` is safe even for opaque-state sims: tick 0 re-seeds via
+    /// each recurrence's **seed source** (the direct edge into the state port), so
+    /// no manual pre-seed of `state` is required. See
+    /// [`connect_recurrence`](Self::connect_recurrence) and [`tick`](Self::tick).
     ///
     /// `make_ctx(tick)` builds the per-tick context (time/frame/seed). Keeping it
     /// a closure keeps determinism the caller's explicit choice: same closure +
@@ -1386,33 +1433,34 @@ mod tests {
         acc: NodeId,
     }
 
-    /// Build `Const(step) -> Accum`, with `Accum.sum -> Accum.prev` as feedback.
+    /// Build `Const(step) -> Accum`, with `Accum.prev` a recurrence: seeded by a
+    /// `Const(0)` source on tick 0 and evolved by `Accum.sum` thereafter.
     fn build_accumulator(step: f32) -> AccumGraph {
         let mut graph = Graph::new();
         let c = graph.add_node(ConstNode(step));
+        let seed = graph.add_node(ConstNode(0.0)); // explicit tick-0 seed for prev
         let acc = graph.add_node(AccumNode);
         graph.connect(c, 0, acc, 0).unwrap(); // x = step
-        graph.connect_feedback(acc, 0, acc, 1).unwrap(); // sum -> prev (back-edge)
+        graph.connect(seed, 0, acc, 1).unwrap(); // seed: prev = 0 on tick 0
+        graph.connect_recurrence(acc, 0, acc, 1).unwrap(); // evolve: sum -> prev
         AccumGraph { graph, acc }
     }
 
     #[test]
-    fn test_feedback_back_edge_is_acyclic_per_tick() {
-        // A feedback self-loop must NOT be reported as a cycle: the recurrent
+    fn test_recurrence_back_edge_is_acyclic_per_tick() {
+        // A recurrence (back-)edge must NOT be reported as a cycle: the recurrent
         // driver topo-sorts the graph (excluding back-edges) and evaluates it.
         let AccumGraph { mut graph, acc } = build_accumulator(1.0);
         assert!(graph.has_feedback());
         let mut state = crate::FeedbackState::new();
         let r = graph.tick(0, &mut state, &EvalContext::new());
-        assert!(r.is_ok(), "feedback back-edge wrongly treated as a cycle");
+        assert!(r.is_ok(), "recurrence back-edge wrongly treated as a cycle");
         assert_eq!(r.unwrap().get(acc, 0).unwrap().as_f32().unwrap(), 1.0);
 
-        // The plain DAG path (`execute`) does NOT handle feedback: the
-        // feedback-fed input is reported as unconnected, by design.
-        assert!(matches!(
-            graph.execute(acc),
-            Err(GraphError::UnconnectedInput { .. })
-        ));
+        // The plain DAG path (`execute`) ignores the recurrence (back-)edge and
+        // resolves the state input from its seed edge — a single unrolled step
+        // from the seed (sum = x + seed = 1.0 + 0.0).
+        assert_eq!(graph.execute(acc).unwrap()[0].as_f32().unwrap(), 1.0);
     }
 
     #[test]
@@ -1521,9 +1569,11 @@ mod tests {
         // y = a*x + (1-a)*y_prev with constant x converges toward x.
         let mut graph = Graph::new();
         let c = graph.add_node(ConstNode(1.0));
+        let seed = graph.add_node(ConstNode(0.0)); // explicit tick-0 seed for y_prev
         let filt = graph.add_node(OnePoleNode { a: 0.5 });
         graph.connect(c, 0, filt, 0).unwrap();
-        graph.connect_feedback(filt, 0, filt, 1).unwrap();
+        graph.connect(seed, 0, filt, 1).unwrap(); // seed: y_prev = 0 on tick 0
+        graph.connect_recurrence(filt, 0, filt, 1).unwrap(); // evolve: y -> y_prev
 
         let mut state = crate::FeedbackState::new();
         let mut y = 0.0;
@@ -1538,6 +1588,101 @@ mod tests {
         let mut s0 = crate::FeedbackState::new();
         let r0 = graph.tick(0, &mut s0, &EvalContext::new()).unwrap();
         assert_eq!(r0.get(filt, 0).unwrap().as_f32().unwrap(), 0.5);
+    }
+
+    /// Step node: `out = state + 1`, where `state` arrives on input 0 as a
+    /// recurrence — seeded by an `Init` source (direct edge) and evolved by the
+    /// node's own output (recurrence edge).
+    struct IncrNode;
+
+    impl DynNode for IncrNode {
+        fn type_name(&self) -> &'static str {
+            "Incr"
+        }
+        fn inputs(&self) -> Vec<PortDescriptor> {
+            vec![PortDescriptor::new("state", ValueType::F32)]
+        }
+        fn outputs(&self) -> Vec<PortDescriptor> {
+            vec![PortDescriptor::new("state", ValueType::F32)]
+        }
+        fn execute(&self, inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+            let s = inputs[0]
+                .as_f32()
+                .map_err(|e| GraphError::ExecutionError(e.to_string()))?;
+            Ok(vec![Value::F32(s + 1.0)])
+        }
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
+
+    #[test]
+    fn test_recurrence_seeds_tick0_then_evolves() {
+        // A recurrence is two edges into one input: Init --direct(seed)--> state,
+        // Step.out --recurrence(evolve)--> state. Tick 0 is seeded by Init (=10),
+        // ticks ≥1 evolve via the carried value.
+        let mut graph = Graph::new();
+        let init = graph.add_node(ConstNode(10.0)); // seed source: initial state = 10
+        let step = graph.add_node(IncrNode);
+        graph.connect(init, 0, step, 0).unwrap(); // seed (direct) edge
+        graph.connect_recurrence(step, 0, step, 0).unwrap(); // evolve (recurrence) edge
+
+        let mut state = crate::FeedbackState::new();
+        // tick 0: state = Init(10) -> out = 11
+        let r0 = graph.tick(0, &mut state, &EvalContext::new()).unwrap();
+        assert_eq!(r0.get(step, 0).unwrap().as_f32().unwrap(), 11.0);
+        // tick 1: state = carried 11 (NOT Init) -> out = 12
+        let r1 = graph.tick(1, &mut state, &EvalContext::new()).unwrap();
+        assert_eq!(r1.get(step, 0).unwrap().as_f32().unwrap(), 12.0);
+        // tick 2: state = 12 -> out = 13
+        let r2 = graph.tick(2, &mut state, &EvalContext::new()).unwrap();
+        assert_eq!(r2.get(step, 0).unwrap().as_f32().unwrap(), 13.0);
+    }
+
+    #[test]
+    fn test_run_to_tick_with_seed_source() {
+        // run_to_tick clears state then replays from tick 0; the recurrence's
+        // seed source re-seeds tick 0, so no manual pre-seed is needed.
+        let mut graph = Graph::new();
+        let init = graph.add_node(ConstNode(10.0));
+        let step = graph.add_node(IncrNode);
+        graph.connect(init, 0, step, 0).unwrap();
+        graph.connect_recurrence(step, 0, step, 0).unwrap();
+
+        // Resimulate to tick 3: 11,12,13,14 -> final 14.
+        let mut state = crate::FeedbackState::new();
+        let r = graph
+            .run_to_tick(3, &mut state, |_t| EvalContext::new())
+            .unwrap();
+        assert_eq!(r.get(step, 0).unwrap().as_f32().unwrap(), 14.0);
+
+        // Equals manual stepping from a fresh state.
+        let mut manual_state = crate::FeedbackState::new();
+        let mut last = 0.0;
+        for t in 0..=3 {
+            let rt = graph
+                .tick(t, &mut manual_state, &EvalContext::new())
+                .unwrap();
+            last = rt.get(step, 0).unwrap().as_f32().unwrap();
+        }
+        assert_eq!(last, 14.0);
+    }
+
+    #[test]
+    fn test_recurrence_without_seed_errors() {
+        // A recurrence (back-)edge with no seed (direct) edge is a declaration
+        // error — uniformly, even for a scalar F32 state that *has* a zero value.
+        // There is no zero-value fallback: every recurrence is seeded explicitly.
+        let mut graph = Graph::new();
+        let step = graph.add_node(IncrNode);
+        graph.connect_recurrence(step, 0, step, 0).unwrap(); // evolve, but no seed
+
+        let mut state = crate::FeedbackState::new();
+        let r = graph.tick(0, &mut state, &EvalContext::new());
+        assert!(
+            matches!(&r, Err(GraphError::ExecutionError(m)) if m.contains("no seed")),
+            "expected a no-seed recurrence error, got {r:?}"
+        );
     }
 
     #[test]

@@ -19,9 +19,13 @@
 //!
 //! # Tick-0 state
 //!
-//! Opaque types have no zero value, so the initial [`ParticleSystem`] (already
-//! emitted into) must be pre-seeded into [`FeedbackState`](unshape_core::FeedbackState)
-//! before the first tick.
+//! The initial [`ParticleSystem`] is produced by an in-graph [`ParticleInit`]
+//! source node (a pure `&self` `DynNode` taking no inputs) wired into the
+//! [`Step`]'s state port with a *direct* edge, alongside the feedback self-loop.
+//! On tick 0 the `Init` node emits the initial particles (with a seeded RNG); on
+//! later ticks the carried feedback value is used. This makes the sim rewindable
+//! via [`Graph::run_to_tick`](unshape_core::Graph::run_to_tick) with no manual
+//! seed.
 
 use std::any::Any;
 
@@ -32,7 +36,7 @@ use unshape_core::{
 };
 
 use crate::{
-    Attractor, Drag, EulerIntegrator, Force, Gravity, Integrator, ParticleSystem,
+    Attractor, Drag, EulerIntegrator, Force, Gravity, Integrator, ParticleSystem, PointEmitter,
     SemiImplicitEulerIntegrator, Vortex, Wind,
 };
 
@@ -109,6 +113,73 @@ impl IntegratorKind {
             IntegratorKind::Euler => EulerIntegrator.step(particle, dt),
             IntegratorKind::SemiImplicit => SemiImplicitEulerIntegrator.step(particle, dt),
         }
+    }
+}
+
+/// Pure in-graph **source** node producing the initial [`ParticleSystem`].
+///
+/// Takes no inputs; outputs a particle system seeded with a deterministic RNG
+/// (`seed`) into which `count` particles have been emitted from a
+/// [`PointEmitter`]. Deterministic — the same config yields the same particles
+/// (including the seeded RNG carried in the output, so subsequent emission would
+/// also reproduce).
+///
+/// Wire this into a [`Step`]'s state port with a *direct* edge (the tick-0 seed),
+/// alongside the [`Step`]'s feedback self-loop.
+///
+/// # Ports
+/// - Output `0` `"state"`: `Custom(ParticleSystem)` — initial system.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ParticleInit {
+    /// Maximum particle capacity of the system.
+    pub capacity: usize,
+    /// RNG seed for reproducible emission.
+    pub seed: u64,
+    /// Emitter used to produce the initial particles.
+    pub emitter: PointEmitter,
+    /// Number of particles to emit initially.
+    pub count: usize,
+}
+
+impl ParticleInit {
+    /// Creates an init node from capacity, RNG seed, emitter, and emit count.
+    pub fn new(capacity: usize, seed: u64, emitter: PointEmitter, count: usize) -> Self {
+        Self {
+            capacity,
+            seed,
+            emitter,
+            count,
+        }
+    }
+
+    /// Builds the initial [`ParticleSystem`] from this config (pure).
+    pub fn build(&self) -> ParticleSystem {
+        let mut sys = ParticleSystem::with_seed(self.capacity, self.seed);
+        sys.emit(&self.emitter, self.count);
+        sys
+    }
+}
+
+impl DynNode for ParticleInit {
+    fn type_name(&self) -> &'static str {
+        "particle::feedback::ParticleInit"
+    }
+
+    fn inputs(&self) -> Vec<PortDescriptor> {
+        vec![]
+    }
+
+    fn outputs(&self) -> Vec<PortDescriptor> {
+        vec![PortDescriptor::new("state", particle_state_type())]
+    }
+
+    fn execute(&self, _inputs: &[Value], _ctx: &EvalContext) -> Result<Vec<Value>, GraphError> {
+        Ok(vec![Value::opaque(self.build())])
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -205,15 +276,19 @@ mod tests {
     use glam::Vec3;
     use unshape_core::{FeedbackState, Graph};
 
-    fn seeded_system() -> ParticleSystem {
-        let mut sys = ParticleSystem::new(64);
+    fn init_node() -> ParticleInit {
+        // Seed 12345 matches `ParticleSystem::new`'s default RNG, so the Init
+        // node reproduces `seeded_system()` exactly.
         let emitter = PointEmitter {
             lifetime_min: 100.0,
             lifetime_max: 100.0,
             ..Default::default()
         };
-        sys.emit(&emitter, 20);
-        sys
+        ParticleInit::new(64, 12345, emitter, 20)
+    }
+
+    fn seeded_system() -> ParticleSystem {
+        init_node().build()
     }
 
     fn step_node() -> Step {
@@ -222,13 +297,19 @@ mod tests {
             .with_force(ForceKind::Drag(Drag { coefficient: 0.2 }))
     }
 
-    fn build() -> (Graph, u32, FeedbackState) {
+    /// A built feedback graph: `Init --direct--> Step.state`, `Step --feedback--> Step.state`.
+    struct Built {
+        graph: Graph,
+        step: u32,
+    }
+
+    fn build() -> Built {
         let mut graph = Graph::new();
+        let init = graph.add_node(init_node());
         let step = graph.add_node(step_node());
-        graph.connect_feedback(step, 0, step, 0).unwrap();
-        let mut state = FeedbackState::new();
-        state.set(step, 0, Value::opaque(seeded_system()));
-        (graph, step, state)
+        graph.connect(init, 0, step, 0).unwrap();
+        graph.connect_recurrence(step, 0, step, 0).unwrap();
+        Built { graph, step }
     }
 
     fn total_momentum(sys: &ParticleSystem) -> Vec3 {
@@ -250,7 +331,8 @@ mod tests {
         }
 
         // Feedback driver.
-        let (mut graph, step, mut state) = build();
+        let Built { mut graph, step } = build();
+        let mut state = FeedbackState::new();
         let mut last = None;
         for t in 0..n {
             let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
@@ -274,14 +356,15 @@ mod tests {
 
     #[test]
     fn node_is_pure_fresh_state_restarts() {
-        // (b) the node holds no mutable state: a fresh seed restarts identically.
-        let (mut graph, step, mut state) = build();
+        // (b) the node holds no mutable state: a fresh seed restarts identically
+        // (the Init source re-seeds tick 0).
+        let Built { mut graph, step } = build();
+        let mut state = FeedbackState::new();
         for t in 0..5 {
             graph.tick(t, &mut state, &EvalContext::new()).unwrap();
         }
 
         let mut fresh = FeedbackState::new();
-        fresh.set(step, 0, Value::opaque(seeded_system()));
         let r = graph.tick(0, &mut fresh, &EvalContext::new()).unwrap();
         let one = r
             .get(step, 0)
@@ -303,7 +386,8 @@ mod tests {
     fn deterministic() {
         // (c) same seed + inputs + N -> identical output.
         let run = || {
-            let (mut graph, step, mut state) = build();
+            let Built { mut graph, step } = build();
+            let mut state = FeedbackState::new();
             let mut last = Vec3::ZERO;
             for t in 0..12 {
                 let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
@@ -322,11 +406,69 @@ mod tests {
     }
 
     #[test]
-    fn run_to_tick_errors_on_opaque_seed() {
-        // Documents the opaque-state limitation: run_to_tick clears state, then
-        // tick 0 finds no seed and no zero_value for the Custom type.
-        let (mut graph, _step, mut state) = build();
-        let r = graph.run_to_tick(3, &mut state, |_t| EvalContext::new());
-        assert!(matches!(r, Err(GraphError::ExecutionError(_))));
+    fn run_to_tick_matches_manual_stepping() {
+        // (d) run_to_tick now SUCCEEDS: the in-graph ParticleInit source re-seeds
+        // tick 0 after run_to_tick clears state. Resimulated == manual stepping.
+        let target = 10u64;
+
+        let manual = {
+            let Built { mut graph, step } = build();
+            let mut state = FeedbackState::new();
+            let mut last = None;
+            for t in 0..=target {
+                let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
+                last = Some(
+                    r.get(step, 0)
+                        .unwrap()
+                        .downcast_ref::<ParticleSystem>()
+                        .unwrap()
+                        .clone(),
+                );
+            }
+            last.unwrap()
+        };
+
+        let Built { mut graph, step } = build();
+        let mut state = FeedbackState::new();
+        let r = graph
+            .run_to_tick(target, &mut state, |_t| EvalContext::new())
+            .unwrap();
+        let resimulated = r
+            .get(step, 0)
+            .unwrap()
+            .downcast_ref::<ParticleSystem>()
+            .unwrap();
+
+        assert_eq!(resimulated.count(), manual.count());
+        for (a, b) in resimulated.particles().iter().zip(manual.particles()) {
+            assert!((a.position - b.position).length() < 1e-6);
+            assert!((a.velocity - b.velocity).length() < 1e-6);
+            assert!((a.age - b.age).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn seek_resimulate_is_deterministic() {
+        // (e) seek(Resimulate) works and reproduces.
+        let seek_to = |target: u64| {
+            let Built { mut graph, step } = build();
+            let mut state = FeedbackState::new();
+            let r = graph
+                .seek(
+                    target,
+                    0,
+                    unshape_core::SeekBehavior::Resimulate,
+                    &mut state,
+                    |_t| EvalContext::new(),
+                )
+                .unwrap();
+            total_momentum(
+                r.get(step, 0)
+                    .unwrap()
+                    .downcast_ref::<ParticleSystem>()
+                    .unwrap(),
+            )
+        };
+        assert_eq!(seek_to(8), seek_to(8));
     }
 }
