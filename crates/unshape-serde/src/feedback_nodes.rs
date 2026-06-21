@@ -21,14 +21,16 @@ use crate::registry::NodeRegistry;
     feature = "rd-feedback",
     feature = "particle-feedback",
     feature = "fluid-feedback",
-    feature = "audio-feedback"
+    feature = "audio-feedback",
+    feature = "automata-feedback"
 ))]
 use crate::registry::SerializableNode;
 #[cfg(any(
     feature = "rd-feedback",
     feature = "particle-feedback",
     feature = "fluid-feedback",
-    feature = "audio-feedback"
+    feature = "audio-feedback",
+    feature = "automata-feedback"
 ))]
 use serde_json::Value as JsonValue;
 
@@ -40,7 +42,8 @@ use serde_json::Value as JsonValue;
     feature = "rd-feedback",
     feature = "particle-feedback",
     feature = "fluid-feedback",
-    feature = "audio-feedback"
+    feature = "audio-feedback",
+    feature = "automata-feedback"
 ))]
 macro_rules! impl_serializable_node {
     ($($ty:ty),+ $(,)?) => {
@@ -176,6 +179,43 @@ mod audio {
 pub use audio::register as register_audio_feedback_nodes;
 
 // ===========================================================================
+// Cellular automata (unshape-automata)
+// ===========================================================================
+
+#[cfg(feature = "automata-feedback")]
+mod automata {
+    use super::*;
+    use unshape_automata::feedback::{
+        ElementaryInit, ElementaryStep, LifeInit, LifeStep, SmoothLifeInit, SmoothLifeStep,
+    };
+
+    impl_serializable_node!(
+        ElementaryInit,
+        ElementaryStep,
+        LifeInit,
+        LifeStep,
+        SmoothLifeInit,
+        SmoothLifeStep,
+    );
+
+    /// Registers the cellular-automata feedback nodes (1D elementary, 2D
+    /// life-like, continuous SmoothLife).
+    ///
+    /// Type names are `"automata::feedback::<NodeName>"` for each node.
+    pub fn register(registry: &mut NodeRegistry) {
+        registry.register_with_name::<ElementaryInit>("automata::feedback::ElementaryInit");
+        registry.register_with_name::<ElementaryStep>("automata::feedback::ElementaryStep");
+        registry.register_with_name::<LifeInit>("automata::feedback::LifeInit");
+        registry.register_with_name::<LifeStep>("automata::feedback::LifeStep");
+        registry.register_with_name::<SmoothLifeInit>("automata::feedback::SmoothLifeInit");
+        registry.register_with_name::<SmoothLifeStep>("automata::feedback::SmoothLifeStep");
+    }
+}
+
+#[cfg(feature = "automata-feedback")]
+pub use automata::register as register_automata_feedback_nodes;
+
+// ===========================================================================
 // Umbrella
 // ===========================================================================
 
@@ -194,6 +234,8 @@ pub fn register_all_feedback_nodes(registry: &mut NodeRegistry) {
     register_fluid_feedback_nodes(registry);
     #[cfg(feature = "audio-feedback")]
     register_audio_feedback_nodes(registry);
+    #[cfg(feature = "automata-feedback")]
+    register_automata_feedback_nodes(registry);
 }
 
 #[cfg(all(test, feature = "rd-feedback"))]

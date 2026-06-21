@@ -9,9 +9,12 @@ repository = "https://github.com/rhi-zone/unshape"
 [features]
 serde = ["dep:serde"]
 dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
+# Pure feedback-edge DynNode wrappers (recurrent graph integration).
+feedback = ["dep:unshape-core"]
 invariant-tests = []
 
 [dependencies]
+unshape-core = { workspace = true, optional = true }
 unshape-op = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
