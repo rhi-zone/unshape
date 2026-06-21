@@ -40,6 +40,9 @@ use glam::Vec3;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
+#[cfg(feature = "feedback")]
+pub mod feedback;
+
 /// Registers all space-colonization operations with an [`OpRegistry`].
 ///
 /// Call this to enable deserialization of space-colonization ops from saved pipelines.
@@ -283,7 +286,14 @@ impl SpaceColonization {
         let mut influences: HashMap<usize, Vec<Vec3>> = HashMap::new();
         let mut points_to_remove: HashSet<usize> = HashSet::new();
 
-        for &point_idx in &self.active_points {
+        // Iterate active points in a deterministic order: `active_points` is a
+        // `HashSet`, whose iteration order is not stable across runs, and the
+        // order affects float-summed averaged directions below. Sorting makes the
+        // whole step deterministic (and thus seekable/reproducible).
+        let mut active_sorted: Vec<usize> = self.active_points.iter().copied().collect();
+        active_sorted.sort_unstable();
+
+        for &point_idx in &active_sorted {
             let point = self.attraction_points[point_idx];
 
             // Find nearest node
@@ -322,7 +332,13 @@ impl SpaceColonization {
         let mut new_nodes = Vec::new();
         let mut new_edges = Vec::new();
 
-        for (node_idx, directions) in influences {
+        // Iterate influenced nodes in a deterministic order: `influences` is a
+        // `HashMap`, and its iteration order would otherwise determine new-node
+        // index assignment, making growth non-reproducible across runs.
+        let mut influences_sorted: Vec<(usize, Vec<Vec3>)> = influences.into_iter().collect();
+        influences_sorted.sort_unstable_by_key(|(node_idx, _)| *node_idx);
+
+        for (node_idx, directions) in influences_sorted {
             if directions.is_empty() {
                 continue;
             }
