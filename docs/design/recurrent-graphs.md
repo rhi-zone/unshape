@@ -147,12 +147,20 @@ manual pre-seed is needed and the sim is fully rewindable.
 
 Per-domain `Init` seed-source nodes (behind each crate's `feedback` feature):
 
-| Crate              | Init node       | Produces                          |
-|--------------------|-----------------|-----------------------------------|
-| `unshape-rd`       | `GrayScottInit` | seeded `ReactionDiffusion` grid   |
-| `unshape-particle` | `ParticleInit`  | emitted `ParticleSystem` (seeded RNG) |
-| `unshape-fluid`    | `FluidInit`     | sourced `FluidGrid2D`             |
-| `unshape-audio`    | `VocoderInit`   | zeroed (defined) `VocoderState`   |
+All 9 genuinely-recurrent sims are ported (`unshape-rig`/IK is **not** recurrent —
+it solves a pose in place, no feedback edge — so the migration is complete at 9/9).
+
+| Crate                        | Init node                                  | Produces                                  |
+|------------------------------|--------------------------------------------|-------------------------------------------|
+| `unshape-rd`                 | `GrayScottInit`                            | seeded `ReactionDiffusion` grid           |
+| `unshape-particle`           | `ParticleInit`                             | emitted `ParticleSystem` (seeded RNG)     |
+| `unshape-fluid`              | `FluidInit` (+ smoke/SPH/3D variants)      | sourced `FluidGrid2D`                      |
+| `unshape-audio`              | `VocoderInit`                              | zeroed (defined) `VocoderState`           |
+| `unshape-automata`           | `ElementaryInit` / `LifeInit` / `SmoothLifeInit` | seeded CA grid (1D / 2D / continuous) |
+| `unshape-spring`             | `SpringInit`                               | built soft body (`SpringSystem`)          |
+| `unshape-physics`            | `PhysicsInit`                              | built `PhysicsWorld` (bodies + constraints) |
+| `unshape-space-colonization` | `GrowInit`                                 | seeded `SpaceColonization` (attractors + roots) |
+| `unshape-procgen`            | `WfcInit`                                  | seeded `WfcSolver<TileSet>` (RNG on edge) |
 
 Options considered and rejected:
 

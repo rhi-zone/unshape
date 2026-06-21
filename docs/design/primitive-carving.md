@@ -29,30 +29,28 @@ proposed answer to that.
 These were checked against current source *this session* and are stated as
 established, not conjectured:
 
-- **Statefulness-as-feedback-edge is implemented for a SUBSET of recurrent
-  sims, not all.** For *ported* nodes, `DynNode::execute(&self, ...)` is pure
-  and simulation state rides a *feedback edge* (`Wire { feedback: bool }`): an
-  `*Init` source node seeds the state, and a pure `*Step` node evolves it by
-  clone-and-advance. But the feedback-node migration is **incomplete**. Audit
-  (source-verified):
+- **Statefulness-as-feedback-edge is implemented for ALL recurrent sims.**
+  For ported nodes, `DynNode::execute(&self, ...)` is pure and simulation state
+  rides a *feedback edge* (`Wire { feedback: bool }`): an `*Init` source node
+  seeds the state, and a pure `*Step` node evolves it by clone-and-advance. The
+  feedback-node migration is now **complete**. Audit (source-verified):
   - **PORTED** to pure `&self` Step + Init nodes on a feedback edge —
     `unshape-rd`, `unshape-fluid`, `unshape-particle`, `unshape-audio`
-    (vocoder): **4 crates.**
-  - **NATIVE-ONLY** (still `step(&mut self)`, no feedback feature) —
-    `unshape-automata`, `unshape-physics`, `unshape-spring`,
-    `unshape-space-colonization`, `unshape-procgen`: **5 crates.**
+    (vocoder), `unshape-automata`, `unshape-physics`, `unshape-spring`,
+    `unshape-space-colonization`, `unshape-procgen`: **9 crates.**
   - **NOT recurrent** (correctly no feedback) — `unshape-rig`/IK, a pure
     functional solver `solve(&self, chain, skeleton, pose: &mut Pose)`.
 
-  So: **4 of 9 genuinely-recurrent sims are ported; the migration is
-  incomplete.** The accurate claim is: for ported sims, statefulness rides a
-  feedback edge with a pure `&self` Step node; native-only sims still mutate
-  internal state via `&mut self`. The **pure-vs-recurrent** carving axis and any
-  state-TypeId bucketing / behavioral probing therefore **only apply to PORTED
-  sims today.** (An earlier audit's claim that "no carving models state" was an
-  artifact of reading the native `step(&mut self)` kernels instead of the pure
-  feedback nodes — but the inverse overclaim, that *all* sim state rides a
-  feedback edge, is equally wrong: only 4 of 9 do.)
+  So: **9 of 9 genuinely-recurrent sims are ported; the migration is
+  complete** (IK is not recurrent, so it is correctly excluded). For every
+  recurrent sim, statefulness rides a feedback edge with a pure `&self` Step
+  node — the native `step(&mut self)` kernels remain as the implementation that
+  the pure Step clones-and-advances into. The **pure-vs-recurrent** carving axis
+  and any state-TypeId bucketing / behavioral probing therefore **apply uniformly
+  across all recurrent sims.** (An earlier audit's claim that "no carving models
+  state" was an artifact of reading the native `step(&mut self)` kernels instead
+  of the pure feedback nodes; the later partial-migration framing — that only 4
+  of 9 rode a feedback edge — is also now superseded: all 9 do.)
 
 - **`Field<I, O>` is a pure `coord → value` function.** Stateful grid
   simulations correctly do *not* implement it, because their value depends on
@@ -162,9 +160,10 @@ recency-weighted centroid in the manifold.
   common ones.
 - Feature extraction was *claimed* to fail for stateful sims — per the
   verified facts above, the feedback-edge axis (recurrent vs. pure) rescues
-  that case **only for the 4 ported sims**; the 5 native-only sims still have
-  no graph-level state node to extract from, so this crack is weaker than
-  originally stated **but not closed**.
+  that case for **all 9 recurrent sims** now that the migration is complete;
+  every recurrent sim exposes a graph-level state node to extract from, so this
+  crack is **closed** (only IK remains outside, correctly, as a non-recurrent
+  pure solver).
 
 ## Adversarial findings
 
@@ -210,9 +209,10 @@ not blessed.
 ### The three layers
 
 1. **Membership = hard, machine-extracted typed/structural filter.** OpType
-   match + arity + domain-dimensionality + the pure-vs-recurrent axis (which
-   discriminates only the **4 ported** sims today — native-only sims carry no
-   graph-level state node) + facet. Deterministic by construction; CI-enforceable
+   match + arity + domain-dimensionality + the pure-vs-recurrent axis (which now
+   discriminates **all 9 recurrent sims** — the migration is complete, so every
+   recurrent sim exposes a graph-level state node) + facet. Deterministic by
+   construction; CI-enforceable
    (machine-extracted axes
    can be asserted at build time; subjective tags cannot). This is the legality
    layer — "a sharper domain tab." Position within it is stable. It is the only
@@ -254,14 +254,14 @@ is legitimate exactly like window layout.
 ### Two gaps NONE of the five candidates solved (the open frontier)
 
 1. **The recurrent/stateful third needs its own organizing story.** "Recurrent
-   vs pure" can **bin** the ported steppers (rd / fluid / particle / vocoder),
-   but only those — the 5 native-only sims (automata / physics / spring /
-   space-colonization / procgen) have no graph-level state node to bin on. Even
-   for ported sims it gives no intra-bin ordering, and the fingerprint/preview
-   mechanisms structurally cannot sample the native ones (they are not pure
-   Fields; e.g. native `step()` is `&mut self`, IK `solve` takes a `&mut Pose`).
-   The Init+Step recurrence pair needs a first-class organizing treatment the
-   morphism-centric carvings do not provide.
+   vs pure" can **bin** all 9 recurrent steppers (rd / fluid / particle /
+   vocoder / automata / physics / spring / space-colonization / procgen) — the
+   migration is complete, so each exposes a graph-level state node to bin on. But
+   binning gives no **intra-bin ordering**, and that remains the open frontier:
+   the recurrence axis sorts sims into one bucket without ranking within it. (The
+   only thing outside the bucket is IK, correctly, as a non-recurrent pure solver
+   whose `solve` takes a `&mut Pose`.) The Init+Step recurrence pair needs a
+   first-class organizing treatment the morphism-centric carvings do not provide.
 2. **Config-enum variants: a primitive is often a family, not a point.**
    `Worley2D` is 9 behaviors (3 distance functions × 3 return types — verified in
    source), visually ranging from cells to cracks, yet all five candidates
@@ -280,16 +280,18 @@ the two open gaps is underway.
 > (determinism, curation, projectional-coherence). Nothing here is blessed; the
 > `STATUS: OPEN` at the top of the doc still governs.
 
-1. **PRECONDITION (blocking).** Per *finish migrations before building on top*:
+1. **PRECONDITION (SATISFIED).** Per *finish migrations before building on top*:
    the recurrent-axis carving — state-TypeId bucketing (read off
-   `Step.outputs()` `ValueType::Custom`) and behavioral probing — works only for
-   the **4 ported** sims. The **5 native-only** sims (automata, physics, spring,
-   space-colonization, procgen) have no graph-level state node and nothing pure
-   to sample. Before the carving can claim to cover sims, those 5 must be
-   **ported to feedback nodes OR explicitly fenced as legacy native-step
-   kernels.** Note: `ValueType::Custom` carries a **non-serializable `TypeId`**,
-   so the *persisted* bucket key must be the **stable type-name string**, not the
-   TypeId.
+   `Step.outputs()` `ValueType::Custom`) and behavioral probing — required every
+   recurrent sim to expose a graph-level state node. That migration is now
+   **complete**: all 9 recurrent sims (rd, fluid, particle, audio/vocoder,
+   automata, physics, spring, space-colonization, procgen) are ported to pure
+   `&self` Step + Init feedback nodes (IK is not recurrent, so it is correctly
+   excluded — there is no native-only recurrent sim left to fence). The carving
+   may therefore claim uniform coverage of all recurrent sims. Note:
+   `ValueType::Custom` carries a **non-serializable `TypeId`**, so the *persisted*
+   bucket key must be the **stable type-name string**, not the TypeId — every
+   ported Step/Init uses a stable per-state name string for exactly this reason.
 
 2. **The "two gaps are one gap" collapse is REJECTED.** A config-enum family
    (e.g. Worley's 9 = `DistanceFunction` × `WorleyReturn`) is a pure selection
@@ -332,8 +334,9 @@ the two open gaps is underway.
      oscillation-count / DCT reductions flip ±1 at cross-platform float
      boundaries and reintroduce the FFT platform-dependence already fenced —
      "pin as build-time data" only relocates this to non-hermetic builds); (c) no
-     runtime / author-time recomputation; (d) it structurally cannot sample
-     native-only sims, so it covers only ported ones.
+     runtime / author-time recomputation; (d) it samples only graph-level pure
+     Step nodes — which, now that the migration is complete, is every recurrent
+     sim.
    - **Curated layer discipline:** the human layer may only **ADD** synonyms /
      labels / demotions to machine-derived entries — it may **never BE** an
      entry. Build must **FAIL** if a hand-written synonym/template references an
@@ -342,5 +345,9 @@ the two open gaps is underway.
      with the query — so names are a display+synonym overlay on the machine
      index, not the recall key.)
 
-STATUS: still OPEN. Precondition (port-or-fence the 5 native-only sims) is the
-gating next step before sim coverage is real.
+STATUS: precondition SATISFIED — all 9 recurrent sims are ported to feedback
+nodes (migration complete; IK is not recurrent), so sim coverage of the
+membership/recurrence axis is now real. The remaining OPEN frontier is
+**intra-bin ordering** of the recurrent bucket (the recurrence axis bins all sims
+together but does not rank within the bin) and a first-class organizing treatment
+for the Init+Step recurrence pair.
