@@ -7,12 +7,15 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/rhi-zone/unshape"
 
 [features]
-serde = ["dep:serde"]
+serde = ["dep:serde", "glam/serde"]
 dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
+# Pure feedback-edge DynNode wrappers (recurrent graph integration).
+feedback = ["dep:unshape-core"]
 invariant-tests = []
 
 [dependencies]
 glam.workspace = true
+unshape-core = { workspace = true, optional = true }
 unshape-op = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }

@@ -22,7 +22,11 @@ use crate::registry::NodeRegistry;
     feature = "particle-feedback",
     feature = "fluid-feedback",
     feature = "audio-feedback",
-    feature = "automata-feedback"
+    feature = "automata-feedback",
+    feature = "spring-feedback",
+    feature = "physics-feedback",
+    feature = "space-colonization-feedback",
+    feature = "procgen-feedback"
 ))]
 use crate::registry::SerializableNode;
 #[cfg(any(
@@ -30,7 +34,11 @@ use crate::registry::SerializableNode;
     feature = "particle-feedback",
     feature = "fluid-feedback",
     feature = "audio-feedback",
-    feature = "automata-feedback"
+    feature = "automata-feedback",
+    feature = "spring-feedback",
+    feature = "physics-feedback",
+    feature = "space-colonization-feedback",
+    feature = "procgen-feedback"
 ))]
 use serde_json::Value as JsonValue;
 
@@ -43,7 +51,11 @@ use serde_json::Value as JsonValue;
     feature = "particle-feedback",
     feature = "fluid-feedback",
     feature = "audio-feedback",
-    feature = "automata-feedback"
+    feature = "automata-feedback",
+    feature = "spring-feedback",
+    feature = "physics-feedback",
+    feature = "space-colonization-feedback",
+    feature = "procgen-feedback"
 ))]
 macro_rules! impl_serializable_node {
     ($($ty:ty),+ $(,)?) => {
@@ -216,6 +228,29 @@ mod automata {
 pub use automata::register as register_automata_feedback_nodes;
 
 // ===========================================================================
+// Spring soft bodies (unshape-spring)
+// ===========================================================================
+
+#[cfg(feature = "spring-feedback")]
+mod spring {
+    use super::*;
+    use unshape_spring::feedback::{SpringInit, SpringStep};
+
+    impl_serializable_node!(SpringInit, SpringStep);
+
+    /// Registers the spring soft-body feedback nodes.
+    ///
+    /// Type names: `"spring::feedback::SpringInit"`, `"spring::feedback::SpringStep"`.
+    pub fn register(registry: &mut NodeRegistry) {
+        registry.register_with_name::<SpringInit>("spring::feedback::SpringInit");
+        registry.register_with_name::<SpringStep>("spring::feedback::SpringStep");
+    }
+}
+
+#[cfg(feature = "spring-feedback")]
+pub use spring::register as register_spring_feedback_nodes;
+
+// ===========================================================================
 // Umbrella
 // ===========================================================================
 
@@ -236,6 +271,8 @@ pub fn register_all_feedback_nodes(registry: &mut NodeRegistry) {
     register_audio_feedback_nodes(registry);
     #[cfg(feature = "automata-feedback")]
     register_automata_feedback_nodes(registry);
+    #[cfg(feature = "spring-feedback")]
+    register_spring_feedback_nodes(registry);
 }
 
 #[cfg(all(test, feature = "rd-feedback"))]
