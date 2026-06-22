@@ -134,6 +134,8 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 
 ## Backlog
 
+- [ ] (low) Constraint/optimization solver as a substrate primitive — to support 'drag a baked output, flow it back through the definition' (e.g. drag a vertex through extrude→bevel→twist). Express the gesture as a constraint; a deterministic SEEDED solver finds the minimal free-param change or inserts a least-surprise override; the solver is itself a serializable node (the IK/autodiff move generalized). Scoped out for now: low-dimension manipulation over high degrees of freedom is a recipe for frustration; the primary path is manipulating generative parameters/fields, not baked outputs. See docs/design/projection-model.md.
+
 ### Compute Backend Architecture
 
 - [x] NodeExecutor trait - decouple node execution from evaluation logic
