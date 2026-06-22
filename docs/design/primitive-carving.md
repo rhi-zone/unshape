@@ -247,6 +247,23 @@ not blessed.
      **and** muscle-memory-safe (used items never move or disappear under you).
      Relevance competition is confined to graveyard slots.
 
+   **Refinement A — stability is earned PER-ITEM, not assumed globally (cold-start
+   is free).** Before the user has formed spatial/muscle memory, a position carries
+   no cost to change — so the **initial** layout CAN be optimized freely for
+   relevance/learnability. Stability is something individual items **EARN** through
+   accumulated use; it is not a blanket constraint from day one. The unit of
+   stability is "*this* specific item, at *this* specific position, has been used
+   enough that moving it now has a real cost" — not "the surface is globally
+   frozen." (The disuse-only-eviction invariant above is the **steady state**; free
+   optimization before anything is pinned is the **pre-steady-state** behavior.)
+
+   **Refinement B — it is a PINNING model, not a sorting model.** Mechanism: used
+   items are **PINS** (hard positional constraints); everything else **FLOWS
+   AROUND** the pins by relevance/recency, filling the unpinned (vacated /
+   never-yet-pinned) slots. This is the precise mechanism behind "relevance
+   competition is confined to graveyard slots": pinned positions are hard
+   constraints, unpinned slots are sorted by relevance.
+
    **How it composes with the rest of the layered model:**
    - Authored + system **tags/aliases** are the **stable query-expansion
      channel:** they widen what a query matches (e.g. "cells" / "voronoi" /
@@ -258,6 +275,13 @@ not blessed.
      + tag/alias hits (stable). The disuse-only-eviction rule governs
      specifically the **quick-actions / promoted surface**, not the typed-search
      result list.
+   - **Canonical prior art:** this rule derives from
+     `github-io/docs/affordance-surfaces.md` — *"Adaptive layout: stability earned
+     per-item"* (the ecosystem's affordance-surface design), which frames it more
+     completely: stability is earned per-item, cold-start optimizes freely, and the
+     mechanism is pinning (used items pin; the rest flows around by relevance). The
+     rule recorded here (disuse-only eviction) is the steady-state restatement of
+     that design.
    - Relevant prior art: dusklight's candidate-pool model (ranked candidates
      presented, the user can switch, preference persists) — **relevance
      proposes, the user disposes, the choice persists;** a persisted preference
