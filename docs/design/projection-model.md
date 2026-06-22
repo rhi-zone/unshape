@@ -29,6 +29,10 @@ Concrete kill case (verified in code): `VolumeScatter` places rock #347 at LCG^3
 - Lossy projections must make the boundary VISIBLE (named let-binding for a shared node; an explicit "open in another view" boundary token; an honest refusal) — never silent re-sort or silent guess.
 - Co-equality is only as real as edit-tractability: make the lossy boundary visible so the user KNOWS when a view can't faithfully edit something, rather than being silently pushed to the formula/node view (which would secretly bless it — the founding rejection).
 
+## Note: promote-in-place folds in here
+
+**Promote-in-place / "drive this input"** — making a connection from an input to a source from within a non-node projection — folds in here; it is the projection-model gesture that the (now-dissolved) value/time model reduces to. (See interaction-surface-map.md S7.)
+
 ## Two hard rules (grounded in the actual substrate)
 
 1. **DETERMINISM:** an edit is recorded ONLY as its resolved structural delta (final params/wires), NEVER as a raw gesture plus a pointer to mutable disambiguation/preference state. `GraphEvent` already stores `new_params` and `replay()` folds resolved deltas, so replay is deterministic — PROVIDED disambiguation is resolved to a concrete choice BEFORE the event is appended and baked into its params. Relational "edit-earlier-without-redoing" re-flow must be expressed as recorded rewrite RULES in the log, not gestures re-resolved against live preference.
