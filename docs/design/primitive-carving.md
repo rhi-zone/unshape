@@ -218,17 +218,59 @@ not blessed.
    layer — "a sharper domain tab." Position within it is stable. It is the only
    layer that organizes the structural/behavioral third of the catalogue by real
    signal.
-2. **Recall surface = canonical list sorted by query alone.** The decisive rule
-   from the expert-recall judge: context/frecency/usage signals may only **add**
-   to a separate, visually distinct "suggested" zone — they must **never**
-   reorder the canonical list. The moment a soft signal reorders the memorized
-   list, expert muscle-memory recall is forfeit. This is the VS Code palette
-   pattern already cited in `editor-interaction.md` (fuzzy + light recency as a
-   top stratum over otherwise-stable order). For recall, the plain-search
-   baseline **is** the right answer — preserve it, don't try to beat it.
-3. **Discovery = additive, spatially-separate channels** that never touch the
-   canonical order: (a) soft context/frecency/corpus-transition suggestions in a
-   distinct "suggested" strip; (b) output-demonstration retrieval
+2. **Recall stability: disuse-only eviction (supersedes the earlier "never
+   reorder" rule).**
+
+   The earlier rule recorded here — *soft signals may only add to a separate,
+   visually distinct "suggested" zone, never reorder the canonical list* — was an
+   adversarial **OVERCORRECTION** and is **superseded**. A suggestion surface
+   that can never affect where the user's attention/finger actually goes is free
+   to become vestigial/useless, which throws away the entire value of relevance.
+   It also contradicted its own cited precedent: VS Code's command palette *does*
+   float recently-used commands up. So that framing is retired.
+
+   The **corrected, agreed rule** — the quick-actions / promoted fast-access
+   surface is stable by **DISUSE-ONLY EVICTION:**
+   - The promoted set has slots. An occupant leaves a slot **only** when its own
+     usage decays (inactivity / infrequency) — it vacates itself.
+   - A new action can enter **only** by taking a recently-vacated slot. It can
+     **never** displace an active occupant, however relevant the newcomer
+     appears. Eviction is by disuse, never by displacement.
+   - **Consequence 1:** if all slots are active and a hot newcomer appears, the
+     newcomer is **NOT** promoted — it waits, still reachable via the full search
+     list. Relevance never wins a fight against an active item; it only fills
+     vacancies.
+   - **Consequence 2:** position (not just membership) is sticky — an active item
+     holds its **SLOT**, so finger/muscle memory holds.
+   - **Result:** the promoted surface is simultaneously **useful** (it promotes
+     what you actually use, in-place where attention goes — no banished sidebar)
+     **and** muscle-memory-safe (used items never move or disappear under you).
+     Relevance competition is confined to graveyard slots.
+
+   **How it composes with the rest of the layered model:**
+   - Authored + system **tags/aliases** are the **stable query-expansion
+     channel:** they widen what a query matches (e.g. "cells" / "voronoi" /
+     "cellular" all hit Worley) and are deterministic given the query, hence
+     muscle-memory-safe. They are distinct from the volatile frecency/usage
+     signal.
+   - The **full search list** (everything matching a typed query) may still be
+     relevance/query-ranked; strong/specific queries are dominated by query-match
+     + tag/alias hits (stable). The disuse-only-eviction rule governs
+     specifically the **quick-actions / promoted surface**, not the typed-search
+     result list.
+   - Relevant prior art: dusklight's candidate-pool model (ranked candidates
+     presented, the user can switch, preference persists) — **relevance
+     proposes, the user disposes, the choice persists;** a persisted preference
+     is itself a stable signal (dusklight `docs/architecture.md` +
+     `docs/philosophy.md`). This is the same VS Code palette intuition cited in
+     `editor-interaction.md` (fuzzy + recency over otherwise-stable order), now
+     correctly bounded by disuse-only eviction rather than a blanket
+     never-reorder ban.
+3. **Discovery = additive channels governed by disuse-only eviction** (per the
+   corrected rule in layer 2, not the retired never-reorder ban): (a) soft
+   context/frecency/corpus-transition suggestions populate the promoted
+   quick-actions surface by filling vacated slots only — never displacing active
+   occupants; (b) output-demonstration retrieval
    (point/sketch/example) — found to be the **only** mechanism that beats plain
    search at no-name discovery. Every other candidate's "discovery win" reduced
    to "better tags or a better filter" — so harvest the tags/filter, don't build
@@ -328,7 +370,10 @@ the two open gaps is underway.
      silent-omission failure; rot-proof because derived from types the compiler
      keeps consistent.
    - **Discovery soft signal = PROBE (behavioral fingerprint),** build-time-
-     pinned, and STRICTLY: never the canonical list, never an op input.
+     pinned, and STRICTLY: it feeds the promoted quick-actions surface only under
+     disuse-only eviction (per the corrected rule in the synthesis above — it may
+     fill a vacated slot but never displace an active occupant or reorder the
+     typed-search result list), and never an op input.
      Determinism conditions it must meet: (a) no op-input path; (b) hermetic
      build OR tolerance-banded fuzzy fingerprints (raw settle-time /
      oscillation-count / DCT reductions flip ±1 at cross-platform float
