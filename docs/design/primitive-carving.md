@@ -384,7 +384,11 @@ the two open gaps is underway.
    faithful wires rather than escaping a frozen subgraph), it unifies with
    first-class variants instead of duplicating them, and the sim/morphism
    asymmetry stays visible (a recurrent group carries its `connect_recurrence` +
-   seed inside the boundary; a Worley-family node does not).
+   seed inside the boundary; a Worley-family node does not). **The collapsed
+   group node is the node-projection rendering of a projection-neutral
+   abstraction boundary** — now developed as a *rewrite-rule side* (collapse =
+   apply the recipe rule backward; expand = apply it forward) in
+   `graph-rewrites.md`.
 
 4. **Layer assignment after the round.**
    - **Membership / recall backbone = STRUCTURE (machine-derived):**
