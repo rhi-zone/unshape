@@ -394,6 +394,55 @@ impl FeedbackState {
     }
 }
 
+/// Per-tick stored values for [`Latch`](crate::Latch) nodes in a recurrent
+/// graph.
+///
+/// Keyed by latch [`NodeId`]: each entry is the value the latch captured on its
+/// last advance, which it emits on `out` until the next advance. This replaces
+/// the old `(from_node, from_port)`-keyed `FeedbackState` for the Latch model
+/// (the visible delay element holds the state, so the key is the latch itself).
+///
+/// The stored values are **not** serialized with the graph: a graph is a
+/// program, and the snapshot is reproduced by replaying from each latch's `init`
+/// seed (see [`Graph::run_to_tick`](crate::Graph::run_to_tick)).
+#[derive(Debug, Clone, Default)]
+pub struct LatchSnapshot {
+    /// Captured values, keyed by latch node id.
+    values: HashMap<NodeId, Value>,
+}
+
+impl LatchSnapshot {
+    /// Create an empty snapshot.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Get a latch's stored value, if any.
+    pub fn get(&self, latch: NodeId) -> Option<&Value> {
+        self.values.get(&latch)
+    }
+
+    /// Store a latch's captured value.
+    pub fn set(&mut self, latch: NodeId, value: Value) {
+        self.values.insert(latch, value);
+    }
+
+    /// Clear all stored values (e.g. for `Resimulate`).
+    pub fn clear(&mut self) {
+        self.values.clear();
+    }
+
+    /// Number of stored latch values.
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    /// Whether any latch values are stored.
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+}
+
 /// How to reach a target tick when the requested tick is in the past or the
 /// current state is unknown (e.g. after a seek).
 ///

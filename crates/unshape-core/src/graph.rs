@@ -38,9 +38,10 @@
 use std::collections::HashMap;
 
 use crate::error::GraphError;
-use crate::eval::{EvalContext, FeedbackState, SeekBehavior, TickResult};
+use crate::eval::{EvalContext, FeedbackState, LatchSnapshot, SeekBehavior, TickResult};
 use crate::node::{BoxedNode, DynNode};
-use crate::nodes::{GraphInput, GraphOutput};
+use crate::nodes::latch::{LATCH_INIT_PORT, LATCH_OUT_PORT, LATCH_SIGNAL_PORT};
+use crate::nodes::{GraphInput, GraphOutput, Latch};
 use crate::value::{Value, ValueType};
 
 /// Information about a [`GraphInput`] node in the graph.
@@ -314,11 +315,15 @@ impl Graph {
         }
 
         // Build adjacency list and count in-degrees.
-        // Feedback (back-)edges are excluded: they carry the *previous* tick's
-        // value, so they do not constrain within-tick evaluation order. This is
-        // what lets a recurrent graph remain acyclic per tick.
+        //
+        // Two kinds of edge are excluded from the within-tick order because they
+        // carry the *previous* tick's value, not a within-tick dependency:
+        //   - legacy feedback (back-)edges (`edge.feedback`), and
+        //   - edges into a [`Latch`]'s `signal` input (the latch captures it at
+        //     tick end, so it is a within-tick *sink*).
+        // Excluding them is what lets a recurrent graph remain acyclic per tick.
         for edge in &self.wires {
-            if edge.feedback {
+            if edge.feedback || self.is_latch_signal_sink(edge.to_node, edge.to_port) {
                 continue;
             }
             adj.get_mut(&edge.from_node).unwrap().push(edge.to_node);
@@ -351,6 +356,21 @@ impl Graph {
         }
 
         Ok(result)
+    }
+
+    /// Returns `true` if `node` is a [`Latch`].
+    fn is_latch(&self, node: NodeId) -> bool {
+        self.nodes
+            .get(&node)
+            .is_some_and(|n| n.as_any().downcast_ref::<Latch>().is_some())
+    }
+
+    /// Returns `true` if `(node, port)` is the `signal` input of a [`Latch`].
+    ///
+    /// Edges into this sink are excluded from the within-tick topological order:
+    /// the latch captures the signal at tick end into the [`LatchSnapshot`].
+    fn is_latch_signal_sink(&self, node: NodeId, port: usize) -> bool {
+        port == LATCH_SIGNAL_PORT && self.is_latch(node)
     }
 
     /// Executes the graph and returns outputs from the specified node.
@@ -838,6 +858,187 @@ impl Graph {
                 }
             }
         }
+    }
+
+    // ========================================================================
+    // Latch-based recurrence driver
+    // ========================================================================
+    //
+    // The [`Latch`] node is the recurrence primitive (see `docs/design/
+    // recurrent-graphs.md`). These methods are the latch-aware analogues of
+    // `tick` / `run_to_tick` / `seek`: state crosses tick boundaries in a
+    // [`LatchSnapshot`] keyed by latch node id, not in a `FeedbackState`.
+
+    /// Evaluates one tick of a graph whose recurrence is expressed with
+    /// [`Latch`] nodes.
+    ///
+    /// Within the tick the graph is a pure DAG: a latch's `out` is a source
+    /// (emits the stored value) and its `signal` input is a sink (captured at
+    /// tick end). So:
+    ///
+    /// - For a **latch** node, `out` is `snapshot[node]` if present, else the
+    ///   value of its `init` input wire (cold / tick 0). The `signal` input is
+    ///   **not** gathered during the forward pass.
+    /// - For an **ordinary** node, inputs are gathered from direct wires only.
+    ///
+    /// After the forward pass, each latch captures its `signal` input value into
+    /// `snapshot[node]` — but only on ticks where its [`Rate`](crate::Rate)
+    /// advances (`tick % n == 0`); otherwise it holds.
+    ///
+    /// A latch whose `out` must be produced cold but whose `init` input is
+    /// unwired is a declaration error ([`GraphError::UnconnectedInput`]) — there
+    /// is no zero-value fallback.
+    pub fn tick_latched(
+        &mut self,
+        tick: u64,
+        snapshot: &mut LatchSnapshot,
+        ctx: &EvalContext,
+    ) -> Result<TickResult, GraphError> {
+        let order = self.topological_order()?.to_vec();
+
+        // Computed within-tick values: (node_id, output_port) -> Value
+        let mut values: HashMap<(NodeId, usize), Value> = HashMap::new();
+
+        for node_id in order {
+            if ctx.is_cancelled() {
+                return Err(GraphError::Cancelled);
+            }
+
+            // Latch: produce `out` from the snapshot, or cold-seed from `init`.
+            // Do NOT gather `signal` in the forward pass.
+            if self.is_latch(node_id) {
+                let out = match snapshot.get(node_id) {
+                    Some(v) => v.clone(),
+                    None => self.gather_input(node_id, LATCH_INIT_PORT, &values)?,
+                };
+                values.insert((node_id, LATCH_OUT_PORT), out);
+                continue;
+            }
+
+            let node = self.nodes.get(&node_id).unwrap();
+            let inputs_desc = node.inputs();
+            let num_inputs = inputs_desc.len();
+
+            let mut inputs = Vec::with_capacity(num_inputs);
+            for port in 0..num_inputs {
+                inputs.push(self.gather_input(node_id, port, &values)?);
+            }
+
+            let outputs = node.execute(&inputs, ctx)?;
+            for (port, value) in outputs.into_iter().enumerate() {
+                values.insert((node_id, port), value);
+            }
+        }
+
+        // Capture each latch's `signal` input into the snapshot for next tick.
+        // Honour the latch's rate: hold between advances.
+        let latch_ids: Vec<NodeId> = self
+            .nodes
+            .iter()
+            .filter_map(|(&id, n)| n.as_any().downcast_ref::<Latch>().map(|l| (id, l.rate)))
+            .filter(|(_, rate)| rate.advances_on(tick))
+            .map(|(id, _)| id)
+            .collect();
+        for latch_id in latch_ids {
+            if let Some(wire) = self
+                .wires
+                .iter()
+                .find(|w| w.to_node == latch_id && w.to_port == LATCH_SIGNAL_PORT)
+                && let Some(v) = values.get(&(wire.from_node, wire.from_port))
+            {
+                snapshot.set(latch_id, v.clone());
+            }
+        }
+
+        Ok(TickResult {
+            tick,
+            outputs: values,
+        })
+    }
+
+    /// Gathers the value feeding `(node, port)` from the direct wire into it.
+    fn gather_input(
+        &self,
+        node: NodeId,
+        port: usize,
+        values: &HashMap<(NodeId, usize), Value>,
+    ) -> Result<Value, GraphError> {
+        let wire = self
+            .wires
+            .iter()
+            .find(|w| !w.feedback && w.to_node == node && w.to_port == port)
+            .ok_or(GraphError::UnconnectedInput { node, port })?;
+        values
+            .get(&(wire.from_node, wire.from_port))
+            .cloned()
+            .ok_or_else(|| {
+                GraphError::ExecutionError(format!(
+                    "missing value for node {} port {}",
+                    wire.from_node, wire.from_port
+                ))
+            })
+    }
+
+    /// Deterministically runs a latch-based recurrent graph from tick 0 up to
+    /// `target_tick` (inclusive), returning the final [`TickResult`].
+    ///
+    /// Implements [`SeekBehavior::Resimulate`]: clears `snapshot` and replays
+    /// every tick `0..=target_tick`. Clearing is safe even for opaque state:
+    /// tick 0 re-seeds each latch from its `init` wire.
+    pub fn run_to_tick_latched(
+        &mut self,
+        target_tick: u64,
+        snapshot: &mut LatchSnapshot,
+        make_ctx: impl Fn(u64) -> EvalContext,
+    ) -> Result<TickResult, GraphError> {
+        snapshot.clear();
+        let mut last: Option<TickResult> = None;
+        for t in 0..=target_tick {
+            let ctx = make_ctx(t);
+            last = Some(self.tick_latched(t, snapshot, &ctx)?);
+        }
+        Ok(last.expect("run_to_tick_latched evaluates at least tick 0"))
+    }
+
+    /// Seeks a latch-based recurrent graph to `target_tick` per `behavior`.
+    ///
+    /// Mirrors [`seek`](Self::seek) for the latch model.
+    pub fn seek_latched(
+        &mut self,
+        target_tick: u64,
+        current_tick: u64,
+        behavior: SeekBehavior,
+        snapshot: &mut LatchSnapshot,
+        make_ctx: impl Fn(u64) -> EvalContext,
+    ) -> Result<TickResult, GraphError> {
+        match behavior {
+            SeekBehavior::Resimulate => self.run_to_tick_latched(target_tick, snapshot, make_ctx),
+            SeekBehavior::Discontinuity => {
+                let ctx = make_ctx(target_tick);
+                self.tick_latched(target_tick, snapshot, &ctx)
+            }
+            SeekBehavior::Error => {
+                if target_tick == current_tick {
+                    let ctx = make_ctx(target_tick);
+                    self.tick_latched(target_tick, snapshot, &ctx)
+                } else {
+                    Err(GraphError::SeekUnsupported {
+                        target: target_tick,
+                        current: current_tick,
+                    })
+                }
+            }
+        }
+    }
+
+    /// Validates that every cycle in the graph contains a [`Latch`].
+    ///
+    /// After excluding edges into latch `signal` sinks (and legacy feedback
+    /// edges), the within-tick graph must be a DAG. Runs the same Kahn topo pass
+    /// as scheduling; a latch-free cycle surfaces as
+    /// [`GraphError::CycleDetected`]. O(V+E).
+    pub fn validate_latches(&self) -> Result<(), GraphError> {
+        self.compute_topological_order().map(|_| ())
     }
 }
 
@@ -1683,6 +1884,191 @@ mod tests {
             matches!(&r, Err(GraphError::ExecutionError(m)) if m.contains("no seed")),
             "expected a no-seed recurrence error, got {r:?}"
         );
+    }
+
+    // ========================================================================
+    // Latch (explicit unit-delay) tests
+    // ========================================================================
+
+    use crate::nodes::Latch;
+
+    /// Build a latch-driven accumulator: `out = state + step`, where `state` is
+    /// the latch `out`, seeded by `Const(0)` and evolving from `Accum.sum`.
+    ///
+    ///   Const(step) ─┐
+    ///                ├─> Accum.{x, prev} ─(sum)─> Latch.signal
+    ///   Const(0) ─> Latch.init ─(out)─> Accum.prev
+    fn build_latch_accumulator(step: f32) -> (Graph, NodeId, NodeId) {
+        let mut graph = Graph::new();
+        let c = graph.add_node(ConstNode(step));
+        let seed = graph.add_node(ConstNode(0.0));
+        let latch = graph.add_node(Latch::new(ValueType::F32));
+        let acc = graph.add_node(AccumNode);
+        graph.connect(seed, 0, latch, 0).unwrap(); // seed -> latch.init
+        graph.connect(latch, 0, acc, 1).unwrap(); // latch.out -> acc.prev
+        graph.connect(c, 0, acc, 0).unwrap(); // step -> acc.x
+        graph.connect(acc, 0, latch, 1).unwrap(); // acc.sum -> latch.signal
+        (graph, acc, latch)
+    }
+
+    #[test]
+    fn test_latch_signal_edge_is_acyclic_per_tick() {
+        // The signal back-edge into the latch must not be reported as a cycle.
+        let (graph, _acc, _latch) = build_latch_accumulator(1.0);
+        assert!(graph.validate_latches().is_ok());
+    }
+
+    #[test]
+    fn test_latch_loop_matches_manual_iterate() {
+        // Latch accumulator reproduces a manual iterate: sum_{t} = (t+1)*step.
+        let (mut graph, acc, _latch) = build_latch_accumulator(2.0);
+        let mut snap = crate::LatchSnapshot::new();
+        let mut manual = 0.0f32;
+        for t in 0..6 {
+            let r = graph
+                .tick_latched(t, &mut snap, &EvalContext::new())
+                .unwrap();
+            manual += 2.0;
+            assert_eq!(r.get(acc, 0).unwrap().as_f32().unwrap(), manual);
+        }
+        // tick 5 => 6 increments of 2.0 = 12.0
+        assert_eq!(manual, 12.0);
+    }
+
+    #[test]
+    fn test_latch_out_is_init_at_tick0_then_captured() {
+        // out = init (0) at tick 0; out = captured signal thereafter.
+        let (mut graph, acc, latch) = build_latch_accumulator(1.0);
+        let mut snap = crate::LatchSnapshot::new();
+
+        let r0 = graph
+            .tick_latched(0, &mut snap, &EvalContext::new())
+            .unwrap();
+        assert_eq!(r0.get(latch, 0).unwrap().as_f32().unwrap(), 0.0); // init
+        assert_eq!(r0.get(acc, 0).unwrap().as_f32().unwrap(), 1.0); // 0 + 1
+
+        let r1 = graph
+            .tick_latched(1, &mut snap, &EvalContext::new())
+            .unwrap();
+        assert_eq!(r1.get(latch, 0).unwrap().as_f32().unwrap(), 1.0); // captured sum
+        assert_eq!(r1.get(acc, 0).unwrap().as_f32().unwrap(), 2.0);
+    }
+
+    #[test]
+    fn test_latch_run_to_tick_matches_stepping() {
+        let (mut graph, acc, _latch) = build_latch_accumulator(1.0);
+
+        let mut stepped = crate::LatchSnapshot::new();
+        let mut last = 0.0;
+        for t in 0..=5 {
+            let r = graph
+                .tick_latched(t, &mut stepped, &EvalContext::new())
+                .unwrap();
+            last = r.get(acc, 0).unwrap().as_f32().unwrap();
+        }
+
+        let mut seek_snap = crate::LatchSnapshot::new();
+        let r = graph
+            .run_to_tick_latched(5, &mut seek_snap, |_t| EvalContext::new())
+            .unwrap();
+        assert_eq!(r.get(acc, 0).unwrap().as_f32().unwrap(), last);
+        assert_eq!(last, 6.0);
+    }
+
+    #[test]
+    fn test_latch_determinism() {
+        let run = || {
+            let (mut graph, acc, _latch) = build_latch_accumulator(2.0);
+            let mut snap = crate::LatchSnapshot::new();
+            let mut last = 0.0;
+            for t in 0..10 {
+                let r = graph
+                    .tick_latched(t, &mut snap, &EvalContext::new())
+                    .unwrap();
+                last = r.get(acc, 0).unwrap().as_f32().unwrap();
+            }
+            last
+        };
+        assert_eq!(run(), run());
+        assert_eq!(run(), 20.0);
+    }
+
+    #[test]
+    fn test_latch_fresh_snapshot_restarts() {
+        let (mut graph, acc, _latch) = build_latch_accumulator(1.0);
+        let mut snap = crate::LatchSnapshot::new();
+        for t in 0..5 {
+            graph
+                .tick_latched(t, &mut snap, &EvalContext::new())
+                .unwrap();
+        }
+        let mut fresh = crate::LatchSnapshot::new();
+        let r = graph
+            .tick_latched(0, &mut fresh, &EvalContext::new())
+            .unwrap();
+        assert_eq!(r.get(acc, 0).unwrap().as_f32().unwrap(), 1.0);
+    }
+
+    #[test]
+    fn test_latch_every_rate_holds() {
+        // Latch with Every(2) advances on even ticks, holds otherwise.
+        use crate::nodes::Rate;
+        let mut graph = Graph::new();
+        let c = graph.add_node(ConstNode(1.0));
+        let seed = graph.add_node(ConstNode(0.0));
+        let latch = graph.add_node(Latch::new(ValueType::F32).with_rate(Rate::Every(2)));
+        let acc = graph.add_node(AccumNode);
+        graph.connect(seed, 0, latch, 0).unwrap();
+        graph.connect(latch, 0, acc, 1).unwrap();
+        graph.connect(c, 0, acc, 0).unwrap();
+        graph.connect(acc, 0, latch, 1).unwrap();
+
+        let mut snap = crate::LatchSnapshot::new();
+        // tick 0 (advance): out=0, sum=1, capture 1
+        // tick 1 (hold):    out=1, sum=2, no capture
+        // tick 2 (advance): out=1, sum=2, capture 2
+        // tick 3 (hold):    out=2, sum=3
+        let outs: Vec<f32> = (0..4)
+            .map(|t| {
+                let r = graph
+                    .tick_latched(t, &mut snap, &EvalContext::new())
+                    .unwrap();
+                r.get(latch, 0).unwrap().as_f32().unwrap()
+            })
+            .collect();
+        assert_eq!(outs, vec![0.0, 1.0, 1.0, 2.0]);
+    }
+
+    #[test]
+    fn test_latch_free_cycle_rejected() {
+        // A cycle WITHOUT a latch is still an instantaneous loop -> error.
+        struct Passthrough;
+        impl DynNode for Passthrough {
+            fn type_name(&self) -> &'static str {
+                "Passthrough"
+            }
+            fn inputs(&self) -> Vec<PortDescriptor> {
+                vec![PortDescriptor::new("in", ValueType::F32)]
+            }
+            fn outputs(&self) -> Vec<PortDescriptor> {
+                vec![PortDescriptor::new("out", ValueType::F32)]
+            }
+            fn execute(&self, i: &[Value], _: &EvalContext) -> Result<Vec<Value>, GraphError> {
+                Ok(vec![i[0].clone()])
+            }
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+        }
+        let mut graph = Graph::new();
+        let a = graph.add_node(Passthrough);
+        let b = graph.add_node(Passthrough);
+        graph.connect(a, 0, b, 0).unwrap();
+        graph.connect(b, 0, a, 0).unwrap();
+        assert!(matches!(
+            graph.validate_latches(),
+            Err(GraphError::CycleDetected)
+        ));
     }
 
     #[test]
