@@ -10,25 +10,29 @@
 //! # Usage
 //!
 //! The initial state is produced by an in-graph [`GrayScottInit`] source node
-//! (a pure `&self` `DynNode` taking no state input), wired into the [`Step`]'s
-//! state port with a **direct** edge, alongside the **feedback** self-loop. On
-//! tick 0 the `Init` node seeds the state; on later ticks the carried feedback
-//! value is used. This makes the graph fully rewindable via
-//! [`Graph::run_to_tick`](unshape_core::Graph::run_to_tick) with no manual seed.
+//! (a pure `&self` `DynNode` taking no state input), wired into a [`Latch`]'s
+//! `init` (seed) port. The latch's `out` feeds the [`Step`]'s state input, and
+//! the `Step`'s output feeds the latch's `signal`. On tick 0 the latch emits the
+//! seed; on later ticks it emits the previously-captured step output. This makes
+//! the graph fully rewindable via
+//! [`Graph::run_to_tick_latched`](unshape_core::Graph::run_to_tick_latched) with
+//! no manual seed.
 //!
 //! ```
-//! use unshape_rd::feedback::{GrayScottInit, Step};
-//! use unshape_core::{Graph, FeedbackState, EvalContext};
+//! use unshape_rd::feedback::{GrayScottInit, Step, rd_state_type};
+//! use unshape_core::{Graph, Latch, LatchSnapshot, EvalContext};
 //!
 //! let mut graph = Graph::new();
 //! let init = graph.add_node(GrayScottInit::circle(32, 32, 16, 16, 4));
+//! let latch = graph.add_node(Latch::new(rd_state_type()));
 //! let step = graph.add_node(Step);
-//! graph.connect(init, 0, step, 0).unwrap();           // Init -> state (direct)
-//! graph.connect_recurrence(step, 0, step, 0).unwrap();  // evolve: state -> state (recurrence)
+//! graph.connect(init, 0, latch, 0).unwrap();  // Init -> latch.init (seed)
+//! graph.connect(latch, 0, step, 0).unwrap();  // latch.out -> step.state
+//! graph.connect(step, 0, latch, 1).unwrap();  // step.state -> latch.signal
 //!
-//! let mut state = FeedbackState::new();
+//! let mut state = LatchSnapshot::new();
 //! // Resimulate to tick 5 — no manual pre-seed; tick 0 resolves via Init.
-//! let r = graph.run_to_tick(5, &mut state, |_t| EvalContext::new()).unwrap();
+//! let r = graph.run_to_tick_latched(5, &mut state, |_t| EvalContext::new()).unwrap();
 //! assert!(r.get(step, 0).is_some());
 //! ```
 
@@ -232,7 +236,7 @@ impl DynNode for Step {
 mod tests {
     use super::*;
     use crate::GrayScottPreset;
-    use unshape_core::{FeedbackState, Graph};
+    use unshape_core::{Graph, Latch, LatchSnapshot};
 
     fn init_node() -> GrayScottInit {
         GrayScottInit::circle(32, 32, 16, 16, 4).with_preset(GrayScottPreset::Coral)
@@ -252,9 +256,11 @@ mod tests {
     fn build() -> Built {
         let mut graph = Graph::new();
         let init = graph.add_node(init_node());
+        let latch = graph.add_node(Latch::new(rd_state_type()));
         let step = graph.add_node(Step);
-        graph.connect(init, 0, step, 0).unwrap(); // Init -> state (direct seed)
-        graph.connect_recurrence(step, 0, step, 0).unwrap(); // evolve: state -> state (recurrence)
+        graph.connect(init, 0, latch, 0).unwrap(); // Init -> latch.init (seed)
+        graph.connect(latch, 0, step, 0).unwrap(); // latch.out -> step.state
+        graph.connect(step, 0, latch, 1).unwrap(); // step.state -> latch.signal
         Built { graph, step }
     }
 
@@ -274,10 +280,12 @@ mod tests {
         // Feedback driver: tick 0..n (n+1 ticks would over-step; we want N steps).
         // tick 0 applies step #1, ..., tick N-1 applies step #N.
         let Built { mut graph, step } = build();
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         let mut last = None;
         for t in 0..n {
-            let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
+            let r = graph
+                .tick_latched(t, &mut state, &EvalContext::new())
+                .unwrap();
             last = Some(
                 r.get(step, 0)
                     .unwrap()
@@ -303,14 +311,18 @@ mod tests {
         // (b) the node holds no state: a fresh FeedbackState restarts from seed
         // (the Init source re-seeds tick 0).
         let Built { mut graph, step } = build();
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         for t in 0..5 {
-            graph.tick(t, &mut state, &EvalContext::new()).unwrap();
+            graph
+                .tick_latched(t, &mut state, &EvalContext::new())
+                .unwrap();
         }
 
         // Fresh feedback state, single tick -> equals one step from the seed.
-        let mut fresh = FeedbackState::new();
-        let r = graph.tick(0, &mut fresh, &EvalContext::new()).unwrap();
+        let mut fresh = LatchSnapshot::new();
+        let r = graph
+            .tick_latched(0, &mut fresh, &EvalContext::new())
+            .unwrap();
         let one = r
             .get(step, 0)
             .unwrap()
@@ -330,10 +342,12 @@ mod tests {
         // (c) same seed + inputs + N -> identical output.
         let run = || {
             let Built { mut graph, step } = build();
-            let mut state = FeedbackState::new();
+            let mut state = LatchSnapshot::new();
             let mut last = 0.0;
             for t in 0..15 {
-                let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
+                let r = graph
+                    .tick_latched(t, &mut state, &EvalContext::new())
+                    .unwrap();
                 last = v_sum(
                     r.get(step, 0)
                         .unwrap()
@@ -356,10 +370,12 @@ mod tests {
         // Manual stepping (the old &mut-style loop, via the feedback driver).
         let manual = {
             let Built { mut graph, step } = build();
-            let mut state = FeedbackState::new();
+            let mut state = LatchSnapshot::new();
             let mut last = None;
             for t in 0..=target {
-                let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
+                let r = graph
+                    .tick_latched(t, &mut state, &EvalContext::new())
+                    .unwrap();
                 last = Some(
                     r.get(step, 0)
                         .unwrap()
@@ -373,9 +389,9 @@ mod tests {
 
         // run_to_tick / Resimulate — no manual pre-seed.
         let Built { mut graph, step } = build();
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         let r = graph
-            .run_to_tick(target, &mut state, |_t| EvalContext::new())
+            .run_to_tick_latched(target, &mut state, |_t| EvalContext::new())
             .unwrap();
         let resimulated = r
             .get(step, 0)
@@ -398,9 +414,9 @@ mod tests {
         // reproduces.
         let seek_to = |target: u64| {
             let Built { mut graph, step } = build();
-            let mut state = FeedbackState::new();
+            let mut state = LatchSnapshot::new();
             let r = graph
-                .seek(
+                .seek_latched(
                     target,
                     0,
                     unshape_core::SeekBehavior::Resimulate,

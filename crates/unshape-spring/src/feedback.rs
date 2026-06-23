@@ -283,7 +283,7 @@ impl DynNode for SpringStep {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use unshape_core::{FeedbackState, Graph};
+    use unshape_core::{Graph, Latch, LatchSnapshot};
 
     fn init_node() -> SpringInit {
         SpringInit::new(SpringBody::Cloth {
@@ -311,14 +311,18 @@ mod tests {
 
         let mut graph = Graph::new();
         let init = graph.add_node(init_node());
+        let latch = graph.add_node(Latch::new(spring_state_type()));
         let step = graph.add_node(SpringStep::new(dt));
-        graph.connect(init, 0, step, 0).unwrap();
-        graph.connect_recurrence(step, 0, step, 0).unwrap();
+        graph.connect(init, 0, latch, 0).unwrap(); // Init -> latch.init
+        graph.connect(latch, 0, step, 0).unwrap(); // latch.out -> step.state
+        graph.connect(step, 0, latch, 1).unwrap(); // step.state -> latch.signal
 
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         let mut last = None;
         for t in 0..n {
-            let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
+            let r = graph
+                .tick_latched(t, &mut state, &EvalContext::new())
+                .unwrap();
             last = Some(
                 r.get(step, 0)
                     .unwrap()
@@ -343,13 +347,17 @@ mod tests {
         let run = || {
             let mut graph = Graph::new();
             let init = graph.add_node(init_node());
+            let latch = graph.add_node(Latch::new(spring_state_type()));
             let step = graph.add_node(SpringStep::new(dt));
-            graph.connect(init, 0, step, 0).unwrap();
-            graph.connect_recurrence(step, 0, step, 0).unwrap();
-            let mut state = FeedbackState::new();
+            graph.connect(init, 0, latch, 0).unwrap(); // Init -> latch.init
+            graph.connect(latch, 0, step, 0).unwrap(); // latch.out -> step.state
+            graph.connect(step, 0, latch, 1).unwrap(); // step.state -> latch.signal
+            let mut state = LatchSnapshot::new();
             let mut last = Vec::new();
             for t in 0..20 {
-                let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
+                let r = graph
+                    .tick_latched(t, &mut state, &EvalContext::new())
+                    .unwrap();
                 last = positions(
                     r.get(step, 0)
                         .unwrap()
@@ -375,12 +383,14 @@ mod tests {
 
         let mut graph = Graph::new();
         let init = graph.add_node(init_node());
+        let latch = graph.add_node(Latch::new(spring_state_type()));
         let step = graph.add_node(SpringStep::new(dt));
-        graph.connect(init, 0, step, 0).unwrap();
-        graph.connect_recurrence(step, 0, step, 0).unwrap();
-        let mut state = FeedbackState::new();
+        graph.connect(init, 0, latch, 0).unwrap(); // Init -> latch.init
+        graph.connect(latch, 0, step, 0).unwrap(); // latch.out -> step.state
+        graph.connect(step, 0, latch, 1).unwrap(); // step.state -> latch.signal
+        let mut state = LatchSnapshot::new();
         let r = graph
-            .run_to_tick(target, &mut state, |_t| EvalContext::new())
+            .run_to_tick_latched(target, &mut state, |_t| EvalContext::new())
             .unwrap();
         let resimulated = positions(
             r.get(step, 0)

@@ -256,7 +256,7 @@ impl DynNode for WfcStep {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use unshape_core::{FeedbackState, Graph};
+    use unshape_core::{Graph, Latch, LatchSnapshot};
 
     /// A small checkerboard-ish tileset: two tiles that must alternate.
     fn init_node() -> WfcInit {
@@ -292,14 +292,16 @@ mod tests {
         // then a few extra to confirm idempotence.
         let mut graph = Graph::new();
         let init = graph.add_node(init_node());
+        let latch = graph.add_node(Latch::new(wfc_state_type()));
         let step = graph.add_node(WfcStep);
-        graph.connect(init, 0, step, 0).unwrap();
-        graph.connect_recurrence(step, 0, step, 0).unwrap();
+        graph.connect(init, 0, latch, 0).unwrap(); // Init -> latch.init
+        graph.connect(latch, 0, step, 0).unwrap(); // latch.out -> step.state
+        graph.connect(step, 0, latch, 1).unwrap(); // step.state -> latch.signal
 
         let total = 6 * 6 + 4;
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         let r = graph
-            .run_to_tick(total as u64, &mut state, |_t| EvalContext::new())
+            .run_to_tick_latched(total as u64, &mut state, |_t| EvalContext::new())
             .unwrap();
         let solver = r.get(step, 0).unwrap().downcast_ref::<WfcState>().unwrap();
         assert!(solver.is_complete());
@@ -311,12 +313,14 @@ mod tests {
         let run = || {
             let mut graph = Graph::new();
             let init = graph.add_node(init_node());
+            let latch = graph.add_node(Latch::new(wfc_state_type()));
             let step = graph.add_node(WfcStep);
-            graph.connect(init, 0, step, 0).unwrap();
-            graph.connect_recurrence(step, 0, step, 0).unwrap();
-            let mut state = FeedbackState::new();
+            graph.connect(init, 0, latch, 0).unwrap(); // Init -> latch.init
+            graph.connect(latch, 0, step, 0).unwrap(); // latch.out -> step.state
+            graph.connect(step, 0, latch, 1).unwrap(); // step.state -> latch.signal
+            let mut state = LatchSnapshot::new();
             let r = graph
-                .run_to_tick(40, &mut state, |_t| EvalContext::new())
+                .run_to_tick_latched(40, &mut state, |_t| EvalContext::new())
                 .unwrap();
             result_grid(r.get(step, 0).unwrap().downcast_ref::<WfcState>().unwrap())
         };
@@ -338,13 +342,17 @@ mod tests {
 
         let mut graph = Graph::new();
         let init = graph.add_node(init_node());
+        let latch = graph.add_node(Latch::new(wfc_state_type()));
         let step = graph.add_node(WfcStep);
-        graph.connect(init, 0, step, 0).unwrap();
-        graph.connect_recurrence(step, 0, step, 0).unwrap();
-        let mut state = FeedbackState::new();
+        graph.connect(init, 0, latch, 0).unwrap(); // Init -> latch.init
+        graph.connect(latch, 0, step, 0).unwrap(); // latch.out -> step.state
+        graph.connect(step, 0, latch, 1).unwrap(); // step.state -> latch.signal
+        let mut state = LatchSnapshot::new();
         let mut last = None;
         for t in 0..steps {
-            let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
+            let r = graph
+                .tick_latched(t, &mut state, &EvalContext::new())
+                .unwrap();
             last = Some(
                 r.get(step, 0)
                     .unwrap()

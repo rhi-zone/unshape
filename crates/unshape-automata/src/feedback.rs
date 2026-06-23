@@ -25,17 +25,19 @@
 //! # Usage
 //!
 //! ```
-//! use unshape_automata::feedback::{ElementaryInit, ElementaryStep};
-//! use unshape_core::{Graph, FeedbackState, EvalContext};
+//! use unshape_automata::feedback::{ElementaryInit, ElementaryStep, elementary_state_type};
+//! use unshape_core::{Graph, Latch, LatchSnapshot, EvalContext};
 //!
 //! let mut graph = Graph::new();
 //! let init = graph.add_node(ElementaryInit::center(64, 30));
+//! let latch = graph.add_node(Latch::new(elementary_state_type()));
 //! let step = graph.add_node(ElementaryStep);
-//! graph.connect(init, 0, step, 0).unwrap();            // Init -> state (direct)
-//! graph.connect_recurrence(step, 0, step, 0).unwrap(); // evolve: state -> state
+//! graph.connect(init, 0, latch, 0).unwrap();  // Init -> latch.init (seed)
+//! graph.connect(latch, 0, step, 0).unwrap();  // latch.out -> step.state
+//! graph.connect(step, 0, latch, 1).unwrap();  // step.state -> latch.signal
 //!
-//! let mut state = FeedbackState::new();
-//! let r = graph.run_to_tick(5, &mut state, |_t| EvalContext::new()).unwrap();
+//! let mut state = LatchSnapshot::new();
+//! let r = graph.run_to_tick_latched(5, &mut state, |_t| EvalContext::new()).unwrap();
 //! assert!(r.get(step, 0).is_some());
 //! ```
 
@@ -482,7 +484,7 @@ impl DynNode for SmoothLifeStep {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use unshape_core::{EvalContext, FeedbackState, Graph};
+    use unshape_core::{EvalContext, Graph, Latch, LatchSnapshot};
 
     fn run_feedback<I, S, T, F>(init: I, step: S, n: u64, extract: F) -> T
     where
@@ -490,15 +492,20 @@ mod tests {
         S: DynNode + Clone + 'static,
         F: Fn(&Value) -> T,
     {
+        let state_type = init.outputs()[0].value_type;
         let mut graph = Graph::new();
         let i = graph.add_node(init);
+        let latch = graph.add_node(Latch::new(state_type));
         let s = graph.add_node(step);
-        graph.connect(i, 0, s, 0).unwrap();
-        graph.connect_recurrence(s, 0, s, 0).unwrap();
-        let mut state = FeedbackState::new();
+        graph.connect(i, 0, latch, 0).unwrap(); // Init -> latch.init (seed)
+        graph.connect(latch, 0, s, 0).unwrap(); // latch.out -> step.state
+        graph.connect(s, 0, latch, 1).unwrap(); // step.state -> latch.signal
+        let mut state = LatchSnapshot::new();
         let mut last = None;
         for t in 0..n {
-            let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
+            let r = graph
+                .tick_latched(t, &mut state, &EvalContext::new())
+                .unwrap();
             last = Some(extract(r.get(s, 0).unwrap()));
         }
         last.unwrap()
@@ -563,12 +570,14 @@ mod tests {
 
         let mut graph = Graph::new();
         let i = graph.add_node(init);
+        let latch = graph.add_node(Latch::new(elementary_state_type()));
         let s = graph.add_node(ElementaryStep);
-        graph.connect(i, 0, s, 0).unwrap();
-        graph.connect_recurrence(s, 0, s, 0).unwrap();
-        let mut state = FeedbackState::new();
+        graph.connect(i, 0, latch, 0).unwrap(); // Init -> latch.init (seed)
+        graph.connect(latch, 0, s, 0).unwrap(); // latch.out -> step.state
+        graph.connect(s, 0, latch, 1).unwrap(); // step.state -> latch.signal
+        let mut state = LatchSnapshot::new();
         let r = graph
-            .run_to_tick(target, &mut state, |_t| EvalContext::new())
+            .run_to_tick_latched(target, &mut state, |_t| EvalContext::new())
             .unwrap();
         let resimulated = r
             .get(s, 0)
