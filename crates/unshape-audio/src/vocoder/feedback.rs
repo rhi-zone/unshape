@@ -259,7 +259,7 @@ impl DynNode for Step {
 mod tests {
     use super::*;
     use std::f32::consts::PI;
-    use unshape_core::{FeedbackState, Graph};
+    use unshape_core::{Graph, Latch, LatchSnapshot};
 
     fn config() -> VocodeSynth {
         // Small window for fast tests; hop divides block length.
@@ -361,20 +361,23 @@ mod tests {
             ref_last = reference.process(&carrier_block(b, len), &modulator_block(b, len));
         }
 
-        // Fixed graph: Init --direct--> state, feedback self-loop, sine sources.
+        // Fixed graph: Init -> latch.init; latch on the state port; sine sources
+        // feed carrier/modulator; Step.state -> latch.signal.
         let mut graph = Graph::new();
         let init = graph.add_node(VocoderInit::new(config()));
+        let latch = graph.add_node(Latch::new(vocoder_state_type()));
         let car = graph.add_node(SineBlockSource { freq: 440.0, len });
         let modn = graph.add_node(SineBlockSource { freq: 110.0, len });
         let step = graph.add_node(Step::new(config()));
-        graph.connect(init, 0, step, 0).unwrap(); // Init -> state (direct seed)
+        graph.connect(init, 0, latch, 0).unwrap(); // Init -> latch.init (seed)
+        graph.connect(latch, 0, step, 0).unwrap(); // latch.out -> step.state
         graph.connect(car, 0, step, 1).unwrap();
         graph.connect(modn, 0, step, 2).unwrap();
-        graph.connect_recurrence(step, 0, step, 0).unwrap(); // evolve: state -> state (recurrence)
+        graph.connect(step, 0, latch, 1).unwrap(); // step.state -> latch.signal
 
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         let r = graph
-            .run_to_tick(target, &mut state, |t| {
+            .run_to_tick_latched(target, &mut state, |t| {
                 EvalContext::new().with_time(0.0, t, 1.0 / 60.0)
             })
             .unwrap();
@@ -399,16 +402,18 @@ mod tests {
         let build_and_run = |target: u64| {
             let mut graph = Graph::new();
             let init = graph.add_node(VocoderInit::new(config()));
+            let latch = graph.add_node(Latch::new(vocoder_state_type()));
             let car = graph.add_node(SineBlockSource { freq: 440.0, len });
             let modn = graph.add_node(SineBlockSource { freq: 110.0, len });
             let step = graph.add_node(Step::new(config()));
-            graph.connect(init, 0, step, 0).unwrap();
+            graph.connect(init, 0, latch, 0).unwrap();
+            graph.connect(latch, 0, step, 0).unwrap();
             graph.connect(car, 0, step, 1).unwrap();
             graph.connect(modn, 0, step, 2).unwrap();
-            graph.connect_recurrence(step, 0, step, 0).unwrap();
-            let mut state = FeedbackState::new();
+            graph.connect(step, 0, latch, 1).unwrap();
+            let mut state = LatchSnapshot::new();
             let r = graph
-                .seek(
+                .seek_latched(
                     target,
                     0,
                     unshape_core::SeekBehavior::Resimulate,
@@ -441,13 +446,17 @@ mod tests {
             ref_outputs.push(reference.process(&c, &m));
         }
 
-        // Feedback driver: state on a back-edge, carrier/modulator as inputs.
-        // Rebuild per tick because the input blocks differ each tick.
-        let mut state = FeedbackState::new();
-        // Determine the step node id by building once.
+        // Latch driver: state held by a latch, carrier/modulator as inputs.
+        // Rebuild per tick because the input blocks differ each tick. The latch
+        // snapshot carries across rebuilds, keyed by the (stable) latch node id;
+        // the latch's `init` is wired to a VocoderInit, which produces exactly
+        // `VocoderState::new(&config)` — so tick 0 self-seeds with no manual set.
+        let mut state = LatchSnapshot::new();
         let mut feedback_outputs = Vec::new();
         for b in 0..n {
             let mut graph = Graph::new();
+            let init = graph.add_node(VocoderInit::new(config()));
+            let latch = graph.add_node(Latch::new(vocoder_state_type()));
             let car = graph.add_node(BlockSource {
                 block: carrier_block(b, len),
             });
@@ -455,20 +464,14 @@ mod tests {
                 block: modulator_block(b, len),
             });
             let step = graph.add_node(Step::new(config()));
+            graph.connect(init, 0, latch, 0).unwrap(); // Init -> latch.init (seed)
+            graph.connect(latch, 0, step, 0).unwrap(); // latch.out -> step.state
             graph.connect(car, 0, step, 1).unwrap();
             graph.connect(modn, 0, step, 2).unwrap();
-            graph.connect_recurrence(step, 0, step, 0).unwrap();
-
-            // Seed the state port: on the first block, the zero initial state;
-            // afterwards, the carried state. Because we rebuild the graph each
-            // tick, node ids are stable (same construction order), so `step` is
-            // the same id every iteration and the feedback key lines up.
-            if b == 0 {
-                state.set(step, 0, Value::opaque(VocoderState::new(&config())));
-            }
+            graph.connect(step, 0, latch, 1).unwrap(); // step.state -> latch.signal
 
             let r = graph
-                .tick(b as u64, &mut state, &EvalContext::new())
+                .tick_latched(b as u64, &mut state, &EvalContext::new())
                 .unwrap();
             let out = r
                 .get(step, 1)
@@ -496,6 +499,8 @@ mod tests {
         let cfg = config();
 
         let mut graph = Graph::new();
+        let init = graph.add_node(VocoderInit::new(cfg.clone()));
+        let latch = graph.add_node(Latch::new(vocoder_state_type()));
         let car = graph.add_node(BlockSource {
             block: carrier_block(0, len),
         });
@@ -503,13 +508,16 @@ mod tests {
             block: modulator_block(0, len),
         });
         let step = graph.add_node(Step::new(cfg.clone()));
+        graph.connect(init, 0, latch, 0).unwrap(); // Init -> latch.init (seed)
+        graph.connect(latch, 0, step, 0).unwrap(); // latch.out -> step.state
         graph.connect(car, 0, step, 1).unwrap();
         graph.connect(modn, 0, step, 2).unwrap();
-        graph.connect_recurrence(step, 0, step, 0).unwrap();
+        graph.connect(step, 0, latch, 1).unwrap(); // step.state -> latch.signal
 
-        let mut state = FeedbackState::new();
-        state.set(step, 0, Value::opaque(VocoderState::new(&cfg)));
-        let r = graph.tick(0, &mut state, &EvalContext::new()).unwrap();
+        let mut state = LatchSnapshot::new();
+        let r = graph
+            .tick_latched(0, &mut state, &EvalContext::new())
+            .unwrap();
         let node_out = r
             .get(step, 1)
             .unwrap()
@@ -536,10 +544,12 @@ mod tests {
         let len = 256usize;
         let n = 5usize;
         let run = || {
-            let mut state = FeedbackState::new();
+            let mut state = LatchSnapshot::new();
             let mut last = Vec::new();
             for b in 0..n {
                 let mut graph = Graph::new();
+                let init = graph.add_node(VocoderInit::new(config()));
+                let latch = graph.add_node(Latch::new(vocoder_state_type()));
                 let car = graph.add_node(BlockSource {
                     block: carrier_block(b, len),
                 });
@@ -547,14 +557,13 @@ mod tests {
                     block: modulator_block(b, len),
                 });
                 let step = graph.add_node(Step::new(config()));
+                graph.connect(init, 0, latch, 0).unwrap();
+                graph.connect(latch, 0, step, 0).unwrap();
                 graph.connect(car, 0, step, 1).unwrap();
                 graph.connect(modn, 0, step, 2).unwrap();
-                graph.connect_recurrence(step, 0, step, 0).unwrap();
-                if b == 0 {
-                    state.set(step, 0, Value::opaque(VocoderState::new(&config())));
-                }
+                graph.connect(step, 0, latch, 1).unwrap();
                 let r = graph
-                    .tick(b as u64, &mut state, &EvalContext::new())
+                    .tick_latched(b as u64, &mut state, &EvalContext::new())
                     .unwrap();
                 last = r
                     .get(step, 1)

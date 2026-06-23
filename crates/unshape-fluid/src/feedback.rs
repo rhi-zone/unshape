@@ -1113,7 +1113,7 @@ impl DynNode for Sph3DStep {
 mod tests {
     use super::*;
     use crate::FluidConfig;
-    use unshape_core::{FeedbackState, Graph};
+    use unshape_core::{Graph, Latch, LatchSnapshot};
 
     fn init_node() -> FluidInit {
         FluidInit::new(32, 32, FluidConfig::default())
@@ -1134,9 +1134,11 @@ mod tests {
     fn build() -> Built {
         let mut graph = Graph::new();
         let init = graph.add_node(init_node());
+        let latch = graph.add_node(Latch::new(fluid_grid_2d_type()));
         let step = graph.add_node(Step);
-        graph.connect(init, 0, step, 0).unwrap();
-        graph.connect_recurrence(step, 0, step, 0).unwrap();
+        graph.connect(init, 0, latch, 0).unwrap(); // Init -> latch.init (seed)
+        graph.connect(latch, 0, step, 0).unwrap(); // latch.out -> step.state
+        graph.connect(step, 0, latch, 1).unwrap(); // step.state -> latch.signal
         Built { graph, step }
     }
 
@@ -1155,10 +1157,12 @@ mod tests {
         }
 
         let Built { mut graph, step } = build();
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         let mut last = None;
         for t in 0..n {
-            let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
+            let r = graph
+                .tick_latched(t, &mut state, &EvalContext::new())
+                .unwrap();
             last = Some(
                 r.get(step, 0)
                     .unwrap()
@@ -1191,13 +1195,17 @@ mod tests {
         // (b) the node holds no state: a fresh seed restarts from one step (the
         // Init source re-seeds tick 0).
         let Built { mut graph, step } = build();
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         for t in 0..5 {
-            graph.tick(t, &mut state, &EvalContext::new()).unwrap();
+            graph
+                .tick_latched(t, &mut state, &EvalContext::new())
+                .unwrap();
         }
 
-        let mut fresh = FeedbackState::new();
-        let r = graph.tick(0, &mut fresh, &EvalContext::new()).unwrap();
+        let mut fresh = LatchSnapshot::new();
+        let r = graph
+            .tick_latched(0, &mut fresh, &EvalContext::new())
+            .unwrap();
         let one = r
             .get(step, 0)
             .unwrap()
@@ -1217,10 +1225,12 @@ mod tests {
         // (c) same seed + inputs + N -> identical output.
         let run = || {
             let Built { mut graph, step } = build();
-            let mut state = FeedbackState::new();
+            let mut state = LatchSnapshot::new();
             let mut last = 0.0;
             for t in 0..12 {
-                let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
+                let r = graph
+                    .tick_latched(t, &mut state, &EvalContext::new())
+                    .unwrap();
                 last = density_sum(
                     r.get(step, 0)
                         .unwrap()
@@ -1241,10 +1251,12 @@ mod tests {
 
         let manual = {
             let Built { mut graph, step } = build();
-            let mut state = FeedbackState::new();
+            let mut state = LatchSnapshot::new();
             let mut last = None;
             for t in 0..=target {
-                let r = graph.tick(t, &mut state, &EvalContext::new()).unwrap();
+                let r = graph
+                    .tick_latched(t, &mut state, &EvalContext::new())
+                    .unwrap();
                 last = Some(
                     r.get(step, 0)
                         .unwrap()
@@ -1257,9 +1269,9 @@ mod tests {
         };
 
         let Built { mut graph, step } = build();
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         let r = graph
-            .run_to_tick(target, &mut state, |_t| EvalContext::new())
+            .run_to_tick_latched(target, &mut state, |_t| EvalContext::new())
             .unwrap();
         let resimulated = r
             .get(step, 0)
@@ -1289,9 +1301,9 @@ mod tests {
         // (e) seek(Resimulate) works and reproduces.
         let seek_to = |target: u64| {
             let Built { mut graph, step } = build();
-            let mut state = FeedbackState::new();
+            let mut state = LatchSnapshot::new();
             let r = graph
-                .seek(
+                .seek_latched(
                     target,
                     0,
                     unshape_core::SeekBehavior::Resimulate,
@@ -1327,21 +1339,23 @@ mod tests {
 
         let mut graph = Graph::new();
         let i = graph.add_node(init);
+        let latch = graph.add_node(Latch::new(fluid_grid_3d_type()));
         let s = graph.add_node(Fluid3DStep);
-        graph.connect(i, 0, s, 0).unwrap();
-        graph.connect_recurrence(s, 0, s, 0).unwrap();
+        graph.connect(i, 0, latch, 0).unwrap(); // Init -> latch.init
+        graph.connect(latch, 0, s, 0).unwrap(); // latch.out -> step.state
+        graph.connect(s, 0, latch, 1).unwrap(); // step.state -> latch.signal
 
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         let r = graph
-            .run_to_tick(target, &mut state, |_t| EvalContext::new())
+            .run_to_tick_latched(target, &mut state, |_t| EvalContext::new())
             .unwrap();
         let resim = r.get(s, 0).unwrap().downcast_ref::<FluidGrid3D>().unwrap();
         assert_eq!(resim.density_field(), reference.density_field());
 
         // determinism: a second resimulation matches.
-        let mut state2 = FeedbackState::new();
+        let mut state2 = LatchSnapshot::new();
         let r2 = graph
-            .run_to_tick(target, &mut state2, |_t| EvalContext::new())
+            .run_to_tick_latched(target, &mut state2, |_t| EvalContext::new())
             .unwrap();
         let resim2 = r2.get(s, 0).unwrap().downcast_ref::<FluidGrid3D>().unwrap();
         assert_eq!(resim.density_field(), resim2.density_field());
@@ -1365,21 +1379,23 @@ mod tests {
 
         let mut graph = Graph::new();
         let i = graph.add_node(init);
+        let latch = graph.add_node(Latch::new(smoke_grid_2d_type()));
         let s = graph.add_node(Smoke2DStep);
-        graph.connect(i, 0, s, 0).unwrap();
-        graph.connect_recurrence(s, 0, s, 0).unwrap();
+        graph.connect(i, 0, latch, 0).unwrap(); // Init -> latch.init
+        graph.connect(latch, 0, s, 0).unwrap(); // latch.out -> step.state
+        graph.connect(s, 0, latch, 1).unwrap(); // step.state -> latch.signal
 
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         let r = graph
-            .run_to_tick(target, &mut state, |_t| EvalContext::new())
+            .run_to_tick_latched(target, &mut state, |_t| EvalContext::new())
             .unwrap();
         let resim = r.get(s, 0).unwrap().downcast_ref::<SmokeGrid2D>().unwrap();
         assert_eq!(resim.density_field(), reference.density_field());
         assert_eq!(resim.temperature_field(), reference.temperature_field());
 
-        let mut state2 = FeedbackState::new();
+        let mut state2 = LatchSnapshot::new();
         let r2 = graph
-            .run_to_tick(target, &mut state2, |_t| EvalContext::new())
+            .run_to_tick_latched(target, &mut state2, |_t| EvalContext::new())
             .unwrap();
         let resim2 = r2.get(s, 0).unwrap().downcast_ref::<SmokeGrid2D>().unwrap();
         assert_eq!(resim.density_field(), resim2.density_field());
@@ -1403,21 +1419,23 @@ mod tests {
 
         let mut graph = Graph::new();
         let i = graph.add_node(init);
+        let latch = graph.add_node(Latch::new(smoke_grid_3d_type()));
         let s = graph.add_node(Smoke3DStep);
-        graph.connect(i, 0, s, 0).unwrap();
-        graph.connect_recurrence(s, 0, s, 0).unwrap();
+        graph.connect(i, 0, latch, 0).unwrap(); // Init -> latch.init
+        graph.connect(latch, 0, s, 0).unwrap(); // latch.out -> step.state
+        graph.connect(s, 0, latch, 1).unwrap(); // step.state -> latch.signal
 
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         let r = graph
-            .run_to_tick(target, &mut state, |_t| EvalContext::new())
+            .run_to_tick_latched(target, &mut state, |_t| EvalContext::new())
             .unwrap();
         let resim = r.get(s, 0).unwrap().downcast_ref::<SmokeGrid3D>().unwrap();
         assert_eq!(resim.density_field(), reference.density_field());
         assert_eq!(resim.temperature_field(), reference.temperature_field());
 
-        let mut state2 = FeedbackState::new();
+        let mut state2 = LatchSnapshot::new();
         let r2 = graph
-            .run_to_tick(target, &mut state2, |_t| EvalContext::new())
+            .run_to_tick_latched(target, &mut state2, |_t| EvalContext::new())
             .unwrap();
         let resim2 = r2.get(s, 0).unwrap().downcast_ref::<SmokeGrid3D>().unwrap();
         assert_eq!(resim.density_field(), resim2.density_field());
@@ -1450,20 +1468,22 @@ mod tests {
 
         let mut graph = Graph::new();
         let i = graph.add_node(init);
+        let latch = graph.add_node(Latch::new(sph_2d_type()));
         let s = graph.add_node(Sph2DStep);
-        graph.connect(i, 0, s, 0).unwrap();
-        graph.connect_recurrence(s, 0, s, 0).unwrap();
+        graph.connect(i, 0, latch, 0).unwrap(); // Init -> latch.init
+        graph.connect(latch, 0, s, 0).unwrap(); // latch.out -> step.state
+        graph.connect(s, 0, latch, 1).unwrap(); // step.state -> latch.signal
 
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         let r = graph
-            .run_to_tick(target, &mut state, |_t| EvalContext::new())
+            .run_to_tick_latched(target, &mut state, |_t| EvalContext::new())
             .unwrap();
         let resim = r.get(s, 0).unwrap().downcast_ref::<Sph2D>().unwrap();
         assert_eq!(resim.positions(), reference_pos);
 
-        let mut state2 = FeedbackState::new();
+        let mut state2 = LatchSnapshot::new();
         let r2 = graph
-            .run_to_tick(target, &mut state2, |_t| EvalContext::new())
+            .run_to_tick_latched(target, &mut state2, |_t| EvalContext::new())
             .unwrap();
         let resim2 = r2.get(s, 0).unwrap().downcast_ref::<Sph2D>().unwrap();
         assert_eq!(resim.positions(), resim2.positions());
@@ -1496,20 +1516,22 @@ mod tests {
 
         let mut graph = Graph::new();
         let i = graph.add_node(init);
+        let latch = graph.add_node(Latch::new(sph_3d_type()));
         let s = graph.add_node(Sph3DStep);
-        graph.connect(i, 0, s, 0).unwrap();
-        graph.connect_recurrence(s, 0, s, 0).unwrap();
+        graph.connect(i, 0, latch, 0).unwrap(); // Init -> latch.init
+        graph.connect(latch, 0, s, 0).unwrap(); // latch.out -> step.state
+        graph.connect(s, 0, latch, 1).unwrap(); // step.state -> latch.signal
 
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         let r = graph
-            .run_to_tick(target, &mut state, |_t| EvalContext::new())
+            .run_to_tick_latched(target, &mut state, |_t| EvalContext::new())
             .unwrap();
         let resim = r.get(s, 0).unwrap().downcast_ref::<Sph3D>().unwrap();
         assert_eq!(resim.positions(), reference_pos);
 
-        let mut state2 = FeedbackState::new();
+        let mut state2 = LatchSnapshot::new();
         let r2 = graph
-            .run_to_tick(target, &mut state2, |_t| EvalContext::new())
+            .run_to_tick_latched(target, &mut state2, |_t| EvalContext::new())
             .unwrap();
         let resim2 = r2.get(s, 0).unwrap().downcast_ref::<Sph3D>().unwrap();
         assert_eq!(resim.positions(), resim2.positions());
