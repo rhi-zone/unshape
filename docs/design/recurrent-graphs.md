@@ -2,6 +2,56 @@
 
 Graphs with cycles (feedback loops). Not special to audio - a general computation pattern.
 
+## Superseding design: the Latch (provisional — supersedes `feedback: bool`, not yet implemented)
+
+> **STATUS:** agreed design direction from a decorrelated + adversarial-audit pass; supersedes the feedback-edge model described below as the intended target. NOT yet implemented — the codebase still uses `feedback: bool` + `connect_recurrence`; migration pending. One hole (multi-rate) remains genuinely open.
+
+### The primitive
+
+A **Latch** node: a seeded unit-delay (1-tick memory). It is definitionally the same primitive as Lustre `fby`, Pd `[z~]`, Faust `~`, a hardware register — "the visible delay element on a cycle" has one shape.
+
+Ports:
+- input 0 `init` — **REQUIRED WIRED** seed (not a default field; this is load-bearing, see below)
+- input 1 `signal` — value captured for next tick
+- output 0 `out` — the stored value: `init` at tick 0, previously-captured `signal` thereafter
+
+`rate` is a per-node param (default: per-tick).
+
+### Why it beats the alternatives (decorrelated verdict)
+
+- **vs `feedback: bool` (current):** identical semantics, but the delay becomes a VISIBLE node instead of an invisible wire flag; cycle-validation becomes structural ("every cycle must contain a latch"); and it REMOVES machinery (`connect_recurrence`, `Wire.feedback`, the two-edge seed/evolve resolution in `tick`).
+- **vs a Read/Write memory-cell (shared `cell_id`):** rejected — the recurrence dependency would be a NAME match, not a wire = the "no string-matching when structure exists" anti-pattern; loses topo-validatable cycles and wire-level state dup/fork.
+- **vs pure step-function / boundary-I/O** (`(state,input)→(state',output)`, iterate externally): rejected — either the loop lives OUTSIDE the graph (breaks graph-as-source-of-truth for the projectional editor) or it collapses back into needing an in-graph seeded delay = the Latch.
+- **vs bare Lustre `pre` (un-seeded):** already excluded — un-seeded recurrence is an error here because opaque sim state (fluid/RD grids) has no zero value; the seed must be a wired source. So the surviving form is `fby` = the Latch with seed-as-port-0.
+
+### The load-bearing detail the audit caught
+
+`init` MUST be a required wired input PORT, not a default value field on the node. If it were a field defaulting to zero/`Default`, it would silently reintroduce the implicit-zero-seed fallback that the recurrence work deliberately removed (opaque grids have no zero value; a missing seed must be an error). With init-as-a-port, the latch is "the existing two-edge recurrence with a visible face" — and the swappable in-graph seed property (Init/checkpoint/baked-state) is preserved as port 0.
+
+### The model
+
+- Latch `out` is a WITHIN-TICK SOURCE (emits stored value, no within-tick dependency on its input); latch `signal` input is a WITHIN-TICK SINK (captured at tick end). So the within-tick graph is a pure DAG — no cycles, no edge flags, no cut.
+- **Loop legality:** a cycle is legal IFF it contains a latch. Validation = run the Kahn topo pass with edges-into-`latch.signal` excluded; any leftover (a latch-free cycle) is an instantaneous loop → error. O(V+E), same cost as today, but stricter/more honest than the current per-edge `connect_recurrence` opt-out.
+- **State = the set of latches.** The snapshot is `{latch_node_id → Value}` (replacing `FeedbackState`'s `(from_node, from_port)` key). Seek (`Resimulate`/`Discontinuity`/`Error`) is unchanged in meaning — `Resimulate` clears the snapshot and replays, re-seeding each latch from its `init` wire (works for opaque grids).
+- "Recurrence" stops being a subsystem: there is a Latch (memory) node and one validation rule; a sim is a Step op with a latch in its loop, structurally identical to any other graph.
+
+### Implementation costs (bounded, real — NOT a flag deletion)
+
+- **Scheduler change:** a latch has a source port AND a sink port on the same node, which the current node-granular Kahn sort can't express. Resolution: make the Latch a driver-recognized node (downcast like `GraphInput`), and exclude edges whose destination is a `latch.signal` port from the within-tick DAG. Real change, addressable.
+- **Serialization break:** `SerialWire.feedback` is removed (`SerialWire` becomes `{from,to}`); latches serialize as ordinary nodes; the runtime stored value is NOT serialized with the graph (graph = program; reproduce by replay from `init`); opaque snapshots are replay-only (TypeId can't serde). Old graphs with `feedback` wires must be migrated, not silently loaded.
+- **Migration:** all 9 sims (each is the identical `connect(Init→Step.state)` + `connect_recurrence(Step→Step.state)` self-loop) → `Init→Latch.init`, `Latch.out→Step.state`, `Step.out→Latch.signal`. Mechanical; the `*Step` execute bodies and `*Init` nodes are unchanged. The vocoder additionally has non-state I/O ports (carrier/modulator in, audio out) so "a sim is just Step+latch" is really "Step + its external I/O + a latch on the state port." Do core + all 9 in ONE arc (finish migrations before building on top).
+- **Deletions:** `Wire.feedback`, `connect_recurrence`, `has_feedback`, the feedback/!feedback filters, the recurrence/seed branch + no-seed-error path in `tick`, `SerialWire.feedback`; `ValueType::zero_value` likely becomes dead (its only caller was tick-0 feedback seeding) — verify and remove.
+
+### THE OPEN HOLE (do not mark resolved): multi-rate
+
+"`rate` is just a per-latch param" does NOT define cross-rate semantics. The current system is BLOCK-RATE (audio rides the tick at block granularity), so feedback never crosses clock rates today, and NOTHING in the corpus exercises a per-sample latch feeding a per-frame consumer — which is the undefined case (which stored sample does the frame-rate node read? sub-ticking? hold? resample?). This is open question #4 (audio-rate feeding control-rate), still **OPEN**.
+
+Scope multi-rate OUT for now: the Latch is the TICK-RATE primitive; cross-rate hold/sub-tick/resample semantics are a separate unsolved design problem and must not be claimed solved.
+
+---
+
+*(The model described below is the CURRENTLY-IMPLEMENTED one; the Latch section above is the agreed superseding target.)*
+
 ## The Problem
 
 DAGs (directed acyclic graphs) can't express feedback:
