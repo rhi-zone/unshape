@@ -2,9 +2,21 @@
 
 Graphs with cycles (feedback loops). Not special to audio - a general computation pattern.
 
-## Superseding design: the Latch (provisional — supersedes `feedback: bool`, not yet implemented)
+## The Latch (implemented — sole recurrence primitive)
 
-> **STATUS:** agreed design direction from a decorrelated + adversarial-audit pass; supersedes the feedback-edge model described below as the intended target. NOT yet implemented — the codebase still uses `feedback: bool` + `connect_recurrence`; migration pending. One hole (multi-rate) remains genuinely open.
+> **STATUS:** IMPLEMENTED. The Latch is the sole memory primitive; the
+> feedback-edge model (`feedback: bool` + `connect_recurrence`) described below
+> has been REMOVED. All 9 recurrent sims (rd, particle, fluid, audio/vocoder,
+> automata, spring, physics, space-colonization, procgen) drive recurrence
+> through an explicit `Latch` node via `tick_latched` / `run_to_tick_latched` /
+> `seek_latched` over a `LatchSnapshot`. The one residue still genuinely open is
+> *incommensurate* multi-rate (see below); integer sub-rates are solved via
+> `Rate::Every(n)` (hold/decimate).
+>
+> Code: `Latch` / `Rate` in `unshape_core::nodes::latch`; the driver
+> (`tick_latched` etc.) and `validate_latches` in `unshape_core::graph`;
+> `LatchSnapshot` in `unshape_core::eval`; serde registration as `core::Latch`
+> in `unshape_serde::feedback_nodes`.
 
 ### The primitive
 
@@ -35,12 +47,12 @@ Ports:
 - **State = the set of latches.** The snapshot is `{latch_node_id → Value}` (replacing `FeedbackState`'s `(from_node, from_port)` key). Seek (`Resimulate`/`Discontinuity`/`Error`) is unchanged in meaning — `Resimulate` clears the snapshot and replays, re-seeding each latch from its `init` wire (works for opaque grids).
 - "Recurrence" stops being a subsystem: there is a Latch (memory) node and one validation rule; a sim is a Step op with a latch in its loop, structurally identical to any other graph.
 
-### Implementation costs (bounded, real — NOT a flag deletion)
+### Implementation (done)
 
-- **Scheduler change:** a latch has a source port AND a sink port on the same node, which the current node-granular Kahn sort can't express. Resolution: make the Latch a driver-recognized node (downcast like `GraphInput`), and exclude edges whose destination is a `latch.signal` port from the within-tick DAG. Real change, addressable.
-- **Serialization break:** `SerialWire.feedback` is removed (`SerialWire` becomes `{from,to}`); latches serialize as ordinary nodes; the runtime stored value is NOT serialized with the graph (graph = program; reproduce by replay from `init`); opaque snapshots are replay-only (TypeId can't serde). Old graphs with `feedback` wires must be migrated, not silently loaded.
-- **Migration:** all 9 sims (each is the identical `connect(Init→Step.state)` + `connect_recurrence(Step→Step.state)` self-loop) → `Init→Latch.init`, `Latch.out→Step.state`, `Step.out→Latch.signal`. Mechanical; the `*Step` execute bodies and `*Init` nodes are unchanged. The vocoder additionally has non-state I/O ports (carrier/modulator in, audio out) so "a sim is just Step+latch" is really "Step + its external I/O + a latch on the state port." Do core + all 9 in ONE arc (finish migrations before building on top).
-- **Deletions:** `Wire.feedback`, `connect_recurrence`, `has_feedback`, the feedback/!feedback filters, the recurrence/seed branch + no-seed-error path in `tick`, `SerialWire.feedback`; `ValueType::zero_value` likely becomes dead (its only caller was tick-0 feedback seeding) — verify and remove.
+- **Scheduler:** the Latch is a driver-recognized node (downcast like `GraphInput`); `tick_latched` produces its `out` from the snapshot (or cold-seeds from `init`), and edges whose destination is a `latch.signal` port are excluded from the within-tick DAG (`is_latch_signal_sink`). The within-tick graph is therefore a pure DAG.
+- **Serialization:** new graphs carry no feedback wire flag; latches serialize as ordinary `core::Latch` nodes with params `{ty, rate}` (the opaque `ty` stored by name, resolved at load against the enabled feedback features). The runtime stored value is NOT serialized (graph = program; reproduce by replay from `init`); opaque snapshots are replay-only (TypeId can't serde). Old graphs whose wires carry `feedback: true` are rejected with a migration hint (`SerdeError::LegacyFeedbackWire`), not silently loaded. (The `SerialWire.feedback` field is retained as an `Option<bool>` solely for this legacy detection and to keep bincode's positional layout stable.)
+- **Migration:** all 9 sims were the identical `connect(Init→Step.state)` + `connect_recurrence(Step→Step.state)` self-loop → `Init→Latch.init`, `Latch.out→Step.state`, `Step.out→Latch.signal`. Mechanical; the `*Step` execute bodies and `*Init` nodes are unchanged. The vocoder additionally has non-state I/O ports (carrier/modulator in, audio out), wired conventionally; the latch is only on the state port.
+- **Deletions (done):** `Wire.feedback` + `Wire::feedback` ctor, `Graph::connect_recurrence`, `Graph::has_feedback`, the feedback/!feedback edge filters, the old `FeedbackState`-based `tick`/`run_to_tick`/`seek` drivers, `FeedbackState`, `EvalContext`'s feedback-state slot, and `ValueType::zero_value` (its only caller was tick-0 feedback seeding).
 
 ### Multi-rate (re-scoped: integer sub-rates solved; incommensurate deferred — mostly resolved)
 
@@ -55,7 +67,10 @@ Net status of multi-rate: integer sub-rates RESOLVED (hold/decimate, one base ti
 
 ---
 
-*(The model described below is the CURRENTLY-IMPLEMENTED one; the Latch section above is the agreed superseding target.)*
+*(The feedback-edge model described below has been **REMOVED**. It is retained
+here only as historical context for the Latch design above, which superseded and
+replaced it. `feedback: bool`, `connect_recurrence`, `FeedbackState`, and the
+seed/evolve two-edge resolution no longer exist in the codebase.)*
 
 ## The Problem
 
