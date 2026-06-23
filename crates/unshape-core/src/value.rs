@@ -358,24 +358,6 @@ impl ValueType {
         }
     }
 
-    /// Returns the zero/identity [`Value`] for this type, if one is defined.
-    ///
-    /// Used to seed feedback-edge inputs on tick 0 when no explicit initial
-    /// value is supplied (see [`Graph::tick`](crate::Graph::tick)). Opaque
-    /// (`Custom`) types have no canonical zero and return `None`.
-    pub fn zero_value(&self) -> Option<Value> {
-        match self {
-            ValueType::F32 => Some(Value::F32(0.0)),
-            ValueType::F64 => Some(Value::F64(0.0)),
-            ValueType::I32 => Some(Value::I32(0)),
-            ValueType::Bool => Some(Value::Bool(false)),
-            ValueType::Vec2 => Some(Value::Vec2(Vec2::ZERO)),
-            ValueType::Vec3 => Some(Value::Vec3(Vec3::ZERO)),
-            ValueType::Vec4 => Some(Value::Vec4(Vec4::ZERO)),
-            ValueType::Custom { .. } => None,
-        }
-    }
-
     /// Returns the TypeId for this value type.
     pub fn type_id(&self) -> TypeId {
         match self {

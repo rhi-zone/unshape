@@ -191,7 +191,7 @@ pub enum CancellationMode {
 /// Context passed to node execution.
 ///
 /// Provides environment information beyond just input values: time, cancellation,
-/// progress reporting, quality hints, and feedback state for recurrent graphs.
+/// progress reporting, and quality hints.
 pub struct EvalContext {
     // === Control ===
     cancel: Option<CancellationToken>,
@@ -210,9 +210,6 @@ pub struct EvalContext {
     pub preview_mode: bool,
     /// Target resolution hint for LOD decisions.
     pub target_resolution: Option<(u32, u32)>,
-
-    // === Recurrent graphs ===
-    feedback_state: Option<FeedbackState>,
 
     // === Determinism ===
     /// Random seed for reproducible procedural generation.
@@ -233,7 +230,6 @@ impl Default for EvalContext {
             dt: 1.0 / 60.0,
             preview_mode: false,
             target_resolution: None,
-            feedback_state: None,
             seed: 0,
             inputs: HashMap::new(),
         }
@@ -301,22 +297,6 @@ impl EvalContext {
         }
     }
 
-    /// Get feedback state for recurrent graphs (if available).
-    pub fn feedback_state(&self) -> Option<&FeedbackState> {
-        self.feedback_state.as_ref()
-    }
-
-    /// Get mutable feedback state for recurrent graphs (if available).
-    pub fn feedback_state_mut(&mut self) -> Option<&mut FeedbackState> {
-        self.feedback_state.as_mut()
-    }
-
-    /// Set feedback state for recurrent graphs.
-    pub fn with_feedback_state(mut self, state: FeedbackState) -> Self {
-        self.feedback_state = Some(state);
-        self
-    }
-
     /// Inject a single named input value for `GraphInput` nodes.
     pub fn with_input(mut self, name: impl Into<String>, value: impl Into<Value>) -> Self {
         self.inputs.insert(name.into(), value.into());
@@ -348,59 +328,12 @@ pub struct EvalProgress {
     pub elapsed: Duration,
 }
 
-/// State for feedback wires in recurrent graphs.
-///
-/// Stores values that carry across iterations/frames for feedback loops.
-#[derive(Debug, Clone, Default)]
-pub struct FeedbackState {
-    /// Feedback wire values, keyed by (from_node, from_port).
-    values: HashMap<(NodeId, usize), Value>,
-}
-
-impl FeedbackState {
-    /// Create empty feedback state.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Get a feedback value.
-    pub fn get(&self, node: NodeId, port: usize) -> Option<&Value> {
-        self.values.get(&(node, port))
-    }
-
-    /// Set a feedback value.
-    pub fn set(&mut self, node: NodeId, port: usize, value: Value) {
-        self.values.insert((node, port), value);
-    }
-
-    /// Clear all feedback values.
-    pub fn clear(&mut self) {
-        self.values.clear();
-    }
-
-    /// Number of stored feedback values.
-    pub fn len(&self) -> usize {
-        self.values.len()
-    }
-
-    /// Whether any feedback values are stored.
-    pub fn is_empty(&self) -> bool {
-        self.values.is_empty()
-    }
-
-    /// Iterate over stored `((from_node, from_port), value)` entries.
-    pub fn iter(&self) -> impl Iterator<Item = (&(NodeId, usize), &Value)> {
-        self.values.iter()
-    }
-}
-
 /// Per-tick stored values for [`Latch`](crate::Latch) nodes in a recurrent
 /// graph.
 ///
 /// Keyed by latch [`NodeId`]: each entry is the value the latch captured on its
-/// last advance, which it emits on `out` until the next advance. This replaces
-/// the old `(from_node, from_port)`-keyed `FeedbackState` for the Latch model
-/// (the visible delay element holds the state, so the key is the latch itself).
+/// last advance, which it emits on `out` until the next advance. The visible
+/// delay element (the latch) holds the state, so the key is the latch itself.
 ///
 /// The stored values are **not** serialized with the graph: a graph is a
 /// program, and the snapshot is reproduced by replaying from each latch's `init`
@@ -459,7 +392,7 @@ pub enum SeekBehavior {
     #[default]
     Resimulate,
 
-    /// Jump directly using whatever feedback state is currently held.
+    /// Jump directly using whatever latch snapshot is currently held.
     ///
     /// Fast but may glitch (the state is from a different point in time).
     /// Intended for interactive preview. **Hook only** — the recurrent driver
@@ -476,9 +409,10 @@ pub enum SeekBehavior {
 
 /// Outcome of a single recurrent evaluation tick.
 ///
-/// Returned by [`Graph::tick`](crate::Graph::tick). The feedback state for the
-/// *next* tick is written back into the [`FeedbackState`] passed to `tick`; this
-/// struct carries the per-node outputs computed during the tick.
+/// Returned by [`Graph::tick_latched`](crate::Graph::tick_latched). The latch
+/// snapshot for the *next* tick is written back into the
+/// [`LatchSnapshot`](crate::LatchSnapshot) passed to `tick_latched`; this struct
+/// carries the per-node outputs computed during the tick.
 #[derive(Debug, Clone)]
 pub struct TickResult {
     /// The tick index that was evaluated.
@@ -1005,15 +939,15 @@ mod tests {
     }
 
     #[test]
-    fn test_feedback_state() {
-        let mut state = FeedbackState::new();
-        assert!(state.get(0, 0).is_none());
+    fn test_latch_snapshot() {
+        let mut snap = LatchSnapshot::new();
+        assert!(snap.get(0).is_none());
 
-        state.set(0, 0, Value::F32(1.0));
-        assert_eq!(state.get(0, 0), Some(&Value::F32(1.0)));
+        snap.set(0, Value::F32(1.0));
+        assert_eq!(snap.get(0), Some(&Value::F32(1.0)));
 
-        state.clear();
-        assert!(state.get(0, 0).is_none());
+        snap.clear();
+        assert!(snap.get(0).is_none());
     }
 
     #[test]

@@ -9,11 +9,10 @@
 //! crate that wires the stable `type_name` → factory mapping into a
 //! [`NodeRegistry`].
 //!
-//! Only the node **config** is serialized — runtime [`FeedbackState`] is never
+//! Only the node **config** is serialized — the runtime latch snapshot is never
 //! part of the graph; it is recomputed by re-running from the `Init` seed.
 //!
 //! [`SerializableNode`]: crate::SerializableNode
-//! [`FeedbackState`]: unshape_core::FeedbackState
 
 use crate::registry::NodeRegistry;
 

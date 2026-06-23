@@ -185,8 +185,8 @@ impl Step {
 
     /// Returns the zero initial state matching this node's configuration.
     ///
-    /// Pre-seed this into the [`FeedbackState`](unshape_core::FeedbackState) for
-    /// the step node's state port before tick 0.
+    /// This is the value a [`VocoderInit`] produces; wire that into the latch's
+    /// `init` port to seed the step node's state at tick 0.
     pub fn initial_state(&self) -> VocoderState {
         VocoderState::new(&self.config)
     }
