@@ -252,7 +252,7 @@ mod tests {
         step: u32,
     }
 
-    /// Build the Init-seeded, self-wired step graph (no manual FeedbackState seed).
+    /// Build the Init-seeded, self-wired step graph (no manual snapshot seed).
     fn build() -> Built {
         let mut graph = Graph::new();
         let init = graph.add_node(init_node());
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn node_is_pure_fresh_state_restarts() {
-        // (b) the node holds no state: a fresh FeedbackState restarts from seed
+        // (b) the node holds no state: a fresh snapshot restarts from seed
         // (the Init source re-seeds tick 0).
         let Built { mut graph, step } = build();
         let mut state = LatchSnapshot::new();
