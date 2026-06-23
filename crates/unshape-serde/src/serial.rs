@@ -45,15 +45,17 @@ pub struct SerialWire {
     pub from: String,
     /// Destination endpoint: `"nodeId:portName"`.
     pub to: String,
-    /// Whether this is a recurrence (feedback) edge: the destination input is
-    /// seeded by its non-feedback edge on tick 0 and carried by this edge on
-    /// later ticks. Absent in old graphs (defaults to `false`).
+    /// Legacy recurrence flag from the removed feedback-edge model.
     ///
-    /// Always serialized (no `skip_serializing_if`) so non-self-describing
-    /// formats like bincode keep a stable field layout; `#[serde(default)]`
-    /// still lets older JSON graphs without the field deserialize.
+    /// Recurrence is now an explicit `core::Latch` node, so new wires never carry
+    /// a feedback flag (`None`). The field is retained **only** to detect graphs
+    /// saved under the old model: `#[serde(default)]` lets an old
+    /// `"feedback": true` deserialize so [`to_wire`](Self::to_wire) can reject it
+    /// with a migration hint rather than silently load it. It is always
+    /// serialized (no `skip_serializing_if`) so non-self-describing formats like
+    /// bincode keep a stable field layout.
     #[serde(default)]
-    pub feedback: bool,
+    pub feedback: Option<bool>,
 }
 
 impl SerialWire {
@@ -66,8 +68,13 @@ impl SerialWire {
         Self {
             from: format!("{}:{}", w.from_node, from_name),
             to: format!("{}:{}", w.to_node, to_name),
-            feedback: w.feedback,
+            feedback: None,
         }
+    }
+
+    /// Returns `true` if this serialized wire carries the removed feedback flag.
+    pub fn is_legacy_feedback(&self) -> bool {
+        self.feedback == Some(true)
     }
 
     /// Parses a `"nodeId:portName"` endpoint string.
@@ -94,6 +101,12 @@ impl SerialWire {
         from_node: &dyn DynNode,
         to_node: &dyn DynNode,
     ) -> Result<Wire, SerdeError> {
+        if self.is_legacy_feedback() {
+            return Err(SerdeError::LegacyFeedbackWire(format!(
+                "{} -> {}",
+                self.from, self.to
+            )));
+        }
         let (from_node_id, from_name) = Self::parse_endpoint(&self.from)?;
         let (to_node_id, to_name) = Self::parse_endpoint(&self.to)?;
 
@@ -119,13 +132,7 @@ impl SerialWire {
                 ))
             })?;
 
-        Ok(Wire {
-            from_node: from_node_id,
-            from_port,
-            to_node: to_node_id,
-            to_port,
-            feedback: self.feedback,
-        })
+        Ok(Wire::direct(from_node_id, from_port, to_node_id, to_port))
     }
 }
 
@@ -243,13 +250,7 @@ mod tests {
     fn test_serial_wire_roundtrip() {
         // ConstNode: output port 0 = "value"
         // AddNode: input port 0 = "a"
-        let wire = Wire {
-            from_node: 42,
-            from_port: 0,
-            to_node: 7,
-            to_port: 0,
-            feedback: false,
-        };
+        let wire = Wire::direct(42, 0, 7, 0);
         let serial = SerialWire::from_wire(&wire, &ConstNode, &AddNode);
         assert_eq!(serial.from, "42:value");
         assert_eq!(serial.to, "7:a");
@@ -264,13 +265,7 @@ mod tests {
     #[test]
     fn test_serial_wire_named_port_second_input() {
         // AddNode output port 0 = "result"; AddNode input port 1 = "b"
-        let wire = Wire {
-            from_node: 1,
-            from_port: 0,
-            to_node: 2,
-            to_port: 1,
-            feedback: false,
-        };
+        let wire = Wire::direct(1, 0, 2, 1);
         let serial = SerialWire::from_wire(&wire, &AddNode, &AddNode);
         assert_eq!(serial.from, "1:result");
         assert_eq!(serial.to, "2:b");
@@ -285,23 +280,46 @@ mod tests {
         let bad = SerialWire {
             from: "not-valid".to_string(),
             to: "0:a".to_string(),
-            feedback: false,
+            feedback: None,
         };
         assert!(bad.to_wire(&ConstNode, &AddNode).is_err());
 
         let bad_node_id = SerialWire {
             from: "abc:value".to_string(),
             to: "0:a".to_string(),
-            feedback: false,
+            feedback: None,
         };
         assert!(bad_node_id.to_wire(&ConstNode, &AddNode).is_err());
 
         let unknown_port = SerialWire {
             from: "0:nonexistent".to_string(),
             to: "1:a".to_string(),
-            feedback: false,
+            feedback: None,
         };
         assert!(unknown_port.to_wire(&ConstNode, &AddNode).is_err());
+    }
+
+    #[test]
+    fn test_legacy_feedback_wire_rejected() {
+        // An old graph whose wire carries `"feedback": true` must error with a
+        // migration hint, not silently load.
+        let json = r#"{"from":"1:value","to":"0:a","feedback":true}"#;
+        let legacy: SerialWire = serde_json::from_str(json).unwrap();
+        assert!(legacy.is_legacy_feedback());
+        let err = legacy.to_wire(&ConstNode, &AddNode).unwrap_err();
+        assert!(matches!(err, SerdeError::LegacyFeedbackWire(_)));
+    }
+
+    #[test]
+    fn test_new_wire_has_no_feedback_flag() {
+        // New wires never carry a recurrence (`feedback: true`) flag.
+        let serial = SerialWire::from_wire(&Wire::direct(1, 0, 0, 0), &ConstNode, &AddNode);
+        assert!(!serial.is_legacy_feedback());
+        let json = serde_json::to_string(&serial).unwrap();
+        assert!(
+            !json.contains("\"feedback\":true"),
+            "no feedback:true flag may be written:\n{json}"
+        );
     }
 
     #[test]
@@ -340,13 +358,7 @@ mod tests {
         ));
         // ConstNode output "value" -> AddNode input "a"
         graph.wires.push(SerialWire::from_wire(
-            &Wire {
-                from_node: 1,
-                from_port: 0,
-                to_node: 0,
-                to_port: 0,
-                feedback: false,
-            },
+            &Wire::direct(1, 0, 0, 0),
             &ConstNode,
             &AddNode,
         ));
