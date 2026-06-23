@@ -50,11 +50,11 @@ pub use error::{GraphError, TypeError};
 pub use eval::{
     CacheEntry, CacheKey, CachePolicy, CancellationMode, CancellationToken, DefaultNodeExecutor,
     ErrorHandling, EvalCache, EvalContext, EvalProgress, EvalResult, Evaluator, FeedbackState,
-    KeepAllPolicy, LazyEvaluator, NodeExecutor, SeekBehavior, TickResult,
+    KeepAllPolicy, LatchSnapshot, LazyEvaluator, NodeExecutor, SeekBehavior, TickResult,
 };
 pub use glam;
 pub use graph::{Graph, GraphInputInfo, GraphOutputInfo, NodeId, Wire};
 pub use node::{BoxedNode, DynNode, PortDescriptor};
-pub use nodes::{ConstantNode, GraphInput, GraphOutput};
+pub use nodes::{ConstantNode, GraphInput, GraphOutput, Latch, Rate};
 pub use unshape_macros::DynNode as DynNodeDerive;
 pub use value::{DataLocation, GraphValue, Value, ValueType};
