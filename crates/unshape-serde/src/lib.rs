@@ -125,7 +125,7 @@ where
                     _ => SerialWire {
                         from: format!("{}:out", w.from_node),
                         to: format!("{}:in", w.to_node),
-                        feedback: w.feedback,
+                        feedback: None,
                     },
                 }
             })
@@ -180,12 +180,11 @@ pub fn serial_to_graph(serial: SerialGraph, registry: &NodeRegistry) -> Result<G
             ))
         })?;
 
+        // `to_wire` rejects legacy feedback wires with a migration hint; all
+        // surviving wires are ordinary direct edges (recurrence is now an
+        // explicit `core::Latch` node).
         let wire = serial_wire.to_wire(from_node.as_ref(), to_node.as_ref())?;
-        if wire.feedback {
-            graph.connect_recurrence(wire.from_node, wire.from_port, wire.to_node, wire.to_port)?;
-        } else {
-            graph.connect(wire.from_node, wire.from_port, wire.to_node, wire.to_port)?;
-        }
+        graph.connect(wire.from_node, wire.from_port, wire.to_node, wire.to_port)?;
     }
 
     Ok(graph)

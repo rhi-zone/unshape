@@ -203,13 +203,7 @@ mod tests {
             .nodes
             .push(SerialNode::new(1, "B", serde_json::json!({})));
         graph.wires.push(SerialWire::from_wire(
-            &Wire {
-                from_node: 0,
-                from_port: 0,
-                to_node: 1,
-                to_port: 0,
-                feedback: false,
-            },
+            &Wire::direct(0, 0, 1, 0),
             &SingleOutNode,
             &SingleInNode,
         ));

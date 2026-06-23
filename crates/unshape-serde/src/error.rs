@@ -32,4 +32,15 @@ pub enum SerdeError {
     /// Wire endpoint string has an invalid format.
     #[error("invalid wire format: {0}")]
     InvalidWireFormat(String),
+
+    /// A graph saved under the removed feedback-edge recurrence model.
+    ///
+    /// The `feedback` wire flag and `connect_recurrence` were replaced by an
+    /// explicit `Latch` node (`docs/design/recurrent-graphs.md`). Such graphs
+    /// must be re-authored with a `Latch` rather than silently loaded.
+    #[error(
+        "graph uses the removed feedback-edge recurrence model (wire {0} has `feedback: true`); \
+         migrate it to an explicit core::Latch node (see docs/design/recurrent-graphs.md)"
+    )]
+    LegacyFeedbackWire(String),
 }

@@ -28,6 +28,169 @@ use crate::registry::NodeRegistry;
     feature = "space-colonization-feedback",
     feature = "procgen-feedback"
 ))]
+mod latch_node {
+    use crate::error::SerdeError;
+    use crate::registry::{NodeRegistry, SerializableNode};
+    use serde_json::Value as JsonValue;
+    use unshape_core::{Latch, Rate, ValueType};
+
+    /// A `(state-type-name, constructor)` pair for resolving a latch's `ty`.
+    #[allow(dead_code)] // Unused when only single-state-type features are enabled.
+    type StateTypeCtor = (&'static str, fn() -> ValueType);
+
+    /// Serializes a [`Latch`] as `{ "ty": <state-type-name>, "rate": <rate> }`.
+    ///
+    /// `ty` is stored by its display **name** because the opaque (`Custom`)
+    /// state types carried by the sims cannot serialize their `TypeId`. The name
+    /// is resolved back to a [`ValueType`] at load time against the set of state
+    /// types registered for the enabled feedback features (the runtime stored
+    /// value is never serialized — it is reproduced by replay from `init`).
+    impl SerializableNode for Latch {
+        fn params(&self) -> JsonValue {
+            serde_json::json!({
+                "ty": self.ty.to_string(),
+                "rate": self.rate,
+            })
+        }
+    }
+
+    /// Resolves a Latch state-type **name** back to a [`ValueType`].
+    ///
+    /// Covers the opaque state types of every enabled feedback feature, plus the
+    /// primitive value types (so a primitive-typed latch also round-trips).
+    fn resolve_state_type(name: &str) -> Option<ValueType> {
+        // Primitive types first.
+        let primitive = match name {
+            "f32" => Some(ValueType::F32),
+            "f64" => Some(ValueType::F64),
+            "i32" => Some(ValueType::I32),
+            "bool" => Some(ValueType::Bool),
+            "Vec2" => Some(ValueType::Vec2),
+            "Vec3" => Some(ValueType::Vec3),
+            "Vec4" => Some(ValueType::Vec4),
+            _ => None,
+        };
+        if primitive.is_some() {
+            return primitive;
+        }
+
+        // Opaque sim state types (one per enabled feedback feature).
+        #[cfg(feature = "rd-feedback")]
+        if name == unshape_rd::feedback::RD_STATE_NAME {
+            return Some(unshape_rd::feedback::rd_state_type());
+        }
+        #[cfg(feature = "particle-feedback")]
+        if name == unshape_particle::feedback::PARTICLE_STATE_NAME {
+            return Some(unshape_particle::feedback::particle_state_type());
+        }
+        #[cfg(feature = "fluid-feedback")]
+        {
+            use unshape_fluid::feedback as f;
+            let m: &[StateTypeCtor] = &[
+                (f::FLUID_GRID_2D_NAME, f::fluid_grid_2d_type),
+                (f::FLUID_GRID_3D_NAME, f::fluid_grid_3d_type),
+                (f::SMOKE_GRID_2D_NAME, f::smoke_grid_2d_type),
+                (f::SMOKE_GRID_3D_NAME, f::smoke_grid_3d_type),
+                (f::SPH_2D_NAME, f::sph_2d_type),
+                (f::SPH_3D_NAME, f::sph_3d_type),
+            ];
+            for (n, ctor) in m {
+                if *n == name {
+                    return Some(ctor());
+                }
+            }
+        }
+        #[cfg(feature = "audio-feedback")]
+        {
+            use unshape_audio::vocoder::feedback as v;
+            if name == v::VOCODER_STATE_NAME {
+                return Some(v::vocoder_state_type());
+            }
+            if name == v::AUDIO_BLOCK_NAME {
+                return Some(v::audio_block_type());
+            }
+        }
+        #[cfg(feature = "automata-feedback")]
+        {
+            use unshape_automata::feedback as a;
+            let m: &[StateTypeCtor] = &[
+                (a::ELEMENTARY_STATE_NAME, a::elementary_state_type),
+                (a::LIFE_STATE_NAME, a::life_state_type),
+                (a::SMOOTH_LIFE_STATE_NAME, a::smooth_life_state_type),
+            ];
+            for (n, ctor) in m {
+                if *n == name {
+                    return Some(ctor());
+                }
+            }
+        }
+        #[cfg(feature = "spring-feedback")]
+        if name == unshape_spring::feedback::SPRING_STATE_NAME {
+            return Some(unshape_spring::feedback::spring_state_type());
+        }
+        #[cfg(feature = "physics-feedback")]
+        if name == unshape_physics::feedback::PHYSICS_STATE_NAME {
+            return Some(unshape_physics::feedback::physics_state_type());
+        }
+        #[cfg(feature = "space-colonization-feedback")]
+        if name == unshape_space_colonization::feedback::SPACE_COLONIZATION_STATE_NAME {
+            return Some(unshape_space_colonization::feedback::space_colonization_state_type());
+        }
+        #[cfg(feature = "procgen-feedback")]
+        if name == unshape_procgen::feedback::WFC_STATE_NAME {
+            return Some(unshape_procgen::feedback::wfc_state_type());
+        }
+
+        None
+    }
+
+    /// Registers the `core::Latch` node into `registry`.
+    ///
+    /// The factory resolves the latch's `ty` name against the state types of all
+    /// enabled feedback features (see [`resolve_state_type`]).
+    pub fn register(registry: &mut NodeRegistry) {
+        registry.register_factory("core::Latch", |params| {
+            let name = params.get("ty").and_then(|v| v.as_str()).ok_or_else(|| {
+                SerdeError::InvalidWireFormat("core::Latch params missing `ty`".to_string())
+            })?;
+            let ty = resolve_state_type(name).ok_or_else(|| {
+                SerdeError::UnknownNodeType(format!("core::Latch with unknown state type {name:?}"))
+            })?;
+            let rate: Rate = params
+                .get("rate")
+                .cloned()
+                .map(serde_json::from_value)
+                .transpose()?
+                .unwrap_or(Rate::Tick);
+            Ok(Box::new(Latch { ty, rate }) as unshape_core::BoxedNode)
+        });
+    }
+}
+
+#[cfg(any(
+    feature = "rd-feedback",
+    feature = "particle-feedback",
+    feature = "fluid-feedback",
+    feature = "audio-feedback",
+    feature = "automata-feedback",
+    feature = "spring-feedback",
+    feature = "physics-feedback",
+    feature = "space-colonization-feedback",
+    feature = "procgen-feedback"
+))]
+pub use latch_node::register as register_latch_node;
+
+#[cfg(any(
+    feature = "rd-feedback",
+    feature = "particle-feedback",
+    feature = "fluid-feedback",
+    feature = "audio-feedback",
+    feature = "automata-feedback",
+    feature = "spring-feedback",
+    feature = "physics-feedback",
+    feature = "space-colonization-feedback",
+    feature = "procgen-feedback"
+))]
 use crate::registry::SerializableNode;
 #[cfg(any(
     feature = "rd-feedback",
@@ -85,6 +248,7 @@ mod rd {
     ///
     /// Type names: `"rd::feedback::GrayScottInit"`, `"rd::feedback::Step"`.
     pub fn register(registry: &mut NodeRegistry) {
+        super::register_latch_node(registry);
         registry.register_with_name::<GrayScottInit>("rd::feedback::GrayScottInit");
         registry.register_with_name::<Step>("rd::feedback::Step");
     }
@@ -109,6 +273,7 @@ mod particle {
     /// Type names: `"particle::feedback::ParticleInit"`,
     /// `"particle::feedback::Step"`.
     pub fn register(registry: &mut NodeRegistry) {
+        super::register_latch_node(registry);
         registry.register_with_name::<ParticleInit>("particle::feedback::ParticleInit");
         registry.register_with_name::<Step>("particle::feedback::Step");
     }
@@ -148,6 +313,7 @@ mod fluid {
     ///
     /// Type names are `"fluid::feedback::<NodeName>"` for each node.
     pub fn register(registry: &mut NodeRegistry) {
+        super::register_latch_node(registry);
         registry.register_with_name::<FluidInit>("fluid::feedback::FluidInit");
         registry.register_with_name::<Step>("fluid::feedback::Step");
         registry.register_with_name::<Fluid3DInit>("fluid::feedback::Fluid3DInit");
@@ -182,6 +348,7 @@ mod audio {
     /// Type names: `"vocoder::feedback::VocoderInit"`,
     /// `"vocoder::feedback::Step"`.
     pub fn register(registry: &mut NodeRegistry) {
+        super::register_latch_node(registry);
         registry.register_with_name::<VocoderInit>("vocoder::feedback::VocoderInit");
         registry.register_with_name::<Step>("vocoder::feedback::Step");
     }
@@ -215,6 +382,7 @@ mod automata {
     ///
     /// Type names are `"automata::feedback::<NodeName>"` for each node.
     pub fn register(registry: &mut NodeRegistry) {
+        super::register_latch_node(registry);
         registry.register_with_name::<ElementaryInit>("automata::feedback::ElementaryInit");
         registry.register_with_name::<ElementaryStep>("automata::feedback::ElementaryStep");
         registry.register_with_name::<LifeInit>("automata::feedback::LifeInit");
@@ -242,6 +410,7 @@ mod spring {
     ///
     /// Type names: `"spring::feedback::SpringInit"`, `"spring::feedback::SpringStep"`.
     pub fn register(registry: &mut NodeRegistry) {
+        super::register_latch_node(registry);
         registry.register_with_name::<SpringInit>("spring::feedback::SpringInit");
         registry.register_with_name::<SpringStep>("spring::feedback::SpringStep");
     }
@@ -265,6 +434,7 @@ mod physics {
     ///
     /// Type names: `"physics::feedback::PhysicsInit"`, `"physics::feedback::PhysicsStep"`.
     pub fn register(registry: &mut NodeRegistry) {
+        super::register_latch_node(registry);
         registry.register_with_name::<PhysicsInit>("physics::feedback::PhysicsInit");
         registry.register_with_name::<PhysicsStep>("physics::feedback::PhysicsStep");
     }
@@ -289,6 +459,7 @@ mod space_colonization {
     /// Type names: `"space_colonization::feedback::GrowInit"`,
     /// `"space_colonization::feedback::GrowStep"`.
     pub fn register(registry: &mut NodeRegistry) {
+        super::register_latch_node(registry);
         registry.register_with_name::<GrowInit>("space_colonization::feedback::GrowInit");
         registry.register_with_name::<GrowStep>("space_colonization::feedback::GrowStep");
     }
@@ -312,6 +483,7 @@ mod procgen {
     ///
     /// Type names: `"procgen::feedback::WfcInit"`, `"procgen::feedback::WfcStep"`.
     pub fn register(registry: &mut NodeRegistry) {
+        super::register_latch_node(registry);
         registry.register_with_name::<WfcInit>("procgen::feedback::WfcInit");
         registry.register_with_name::<WfcStep>("procgen::feedback::WfcStep");
     }
@@ -354,33 +526,38 @@ pub fn register_all_feedback_nodes(registry: &mut NodeRegistry) {
 #[cfg(all(test, feature = "rd-feedback"))]
 mod tests {
     use super::*;
+    use crate::registry::SerializableNode;
     use crate::{JsonFormat, deserialize_graph, graph_to_serial, serialize_graph};
-    use unshape_core::{EvalContext, FeedbackState, Graph};
-    use unshape_rd::feedback::{GrayScottInit, Step};
+    use unshape_core::{EvalContext, Graph, Latch, LatchSnapshot};
+    use unshape_rd::feedback::{GrayScottInit, Step, rd_state_type};
 
     fn extract_params(node: &dyn unshape_core::DynNode) -> Option<JsonValue> {
         let any = node.as_any();
         if let Some(n) = any.downcast_ref::<GrayScottInit>() {
+            Some(n.params())
+        } else if let Some(n) = any.downcast_ref::<Latch>() {
             Some(n.params())
         } else {
             any.downcast_ref::<Step>().map(|n| n.params())
         }
     }
 
-    /// Builds `Init --direct--> Step.state`, `Step --feedback--> Step.state`.
+    /// Builds Init -> latch.init; latch.out -> Step.state; Step.state -> latch.signal.
     fn build() -> (Graph, unshape_core::NodeId) {
         let mut graph = Graph::new();
         let init = graph.add_node(GrayScottInit::circle(48, 48, 24, 24, 6));
+        let latch = graph.add_node(Latch::new(rd_state_type()));
         let step = graph.add_node(Step);
-        graph.connect(init, 0, step, 0).unwrap();
-        graph.connect_recurrence(step, 0, step, 0).unwrap();
+        graph.connect(init, 0, latch, 0).unwrap();
+        graph.connect(latch, 0, step, 0).unwrap();
+        graph.connect(step, 0, latch, 1).unwrap();
         (graph, step)
     }
 
     fn run(graph: &mut Graph, step: unshape_core::NodeId, n: u64) -> Vec<f32> {
-        let mut state = FeedbackState::new();
+        let mut state = LatchSnapshot::new();
         let r = graph
-            .run_to_tick(n, &mut state, |_t| EvalContext::new())
+            .run_to_tick_latched(n, &mut state, |_t| EvalContext::new())
             .unwrap();
         let rd = r
             .get(step, 0)
@@ -398,16 +575,21 @@ mod tests {
         let (mut original, ostep) = build();
         let expected = run(&mut original, ostep, target);
 
-        // Serialize the original (rebuild fresh — run consumed feedback state,
-        // but the graph topology + node configs are unchanged).
+        // Serialize the original (rebuild fresh — run consumed the snapshot, but
+        // the graph topology + node configs are unchanged).
         let (graph, _) = build();
         let bytes = serialize_graph(&graph, extract_params, &JsonFormat::default()).unwrap();
 
-        // The serialized form must carry the recurrence wire as `feedback: true`.
+        // The serialized form carries the Latch as an ordinary node (no feedback
+        // wire flag) and never writes the runtime stored value.
         let json = String::from_utf8(bytes.clone()).unwrap();
         assert!(
-            json.contains("\"feedback\":true"),
-            "recurrence wire must serialize with feedback flag set:\n{json}"
+            json.contains("core::Latch"),
+            "graph must serialize a core::Latch node:\n{json}"
+        );
+        assert!(
+            !json.contains("\"feedback\":true"),
+            "no feedback wire flag may be written:\n{json}"
         );
 
         // Deserialize and re-run.
@@ -415,10 +597,12 @@ mod tests {
         register_rd_feedback_nodes(&mut registry);
         let mut restored = deserialize_graph(&bytes, &registry, &JsonFormat::default()).unwrap();
 
-        // The restored graph must contain a recurrence (feedback) wire.
+        // The restored graph must contain the Latch node.
         assert!(
-            restored.wires().iter().any(|w| w.feedback),
-            "restored graph lost its recurrence wire"
+            restored
+                .nodes_iter()
+                .any(|(_, n)| n.type_name() == "core::Latch"),
+            "restored graph lost its Latch node"
         );
 
         // Find the Step node id in the restored graph.
@@ -433,28 +617,39 @@ mod tests {
     }
 
     #[test]
-    fn graph_to_serial_marks_recurrence_wire() {
+    fn graph_to_serial_has_latch_node_and_direct_wires() {
         let (graph, _) = build();
         let serial = graph_to_serial(&graph, extract_params).unwrap();
-        let feedback_wires = serial.wires.iter().filter(|w| w.feedback).count();
-        assert_eq!(feedback_wires, 1, "exactly one recurrence wire expected");
-        let direct_wires = serial.wires.iter().filter(|w| !w.feedback).count();
-        assert_eq!(direct_wires, 1, "exactly one direct seed wire expected");
+        let latch_nodes = serial
+            .nodes
+            .iter()
+            .filter(|n| n.type_name == "core::Latch")
+            .count();
+        assert_eq!(latch_nodes, 1, "exactly one Latch node expected");
+        // All three wires are ordinary direct wires (no feedback flag).
+        assert_eq!(serial.wires.len(), 3, "init/out/signal wires");
+        assert!(
+            serial.wires.iter().all(|w| !w.is_legacy_feedback()),
+            "no wire may carry a feedback flag"
+        );
     }
 }
 
 #[cfg(all(test, feature = "audio-feedback"))]
 mod audio_tests {
     use super::*;
+    use crate::registry::SerializableNode;
     use crate::{JsonFormat, deserialize_graph, graph_to_serial, serialize_graph};
     use serde_json::Value as JsonValue;
     use unshape_audio::vocoder::VocodeSynth;
-    use unshape_audio::vocoder::feedback::{Step, VocoderInit};
-    use unshape_core::Graph;
+    use unshape_audio::vocoder::feedback::{Step, VocoderInit, vocoder_state_type};
+    use unshape_core::{Graph, Latch};
 
     fn extract_params(node: &dyn unshape_core::DynNode) -> Option<JsonValue> {
         let any = node.as_any();
         if let Some(n) = any.downcast_ref::<VocoderInit>() {
+            Some(n.params())
+        } else if let Some(n) = any.downcast_ref::<Latch>() {
             Some(n.params())
         } else {
             any.downcast_ref::<Step>().map(|n| n.params())
@@ -471,16 +666,16 @@ mod audio_tests {
         }
     }
 
-    /// Builds `Init --direct--> Step.state`, `Step --feedback--> Step.state`.
+    /// Builds Init -> latch.init; latch.out -> Step.state; Step.state -> latch.signal.
     fn build() -> Graph {
         let cfg = config();
         let mut graph = Graph::new();
         let init = graph.add_node(VocoderInit::new(cfg.clone()));
+        let latch = graph.add_node(Latch::new(vocoder_state_type()));
         let step = graph.add_node(Step::new(cfg));
-        // VocoderInit.state (out 0) -> Step.state (in 0): direct tick-0 seed.
-        graph.connect(init, 0, step, 0).unwrap();
-        // Step.state (out 0) -> Step.state (in 0): recurrence self-loop.
-        graph.connect_recurrence(step, 0, step, 0).unwrap();
+        graph.connect(init, 0, latch, 0).unwrap(); // Init -> latch.init (seed)
+        graph.connect(latch, 0, step, 0).unwrap(); // latch.out -> step.state
+        graph.connect(step, 0, latch, 1).unwrap(); // step.state -> latch.signal
         graph
     }
 
@@ -490,6 +685,7 @@ mod audio_tests {
         register_audio_feedback_nodes(&mut registry);
         assert!(registry.contains("vocoder::feedback::VocoderInit"));
         assert!(registry.contains("vocoder::feedback::Step"));
+        assert!(registry.contains("core::Latch"));
     }
 
     #[test]
@@ -497,11 +693,15 @@ mod audio_tests {
         let graph = build();
         let bytes = serialize_graph(&graph, extract_params, &JsonFormat::default()).unwrap();
 
-        // The serialized form must carry the recurrence wire as `feedback: true`.
+        // The serialized form carries the Latch as an ordinary node, no feedback flag.
         let json = String::from_utf8(bytes.clone()).unwrap();
         assert!(
-            json.contains("\"feedback\":true"),
-            "recurrence wire must serialize with feedback flag set:\n{json}"
+            json.contains("core::Latch"),
+            "graph must serialize a core::Latch node:\n{json}"
+        );
+        assert!(
+            !json.contains("\"feedback\":true"),
+            "no feedback wire flag may be written:\n{json}"
         );
 
         // Deserialize against a registry with the audio vocoder nodes registered.
@@ -509,10 +709,12 @@ mod audio_tests {
         register_audio_feedback_nodes(&mut registry);
         let restored = deserialize_graph(&bytes, &registry, &JsonFormat::default()).unwrap();
 
-        // The restored graph must preserve the recurrence (feedback) wire.
+        // The restored graph must preserve the Latch node.
         assert!(
-            restored.wires().iter().any(|w| w.feedback),
-            "restored graph lost its recurrence wire"
+            restored
+                .nodes_iter()
+                .any(|(_, n)| n.type_name() == "core::Latch"),
+            "restored graph lost its Latch node"
         );
 
         // Both vocoder node types must round-trip with their config intact.
@@ -531,12 +733,19 @@ mod audio_tests {
     }
 
     #[test]
-    fn graph_to_serial_marks_recurrence_wire() {
+    fn graph_to_serial_has_latch_node() {
         let graph = build();
         let serial = graph_to_serial(&graph, extract_params).unwrap();
-        let feedback_wires = serial.wires.iter().filter(|w| w.feedback).count();
-        assert_eq!(feedback_wires, 1, "exactly one recurrence wire expected");
-        let direct_wires = serial.wires.iter().filter(|w| !w.feedback).count();
-        assert_eq!(direct_wires, 1, "exactly one direct seed wire expected");
+        let latch_nodes = serial
+            .nodes
+            .iter()
+            .filter(|n| n.type_name == "core::Latch")
+            .count();
+        assert_eq!(latch_nodes, 1, "exactly one Latch node expected");
+        assert_eq!(serial.wires.len(), 3, "init/out/signal wires");
+        assert!(
+            serial.wires.iter().all(|w| !w.is_legacy_feedback()),
+            "no wire may carry a feedback flag"
+        );
     }
 }
