@@ -160,6 +160,8 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 
 The computation substrate (graph, fields, ops, timeline, table, live) is sketched. How should it be projected for humans?
 
+**Running design document:** `docs/design/ui-architecture.md` — three threads framed: Projection Types, The Carving, Editor Architecture.
+
 **Multiple layout paradigms discussed but not designed:**
 - Graph/node editor (for the execution graph itself)
 - Freeform spatial canvas (for arranging projections of values — "Excel without the sin")
