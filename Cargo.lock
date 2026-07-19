@@ -6163,6 +6163,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "unshape-timeline"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "unshape-field-ops",
+]
+
+[[package]]
 name = "unshape-transform"
 version = "0.1.0"
 dependencies = [

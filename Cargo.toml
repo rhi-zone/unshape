@@ -94,6 +94,7 @@ unshape-geometry = { path = "crates/unshape-geometry" }
 unshape-easing = { path = "crates/unshape-easing" }
 unshape-transform = { path = "crates/unshape-transform" }
 unshape-expr-field = { path = "crates/unshape-expr-field" }
+unshape-table = { path = "crates/unshape-table" }
 
 [package]
 name = "unshape-examples"

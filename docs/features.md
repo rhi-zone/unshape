@@ -93,6 +93,12 @@ Index of unshape's crates organized by domain. See individual crate docs in `doc
 |-------|-------------|
 | **unshape-spatial** | Quadtree, octree, BVH, spatial hash, R-tree for efficient spatial queries |
 
+## Data
+
+| Crate | Description | Docs |
+|-------|-------------|------|
+| **[unshape-table](crates/unshape-table.md)** | Columnar tabular data: Table/Column values, filter/sort/group-by/join/select/pivot ops | [docs](crates/unshape-table.md) |
+
 ## Cross-Domain
 
 | Crate | Description | Docs |
@@ -126,6 +132,7 @@ Index of unshape's crates organized by domain. See individual crate docs in `doc
 | Physics | 4 | Rigid body, soft body, cloth, springs, particles, fluids |
 | Procedural | 6 | Noise, automata, WFC, L-systems, reaction-diffusion |
 | Spatial | 1 | Quadtree, octree, BVH, spatial hash, R-tree |
+| Data | 1 | Columnar Table/Column values, filter/sort/group-by/join/pivot |
 | Cross-Domain | 2 | Raw byte casting, image↔audio, noise-as-anything |
 | Fields | 2 | Lazy evaluation, expression language |
 | GPU | 1 | wgpu compute for noise/textures |
