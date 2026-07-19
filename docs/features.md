@@ -47,6 +47,7 @@ Index of unshape's crates organized by domain. See individual crate docs in `doc
 | **unshape-easing** | Animation easing functions |
 | **unshape-motion-fn** | Motion functions: Spring, Oscillate, Wiggle, Eased, Lerp; `Keyframes<T>` multi-stop timeline with per-segment easing; `PathFollow<C>` arc-length-parameterized curve following; typed MotionExpr AST; dew expression integration |
 | **unshape-motion** | 2D motion graphics scene graph: Transform2D with anchor point, Layer hierarchy, blend modes, opacity |
+| **unshape-timeline** | Temporal instancing, clip arrangement, composite blending; video/animation assembly from procedural clips |
 
 ## Physics
 

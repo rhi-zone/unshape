@@ -132,7 +132,49 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 - [ ] `CompositeVoxels` dynop — blocked on multi-input op pattern design
 - [ ] `ConstantAudio` — would need `AudioBuffer: Serialize`
 
+## New Domain Crates (2026-07-20) ✅
+
+> **Goal:** Solidify unshape's position as a multi-domain platform by implementing new crates for temporal instancing, tabular data, and live signal sources.
+
+**Timeline & Temporal:**
+- [x] `unshape-timeline` - temporal instancing, clip arrangement, composite blending; enables video/animation assembly from procedural clips
+
+**Tabular Data:**
+- [x] `unshape-table` - columnar data container (Table/Column), operations: filter, sort, group-by, join, select, pivot, add-column; serializable ops for data manipulation
+
+**Live Signal Sources:**
+- [x] `unshape-live` - LiveSource trait for time-varying external data (MIDI, audio input, network streams); LiveSourceNode for graph integration; built-in clock/signal-generator/channel sources
+
+**Design Documentation:**
+- [x] `docs/design/domain-subsumption.md` - 6 domains analysis: Excel (table ops), ClickHouse (aggregation), Flash (timeline/motion), Resolve (color/video), OBS (mixing), Plasticity (CAD). Maps to unshape subsystems.
+- [x] `docs/design/op-shapes.md` - Op taxonomy: transforms (stateless remaps), construction (create new objects), aggregation (many→one), observation (query/analysis), routing (control flow). Helps categorize new ops.
+
+**CLAUDE.md Updates:**
+- [x] Clarified "ops as values" pattern with anti-patterns; all new ops must be structs first with `.apply()`, methods are sugar
+
 ## Backlog
+
+### Upcoming Crates (Prioritized)
+
+**Small (1-2 days):**
+- [ ] `unshape-scene-state` - state machine + transitions for stateful scene control (animations, interactivity)
+
+**Medium (3-5 days):**
+- [ ] `unshape-color-science` - ACES color management, LUT support (1D/3D), perceptual color wheels; Resolve-specific color pipeline
+- [ ] `unshape-encode` - encoding/output abstraction (video codecs, image sequences, audio formats); coupled to video crate
+
+**Large (1-2 weeks):**
+- [ ] `unshape-video` - video frame sequences, codec integration (ffmpeg bindings), playback, seek
+- [ ] `unshape-table-store` - bigger-than-RAM columnar storage (memory-mapped parquet, arrow format); parallel I/O
+
+**Deferred (Future Research):**
+- [ ] `unshape-cad` / B-rep modeling - deferred pending opencascade-rs stabilization; requires solid topology (faces, loops, edges with shared references)
+
+### UI & Experience
+
+- [ ] UI design from first principles - document interaction model for node graph editing, live preview, timeline scrubbing, sample playback
+
+### Architecture / Future Extraction
 
 - [ ] (low) Constraint/optimization solver as a substrate primitive — to support 'drag a baked output, flow it back through the definition' (e.g. drag a vertex through extrude→bevel→twist). Express the gesture as a constraint; a deterministic SEEDED solver finds the minimal free-param change or inserts a least-surprise override; the solver is itself a serializable node (the IK/autodiff move generalized). Scoped out for now: low-dimension manipulation over high degrees of freedom is a recipe for frustration; the primary path is manipulating generative parameters/fields, not baked outputs. See docs/design/projection-model.md.
 
