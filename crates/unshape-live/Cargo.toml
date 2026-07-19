@@ -1,0 +1,19 @@
+[package]
+name = "unshape-live"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "LiveSource abstraction for external, time-varying data entering the graph"
+
+[features]
+default = []
+# Serialization support for source configuration (not the running sources themselves).
+serde = ["dep:serde"]
+
+[dependencies]
+unshape-core = { workspace = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = "1"

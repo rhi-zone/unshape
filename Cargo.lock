@@ -5910,6 +5910,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "unshape-live"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "unshape-core",
+]
+
+[[package]]
 name = "unshape-lsystem"
 version = "0.1.0"
 dependencies = [

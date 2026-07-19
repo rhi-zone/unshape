@@ -116,6 +116,7 @@ Index of unshape's crates organized by domain. See individual crate docs in `doc
 | **unshape-op** | DynOp trait, `#[derive(Op)]` macro, OpRegistry, Pipeline execution | |
 | **unshape-serde** | Graph serialization: SerialGraph format, NodeRegistry, JSON/bincode | |
 | **unshape-history** | History tracking: snapshots (undo/redo), event sourcing (fine-grained) | |
+| **[unshape-live](crates/unshape-live.md)** | LiveSource trait for external time-varying data (capture/MIDI/streams), LiveSourceNode graph wrapper, clock/signal-generator/channel sources | [docs](crates/unshape-live.md) |
 
 ---
 
