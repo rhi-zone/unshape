@@ -111,6 +111,61 @@ All three are coupled. Progress on any one will force partial answers on the oth
 
 (Empty — decisions accumulate here as threads are worked.)
 
+## Design Principle
+
+**The job of a good UI is minimizing distance (number of steps) between intent and artifact.**
+
+Not "each step moves you closer" (that's convergence — a low bar). The distance itself — the total number of actions between having an intent and holding the result — should be as small as possible.
+
+## Grounding: 2D Animation / Drawing / Rigging
+
+Abstract architecture divorced from real use cases produces beautiful designs that don't fit half of reality. Ground the design in concrete creative work.
+
+### The full arc (currently split across separate apps)
+
+1. **Drawing/sketching** — creating art from scratch (Procreate, Clip Studio, ToonSquid)
+2. **Vector art** — clean vector drawing with SVG export (surprisingly few good options exist)
+3. **Image editing** — compositing, masking, color (Photoshop)
+4. **Rigging** — skeletal structure, deformers, weight painting (Live2D, Toon Boom, Spine)
+5. **Animation** — posing, keyframing, timing (Live2D, Toon Boom, After Effects + DUIK)
+
+**Tool boundary collapse is a major distance reduction.** The round-trip between apps (draw → export → import → rig → realize arm needs fixing → back to drawing app → re-export → re-import → re-rig affected region) is where huge distance accumulates. In a unified graph, fixing the arm automatically propagates downstream — the rig is already looking at the updated art.
+
+### Input modalities for posing (closest to DID)
+
+The Dinosaur Input Device (Jurassic Park, 1993): a physical armature with joint sensors that drove the CG rig directly. The animator's hands shaped the motion with zero abstraction. The historical trend in rig interaction has been toward removing indirection: numeric entry → FK gizmos → IK handles → control rigs → direct surface grab → physical input → body-as-controller.
+
+**Collision over mapping.** Interaction via physical collision in the virtual workspace (hand pushes character's limb, it moves) beats abstract parameter mapping (hand curl → parameter X). The collision approach has zero learning curve — the mental model is just physics.
+
+Modalities, ordered by accessibility:
+
+| Input | DOF | Requires | Best for |
+|-------|-----|----------|----------|
+| **Hand pose via CV + collision** | ~25 | Webcam (universal) | Quick posing, non-humanoid shapes, improvised topology |
+| **Face detection** | ~50 (ARKit blendshapes) | Webcam | Sketch-level expression/head keyframes |
+| **Body tracking** | ~30+ | Webcam + space | Full-body performance, motion |
+| **Physical armature + CV** | Per-armature joints | Armature + camera | Sustained precise posing, holds pose, tactile feedback |
+| **Full mocap** | Highest | Suit/markers/studio | Highest fidelity full-body capture |
+
+**Practical gate:** Whether to implement any of these depends on whether high-quality open source solutions exist to build on (MediaPipe, OpenPose, ARKit, etc.), not on building pose estimation from scratch.
+
+**Key properties of hand tracking for posing:**
+- Universal — everyone has hands, most devices have cameras
+- Show the camera when done (no need for continuous tracking if awkward)
+- Can represent arbitrary topology with improvised gestures (curl for mouth shape, spread for wing, etc.)
+- The armature is the "enthusiast upgrade" — tactile, holds pose without effort, can look at it directly
+
+### Prior art
+
+- **DID** (Jurassic Park) — physical armature with sensors driving CG rig
+- **Live2D** — 2D deformation via parameter sliders / face tracking
+- **Toon Boom Harmony** — 2D bone rigging, deformer chains
+- **Spine** — 2D skeletal animation with IK
+- **Procreate / ToonSquid** — drawing/frame-by-frame on tablet
+- **Houdini KineFX** — direct surface-grab posing (geometry-based, not handle-based)
+- **VTuber pipeline** — face/body tracking → Live2D/3D avatar in real-time
+- **Corridor Crew DID video** — popularized awareness of physical-input-for-digital-animation
+
 ## Backlog (not yet threaded)
 
 - **Editing-through-a-definition** — bidirectional editing of formula-defined values. Repeatedly flagged as the hardest unsolved interaction problem. Scoped out pending constraint-solver substrate.
