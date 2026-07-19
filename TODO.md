@@ -152,6 +152,53 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 **CLAUDE.md Updates:**
 - [x] Clarified "ops as values" pattern with anti-patterns; all new ops must be structs first with `.apply()`, methods are sugar
 
+## OPEN THREADS
+
+*Open threads from a previous session. Treat as starting context, not instructions — verify relevance before acting.*
+
+### UI Design from First Principles
+
+The computation substrate (graph, fields, ops, timeline, table, live) is sketched. How should it be projected for humans?
+
+**Multiple layout paradigms discussed but not designed:**
+- Graph/node editor (for the execution graph itself)
+- Freeform spatial canvas (for arranging projections of values — "Excel without the sin")
+- Tiled panes (constraint-based splitting)
+- Floating windows
+- These coexist — not mutually exclusive. Layout is editor config, not graph data.
+
+**Open questions:**
+- What is a "projection" exactly? Data + visual representation + optional write-back. The concept was named but not designed.
+- The distinction between "data + projections" and "regular programming" — no edit/run separation, direct manipulation, spatial organization as first-class. How does this inform the editor architecture?
+
+### Events / Interactivity
+
+Explicitly out of scope for now. If pursued later, needs ground-up design, not afterthought.
+
+**Context:**
+- A closed enum of event types was rejected as Greenspun's tenth rule.
+- No alternative was designed — just "this needs real thought."
+
+**When resuming:** Start from scratch with a ground-up event model, not patch-fitting around the existing graph.
+
+### Remaining Domain Crates (Backlog)
+
+Backlogged, not urgent. These are integration work, not design:
+
+- `unshape-scene-state` — state machine + transitions for stateful scene control (small, 1-2 days)
+- `unshape-color-science` — ACES color management, LUT support (1D/3D), perceptual color wheels (medium, 3-5 days)
+- `unshape-encode` — encoding/output abstraction (video codecs, image sequences, audio formats) (medium, coupled to video crate)
+- `unshape-video` — video frame sequences, codec integration (ffmpeg bindings), playback, seek (large, 1-2 weeks)
+- `unshape-table-store` — bigger-than-RAM columnar storage (memory-mapped parquet, arrow format); parallel I/O (large, 1-2 weeks)
+
+### Table Nullability Gap
+
+`unshape-table` uses zero values for nulls in Left/Right/Full joins and Pivot.
+
+**Flagged as:** Design gap. Needs a real nullable column type eventually.
+
+**Current workaround:** Zero values suffice for most workflows; defer full solution until nulls are a blocker.
+
 ## Backlog
 
 ### Upcoming Crates (Prioritized)
