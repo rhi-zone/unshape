@@ -6163,6 +6163,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "unshape-table"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "unshape-op",
+]
+
+[[package]]
 name = "unshape-timeline"
 version = "0.1.0"
 dependencies = [
