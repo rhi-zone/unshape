@@ -1,0 +1,19 @@
+[package]
+name = "unshape-timeline"
+version = "0.1.0"
+edition = "2024"
+description = "Temporal arrangement of clips: tracks, clip instances, transitions"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rhi-zone/unshape"
+
+[features]
+default = []
+serde = ["dep:serde"]
+field = ["dep:unshape-field-ops"]
+
+[dependencies]
+serde = { workspace = true, optional = true }
+unshape-field-ops = { workspace = true, optional = true }
+
+[dev-dependencies]
+unshape-field-ops = { workspace = true }
