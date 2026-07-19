@@ -82,6 +82,8 @@ Scope is optional but recommended for multi-crate repos.
 - Parameters > presets
 - Composition > inheritance
 
+**Op vs value in the graph.** An op is a node — a unit of computation that takes inputs and produces outputs. A value is what flows on wires between nodes. Ops are not limited to transforms (input type → same type); they include construction (combine inputs into a structure), aggregation (reduce a collection), observation (extract information), and routing (select which input flows through). "Ops as values" means the op struct itself is serializable data — but in the graph, ops sit at nodes, values sit on wires.
+
 **Operations as values.** THIS IS CRITICAL. Every new piece of functionality MUST be an op struct first, method second.
 
 ```rust
