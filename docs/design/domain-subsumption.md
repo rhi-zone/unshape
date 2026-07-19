@@ -108,7 +108,8 @@ fills/strokes.
   `(LayerId, PropertyId)` so static layers pay nothing.
 - Nested independent playheads: a symbol instance needs local time derived from parent time by
   offset/rate/loop-mode, not by directly inheriting `EvalContext::time` — see Synthesis #2
-  (`Timeline`/`TimeMap`), which generalizes to Resolve's tracks and OBS's source clocks too.
+  (`Timeline`/`TimeMap`, consumed by a `Field`-sampling construction op), which generalizes to
+  Resolve's tracks and OBS's source clocks too.
 - Discrete event dispatch — see Synthesis #5.
 
 ## DaVinci Resolve
@@ -131,10 +132,12 @@ against its actual API — flagged here as an open question, not asserted either
 
 **Missing:**
 - Timeline/clip-list type — the same structural gap as Flash's timeline, but multi-track with
-  transitions rather than nested-symbol. See Synthesis #2. Evaluating a `Timeline` at time `t`
-  means finding the active clip(s) per track, remapping `t` into local clip time via
-  `source_range`/`speed` (the same `TimeMap` concept as Flash), and compositing tracks top-down
-  through `Layer`-style blend modes — a scheduler over subgraphs, not a new eval model.
+  transitions rather than nested-symbol. See Synthesis #2. `Timeline` is the arrangement
+  *value* (tracks, clips, transitions); a construction op parameterized by it finds the active
+  clip(s) per track at time `t`, remaps `t` into local clip time via `source_range`/`time_map`
+  (the same `TimeMap` concept as Flash), samples each clip's `Field<f32, Image>` input at that
+  local time, and composites tracks top-down through `Layer`-style blend modes — a scheduler
+  over field inputs, not a new eval model.
 - Color space as a type: `Fill { space: ACEScg }` and `Fill { space: Rec709 }` should not be
   silently mixable — an op needing scene-linear input should refuse (or explicitly convert) a
   display-referred one at the type level, not by convention.
@@ -319,27 +322,74 @@ co-equal-primitives exception rather than one wrapping the other.
 
 ### 2. `Timeline` (Flash, Resolve, OBS)
 
+`Timeline` is a *value* — the arrangement data (which clips, where in time, on which tracks,
+with what transitions) — not an op and not itself a `Field`. It gets edited, serialized, and
+passed around as data (a construction op's parameter, or a value on a wire), the same way
+`Subdivide { levels: u32 }`'s `levels` is a plain value the op consumes rather than an op in
+its own right.
+
 ```rust
 pub struct TimeMap { pub rate: f64, pub offset: f64, pub mode: LoopMode }
 pub enum LoopMode { Once, Loop, PingPong, Hold }
 
-pub struct Timeline { pub tracks: Vec<Track>, pub transitions: Vec<Transition> }
+pub struct Timeline { pub tracks: Vec<Track> }
 pub struct Track { pub clips: Vec<ClipInstance> }
 pub struct ClipInstance {
-    pub source: NodeId,
-    pub timeline_range: TimeRange,
-    pub source_range: TimeRange,
+    pub source: SourceId,          // which field input this instance samples
+    pub timeline_range: TimeRange, // when this clip is active on the timeline
+    pub source_range: TimeRange,   // span of the source's own local time to draw from
     pub time_map: TimeMap,
 }
 pub struct Transition { pub at: f64, pub duration: f64, pub kind: TransitionKind } // Cut | CrossDissolve | Wipe(..)
 ```
 
+Clips are temporal instances — the same pattern as spatial instancing in `unshape-scatter`: a
+`ClipInstance` is a reference to a source plus a temporal transform (start time, duration,
+speed via `TimeMap`) rather than a copy of the source's data. One source can appear at multiple
+times on the timeline (a stinger reused at three cut points, a symbol's timeline reused for two
+instances at different speeds), the same way one scatter-instanced mesh appears at many spatial
+transforms without duplicating its geometry.
+
+Clip sources are `Field<f32, T>` (`unshape-field`) — lazy, evaluable at any time. This is what
+makes temporal instancing work without special subgraph-evaluation machinery: a clip doesn't
+need a dedicated eval pass, it's sampled like any other field, at whatever local time the
+`TimeMap` resolves to. Source subgraphs produce `Field<f32, T>` outputs that wire into a
+*timeline construction op's* inputs; the `Timeline` value above is that op's parameter,
+describing which input is active when and at what speed. The op — not the `Timeline` type
+itself — is what implements `Field<f32, T>`:
+
+```rust
+// Construction op, per house style: parameters = the arrangement (Timeline), inputs = the
+// field sources each ClipInstance.source refers to, output = the composed field.
+pub struct TimelineComposite<T> { pub timeline: Timeline, pub transitions: Vec<Transition> }
+
+impl<T> Field<f32, T> for TimelineComposite<T> where T: Compositable {
+    fn eval(&self, t: f32) -> T {
+        // For each track: find the active ClipInstance(s) at `t`, remap t into the clip's
+        // local time via source_range + time_map, sample that input's Field at local time,
+        // then composite tracks (top-down through blend modes, or across a transition's cut
+        // boundary). What "composite" means is entirely up to T / the downstream op:
+        // Field<f32, Image> composites frames, Field<f32, AudioBuffer> mixes samples,
+        // Field<f32, f32> blends a single animated property. Timeline itself stays
+        // domain-agnostic — it only ever says which clip is active when.
+    }
+}
+```
+
 Flash's nested symbol timelines, Resolve's multi-track edit, and OBS's "source running since
-scene-load, independent of scene-switch time" are the same structure: a tree/list of `Timeline`s,
-each remapping a local clock from its parent via `TimeMap`, evaluated by walking the active
-`ClipInstance`(s) at a given time and recursing. Additive to `EvalContext` — global `time: f64`
-becomes the root clock; `Timeline` evaluation is a node family that resolves local time and feeds
-it to a subgraph, not a change to the core eval loop.
+scene-load, independent of scene-switch time" are the same structure: a tree/list of `Timeline`
+values, each driving a construction-op instance that remaps a local clock from its parent via
+`TimeMap` and samples its field inputs at that local time. Additive to `EvalContext` — global
+`time: f64` becomes the root clock; timeline evaluation is a node family that resolves local
+time and samples field inputs, not a change to the core eval loop.
+
+For final render, sequential consumption is sufficient and is the better fit for codecs and
+caching anyway: a renderer walks frame-by-frame through time, asks the `Timeline` for the
+active clip(s) at each frame (no random access required for this path), samples their fields at
+local time, composites, and encodes. Interactive playback (scrubbing, OBS's continuous
+real-time composite) issues the same "what's active at time t" query on demand instead of in a
+fixed forward sweep — the `Timeline` value itself doesn't care which access pattern the caller
+uses.
 
 ### 3. `LiveSource` / push scheduling (OBS, ClickHouse materialized views, Resolve capture)
 
@@ -416,11 +466,11 @@ and which are single-tool depth.
 |---|---|---|
 | `unshape-table` | Excel, ClickHouse | `Value::Table`, `Column`/`ColumnData`, `GroupByAggregate`, `Join`, `FilterRows`, `Pivot` — the in-memory relational algebra from Synthesis #1. Excel's cell-as-spatial-node UI is a projection layer on top of this, not part of the crate. |
 | `unshape-table-store` | ClickHouse (Excel indirectly, for large sheets) | `TableSource` trait impls backed by bigger-than-RAM columnar storage, chunked/batch iteration, materialized-view state (the `Latch`-shaped incremental aggregate from the ClickHouse section). Depends on `unshape-table` for the `Table`/op vocabulary; adds the storage and streaming-execution layer, not new relational ops. |
-| `unshape-timeline` | Flash, Resolve, OBS | `Timeline`, `Track`, `ClipInstance`, `TimeMap`, `Transition`/`TransitionKind` from Synthesis #2 — nested local clocks, clip spans, transitions. Extends `unshape-motion` rather than replacing it: `Timeline` evaluation resolves local time and hands off to `Scene`/`Layer` for what gets drawn at that time. |
+| `unshape-timeline` | Flash, Resolve, OBS | `Timeline`/`Track`/`ClipInstance`/`TimeMap`/`Transition` — the arrangement *value* from Synthesis #2 — plus the `TimelineComposite<T>`-shaped construction ops that take it as a parameter, take a `Field<f32, T>` input per clip source, and produce a composed `Field<f32, T>` output. Depends on `unshape-field` for the `Field` trait clips are sampled through. Extends `unshape-motion` rather than replacing it: for `T = Scene`/`Layer` content, the composite op hands off to `Scene`/`Layer` for what gets drawn at the sampled local time. |
 | `unshape-live` | OBS, ClickHouse, Resolve (capture) | `LiveSource` trait (Synthesis #3) and concrete sources: capture devices, stream inputs, screen capture, hotkey/timer event sources (Synthesis #5's `KeyDown`/`Timer`/`FrameReached`). Push-to-pull bridging (cache invalidation on new data) lives here, not in `unshape-core`, since it's a policy over `GraphInput` staleness rather than a core eval-loop change. |
 | `unshape-scene-state` | OBS, Flash, Resolve | `StateMachine<S>` (Synthesis #4), generic over the thing being switched — `unshape_motion::Scene` for OBS/Flash, a `Timeline` selection for Resolve multi-cam. Shares `TransitionKind` with `unshape-timeline` rather than redefining it. |
-| `unshape-motion` *(existing, extended)* | Flash, Resolve, OBS | Adds `AnimatedProperty<T>` (keyframes + interpolation via `unshape-curve`, sampled at local time from `unshape-timeline`) to the existing `Scene`/`Layer`/`Transform2D`/`BlendMode`. This is the missing link between "timeline knows what time it is" and "layer property has a value at that time." |
-| `unshape-video` | Resolve | Frame-sequence value type (in/out points, frame rate, defined seek semantics), multi-track compositing over `unshape-timeline`, proxy/multi-res evaluation via existing `EvalContext::target_resolution`. Depends on `unshape-timeline` for track/clip structure; the video-specific part is what a "clip" *is* and how frames composite, not the scheduling. |
+| `unshape-motion` *(existing, extended)* | Flash, Resolve, OBS | Adds `AnimatedProperty<T>` (keyframes + interpolation via `unshape-curve` — itself expressible as a `Field<f32, T>` — sampled at the local time a `unshape-timeline` construction op resolves) to the existing `Scene`/`Layer`/`Transform2D`/`BlendMode`. This is the missing link between "timeline knows what time it is" and "layer property has a value at that time." |
+| `unshape-video` | Resolve | Frame-sequence value type (in/out points, frame rate, defined seek semantics), multi-track compositing over `unshape-timeline`, proxy/multi-res evaluation via existing `EvalContext::target_resolution`. Depends on `unshape-timeline` for the `Timeline` arrangement value and construction-op scheduling; the video-specific part is what a `Field<f32, Image>` clip source samples into and how frames composite, not the scheduling. |
 | `unshape-color-science` (or extend `unshape-color`) | Resolve | Color space as a type (`ACEScg`, `Rec709`, ...) tracked through the graph so ops can refuse or explicitly convert mismatched spaces, LUTs, color wheels, qualifiers, ACES pipeline stages. Purely domain depth — per the "what doesn't generalize" note above, this doesn't recur in the other tools, so it stays scoped to Resolve rather than becoming a shared primitive. |
 | `unshape-encode` | OBS (Resolve export, indirectly) | Takes a composed `Scene`/`Timeline` output and encodes to a stream or file — the continuously-running tail of OBS's `source → filter chain → scene composite → encoder` pipeline. Likely an integration crate wrapping a codec backend rather than new core abstraction; kept separate so `unshape-live`/`unshape-scene-state` don't gain an encoder dependency. |
 | `unshape-brep` (deferred) | Plasticity | `Solid`/`Shell`/`Face`/`Loop`/`Edge`/`Vertex` B-rep topology with `Face` backed by `unshape-surface::NurbsSurface` (or a closed-form quadric); trim curves (reusing `unshape-spline::Nurbs<Vec2>`) bounding a `Face`'s parameter domain. This is the structural crate everything else in the Plasticity section depends on — the B-rep analogue of `unshape-mesh::HalfEdgeMesh`, one topological layer deeper (`Solid`/`Shell` above `Face`, `Face` surface-backed instead of flat). |
