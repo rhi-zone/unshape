@@ -166,6 +166,31 @@ Modalities, ordered by accessibility:
 - **VTuber pipeline** — face/body tracking → Live2D/3D avatar in real-time
 - **Corridor Crew DID video** — popularized awareness of physical-input-for-digital-animation
 
+### Mode switches and input channels
+
+A mode switch is an action that produces no creative output — it only changes what future actions mean (e.g., stylus switches from "draw" to "move bone"). Activating a parallel input channel (e.g., turning on the camera) is NOT a mode switch — it adds an input stream without changing what existing inputs do.
+
+Of the posing input modalities:
+- **Body tracking / hand+armature CV**: no mode switch. The camera is a parallel channel — activating it doesn't change what the stylus does. You can draw and have CV input running simultaneously.
+- **Touch + IK**: requires mode switch on devices without finger/stylus hardware disambiguation. On devices that distinguish finger from stylus, finger = pose is viable without switching.
+- **Traditional keyframing**: requires switching to parameter editing context.
+
+### CV capture patterns
+
+CV pose input is NOT always-on (waste of battery/compute). The capture pattern depends on the use:
+
+- **Keyframe pose** (snapshot): strike a pose (body or armature), capture a single frame, apply to the rig at this point in the timeline. Armature naturally fits this — pose it, capture, pose again, capture. Stop-motion workflow.
+- **Animation clip** (bounded recording): perform a motion (body), system records the movement over a duration. Start → perform → stop, like audio recording. Better suited to body tracking than armature (armatures come from stop-motion, not fluid continuous motion).
+- **Iterative exploration**: rapid capture-and-compare — try poses, keep the good one.
+
+### Collision over mapping (elaborated)
+
+When CV-tracked input (hand, body) is projected into the virtual workspace, interaction should use **collision** — the projected hand/body pushes/grabs virtual objects by touching them — rather than abstract parameter mapping (hand curl → value X, finger spread → value Y).
+
+Collision requires zero learned abstraction. The mental model is physical: push the thing, it moves. Mapping schemes require the user to learn and remember arbitrary correspondences.
+
+Tradeoff: collision requires the virtual workspace to have physics/collision detection. Mapping is computationally simpler but cognitively harder.
+
 ## Backlog (not yet threaded)
 
 - **Editing-through-a-definition** — bidirectional editing of formula-defined values. Repeatedly flagged as the hardest unsolved interaction problem. Scoped out pending constraint-solver substrate.
