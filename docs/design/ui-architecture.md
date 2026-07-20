@@ -191,6 +191,23 @@ Collision requires zero learned abstraction. The mental model is physical: push 
 
 Tradeoff: collision requires the virtual workspace to have physics/collision detection. Mapping is computationally simpler but cognitively harder.
 
+## Target application surface
+
+**Infinite canvas vector+raster drawing app for PC** — a niche that is literally missing from desktop.
+
+The gap: no PC app combines infinite canvas + vector as first-class drawing medium + raster painting + vector warp/deform. Current landscape:
+- Illustrator/Inkscape: vector but raster is second-class, fixed artboards
+- Photoshop/Krita: raster but vector is second-class
+- Affinity Designer: both but as separate "personas" (mode switch), no infinite canvas
+- Figma: vector + infinite canvas but no painting, no warp
+- Infinite Painter/Procreate: tablet-only
+
+**Core workflow**: draw rough strokes, then warp/push/pull the result into shape. Warp is the refinement tool — not autoshape (system guessing intent), but direct manipulation of the art until it looks right. Rough stroke gets you close, warp closes the gap.
+
+Extends into: 2D rigging, animation (Live2D/Toon Boom territory), image editing (Photoshop territory) — all in one graph. Tool boundary collapse removes the round-trip between separate apps.
+
+Prior art: Infinite Painter, Procreate, ToonSquid, Live2D, Toon Boom Harmony.
+
 ## Backlog (not yet threaded)
 
 - **Editing-through-a-definition** — bidirectional editing of formula-defined values. Repeatedly flagged as the hardest unsolved interaction problem. Scoped out pending constraint-solver substrate.
