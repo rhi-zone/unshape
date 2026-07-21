@@ -179,10 +179,12 @@ impl StrokeCanvasApp {
 ///
 /// `PressureStrokeRender::apply` always emits a closed polygon built only
 /// from `MoveTo`/`LineTo`/`Close` commands, so no curve flattening is needed
-/// here. Note: egui's polygon fill (`epaint::PathShape`) uses fan
-/// triangulation and is only exact for convex shapes — acceptable for this
-/// POC, but a sharply back-tracking stroke may show minor fill artifacts at
-/// its joins.
+/// here. Pressure-sensitive stroke outlines are generally NON-convex
+/// (variable width plus joins/caps can fold back on themselves), so
+/// `epaint::PathShape::convex_polygon`'s fan triangulation (fixed at vertex
+/// 0) would produce visible fill artifacts. Instead, the polygon interior is
+/// triangulated with ear-clipping and painted as an `egui::Shape::Mesh`; the
+/// boundary is stroked separately with an unfilled `PathShape`.
 fn paint_outline(painter: &egui::Painter, rect: egui::Rect, path: &Path, color: egui::Color32) {
     let mut points = Vec::with_capacity(path.commands().len());
     for cmd in path.commands() {
@@ -196,9 +198,104 @@ fn paint_outline(painter: &egui::Painter, rect: egui::Rect, path: &Path, color: 
     if points.len() < 3 {
         return;
     }
-    painter.add(egui::Shape::Path(egui::epaint::PathShape::convex_polygon(
+
+    let mut mesh = egui::Mesh::default();
+    mesh.vertices
+        .extend(points.iter().map(|&p| egui::epaint::Vertex {
+            pos: p,
+            uv: egui::epaint::WHITE_UV,
+            color,
+        }));
+    for [a, b, c] in triangulate_polygon(&points) {
+        mesh.add_triangle(a, b, c);
+    }
+    painter.add(egui::Shape::mesh(mesh));
+
+    painter.add(egui::Shape::Path(egui::epaint::PathShape::closed_line(
         points,
-        color,
         egui::Stroke::new(1.0, color.gamma_multiply(0.7)),
     )));
+}
+
+/// Triangulates a simple (non-self-intersecting) polygon via ear clipping.
+///
+/// Works for both convex and non-convex polygons, in either winding order.
+/// Returns triangles as index triples into `points`. If the polygon is
+/// degenerate (e.g. has coincident/collinear points that prevent finding a
+/// valid ear), triangulation stops early and simply omits the remaining
+/// interior — better to under-fill than to loop forever.
+fn triangulate_polygon(points: &[egui::Pos2]) -> Vec<[u32; 3]> {
+    let n = points.len();
+    if n < 3 {
+        return Vec::new();
+    }
+
+    // Winding order of the polygon, used to tell convex corners from reflex
+    // ones consistently.
+    let signed_area: f32 = (0..n)
+        .map(|i| {
+            let a = points[i];
+            let b = points[(i + 1) % n];
+            a.x * b.y - b.x * a.y
+        })
+        .sum::<f32>()
+        * 0.5;
+    let ccw = signed_area >= 0.0;
+
+    let is_convex_corner = |a: egui::Pos2, b: egui::Pos2, c: egui::Pos2| -> bool {
+        let cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+        if ccw { cross > 0.0 } else { cross < 0.0 }
+    };
+    let point_in_triangle = |p: egui::Pos2, a: egui::Pos2, b: egui::Pos2, c: egui::Pos2| -> bool {
+        let sign = |p1: egui::Pos2, p2: egui::Pos2, p3: egui::Pos2| -> f32 {
+            (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y)
+        };
+        let d1 = sign(p, a, b);
+        let d2 = sign(p, b, c);
+        let d3 = sign(p, c, a);
+        let has_neg = d1 < 0.0 || d2 < 0.0 || d3 < 0.0;
+        let has_pos = d1 > 0.0 || d2 > 0.0 || d3 > 0.0;
+        !(has_neg && has_pos)
+    };
+
+    let mut remaining: Vec<usize> = (0..n).collect();
+    let mut triangles = Vec::with_capacity(n.saturating_sub(2));
+
+    while remaining.len() > 3 {
+        let m = remaining.len();
+        let mut ear_index = None;
+        for i in 0..m {
+            let prev = remaining[(i + m - 1) % m];
+            let curr = remaining[i];
+            let next = remaining[(i + 1) % m];
+            let (a, b, c) = (points[prev], points[curr], points[next]);
+            if !is_convex_corner(a, b, c) {
+                continue;
+            }
+            let no_points_inside = remaining
+                .iter()
+                .filter(|&&idx| idx != prev && idx != curr && idx != next)
+                .all(|&idx| !point_in_triangle(points[idx], a, b, c));
+            if no_points_inside {
+                ear_index = Some((i, prev, curr, next));
+                break;
+            }
+        }
+        let Some((i, prev, curr, next)) = ear_index else {
+            // Degenerate polygon (e.g. collinear/duplicate points prevent
+            // finding a valid ear); stop rather than looping forever.
+            break;
+        };
+        triangles.push([prev as u32, curr as u32, next as u32]);
+        remaining.remove(i);
+    }
+    if remaining.len() == 3 {
+        triangles.push([
+            remaining[0] as u32,
+            remaining[1] as u32,
+            remaining[2] as u32,
+        ]);
+    }
+
+    triangles
 }
