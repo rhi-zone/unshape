@@ -8,8 +8,8 @@ publish = false
 
 [dependencies]
 unshape-gpu = { workspace = true, features = ["image-expr"] }
-unshape-image = { workspace = true, features = ["wick", "serde"] }
-wick-core = { version = "0.1.0", features = ["cond"] }
+unshape-image = { workspace = true, features = ["dew", "serde"] }
+dew-core = { version = "0.1.0", features = ["cond"] }
 serde = { workspace = true }
 eframe = { version = "0.34", default-features = false, features = ["wgpu", "default_fonts", "wayland", "x11"] }
 # Feature-unification only (we do not use wgpu directly here): eframe 0.34's wgpu backend

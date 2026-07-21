@@ -2153,6 +2153,54 @@ dependencies = [
 ]
 
 [[package]]
+name = "dew-cond"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34b61f57d67c7d54367655d6ed1c2d4ce89266db921b18b82c0c280aeff6e80a"
+dependencies = [
+ "cranelift-codegen 0.116.1",
+ "cranelift-frontend 0.116.1",
+ "cranelift-jit 0.116.1",
+ "cranelift-module 0.116.1",
+ "dew-core",
+]
+
+[[package]]
+name = "dew-core"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a0c5739a46c0b83a13cf00a922282d5a3c9cb2d1bade7250d9e217e9f2aff3a"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "dew-linalg"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7688b8b2fe1867040839e50d2cde75eff7a67dec653495af890a3ee355b8ce4"
+dependencies = [
+ "cranelift-codegen 0.116.1",
+ "cranelift-frontend 0.116.1",
+ "cranelift-jit 0.116.1",
+ "cranelift-module 0.116.1",
+ "dew-cond",
+ "dew-core",
+ "num-traits",
+]
+
+[[package]]
+name = "dew-scalar"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eff551e0f30101248aff32e949674a6bedbddf5a15c3545c0232fbc4cdd97f43"
+dependencies = [
+ "dew-cond",
+ "dew-core",
+ "num-traits",
+]
+
+[[package]]
 name = "dispatch"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5740,12 +5788,12 @@ dependencies = [
 name = "unshape-editor"
 version = "0.1.0"
 dependencies = [
+ "dew-core",
  "eframe",
  "serde",
  "unshape-gpu",
  "unshape-image",
  "wgpu 29.0.3",
- "wick-core",
 ]
 
 [[package]]
@@ -5780,6 +5828,8 @@ dependencies = [
  "cranelift-module 0.113.1",
  "cranelift-native 0.113.1",
  "criterion",
+ "dew-core",
+ "dew-scalar",
  "glam",
  "serde",
  "serde_json",
@@ -5787,8 +5837,6 @@ dependencies = [
  "unshape-field",
  "unshape-jit",
  "unshape-noise",
- "wick-core",
- "wick-scalar",
 ]
 
 [[package]]
@@ -5851,6 +5899,8 @@ name = "unshape-gpu"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "dew-core",
+ "dew-linalg",
  "glam",
  "image",
  "pollster",
@@ -5862,8 +5912,6 @@ dependencies = [
  "unshape-image",
  "unshape-op",
  "wgpu 29.0.3",
- "wick-core",
- "wick-linalg",
 ]
 
 [[package]]
@@ -5881,6 +5929,8 @@ dependencies = [
 name = "unshape-image"
 version = "0.1.0"
 dependencies = [
+ "dew-core",
+ "dew-linalg",
  "glam",
  "image",
  "num-traits",
@@ -5891,8 +5941,6 @@ dependencies = [
  "unshape-field",
  "unshape-op",
  "unshape-spectral",
- "wick-core",
- "wick-linalg",
 ]
 
 [[package]]
@@ -5905,10 +5953,10 @@ dependencies = [
  "cranelift-module 0.113.1",
  "cranelift-native 0.113.1",
  "criterion",
+ "dew-core",
  "proc-macro2",
  "quote",
  "thiserror 2.0.18",
- "wick-core",
 ]
 
 [[package]]
@@ -5971,6 +6019,8 @@ dependencies = [
 name = "unshape-motion-fn"
 version = "0.1.0"
 dependencies = [
+ "dew-core",
+ "dew-scalar",
  "glam",
  "serde",
  "serde_json",
@@ -5978,8 +6028,6 @@ dependencies = [
  "unshape-easing",
  "unshape-field",
  "unshape-noise",
- "wick-core",
- "wick-scalar",
 ]
 
 [[package]]
@@ -6204,6 +6252,7 @@ name = "unshape-vector"
 version = "0.1.0"
 dependencies = [
  "ab_glyph",
+ "dew-core",
  "glam",
  "serde",
  "serde_json",
@@ -6213,7 +6262,6 @@ dependencies = [
  "unshape-curve",
  "unshape-field-ops",
  "unshape-op",
- "wick-core",
 ]
 
 [[package]]
@@ -6890,54 +6938,6 @@ dependencies = [
  "log",
  "raw-window-handle",
  "web-sys",
-]
-
-[[package]]
-name = "wick-cond"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4480e7f589afc56ad3e1ba930713c3fef0e0665c96074603ebf29f8f62df245"
-dependencies = [
- "cranelift-codegen 0.116.1",
- "cranelift-frontend 0.116.1",
- "cranelift-jit 0.116.1",
- "cranelift-module 0.116.1",
- "wick-core",
-]
-
-[[package]]
-name = "wick-core"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f05e3ba1baf78dbf40c18fa2faf174e22da64454d7aad0089a42f0fd36255827"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
-name = "wick-linalg"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf2180a75ab12a21eef2e2e593c9158b1116115eb809bb3a4934dedb573f7bb8"
-dependencies = [
- "cranelift-codegen 0.116.1",
- "cranelift-frontend 0.116.1",
- "cranelift-jit 0.116.1",
- "cranelift-module 0.116.1",
- "num-traits",
- "wick-cond",
- "wick-core",
-]
-
-[[package]]
-name = "wick-scalar"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f40ba30d044c704628e22e4fd6968972d721c26a58b2f9fc5923d72a6214f0d6"
-dependencies = [
- "num-traits",
- "wick-cond",
- "wick-core",
 ]
 
 [[package]]

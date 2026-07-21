@@ -4,10 +4,10 @@
 //! op stack into a final RGBA8 image read back to the CPU. egui only ever shows a
 //! CPU image, so there is no wgpu device sharing and no version coupling.
 
+use dew_core::Expr;
 use unshape_gpu::{
     GpuContext, GpuTexture, map_pixels_ast_gpu, map_pixels_gpu, remap_uv_ast_gpu, remap_uv_gpu,
 };
-use wick_core::Expr;
 
 use crate::{Document, ImageMod, ModExpr, PassKind};
 

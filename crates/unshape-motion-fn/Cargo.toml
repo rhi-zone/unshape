@@ -9,7 +9,7 @@ repository = "https://github.com/rhi-zone/unshape"
 [features]
 default = []
 serde = ["dep:serde", "glam/serde", "unshape-easing/serde"]
-wick = ["dep:wick-scalar", "dep:wick-core"]
+dew = ["dep:dew-scalar", "dep:dew-core"]
 
 [dependencies]
 glam.workspace = true
@@ -18,8 +18,8 @@ unshape-easing = { workspace = true }
 unshape-noise = { workspace = true }
 unshape-curve = { workspace = true }
 serde = { workspace = true, optional = true }
-wick-scalar = { version = "0.1.0", optional = true }
-wick-core = { version = "0.1.0", optional = true }
+dew-scalar = { version = "0.1.0", optional = true }
+dew-core = { version = "0.1.0", optional = true }
 
 [dev-dependencies]
 serde_json = "1"

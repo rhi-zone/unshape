@@ -7,11 +7,11 @@ use crate::GpuContext;
 use crate::error::{GpuError, GpuResult};
 use crate::texture::{GpuTexture, TextureFormat};
 use bytemuck::{Pod, Zeroable};
+use dew_core::Ast;
+use dew_linalg::{Type, wgsl::emit_wgsl};
 use std::collections::HashMap;
 use unshape_image::{ColorExpr, UvExpr};
 use wgpu::util::DeviceExt;
-use wick_core::Ast;
-use wick_linalg::{Type, wgsl::emit_wgsl};
 
 /// Uniform buffer for image transforms.
 #[repr(C)]
@@ -560,10 +560,10 @@ mod tests {
         assert!(shader.contains("let result = vec4(dot(rgba.rgb, vec3(0.299, 0.587, 0.114)));"));
     }
 
-    /// Lowering an expr to its wick AST and feeding it to `emit_wgsl` must
+    /// Lowering an expr to its dew AST and feeding it to `emit_wgsl` must
     /// succeed for the variants the editor can produce. This guards against the
-    /// "op lowers to invalid wick" class of bugs, e.g. `UvExpr::Scale` formerly
-    /// emitted `(uv - center) * scale` as a Vec2×Vec2 multiply, which wick's
+    /// "op lowers to invalid dew" class of bugs, e.g. `UvExpr::Scale` formerly
+    /// emitted `(uv - center) * scale` as a Vec2×Vec2 multiply, which dew's
     /// WGSL codegen rejects (it has no component-wise vec×vec `*`).
     #[test]
     fn test_uv_scale_lowers_to_valid_wgsl() {

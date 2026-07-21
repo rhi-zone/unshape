@@ -319,7 +319,7 @@ impl UvExpr {
     /// # Example
     ///
     /// ```ignore
-    /// use wick_linalg::{Value, eval, linalg_registry};
+    /// use dew_linalg::{Value, eval, linalg_registry};
     /// use std::collections::HashMap;
     ///
     /// let expr = UvExpr::translate(0.1, 0.0);
@@ -331,9 +331,9 @@ impl UvExpr {
     /// let result = eval(&ast, &vars, &linalg_registry()).unwrap();
     /// // result = Value::Vec2([0.6, 0.5])
     /// ```
-    #[cfg(feature = "wick")]
-    pub fn to_dew_ast(&self) -> wick_core::Ast {
-        use wick_core::{Ast, BinOp, UnaryOp};
+    #[cfg(feature = "dew")]
+    pub fn to_dew_ast(&self) -> dew_core::Ast {
+        use dew_core::{Ast, BinOp, UnaryOp};
 
         match self {
             // Coordinates - uv is a Vec2 variable
@@ -424,11 +424,11 @@ impl UvExpr {
             Self::Scale { center, scale } => {
                 // Component-wise: center + (uv - center) ⊙ scale.
                 //
-                // wick deliberately does NOT define `*` between two vectors
+                // dew deliberately does NOT define `*` between two vectors
                 // (it would be ambiguous: dot/cross/wedge/outer/Hadamard), so a
                 // naive `(uv - center) * scale` Vec2×Vec2 fails WGSL codegen with
                 // a TypeMismatch. Lower to explicit per-component scalar ops, all
-                // of which wick supports:
+                // of which dew supports:
                 //   vec2(
                 //     x(center) + (x(uv) - x(center)) * x(scale),
                 //     y(center) + (y(uv) - y(center)) * y(scale),
@@ -1265,7 +1265,7 @@ impl ColorExpr {
     /// # Example
     ///
     /// ```ignore
-    /// use wick_linalg::{Value, eval, linalg_registry};
+    /// use dew_linalg::{Value, eval, linalg_registry};
     /// use std::collections::HashMap;
     ///
     /// let expr = ColorExpr::grayscale();
@@ -1277,9 +1277,9 @@ impl ColorExpr {
     /// let result = eval(&ast, &vars, &linalg_registry()).unwrap();
     /// // result = Value::Vec4([0.2126, 0.2126, 0.2126, 1.0])
     /// ```
-    #[cfg(feature = "wick")]
-    pub fn to_dew_ast(&self) -> wick_core::Ast {
-        use wick_core::{Ast, BinOp, UnaryOp};
+    #[cfg(feature = "dew")]
+    pub fn to_dew_ast(&self) -> dew_core::Ast {
+        use dew_core::{Ast, BinOp, UnaryOp};
 
         match self {
             // Input - rgba is a Vec4 variable
@@ -1490,12 +1490,12 @@ impl ColorExpr {
 /// Colorspace conversion functions for dew expression evaluation.
 ///
 /// These functions allow colorspace conversions to be used in dew expressions
-/// when evaluated via `wick_linalg`.
+/// when evaluated via `dew_linalg`.
 ///
 /// # Example
 ///
 /// ```ignore
-/// use wick_linalg::{linalg_registry, eval, Value};
+/// use dew_linalg::{linalg_registry, eval, Value};
 /// use unshape_image::register_colorspace;
 ///
 /// let mut registry = linalg_registry();
@@ -1503,11 +1503,11 @@ impl ColorExpr {
 ///
 /// // Now you can use rgb_to_hsl, hsl_to_rgb, etc. in expressions
 /// ```
-#[cfg(feature = "wick")]
+#[cfg(feature = "dew")]
 pub mod colorspace_dew {
+    use dew_core::Numeric;
+    use dew_linalg::{FunctionRegistry, LinalgFn, LinalgValue, Signature, Type};
     use num_traits::NumCast;
-    use wick_core::Numeric;
-    use wick_linalg::{FunctionRegistry, LinalgFn, LinalgValue, Signature, Type};
 
     macro_rules! colorspace_fn {
         ($name:ident, $fn_name:literal, $convert:expr) => {
@@ -1594,7 +1594,7 @@ pub mod colorspace_dew {
     }
 }
 
-#[cfg(feature = "wick")]
+#[cfg(feature = "dew")]
 pub use colorspace_dew::register_colorspace;
 
 /// Remaps UV coordinates using an expression.

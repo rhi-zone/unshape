@@ -1,27 +1,27 @@
-//! Rust source code generation from wick/dew expression ASTs.
+//! Rust source code generation from dew expression ASTs.
 //!
 //! Generates Rust source strings (and optionally `proc_macro2::TokenStream`) from
-//! `wick_core::Ast` nodes. All values are modeled as `f64`, matching wick's evaluation
+//! `dew_core::Ast` nodes. All values are modeled as `f64`, matching dew's evaluation
 //! semantics.
 //!
 //! # Example
 //!
 //! ```
-//! use wick_core::Ast;
+//! use dew_core::Ast;
 //! use unshape_jit::rust_codegen::ast_to_rust;
 //!
 //! let ast = Ast::BinOp(
-//!     wick_core::BinOp::Add,
+//!     dew_core::BinOp::Add,
 //!     Box::new(Ast::Var("x".into())),
 //!     Box::new(Ast::Num(1.0)),
 //! );
 //! assert_eq!(ast_to_rust(&ast), "(x + 1_f64)");
 //! ```
 
-use wick_core::{Ast, BinOp, Expr, UnaryOp};
+use dew_core::{Ast, BinOp, Expr, UnaryOp};
 
 #[cfg(feature = "cond")]
-use wick_core::CompareOp;
+use dew_core::CompareOp;
 
 /// Generate a Rust source string for the given AST node.
 ///
@@ -262,10 +262,10 @@ pub fn ast_to_tokens(ast: &Ast) -> proc_macro2::TokenStream {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wick_core::Ast;
+    use dew_core::Ast;
 
     #[cfg(feature = "cond")]
-    use wick_core::CompareOp;
+    use dew_core::CompareOp;
 
     // ========================================================================
     // ast_to_rust tests
@@ -599,7 +599,7 @@ mod tests {
     #[cfg(feature = "introspect")]
     #[test]
     fn test_expr_to_rust_fn_filters_params() {
-        let expr = wick_core::Expr::parse("u * 2.0 + v").unwrap();
+        let expr = dew_core::Expr::parse("u * 2.0 + v").unwrap();
         let all_fields = &["u", "v", "x", "y", "time"];
         let code = expr_to_rust_fn("my_fn", &expr, all_fields);
         assert!(
@@ -620,7 +620,7 @@ mod tests {
     #[cfg(feature = "introspect")]
     #[test]
     fn test_expr_to_rust_fn_single_param() {
-        let expr = wick_core::Expr::parse("sin(time)").unwrap();
+        let expr = dew_core::Expr::parse("sin(time)").unwrap();
         let all_fields = &["x", "y", "z", "time"];
         let code = expr_to_rust_fn("audio_fn", &expr, all_fields);
         assert!(code.contains("time: f64"), "expected time param in: {code}");
@@ -632,7 +632,7 @@ mod tests {
     #[cfg(feature = "introspect")]
     #[test]
     fn test_expr_to_rust_fn_no_params() {
-        let expr = wick_core::Expr::parse("3.14").unwrap();
+        let expr = dew_core::Expr::parse("3.14").unwrap();
         let all_fields = &["u", "v", "x", "y", "time"];
         let code = expr_to_rust_fn("const_fn", &expr, all_fields);
         // No parameters — empty parameter list
@@ -645,7 +645,7 @@ mod tests {
     #[cfg(feature = "introspect")]
     #[test]
     fn test_used_fields_subset() {
-        let expr = wick_core::Expr::parse("u * 2.0 + v").unwrap();
+        let expr = dew_core::Expr::parse("u * 2.0 + v").unwrap();
         let all_fields = &["u", "v", "x", "y", "time"];
         let result = used_fields(&expr, all_fields);
         assert_eq!(result, vec!["u", "v"]);
@@ -654,7 +654,7 @@ mod tests {
     #[cfg(feature = "introspect")]
     #[test]
     fn test_used_fields_preserves_order() {
-        let expr = wick_core::Expr::parse("y + x").unwrap();
+        let expr = dew_core::Expr::parse("y + x").unwrap();
         let all_fields = &["x", "y", "z", "t"];
         let result = used_fields(&expr, all_fields);
         // Should preserve declaration order: x before y
@@ -664,7 +664,7 @@ mod tests {
     #[cfg(feature = "introspect")]
     #[test]
     fn test_used_fields_none() {
-        let expr = wick_core::Expr::parse("42.0").unwrap();
+        let expr = dew_core::Expr::parse("42.0").unwrap();
         let all_fields = &["x", "y", "z", "t"];
         let result = used_fields(&expr, all_fields);
         assert!(result.is_empty());
@@ -676,7 +676,7 @@ mod tests {
 
     #[test]
     fn test_expr_to_rust_simple() {
-        let expr = wick_core::Expr::parse("x + 1").unwrap();
+        let expr = dew_core::Expr::parse("x + 1").unwrap();
         let code = expr_to_rust(&expr);
         // Should produce valid Rust — assert it contains the key parts
         assert!(code.contains("x"), "missing 'x' in: {code}");
@@ -686,7 +686,7 @@ mod tests {
 
     #[test]
     fn test_expr_to_rust_constant() {
-        let expr = wick_core::Expr::parse("1.5").unwrap();
+        let expr = dew_core::Expr::parse("1.5").unwrap();
         let code = expr_to_rust(&expr);
         assert!(code.contains("1.5_f64"), "expected 1.5_f64, got: {code}");
     }
@@ -694,7 +694,7 @@ mod tests {
     #[test]
     fn test_expr_to_rust_nested() {
         // (x * 2) + 1 - parsed from string
-        let expr = wick_core::Expr::parse("x * 2 + 1").unwrap();
+        let expr = dew_core::Expr::parse("x * 2 + 1").unwrap();
         let code = expr_to_rust(&expr);
         // Should be well-formed (parens balance)
         let open = code.chars().filter(|&c| c == '(').count();

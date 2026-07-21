@@ -15,18 +15,18 @@ cranelift = [
     "dep:cranelift-module",
     "dep:cranelift-jit",
 ]
-# wick-core conditional/comparison operators (If, Compare, And, Or, UnaryOp::Not)
-cond = ["wick-core/cond"]
-# wick-core function call operator (Call)
-func = ["wick-core/func"]
+# dew-core conditional/comparison operators (If, Compare, And, Or, UnaryOp::Not)
+cond = ["dew-core/cond"]
+# dew-core function call operator (Call)
+func = ["dew-core/func"]
 # AST introspection: free_vars, used_fields, expr_to_rust_fn
-introspect = ["wick-core/introspect"]
+introspect = ["dew-core/introspect"]
 # TokenStream codegen via proc-macro2
 proc-macro2 = ["dep:proc-macro2", "dep:quote"]
 
 [dependencies]
 thiserror.workspace = true
-wick-core = "0.1.0"
+dew-core = "0.1.0"
 
 # JIT compilation (optional)
 cranelift = { workspace = true, optional = true }

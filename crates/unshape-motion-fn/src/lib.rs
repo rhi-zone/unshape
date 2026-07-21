@@ -795,9 +795,9 @@ impl<T, M: Motion<T>> Motion<T> for PingPong<M> {
 /// - `oscillate(center, amplitude, frequency, phase, t)` - sine wave
 /// - `wiggle(center, amplitude, frequency, seed, t)` - noise-based
 /// - `lerp_motion(from, to, duration, t)` - linear interpolation
-#[cfg(feature = "wick")]
+#[cfg(feature = "dew")]
 pub mod dew_functions {
-    use wick_scalar::ScalarFn;
+    use dew_scalar::ScalarFn;
 
     /// spring(from, to, stiffness, damping, t)
     pub struct SpringFn;
@@ -890,7 +890,7 @@ pub mod dew_functions {
     }
 
     /// Registers all motion functions with a dew FunctionRegistry.
-    pub fn register_motion_functions(registry: &mut wick_scalar::FunctionRegistry<f32>) {
+    pub fn register_motion_functions(registry: &mut dew_scalar::FunctionRegistry<f32>) {
         registry.register(SpringFn);
         registry.register(SpringCriticalFn);
         registry.register(OscillateFn);
@@ -899,7 +899,7 @@ pub mod dew_functions {
     }
 }
 
-#[cfg(feature = "wick")]
+#[cfg(feature = "dew")]
 pub use dew_functions::register_motion_functions;
 
 // ============================================================================
@@ -1285,11 +1285,11 @@ impl MotionExpr {
 }
 
 // Conversion to/from dew AST
-#[cfg(feature = "wick")]
+#[cfg(feature = "dew")]
 impl MotionExpr {
     /// Convert to dew AST for compilation to WGSL/Cranelift.
-    pub fn to_dew_ast(&self) -> wick_core::Ast {
-        use wick_core::{Ast, BinOp, UnaryOp};
+    pub fn to_dew_ast(&self) -> dew_core::Ast {
+        use dew_core::{Ast, BinOp, UnaryOp};
 
         match self {
             Self::Constant(v) => Ast::Num(*v),
@@ -1449,12 +1449,12 @@ impl MotionExpr {
             ),
 
             Self::Gt(a, b) => Ast::Compare(
-                wick_core::CompareOp::Gt,
+                dew_core::CompareOp::Gt,
                 Box::new(a.to_dew_ast()),
                 Box::new(b.to_dew_ast()),
             ),
             Self::Lt(a, b) => Ast::Compare(
-                wick_core::CompareOp::Lt,
+                dew_core::CompareOp::Lt,
                 Box::new(a.to_dew_ast()),
                 Box::new(b.to_dew_ast()),
             ),
@@ -1761,7 +1761,7 @@ mod tests {
         assert_eq!(clamp_expr.eval(0.0, &Default::default()), 100.0);
     }
 
-    #[cfg(feature = "wick")]
+    #[cfg(feature = "dew")]
     #[test]
     fn test_motion_expr_to_dew_ast() {
         let expr = MotionExpr::Add(
@@ -1770,10 +1770,10 @@ mod tests {
         );
         let ast = expr.to_dew_ast();
         // Just verify it doesn't panic and produces something
-        assert!(matches!(ast, wick_core::Ast::BinOp(..)));
+        assert!(matches!(ast, dew_core::Ast::BinOp(..)));
     }
 
-    #[cfg(feature = "wick")]
+    #[cfg(feature = "dew")]
     #[test]
     fn test_motion_expr_spring_to_dew() {
         let expr = MotionExpr::Spring {
@@ -1784,7 +1784,7 @@ mod tests {
         };
         let ast = expr.to_dew_ast();
         // Should be Call("spring", [...])
-        if let wick_core::Ast::Call(name, args) = ast {
+        if let dew_core::Ast::Call(name, args) = ast {
             assert_eq!(name, "spring");
             assert_eq!(args.len(), 5); // from, to, stiffness, damping, t
         } else {

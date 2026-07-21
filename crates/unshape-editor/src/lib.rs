@@ -14,7 +14,7 @@
 //!
 //! When the user edits a typed modifier's formula, it is **promoted** to an
 //! [`ImageMod::Expr`] whose source of truth is the formula *string* itself. That
-//! string is parsed to a dew [`Ast`](wick_core::Ast) and fed straight to the GPU
+//! string is parsed to a dew [`Ast`](dew_core::Ast) and fed straight to the GPU
 //! via the raw-AST entry points, so editing a formula recompiles and repaints
 //! live, exactly like editing a slider.
 
@@ -59,7 +59,7 @@ pub enum ImageMod {
     },
     /// A free-form expression node whose source of truth is the formula string.
     ///
-    /// The `source` text is parsed to a dew [`Ast`](wick_core::Ast) and applied
+    /// The `source` text is parsed to a dew [`Ast`](dew_core::Ast) and applied
     /// directly on the GPU via the raw-AST entry points, using the same bound
     /// variables as the typed passes (`uv: vec2` for [`PassKind::Uv`],
     /// `rgba: vec4` for [`PassKind::Color`]). This means a typed modifier and an

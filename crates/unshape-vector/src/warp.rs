@@ -19,8 +19,8 @@
 //! [`Twist`], [`Wave`], [`Bend`], [`Bulge`], [`PointPush`], [`Taper`],
 //! [`Spherize`], and [`PuckerBloat`] are closed-form formulas over a few
 //! parameters, so they're also expression-decomposable: each has a
-//! `to_dew_ast()` (behind the `wick` feature) that compiles the same
-//! formula their `Field` impl evaluates into a `wick_core::Ast`, for
+//! `to_dew_ast()` (behind the `dew` feature) that compiles the same
+//! formula their `Field` impl evaluates into a `dew_core::Ast`, for
 //! GPU/JIT execution. [`LatticeDeform`], [`CageDeform`], [`EnvelopeDeform`],
 //! and [`PathDeform`] depend on variable-length authored data (control
 //! grids, cages, boundary polylines, spine curves) and so are genuine
@@ -91,11 +91,11 @@ impl Falloff {
 /// angle, ...) are plain `f32`/`Vec2` fields on the struct, not
 /// sub-expressions, so they're folded directly into `Ast::Num`/`vec2(...)`
 /// literals rather than threaded through as additional variables.
-#[cfg(feature = "wick")]
+#[cfg(feature = "dew")]
 mod dew_ast {
     use super::Falloff;
+    use dew_core::{Ast, BinOp, CompareOp};
     use glam::Vec2;
-    use wick_core::{Ast, BinOp, CompareOp};
 
     pub(crate) fn var_p() -> Ast {
         Ast::Var("p".into())
@@ -498,8 +498,8 @@ impl PointPush {
     ///
     /// The resulting AST expects a `p` Vec2 variable (the point being
     /// deformed) and returns the deformed Vec2 position.
-    #[cfg(feature = "wick")]
-    pub fn to_dew_ast(&self) -> wick_core::Ast {
+    #[cfg(feature = "dew")]
+    pub fn to_dew_ast(&self) -> dew_core::Ast {
         use dew_ast::*;
 
         if self.radius <= 0.0 {
@@ -592,8 +592,8 @@ impl Twist {
     ///
     /// The resulting AST expects a `p` Vec2 variable (the point being
     /// deformed) and returns the deformed Vec2 position.
-    #[cfg(feature = "wick")]
-    pub fn to_dew_ast(&self) -> wick_core::Ast {
+    #[cfg(feature = "dew")]
+    pub fn to_dew_ast(&self) -> dew_core::Ast {
         use dew_ast::*;
 
         if self.radius <= 0.0 {
@@ -689,8 +689,8 @@ impl Taper {
     /// deformed) and returns the deformed Vec2 position. `axis` is
     /// normalized at build time (it's a constant field, not a runtime
     /// value), so the AST embeds the unit axis directly.
-    #[cfg(feature = "wick")]
-    pub fn to_dew_ast(&self) -> wick_core::Ast {
+    #[cfg(feature = "dew")]
+    pub fn to_dew_ast(&self) -> dew_core::Ast {
         use dew_ast::*;
 
         let axis_len = self.axis.length();
@@ -808,8 +808,8 @@ impl Bend {
     /// deformed) and returns the deformed Vec2 position. `axis` and the
     /// pivot `radius = length / angle` are constant fields, so they're
     /// normalized/computed at build time and embedded as literals.
-    #[cfg(feature = "wick")]
-    pub fn to_dew_ast(&self) -> wick_core::Ast {
+    #[cfg(feature = "dew")]
+    pub fn to_dew_ast(&self) -> dew_core::Ast {
         use dew_ast::*;
 
         let axis_len = self.axis.length();
@@ -911,8 +911,8 @@ impl Bulge {
     ///
     /// The resulting AST expects a `p` Vec2 variable (the point being
     /// deformed) and returns the deformed Vec2 position.
-    #[cfg(feature = "wick")]
-    pub fn to_dew_ast(&self) -> wick_core::Ast {
+    #[cfg(feature = "dew")]
+    pub fn to_dew_ast(&self) -> dew_core::Ast {
         use dew_ast::*;
 
         if self.radius <= 0.0 {
@@ -1002,8 +1002,8 @@ impl Wave {
     /// normalized at build time (it's a constant field, not a runtime
     /// value), so the AST embeds the unit axis and its perpendicular
     /// directly.
-    #[cfg(feature = "wick")]
-    pub fn to_dew_ast(&self) -> wick_core::Ast {
+    #[cfg(feature = "dew")]
+    pub fn to_dew_ast(&self) -> dew_core::Ast {
         use dew_ast::*;
 
         let axis_len = self.axis.length();
@@ -1337,8 +1337,8 @@ impl Spherize {
     ///
     /// The resulting AST expects a `p` Vec2 variable (the point being
     /// deformed) and returns the deformed Vec2 position.
-    #[cfg(feature = "wick")]
-    pub fn to_dew_ast(&self) -> wick_core::Ast {
+    #[cfg(feature = "dew")]
+    pub fn to_dew_ast(&self) -> dew_core::Ast {
         use dew_ast::*;
 
         if self.radius <= 0.0 {
@@ -1551,8 +1551,8 @@ impl PuckerBloat {
     /// `apply`/`apply_to_path` (which compute their own centroid from the
     /// input set; see the struct docs for why that mode isn't a field, and
     /// so can't be expression-decomposed here).
-    #[cfg(feature = "wick")]
-    pub fn to_dew_ast(&self) -> wick_core::Ast {
+    #[cfg(feature = "dew")]
+    pub fn to_dew_ast(&self) -> dew_core::Ast {
         use dew_ast::*;
 
         let p = var_p();
@@ -2392,17 +2392,17 @@ mod tests {
     // =========================================================================
     // to_dew_ast tests
     //
-    // wick-linalg (the Vec2-capable dew evaluator) isn't a dependency of this
+    // dew-linalg (the Vec2-capable dew evaluator) isn't a dependency of this
     // crate, so these check AST structure rather than numeric evaluation:
     // degenerate configurations (recognized at `to_dew_ast` build time, the
     // same way `apply`/`sample` short-circuit them) should compile straight
     // to the identity `Var("p")`; non-degenerate configurations should not.
     // =========================================================================
 
-    #[cfg(feature = "wick")]
+    #[cfg(feature = "dew")]
     mod dew_ast_tests {
         use super::*;
-        use wick_core::{Ast, BinOp};
+        use dew_core::{Ast, BinOp};
 
         fn is_identity(ast: &Ast) -> bool {
             matches!(ast, Ast::Var(name) if name == "p")

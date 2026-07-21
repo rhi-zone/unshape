@@ -20,8 +20,8 @@ cranelift-module = { workspace = true, optional = true }
 cranelift-native = { workspace = true, optional = true }
 thiserror.workspace = true
 glam.workspace = true
-wick-core = "0.1.0"
-wick-scalar = "0.1.0"
+dew-core = "0.1.0"
+dew-scalar = "0.1.0"
 unshape-field = { workspace = true }
 unshape-noise = { workspace = true }
 serde = { workspace = true, optional = true }

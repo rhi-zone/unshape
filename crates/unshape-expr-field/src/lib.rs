@@ -29,18 +29,18 @@ pub mod jit_impl;
 #[cfg(feature = "cranelift")]
 pub use jit_impl::{CompiledFieldExpr, FieldExprCompiler, FieldJitError, FieldJitResult};
 
+use dew_core::{Expr, ParseError};
+use dew_scalar::{FunctionRegistry, ScalarFn};
 use glam::{Vec2, Vec3};
 use std::collections::{HashMap, HashSet};
 use unshape_field::{EvalContext, Field};
-use wick_core::{Expr, ParseError};
-use wick_scalar::{FunctionRegistry, ScalarFn};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 // Re-export dew types for convenience
-pub use wick_core::{Ast, BinOp, UnaryOp};
-pub use wick_scalar::{Error as EvalError, scalar_registry};
+pub use dew_core::{Ast, BinOp, UnaryOp};
+pub use dew_scalar::{Error as EvalError, scalar_registry};
 
 /// Built-in variables that are automatically bound during field evaluation.
 pub const BUILTIN_VARS: &[&str] = &["x", "y", "z", "t", "time"];
@@ -193,7 +193,7 @@ impl ExprField {
 
     /// Evaluates with explicit variable bindings.
     pub fn eval(&self, vars: &HashMap<String, f32>) -> Result<f32, EvalError> {
-        wick_scalar::eval(self.expr.ast(), vars, &self.registry)
+        dew_scalar::eval(self.expr.ast(), vars, &self.registry)
     }
 
     /// Returns all free variables referenced in the expression.
@@ -244,7 +244,7 @@ impl Field<Vec2, f32> for ExprField {
             ("t".to_string(), ctx.time),
         ]
         .into();
-        wick_scalar::eval(self.expr.ast(), &vars, &self.registry).unwrap_or(0.0)
+        dew_scalar::eval(self.expr.ast(), &vars, &self.registry).unwrap_or(0.0)
     }
 }
 
@@ -258,7 +258,7 @@ impl Field<Vec3, f32> for ExprField {
             ("t".to_string(), ctx.time),
         ]
         .into();
-        wick_scalar::eval(self.expr.ast(), &vars, &self.registry).unwrap_or(0.0)
+        dew_scalar::eval(self.expr.ast(), &vars, &self.registry).unwrap_or(0.0)
     }
 }
 
@@ -1312,17 +1312,17 @@ impl FieldExpr {
                 Box::new(else_expr.to_dew_ast()),
             ),
             Self::Gt(a, b) => Ast::Compare(
-                wick_core::CompareOp::Gt,
+                dew_core::CompareOp::Gt,
                 Box::new(a.to_dew_ast()),
                 Box::new(b.to_dew_ast()),
             ),
             Self::Lt(a, b) => Ast::Compare(
-                wick_core::CompareOp::Lt,
+                dew_core::CompareOp::Lt,
                 Box::new(a.to_dew_ast()),
                 Box::new(b.to_dew_ast()),
             ),
             Self::Eq(a, b) => Ast::Compare(
-                wick_core::CompareOp::Eq,
+                dew_core::CompareOp::Eq,
                 Box::new(a.to_dew_ast()),
                 Box::new(b.to_dew_ast()),
             ),
@@ -1380,15 +1380,15 @@ mod tests {
 
         let expr = Expr::parse("noise(0.5, 0.5)").unwrap();
         let vars = HashMap::new();
-        let v = wick_scalar::eval(expr.ast(), &vars, &registry).unwrap();
+        let v = dew_scalar::eval(expr.ast(), &vars, &registry).unwrap();
         assert!((0.0..=1.0).contains(&v));
 
         let expr = Expr::parse("perlin(0.5, 0.5)").unwrap();
-        let v = wick_scalar::eval(expr.ast(), &vars, &registry).unwrap();
+        let v = dew_scalar::eval(expr.ast(), &vars, &registry).unwrap();
         assert!((0.0..=1.0).contains(&v));
 
         let expr = Expr::parse("simplex(0.5, 0.5)").unwrap();
-        let v = wick_scalar::eval(expr.ast(), &vars, &registry).unwrap();
+        let v = dew_scalar::eval(expr.ast(), &vars, &registry).unwrap();
         assert!((0.0..=1.0).contains(&v));
     }
 

@@ -3,10 +3,10 @@
 //! One live texture, an editable op stack on the left, the live preview in the
 //! center, and an editable formula projection of the selected modifier.
 
+use dew_core::Expr;
 use eframe::egui;
 use unshape_editor::render::Renderer;
 use unshape_editor::{Document, ImageMod, PassKind};
-use wick_core::Expr;
 
 const TEX_SIZE: u32 = 256;
 
