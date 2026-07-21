@@ -2,7 +2,9 @@
 //!
 //! These ops displace points (and, via [`Path::transform`], whole paths) using
 //! spatial deformation techniques: lattice-based free-form deformation, cage
-//! (mean value coordinates) deformation, brush-style pushes, twists, and tapers.
+//! (mean value coordinates) deformation, brush-style pushes, twists, tapers,
+//! arc bends, radial bulges, sinusoidal waves, envelope fitting, and
+//! spine-following path deform.
 
 use crate::{Path, Rect};
 use glam::Vec2;
@@ -490,6 +492,412 @@ impl Taper {
     }
 }
 
+// ============================================================================
+// Bend
+// ============================================================================
+
+/// Curves geometry along an arc: points along `axis` (from `origin`) are
+/// rotated proportionally to their distance from `origin`, up to `angle` at
+/// `length`. Points beyond `length` clamp to the full angle.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = Vec<Vec2>, output = Vec<Vec2>))]
+pub struct Bend {
+    /// Origin of the bend (the pivot at zero rotation).
+    pub origin: Vec2,
+    /// Direction along which the bend angle accumulates.
+    pub axis: Vec2,
+    /// Total bend angle (radians), reached at `length` along the axis.
+    pub angle: f32,
+    /// Distance along the axis over which the full angle accumulates.
+    pub length: f32,
+}
+
+impl Bend {
+    /// Creates a new bend.
+    pub fn new(origin: Vec2, axis: Vec2, angle: f32, length: f32) -> Self {
+        Self {
+            origin,
+            axis,
+            angle,
+            length,
+        }
+    }
+
+    fn deform_point(&self, p: Vec2) -> Vec2 {
+        let axis_len = self.axis.length();
+        if axis_len < EPS || self.length <= 0.0 {
+            return p;
+        }
+        let axis_n = self.axis / axis_len;
+        let perp_n = Vec2::new(-axis_n.y, axis_n.x);
+        let rel = p - self.origin;
+        let along = rel.dot(axis_n);
+        let perp = rel.dot(perp_n);
+
+        let t = (along / self.length).clamp(0.0, 1.0);
+        let applied_angle = self.angle * t;
+
+        // Bend around a pivot at distance `radius = length / angle` from the
+        // axis, so points at `along = length` land at the full angle with
+        // their perpendicular offset preserved as radial distance.
+        if self.angle.abs() < EPS {
+            return p;
+        }
+        let radius = self.length / self.angle;
+        let arc_radius = radius - perp;
+        let cos = applied_angle.cos();
+        let sin = applied_angle.sin();
+        self.origin + axis_n * (arc_radius * sin) + perp_n * (radius - arc_radius * cos)
+    }
+
+    /// Applies the bend to a set of points.
+    pub fn apply(&self, points: &[Vec2]) -> Vec<Vec2> {
+        points.iter().map(|&p| self.deform_point(p)).collect()
+    }
+
+    /// Applies the bend to every point of a path.
+    pub fn apply_to_path(&self, path: &Path) -> Path {
+        let mut result = path.clone();
+        result.transform(|p| self.deform_point(p));
+        result
+    }
+}
+
+// ============================================================================
+// Bulge
+// ============================================================================
+
+/// Radially scales points towards/away from `center`: points within `radius`
+/// are displaced radially by `strength * falloff_weight` (positive inflates,
+/// negative pinches).
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = Vec<Vec2>, output = Vec<Vec2>))]
+pub struct Bulge {
+    /// Center of the bulge.
+    pub center: Vec2,
+    /// Radius of effect; points beyond this distance are unaffected.
+    pub radius: f32,
+    /// Radial displacement magnitude at the center of effect (positive =
+    /// inflate outward, negative = pinch inward).
+    pub strength: f32,
+    /// Attenuation curve from center (full effect) to radius (no effect).
+    pub falloff: Falloff,
+}
+
+impl Bulge {
+    /// Creates a new bulge.
+    pub fn new(center: Vec2, radius: f32, strength: f32, falloff: Falloff) -> Self {
+        Self {
+            center,
+            radius,
+            strength,
+            falloff,
+        }
+    }
+
+    fn deform_point(&self, p: Vec2) -> Vec2 {
+        if self.radius <= 0.0 {
+            return p;
+        }
+        let offset = p - self.center;
+        let dist = offset.length();
+        if dist >= self.radius || dist < EPS {
+            return p;
+        }
+        let t = dist / self.radius;
+        let w = self.falloff.evaluate(t);
+        let dir = offset / dist;
+        p + dir * (self.strength * w)
+    }
+
+    /// Applies the bulge to a set of points.
+    pub fn apply(&self, points: &[Vec2]) -> Vec<Vec2> {
+        points.iter().map(|&p| self.deform_point(p)).collect()
+    }
+
+    /// Applies the bulge to every point of a path.
+    pub fn apply_to_path(&self, path: &Path) -> Path {
+        let mut result = path.clone();
+        result.transform(|p| self.deform_point(p));
+        result
+    }
+}
+
+// ============================================================================
+// Wave
+// ============================================================================
+
+/// Sinusoidally displaces points perpendicular to `axis`, by
+/// `amplitude * sin(frequency * distance_along_axis + phase)`.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = Vec<Vec2>, output = Vec<Vec2>))]
+pub struct Wave {
+    /// Direction of wave propagation.
+    pub axis: Vec2,
+    /// Peak displacement perpendicular to the axis.
+    pub amplitude: f32,
+    /// Spatial frequency (radians per unit distance along the axis).
+    pub frequency: f32,
+    /// Phase offset (radians).
+    pub phase: f32,
+}
+
+impl Wave {
+    /// Creates a new wave.
+    pub fn new(axis: Vec2, amplitude: f32, frequency: f32, phase: f32) -> Self {
+        Self {
+            axis,
+            amplitude,
+            frequency,
+            phase,
+        }
+    }
+
+    fn deform_point(&self, p: Vec2) -> Vec2 {
+        let axis_len = self.axis.length();
+        if axis_len < EPS {
+            return p;
+        }
+        let axis_n = self.axis / axis_len;
+        let perp_n = Vec2::new(-axis_n.y, axis_n.x);
+        let along = p.dot(axis_n);
+        let displacement = self.amplitude * (self.frequency * along + self.phase).sin();
+        p + perp_n * displacement
+    }
+
+    /// Applies the wave to a set of points.
+    pub fn apply(&self, points: &[Vec2]) -> Vec<Vec2> {
+        points.iter().map(|&p| self.deform_point(p)).collect()
+    }
+
+    /// Applies the wave to every point of a path.
+    pub fn apply_to_path(&self, path: &Path) -> Path {
+        let mut result = path.clone();
+        result.transform(|p| self.deform_point(p));
+        result
+    }
+}
+
+// ============================================================================
+// EnvelopeDeform
+// ============================================================================
+
+/// Fits geometry between two boundary polylines: `source_top`/`source_bottom`
+/// describe the source envelope, `target_top`/`target_bottom` the target.
+/// Each point is expressed in normalized envelope coordinates `(u, v)` — `u`
+/// the fraction along the envelope's length, `v` the fraction from bottom
+/// (0) to top (1) — with respect to the source envelope, then re-projected
+/// into the target envelope at the same `(u, v)`.
+///
+/// `source_top`, `source_bottom`, `target_top`, and `target_bottom` must each
+/// have at least 2 points; otherwise points pass through unchanged.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = Vec<Vec2>, output = Vec<Vec2>))]
+pub struct EnvelopeDeform {
+    /// Top boundary of the source envelope, in order of increasing `u`.
+    pub source_top: Vec<Vec2>,
+    /// Bottom boundary of the source envelope, in order of increasing `u`.
+    pub source_bottom: Vec<Vec2>,
+    /// Top boundary of the target envelope, in order of increasing `u`.
+    pub target_top: Vec<Vec2>,
+    /// Bottom boundary of the target envelope, in order of increasing `u`.
+    pub target_bottom: Vec<Vec2>,
+}
+
+impl EnvelopeDeform {
+    /// Creates a new envelope deform from matching source/target boundaries.
+    pub fn new(
+        source_top: Vec<Vec2>,
+        source_bottom: Vec<Vec2>,
+        target_top: Vec<Vec2>,
+        target_bottom: Vec<Vec2>,
+    ) -> Self {
+        Self {
+            source_top,
+            source_bottom,
+            target_top,
+            target_bottom,
+        }
+    }
+
+    fn is_valid(&self) -> bool {
+        self.source_top.len() >= 2
+            && self.source_bottom.len() >= 2
+            && self.target_top.len() >= 2
+            && self.target_bottom.len() >= 2
+    }
+
+    /// Finds the bounding box of `source_top` and `source_bottom` combined,
+    /// used to establish the source envelope's `(u, v)` parameterization.
+    fn source_bounds(&self) -> Option<Rect> {
+        let mut points = self.source_top.iter().chain(self.source_bottom.iter());
+        let first = *points.next()?;
+        let mut min = first;
+        let mut max = first;
+        for &p in points {
+            min = min.min(p);
+            max = max.max(p);
+        }
+        Some(Rect::new(min, max))
+    }
+
+    fn deform_point(&self, p: Vec2) -> Vec2 {
+        if !self.is_valid() {
+            return p;
+        }
+        let Some(bounds) = self.source_bounds() else {
+            return p;
+        };
+        let size = bounds.max - bounds.min;
+        let u = if size.x.abs() < EPS {
+            0.0
+        } else {
+            ((p.x - bounds.min.x) / size.x).clamp(0.0, 1.0)
+        };
+        let v = if size.y.abs() < EPS {
+            0.0
+        } else {
+            ((p.y - bounds.min.y) / size.y).clamp(0.0, 1.0)
+        };
+
+        let top = sample_polyline(&self.target_top, u);
+        let bottom = sample_polyline(&self.target_bottom, u);
+        bottom.lerp(top, v)
+    }
+
+    /// Applies the envelope deformation to a set of points.
+    pub fn apply(&self, points: &[Vec2]) -> Vec<Vec2> {
+        points.iter().map(|&p| self.deform_point(p)).collect()
+    }
+
+    /// Applies the envelope deformation to every point of a path.
+    pub fn apply_to_path(&self, path: &Path) -> Path {
+        let mut result = path.clone();
+        result.transform(|p| self.deform_point(p));
+        result
+    }
+}
+
+// ============================================================================
+// PathDeform
+// ============================================================================
+
+/// Wraps geometry along a spine curve: a point's signed distance along
+/// `original_axis` (from `origin`) maps to arc-length distance along
+/// `spine`, and its perpendicular offset from the axis is preserved relative
+/// to the spine's local normal at that point.
+///
+/// `spine` must have at least 2 points and `original_axis` must be non-zero;
+/// otherwise points pass through unchanged.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = Vec<Vec2>, output = Vec<Vec2>))]
+pub struct PathDeform {
+    /// The spine curve geometry is wrapped onto, as a polyline.
+    pub spine: Vec<Vec2>,
+    /// The straight axis (in source space) that maps onto the spine.
+    pub original_axis: Vec2,
+    /// Origin of the source axis (maps to the start of the spine).
+    pub origin: Vec2,
+}
+
+impl PathDeform {
+    /// Creates a new path deform.
+    pub fn new(spine: Vec<Vec2>, original_axis: Vec2, origin: Vec2) -> Self {
+        Self {
+            spine,
+            original_axis,
+            origin,
+        }
+    }
+
+    fn is_valid(&self) -> bool {
+        self.spine.len() >= 2 && self.original_axis.length() >= EPS
+    }
+
+    /// Samples the spine at arc-length `dist` from its start, returning the
+    /// point and unit tangent there. `dist` is clamped to the spine's
+    /// extent.
+    fn sample_spine(&self, dist: f32) -> (Vec2, Vec2) {
+        let mut remaining = dist.max(0.0);
+        for w in self.spine.windows(2) {
+            let (a, b) = (w[0], w[1]);
+            let seg = b - a;
+            let seg_len = seg.length();
+            if seg_len < EPS {
+                continue;
+            }
+            if remaining <= seg_len {
+                let t = remaining / seg_len;
+                return (a.lerp(b, t), seg / seg_len);
+            }
+            remaining -= seg_len;
+        }
+        // Beyond the end: extrapolate along the final segment's tangent.
+        let last = self.spine[self.spine.len() - 1];
+        for w in self.spine.windows(2).rev() {
+            let (a, b) = (w[0], w[1]);
+            let seg = b - a;
+            let seg_len = seg.length();
+            if seg_len >= EPS {
+                let tangent = seg / seg_len;
+                return (last + tangent * remaining, tangent);
+            }
+        }
+        (last, Vec2::X)
+    }
+
+    fn deform_point(&self, p: Vec2) -> Vec2 {
+        if !self.is_valid() {
+            return p;
+        }
+        let axis_len = self.original_axis.length();
+        let axis_n = self.original_axis / axis_len;
+        let perp_n = Vec2::new(-axis_n.y, axis_n.x);
+        let rel = p - self.origin;
+        let along = rel.dot(axis_n);
+        let perp = rel.dot(perp_n);
+
+        let (spine_point, tangent) = self.sample_spine(along);
+        let normal = Vec2::new(-tangent.y, tangent.x);
+        spine_point + normal * perp
+    }
+
+    /// Applies the path deform to a set of points.
+    pub fn apply(&self, points: &[Vec2]) -> Vec<Vec2> {
+        points.iter().map(|&p| self.deform_point(p)).collect()
+    }
+
+    /// Applies the path deform to every point of a path.
+    pub fn apply_to_path(&self, path: &Path) -> Path {
+        let mut result = path.clone();
+        result.transform(|p| self.deform_point(p));
+        result
+    }
+}
+
+/// Samples a polyline at normalized parameter `u` in `[0, 1]` (0 = first
+/// point, 1 = last point), linearly interpolating by point index (not
+/// arc-length). `u` is clamped to `[0, 1]`. The polyline must have at least
+/// 2 points.
+fn sample_polyline(polyline: &[Vec2], u: f32) -> Vec2 {
+    let n = polyline.len();
+    let t = u.clamp(0.0, 1.0) * (n - 1) as f32;
+    let i0 = (t.floor() as usize).min(n - 2);
+    let i1 = i0 + 1;
+    let local_t = t - i0 as f32;
+    polyline[i0].lerp(polyline[i1], local_t)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -775,6 +1183,226 @@ mod tests {
         let taper = Taper::new(Vec2::X, Vec2::ZERO, 1.0, 2.0, 10.0);
         let path = line(Vec2::new(0.0, 1.0), Vec2::new(10.0, 1.0));
         let warped = taper.apply_to_path(&path);
+        assert_eq!(warped.commands().len(), path.commands().len());
+    }
+
+    // =========================================================================
+    // Bend tests
+    // =========================================================================
+
+    #[test]
+    fn bend_zero_angle_is_identity() {
+        let bend = Bend::new(Vec2::ZERO, Vec2::X, 0.0, 10.0);
+        let p = Vec2::new(4.0, 3.0);
+        assert!(approx(bend.apply(&[p])[0], p, TOL));
+    }
+
+    #[test]
+    fn bend_on_axis_start_is_identity() {
+        let bend = Bend::new(Vec2::ZERO, Vec2::X, std::f32::consts::FRAC_PI_2, 10.0);
+        let p = Vec2::new(0.0, 3.0);
+        assert!(approx(bend.apply(&[p])[0], p, TOL));
+    }
+
+    #[test]
+    fn bend_full_arc_matches_known_endpoint() {
+        let angle = std::f32::consts::FRAC_PI_2;
+        let bend = Bend::new(Vec2::ZERO, Vec2::X, angle, 10.0);
+        let radius = 10.0 / angle;
+        let deformed = bend.apply(&[Vec2::new(10.0, 0.0)])[0];
+        assert!(
+            approx(deformed, Vec2::new(radius, radius), TOL),
+            "got {deformed:?}, expected ({radius}, {radius})"
+        );
+    }
+
+    #[test]
+    fn bend_apply_to_path() {
+        let bend = Bend::new(Vec2::ZERO, Vec2::X, std::f32::consts::FRAC_PI_2, 10.0);
+        let path = line(Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0));
+        let warped = bend.apply_to_path(&path);
+        assert_eq!(warped.commands().len(), path.commands().len());
+    }
+
+    // =========================================================================
+    // Bulge tests
+    // =========================================================================
+
+    #[test]
+    fn bulge_center_point_unaffected() {
+        let bulge = Bulge::new(Vec2::ZERO, 10.0, 5.0, Falloff::Linear);
+        let deformed = bulge.apply(&[Vec2::ZERO])[0];
+        assert!(approx(deformed, Vec2::ZERO, TOL));
+    }
+
+    #[test]
+    fn bulge_inflates_radially() {
+        let bulge = Bulge::new(Vec2::ZERO, 10.0, 5.0, Falloff::Linear);
+        let p = Vec2::new(4.0, 0.0);
+        // t = 0.4, linear falloff weight = 0.6, displacement = 3.0 outward
+        let deformed = bulge.apply(&[p])[0];
+        assert!(
+            approx(deformed, Vec2::new(7.0, 0.0), TOL),
+            "got {deformed:?}"
+        );
+    }
+
+    #[test]
+    fn bulge_negative_strength_pinches() {
+        let bulge = Bulge::new(Vec2::ZERO, 10.0, -5.0, Falloff::Linear);
+        let p = Vec2::new(4.0, 0.0);
+        let deformed = bulge.apply(&[p])[0];
+        assert!(
+            approx(deformed, Vec2::new(1.0, 0.0), TOL),
+            "got {deformed:?}"
+        );
+    }
+
+    #[test]
+    fn bulge_no_effect_outside_radius() {
+        let bulge = Bulge::new(Vec2::ZERO, 5.0, 10.0, Falloff::Linear);
+        let p = Vec2::new(10.0, 0.0);
+        assert!(approx(bulge.apply(&[p])[0], p, TOL));
+    }
+
+    #[test]
+    fn bulge_apply_to_path() {
+        let bulge = Bulge::new(Vec2::ZERO, 10.0, 5.0, Falloff::Linear);
+        let path = rect(Vec2::new(-2.0, -2.0), Vec2::new(2.0, 2.0));
+        let warped = bulge.apply_to_path(&path);
+        assert_eq!(warped.commands().len(), path.commands().len());
+    }
+
+    // =========================================================================
+    // Wave tests
+    // =========================================================================
+
+    #[test]
+    fn wave_zero_along_axis_is_identity() {
+        let wave = Wave::new(Vec2::X, 2.0, 1.0, 0.0);
+        let p = Vec2::ZERO;
+        assert!(approx(wave.apply(&[p])[0], p, TOL));
+    }
+
+    #[test]
+    fn wave_displaces_perpendicular_at_peak() {
+        let freq = 1.0f32;
+        let wave = Wave::new(Vec2::X, 2.0, freq, 0.0);
+        let along = std::f32::consts::FRAC_PI_2 / freq;
+        let p = Vec2::new(along, 0.0);
+        let deformed = wave.apply(&[p])[0];
+        assert!(
+            approx(deformed, Vec2::new(along, 2.0), TOL),
+            "got {deformed:?}"
+        );
+    }
+
+    #[test]
+    fn wave_degenerate_axis_is_identity() {
+        let wave = Wave::new(Vec2::ZERO, 2.0, 1.0, 0.0);
+        let p = Vec2::new(3.0, 4.0);
+        assert!(approx(wave.apply(&[p])[0], p, TOL));
+    }
+
+    #[test]
+    fn wave_apply_to_path() {
+        let wave = Wave::new(Vec2::X, 2.0, 1.0, 0.0);
+        let path = line(Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0));
+        let warped = wave.apply_to_path(&path);
+        assert_eq!(warped.commands().len(), path.commands().len());
+    }
+
+    // =========================================================================
+    // EnvelopeDeform tests
+    // =========================================================================
+
+    #[test]
+    fn envelope_identity_leaves_points_unchanged() {
+        let top = vec![Vec2::new(0.0, 10.0), Vec2::new(10.0, 10.0)];
+        let bottom = vec![Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0)];
+        let envelope = EnvelopeDeform::new(top.clone(), bottom.clone(), top, bottom);
+        let p = Vec2::new(5.0, 5.0);
+        assert!(approx(envelope.apply(&[p])[0], p, TOL));
+    }
+
+    #[test]
+    fn envelope_stretches_into_target() {
+        let source_top = vec![Vec2::new(0.0, 10.0), Vec2::new(10.0, 10.0)];
+        let source_bottom = vec![Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0)];
+        let target_top = vec![Vec2::new(0.0, 20.0), Vec2::new(10.0, 20.0)];
+        let target_bottom = vec![Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0)];
+        let envelope = EnvelopeDeform::new(source_top, source_bottom, target_top, target_bottom);
+        let p = Vec2::new(5.0, 5.0);
+        let deformed = envelope.apply(&[p])[0];
+        assert!(
+            approx(deformed, Vec2::new(5.0, 10.0), TOL),
+            "got {deformed:?}"
+        );
+    }
+
+    #[test]
+    fn envelope_invalid_config_is_identity() {
+        let envelope = EnvelopeDeform::new(
+            vec![Vec2::ZERO], // too short
+            vec![Vec2::ZERO, Vec2::X],
+            vec![Vec2::ZERO, Vec2::X],
+            vec![Vec2::ZERO, Vec2::X],
+        );
+        let p = Vec2::new(3.0, 4.0);
+        assert!(approx(envelope.apply(&[p])[0], p, TOL));
+    }
+
+    #[test]
+    fn envelope_apply_to_path() {
+        let top = vec![Vec2::new(0.0, 10.0), Vec2::new(10.0, 10.0)];
+        let bottom = vec![Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0)];
+        let envelope = EnvelopeDeform::new(top.clone(), bottom.clone(), top, bottom);
+        let path = rect(Vec2::new(2.0, 2.0), Vec2::new(8.0, 8.0));
+        let warped = envelope.apply_to_path(&path);
+        assert_eq!(warped.commands().len(), path.commands().len());
+    }
+
+    // =========================================================================
+    // PathDeform tests
+    // =========================================================================
+
+    #[test]
+    fn path_deform_straight_spine_is_identity() {
+        let spine = vec![Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0)];
+        let deform = PathDeform::new(spine, Vec2::X, Vec2::ZERO);
+        let p = Vec2::new(5.0, 3.0);
+        assert!(approx(deform.apply(&[p])[0], p, TOL));
+    }
+
+    #[test]
+    fn path_deform_follows_bent_spine() {
+        let spine = vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(5.0, 0.0),
+            Vec2::new(5.0, 5.0),
+        ];
+        let deform = PathDeform::new(spine, Vec2::X, Vec2::ZERO);
+
+        let on_axis = deform.apply(&[Vec2::new(7.5, 0.0)])[0];
+        assert!(approx(on_axis, Vec2::new(5.0, 2.5), TOL), "got {on_axis:?}");
+
+        let offset = deform.apply(&[Vec2::new(7.5, 1.0)])[0];
+        assert!(approx(offset, Vec2::new(4.0, 2.5), TOL), "got {offset:?}");
+    }
+
+    #[test]
+    fn path_deform_invalid_config_is_identity() {
+        let deform = PathDeform::new(vec![Vec2::ZERO], Vec2::X, Vec2::ZERO);
+        let p = Vec2::new(3.0, 4.0);
+        assert!(approx(deform.apply(&[p])[0], p, TOL));
+    }
+
+    #[test]
+    fn path_deform_apply_to_path() {
+        let spine = vec![Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0)];
+        let deform = PathDeform::new(spine, Vec2::X, Vec2::ZERO);
+        let path = line(Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0));
+        let warped = deform.apply_to_path(&path);
         assert_eq!(warped.commands().len(), path.commands().len());
     }
 }
