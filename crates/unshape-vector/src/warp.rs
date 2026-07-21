@@ -15,6 +15,16 @@
 //! abstraction. `apply`/`apply_to_path` are always available (no feature
 //! required) and are sugar that calls the same per-point logic as `sample`.
 //! [`PuckerBloat`] and [`Roughen`] are noted exceptions: see their docs.
+//!
+//! [`Twist`], [`Wave`], [`Bend`], [`Bulge`], [`PointPush`], [`Taper`],
+//! [`Spherize`], and [`PuckerBloat`] are closed-form formulas over a few
+//! parameters, so they're also expression-decomposable: each has a
+//! `to_dew_ast()` (behind the `wick` feature) that compiles the same
+//! formula their `Field` impl evaluates into a `wick_core::Ast`, for
+//! GPU/JIT execution. [`LatticeDeform`], [`CageDeform`], [`EnvelopeDeform`],
+//! and [`PathDeform`] depend on variable-length authored data (control
+//! grids, cages, boundary polylines, spine curves) and so are genuine
+//! primitives — they implement `Field` but have no `to_dew_ast()`.
 
 use crate::{Path, Rect};
 use glam::Vec2;
@@ -67,6 +77,100 @@ impl Falloff {
                 s * s * (3.0 - 2.0 * s)
             }
             Falloff::Gaussian => (-4.5 * t * t).exp(),
+        }
+    }
+}
+
+/// Dew AST construction helpers shared by the warp ops' `to_dew_ast`
+/// methods.
+///
+/// The convention (matching `unshape-image`'s `UvExpr`/`ColorExpr` and
+/// `unshape-expr-field`'s `FieldExpr`) is that the generated AST expects a
+/// single free variable, `p` (a `Vec2`, the point being deformed), and
+/// evaluates to the deformed `Vec2` position. Op parameters (center, radius,
+/// angle, ...) are plain `f32`/`Vec2` fields on the struct, not
+/// sub-expressions, so they're folded directly into `Ast::Num`/`vec2(...)`
+/// literals rather than threaded through as additional variables.
+#[cfg(feature = "wick")]
+mod dew_ast {
+    use super::Falloff;
+    use glam::Vec2;
+    use wick_core::{Ast, BinOp, CompareOp};
+
+    pub(crate) fn var_p() -> Ast {
+        Ast::Var("p".into())
+    }
+
+    pub(crate) fn num(v: f32) -> Ast {
+        Ast::Num(v as f64)
+    }
+
+    pub(crate) fn vec2_const(v: Vec2) -> Ast {
+        Ast::Call("vec2".into(), vec![num(v.x), num(v.y)])
+    }
+
+    pub(crate) fn call1(name: &str, a: Ast) -> Ast {
+        Ast::Call(name.into(), vec![a])
+    }
+
+    pub(crate) fn call2(name: &str, a: Ast, b: Ast) -> Ast {
+        Ast::Call(name.into(), vec![a, b])
+    }
+
+    pub(crate) fn call3(name: &str, a: Ast, b: Ast, c: Ast) -> Ast {
+        Ast::Call(name.into(), vec![a, b, c])
+    }
+
+    pub(crate) fn add(a: Ast, b: Ast) -> Ast {
+        Ast::BinOp(BinOp::Add, Box::new(a), Box::new(b))
+    }
+
+    pub(crate) fn sub(a: Ast, b: Ast) -> Ast {
+        Ast::BinOp(BinOp::Sub, Box::new(a), Box::new(b))
+    }
+
+    pub(crate) fn mul(a: Ast, b: Ast) -> Ast {
+        Ast::BinOp(BinOp::Mul, Box::new(a), Box::new(b))
+    }
+
+    pub(crate) fn div(a: Ast, b: Ast) -> Ast {
+        Ast::BinOp(BinOp::Div, Box::new(a), Box::new(b))
+    }
+
+    pub(crate) fn ge(a: Ast, b: Ast) -> Ast {
+        Ast::Compare(CompareOp::Ge, Box::new(a), Box::new(b))
+    }
+
+    pub(crate) fn lt(a: Ast, b: Ast) -> Ast {
+        Ast::Compare(CompareOp::Lt, Box::new(a), Box::new(b))
+    }
+
+    pub(crate) fn or(a: Ast, b: Ast) -> Ast {
+        Ast::Or(Box::new(a), Box::new(b))
+    }
+
+    pub(crate) fn if_then_else(cond: Ast, then_branch: Ast, else_branch: Ast) -> Ast {
+        Ast::If(Box::new(cond), Box::new(then_branch), Box::new(else_branch))
+    }
+
+    /// Translates [`Falloff::evaluate`] into an AST fragment.
+    ///
+    /// `t` must be an AST that evaluates within `[0, 1)` — callers guard the
+    /// surrounding formula with a runtime `dist < radius` check (or fold the
+    /// identity case away entirely when `radius <= 0.0` is known at
+    /// `to_dew_ast` build time), so the `t >= 1` / `t <= 0` clamped branches
+    /// of `evaluate` never apply here. All three variants' raw formulas
+    /// already equal 1 at `t == 0`, matching `evaluate`'s `t <= 0` case, so
+    /// no extra clamping is needed.
+    pub(crate) fn falloff_ast(falloff: Falloff, t: Ast) -> Ast {
+        match falloff {
+            Falloff::Linear => sub(num(1.0), t),
+            Falloff::Smooth => {
+                let s = sub(num(1.0), t);
+                let s_sq = mul(s.clone(), s.clone());
+                mul(s_sq, sub(num(3.0), mul(num(2.0), s)))
+            }
+            Falloff::Gaussian => call1("exp", mul(num(-4.5), mul(t.clone(), t))),
         }
     }
 }
@@ -389,6 +493,28 @@ impl PointPush {
         result.transform(|p| self.deform_point(p));
         result
     }
+
+    /// Converts this push to a Dew AST for JIT/WGSL compilation.
+    ///
+    /// The resulting AST expects a `p` Vec2 variable (the point being
+    /// deformed) and returns the deformed Vec2 position.
+    #[cfg(feature = "wick")]
+    pub fn to_dew_ast(&self) -> wick_core::Ast {
+        use dew_ast::*;
+
+        if self.radius <= 0.0 {
+            return var_p();
+        }
+
+        let p = var_p();
+        let offset = sub(p.clone(), vec2_const(self.center));
+        let dist = call1("length", offset);
+        let t = div(dist.clone(), num(self.radius));
+        let weight = falloff_ast(self.falloff, t);
+        let result = add(p.clone(), mul(vec2_const(self.direction), weight));
+
+        if_then_else(ge(dist, num(self.radius)), p, result)
+    }
 }
 
 #[cfg(feature = "field")]
@@ -461,6 +587,31 @@ impl Twist {
         result.transform(|p| self.deform_point(p));
         result
     }
+
+    /// Converts this twist to a Dew AST for JIT/WGSL compilation.
+    ///
+    /// The resulting AST expects a `p` Vec2 variable (the point being
+    /// deformed) and returns the deformed Vec2 position.
+    #[cfg(feature = "wick")]
+    pub fn to_dew_ast(&self) -> wick_core::Ast {
+        use dew_ast::*;
+
+        if self.radius <= 0.0 {
+            return var_p();
+        }
+
+        let p = var_p();
+        let center = vec2_const(self.center);
+        let offset = sub(p.clone(), center.clone());
+        let dist = call1("length", offset.clone());
+        let t = div(dist.clone(), num(self.radius));
+        let weight = falloff_ast(self.falloff, t);
+        let applied_angle = mul(num(self.angle), weight);
+        let rotated = call2("rotate2d", offset, applied_angle);
+        let result = add(center, rotated);
+
+        if_then_else(ge(dist, num(self.radius)), p, result)
+    }
 }
 
 #[cfg(feature = "field")]
@@ -530,6 +681,45 @@ impl Taper {
         let mut result = path.clone();
         result.transform(|p| self.deform_point(p));
         result
+    }
+
+    /// Converts this taper to a Dew AST for JIT/WGSL compilation.
+    ///
+    /// The resulting AST expects a `p` Vec2 variable (the point being
+    /// deformed) and returns the deformed Vec2 position. `axis` is
+    /// normalized at build time (it's a constant field, not a runtime
+    /// value), so the AST embeds the unit axis directly.
+    #[cfg(feature = "wick")]
+    pub fn to_dew_ast(&self) -> wick_core::Ast {
+        use dew_ast::*;
+
+        let axis_len = self.axis.length();
+        if axis_len < EPS || self.length <= 0.0 {
+            return var_p();
+        }
+        let axis_n = self.axis / axis_len;
+
+        let p = var_p();
+        let origin = vec2_const(self.origin);
+        let rel = sub(p, origin.clone());
+        let along = call2("dot", rel.clone(), vec2_const(axis_n));
+        let perp = sub(rel, mul(vec2_const(axis_n), along.clone()));
+
+        let t = call3(
+            "clamp",
+            div(along.clone(), num(self.length)),
+            num(0.0),
+            num(1.0),
+        );
+        let scale = add(
+            num(self.start_scale),
+            mul(num(self.end_scale - self.start_scale), t),
+        );
+
+        add(
+            add(origin, mul(vec2_const(axis_n), along)),
+            mul(perp, scale),
+        )
     }
 }
 
@@ -611,6 +801,42 @@ impl Bend {
         result.transform(|p| self.deform_point(p));
         result
     }
+
+    /// Converts this bend to a Dew AST for JIT/WGSL compilation.
+    ///
+    /// The resulting AST expects a `p` Vec2 variable (the point being
+    /// deformed) and returns the deformed Vec2 position. `axis` and the
+    /// pivot `radius = length / angle` are constant fields, so they're
+    /// normalized/computed at build time and embedded as literals.
+    #[cfg(feature = "wick")]
+    pub fn to_dew_ast(&self) -> wick_core::Ast {
+        use dew_ast::*;
+
+        let axis_len = self.axis.length();
+        if axis_len < EPS || self.length <= 0.0 || self.angle.abs() < EPS {
+            return var_p();
+        }
+        let axis_n = self.axis / axis_len;
+        let perp_n = Vec2::new(-axis_n.y, axis_n.x);
+        let radius = self.length / self.angle;
+
+        let p = var_p();
+        let origin = vec2_const(self.origin);
+        let rel = sub(p, origin.clone());
+        let along = call2("dot", rel.clone(), vec2_const(axis_n));
+        let perp = call2("dot", rel, vec2_const(perp_n));
+
+        let t = call3("clamp", div(along, num(self.length)), num(0.0), num(1.0));
+        let applied_angle = mul(num(self.angle), t);
+        let arc_radius = sub(num(radius), perp);
+        let cos = call1("cos", applied_angle.clone());
+        let sin = call1("sin", applied_angle);
+
+        let axis_term = mul(vec2_const(axis_n), mul(arc_radius.clone(), sin));
+        let perp_term = mul(vec2_const(perp_n), sub(num(radius), mul(arc_radius, cos)));
+
+        add(add(origin, axis_term), perp_term)
+    }
 }
 
 #[cfg(feature = "field")]
@@ -680,6 +906,30 @@ impl Bulge {
         result.transform(|p| self.deform_point(p));
         result
     }
+
+    /// Converts this bulge to a Dew AST for JIT/WGSL compilation.
+    ///
+    /// The resulting AST expects a `p` Vec2 variable (the point being
+    /// deformed) and returns the deformed Vec2 position.
+    #[cfg(feature = "wick")]
+    pub fn to_dew_ast(&self) -> wick_core::Ast {
+        use dew_ast::*;
+
+        if self.radius <= 0.0 {
+            return var_p();
+        }
+
+        let p = var_p();
+        let offset = sub(p.clone(), vec2_const(self.center));
+        let dist = call1("length", offset.clone());
+        let t = div(dist.clone(), num(self.radius));
+        let weight = falloff_ast(self.falloff, t);
+        let dir = div(offset, dist.clone());
+        let result = add(p.clone(), mul(dir, mul(num(self.strength), weight)));
+
+        let cond = or(ge(dist.clone(), num(self.radius)), lt(dist, num(EPS)));
+        if_then_else(cond, p, result)
+    }
 }
 
 #[cfg(feature = "field")]
@@ -743,6 +993,32 @@ impl Wave {
         let mut result = path.clone();
         result.transform(|p| self.deform_point(p));
         result
+    }
+
+    /// Converts this wave to a Dew AST for JIT/WGSL compilation.
+    ///
+    /// The resulting AST expects a `p` Vec2 variable (the point being
+    /// deformed) and returns the deformed Vec2 position. `axis` is
+    /// normalized at build time (it's a constant field, not a runtime
+    /// value), so the AST embeds the unit axis and its perpendicular
+    /// directly.
+    #[cfg(feature = "wick")]
+    pub fn to_dew_ast(&self) -> wick_core::Ast {
+        use dew_ast::*;
+
+        let axis_len = self.axis.length();
+        if axis_len < EPS {
+            return var_p();
+        }
+        let axis_n = self.axis / axis_len;
+        let perp_n = Vec2::new(-axis_n.y, axis_n.x);
+
+        let p = var_p();
+        let along = call2("dot", p.clone(), vec2_const(axis_n));
+        let inner = add(mul(num(self.frequency), along), num(self.phase));
+        let displacement = mul(num(self.amplitude), call1("sin", inner));
+
+        add(p, mul(vec2_const(perp_n), displacement))
     }
 }
 
@@ -1056,6 +1332,36 @@ impl Spherize {
         result.transform(|p| self.deform_point(p));
         result
     }
+
+    /// Converts this spherize to a Dew AST for JIT/WGSL compilation.
+    ///
+    /// The resulting AST expects a `p` Vec2 variable (the point being
+    /// deformed) and returns the deformed Vec2 position.
+    #[cfg(feature = "wick")]
+    pub fn to_dew_ast(&self) -> wick_core::Ast {
+        use dew_ast::*;
+
+        if self.radius <= 0.0 {
+            return var_p();
+        }
+
+        let p = var_p();
+        let offset = sub(p.clone(), vec2_const(self.center));
+        let dist = call1("length", offset.clone());
+        let normalized = div(dist.clone(), num(self.radius));
+        let displaced_dist = mul(
+            dist.clone(),
+            add(
+                num(1.0),
+                mul(num(self.strength), mul(normalized.clone(), normalized)),
+            ),
+        );
+        let dir = div(offset, dist.clone());
+        let result = add(vec2_const(self.center), mul(dir, displaced_dist));
+
+        let cond = or(ge(dist.clone(), num(self.radius)), lt(dist, num(EPS)));
+        if_then_else(cond, p, result)
+    }
 }
 
 #[cfg(feature = "field")]
@@ -1235,6 +1541,23 @@ impl PuckerBloat {
         let mut result = path.clone();
         result.transform(|p| self.deform_point(centroid, p));
         result
+    }
+
+    /// Converts this pucker/bloat to a Dew AST for JIT/WGSL compilation.
+    ///
+    /// The resulting AST expects a `p` Vec2 variable (the point being
+    /// deformed) and returns the deformed Vec2 position, using `self.centroid`
+    /// as a fixed parameter — matching the `Field<Vec2, Vec2>` impl, not
+    /// `apply`/`apply_to_path` (which compute their own centroid from the
+    /// input set; see the struct docs for why that mode isn't a field, and
+    /// so can't be expression-decomposed here).
+    #[cfg(feature = "wick")]
+    pub fn to_dew_ast(&self) -> wick_core::Ast {
+        use dew_ast::*;
+
+        let p = var_p();
+        let offset = sub(p.clone(), vec2_const(self.centroid));
+        add(p, mul(offset, num(self.strength)))
     }
 }
 
@@ -2064,5 +2387,141 @@ mod tests {
         let path = rect(Vec2::new(0.0, 0.0), Vec2::new(4.0, 4.0));
         let warped = field.apply_to_path(&path);
         assert_eq!(warped.commands().len(), path.commands().len());
+    }
+
+    // =========================================================================
+    // to_dew_ast tests
+    //
+    // wick-linalg (the Vec2-capable dew evaluator) isn't a dependency of this
+    // crate, so these check AST structure rather than numeric evaluation:
+    // degenerate configurations (recognized at `to_dew_ast` build time, the
+    // same way `apply`/`sample` short-circuit them) should compile straight
+    // to the identity `Var("p")`; non-degenerate configurations should not.
+    // =========================================================================
+
+    #[cfg(feature = "wick")]
+    mod dew_ast_tests {
+        use super::*;
+        use wick_core::{Ast, BinOp};
+
+        fn is_identity(ast: &Ast) -> bool {
+            matches!(ast, Ast::Var(name) if name == "p")
+        }
+
+        #[test]
+        fn point_push_identity_at_zero_radius() {
+            let push = PointPush::new(Vec2::ZERO, Vec2::new(10.0, 0.0), 0.0, Falloff::Linear);
+            assert!(is_identity(&push.to_dew_ast()));
+        }
+
+        #[test]
+        fn point_push_active_case_is_conditional() {
+            let push = PointPush::new(Vec2::ZERO, Vec2::new(10.0, 0.0), 5.0, Falloff::Linear);
+            let ast = push.to_dew_ast();
+            assert!(!is_identity(&ast));
+            assert!(matches!(ast, Ast::If(..)));
+        }
+
+        #[test]
+        fn twist_identity_at_zero_radius() {
+            let twist = Twist::new(Vec2::ZERO, 1.0, 0.0, Falloff::Linear);
+            assert!(is_identity(&twist.to_dew_ast()));
+        }
+
+        #[test]
+        fn twist_active_case_is_conditional() {
+            let twist = Twist::new(
+                Vec2::ZERO,
+                std::f32::consts::FRAC_PI_2,
+                10.0,
+                Falloff::Smooth,
+            );
+            let ast = twist.to_dew_ast();
+            assert!(!is_identity(&ast));
+            assert!(matches!(ast, Ast::If(..)));
+        }
+
+        #[test]
+        fn taper_identity_when_axis_degenerate() {
+            let taper = Taper::new(Vec2::ZERO, Vec2::ZERO, 1.0, 2.0, 10.0);
+            assert!(is_identity(&taper.to_dew_ast()));
+        }
+
+        #[test]
+        fn taper_active_case_is_not_identity() {
+            let taper = Taper::new(Vec2::X, Vec2::ZERO, 1.0, 2.0, 10.0);
+            let ast = taper.to_dew_ast();
+            assert!(!is_identity(&ast));
+            assert!(matches!(ast, Ast::BinOp(BinOp::Add, ..)));
+        }
+
+        #[test]
+        fn bend_identity_when_angle_zero() {
+            let bend = Bend::new(Vec2::ZERO, Vec2::X, 0.0, 10.0);
+            assert!(is_identity(&bend.to_dew_ast()));
+        }
+
+        #[test]
+        fn bend_active_case_is_not_identity() {
+            let bend = Bend::new(Vec2::ZERO, Vec2::X, std::f32::consts::FRAC_PI_2, 10.0);
+            let ast = bend.to_dew_ast();
+            assert!(!is_identity(&ast));
+            assert!(matches!(ast, Ast::BinOp(BinOp::Add, ..)));
+        }
+
+        #[test]
+        fn bulge_identity_at_zero_radius() {
+            let bulge = Bulge::new(Vec2::ZERO, 0.0, 5.0, Falloff::Linear);
+            assert!(is_identity(&bulge.to_dew_ast()));
+        }
+
+        #[test]
+        fn bulge_active_case_is_conditional() {
+            let bulge = Bulge::new(Vec2::ZERO, 10.0, 5.0, Falloff::Gaussian);
+            let ast = bulge.to_dew_ast();
+            assert!(!is_identity(&ast));
+            assert!(matches!(ast, Ast::If(..)));
+        }
+
+        #[test]
+        fn wave_identity_when_axis_degenerate() {
+            let wave = Wave::new(Vec2::ZERO, 2.0, 1.0, 0.0);
+            assert!(is_identity(&wave.to_dew_ast()));
+        }
+
+        #[test]
+        fn wave_active_case_is_not_identity() {
+            let wave = Wave::new(Vec2::X, 2.0, 1.0, 0.0);
+            let ast = wave.to_dew_ast();
+            assert!(!is_identity(&ast));
+            assert!(matches!(ast, Ast::BinOp(BinOp::Add, ..)));
+        }
+
+        #[test]
+        fn spherize_identity_at_zero_radius() {
+            let spherize = Spherize::new(Vec2::ZERO, 0.0, 1.0);
+            assert!(is_identity(&spherize.to_dew_ast()));
+        }
+
+        #[test]
+        fn spherize_active_case_is_conditional() {
+            let spherize = Spherize::new(Vec2::ZERO, 10.0, 1.0);
+            let ast = spherize.to_dew_ast();
+            assert!(!is_identity(&ast));
+            assert!(matches!(ast, Ast::If(..)));
+        }
+
+        #[test]
+        fn pucker_bloat_is_unconditional_linear_formula() {
+            // PuckerBloat has no radius/falloff guard, so its AST is always a
+            // direct `p + (p - centroid) * strength` — never Var("p") alone
+            // (even at strength 0.0, the formula is still emitted rather than
+            // folded, matching how the other ops fold only their *degenerate*
+            // configurations, not merely-inactive ones).
+            let pucker = PuckerBloat::new(0.5).with_centroid(Vec2::new(1.0, 1.0));
+            let ast = pucker.to_dew_ast();
+            assert!(!is_identity(&ast));
+            assert!(matches!(ast, Ast::BinOp(BinOp::Add, ..)));
+        }
     }
 }

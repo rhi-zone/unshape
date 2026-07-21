@@ -6213,6 +6213,7 @@ dependencies = [
  "unshape-curve",
  "unshape-field-ops",
  "unshape-op",
+ "wick-core",
 ]
 
 [[package]]
