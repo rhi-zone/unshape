@@ -7,9 +7,20 @@
 //! spine-following path deform, lens-style spherize/pincushion distortion,
 //! deterministic roughening, centroid-relative pucker/bloat, and noise-based
 //! field displacement.
+//!
+//! Every warp op maps an input position to an output position without
+//! depending on neighbors, global state, or topology, so each one is a
+//! `Field<Vec2, Vec2>` (`unshape-field-ops`, behind the `field` feature) —
+//! the op struct itself is a field constructor, not a standalone
+//! abstraction. `apply`/`apply_to_path` are always available (no feature
+//! required) and are sugar that calls the same per-point logic as `sample`.
+//! [`PuckerBloat`] and [`Roughen`] are noted exceptions: see their docs.
 
 use crate::{Path, Rect};
 use glam::Vec2;
+
+#[cfg(feature = "field")]
+use unshape_field_ops::{EvalContext, Field};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -181,6 +192,13 @@ impl LatticeDeform {
     }
 }
 
+#[cfg(feature = "field")]
+impl Field<Vec2, Vec2> for LatticeDeform {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec2 {
+        self.deform_point(input)
+    }
+}
+
 // ============================================================================
 // CageDeform
 // ============================================================================
@@ -240,6 +258,13 @@ impl CageDeform {
         let mut result = path.clone();
         result.transform(|p| self.deform_point(p));
         result
+    }
+}
+
+#[cfg(feature = "field")]
+impl Field<Vec2, Vec2> for CageDeform {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec2 {
+        self.deform_point(input)
     }
 }
 
@@ -366,6 +391,13 @@ impl PointPush {
     }
 }
 
+#[cfg(feature = "field")]
+impl Field<Vec2, Vec2> for PointPush {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec2 {
+        self.deform_point(input)
+    }
+}
+
 // ============================================================================
 // Twist
 // ============================================================================
@@ -431,6 +463,13 @@ impl Twist {
     }
 }
 
+#[cfg(feature = "field")]
+impl Field<Vec2, Vec2> for Twist {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec2 {
+        self.deform_point(input)
+    }
+}
+
 // ============================================================================
 // Taper
 // ============================================================================
@@ -491,6 +530,13 @@ impl Taper {
         let mut result = path.clone();
         result.transform(|p| self.deform_point(p));
         result
+    }
+}
+
+#[cfg(feature = "field")]
+impl Field<Vec2, Vec2> for Taper {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec2 {
+        self.deform_point(input)
     }
 }
 
@@ -567,6 +613,13 @@ impl Bend {
     }
 }
 
+#[cfg(feature = "field")]
+impl Field<Vec2, Vec2> for Bend {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec2 {
+        self.deform_point(input)
+    }
+}
+
 // ============================================================================
 // Bulge
 // ============================================================================
@@ -629,6 +682,13 @@ impl Bulge {
     }
 }
 
+#[cfg(feature = "field")]
+impl Field<Vec2, Vec2> for Bulge {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec2 {
+        self.deform_point(input)
+    }
+}
+
 // ============================================================================
 // Wave
 // ============================================================================
@@ -683,6 +743,13 @@ impl Wave {
         let mut result = path.clone();
         result.transform(|p| self.deform_point(p));
         result
+    }
+}
+
+#[cfg(feature = "field")]
+impl Field<Vec2, Vec2> for Wave {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec2 {
+        self.deform_point(input)
     }
 }
 
@@ -788,6 +855,13 @@ impl EnvelopeDeform {
     }
 }
 
+#[cfg(feature = "field")]
+impl Field<Vec2, Vec2> for EnvelopeDeform {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec2 {
+        self.deform_point(input)
+    }
+}
+
 // ============================================================================
 // PathDeform
 // ============================================================================
@@ -887,6 +961,13 @@ impl PathDeform {
     }
 }
 
+#[cfg(feature = "field")]
+impl Field<Vec2, Vec2> for PathDeform {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec2 {
+        self.deform_point(input)
+    }
+}
+
 /// Samples a polyline at normalized parameter `u` in `[0, 1]` (0 = first
 /// point, 1 = last point), linearly interpolating by point index (not
 /// arc-length). `u` is clamped to `[0, 1]`. The polyline must have at least
@@ -977,6 +1058,13 @@ impl Spherize {
     }
 }
 
+#[cfg(feature = "field")]
+impl Field<Vec2, Vec2> for Spherize {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec2 {
+        self.deform_point(input)
+    }
+}
+
 // ============================================================================
 // Roughen
 // ============================================================================
@@ -984,6 +1072,15 @@ impl Spherize {
 /// Displaces each point by a deterministic pseudo-random offset, up to
 /// `amplitude` in magnitude, derived from the point's index and `seed`. Given
 /// the same seed and point count, the result is stable across runs.
+///
+/// `apply`/`apply_to_path` key the pseudo-random offset by point *index*, so
+/// each point in the sequence gets an independent, order-stable value. Its
+/// `Field<Vec2, Vec2>` impl can't see an index (a field is sampled at
+/// arbitrary, unordered positions), so it hashes the input *position*
+/// instead — this makes the field a pure function of location (two equal
+/// points always displace identically) rather than of point order, which is
+/// a different, still-deterministic notion of "random" from the indexed one
+/// used by `apply`.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
@@ -1012,6 +1109,24 @@ impl Roughen {
         p + Vec2::new(angle.cos(), angle.sin()) * mag
     }
 
+    /// Position-hashed variant of [`Self::deform_point`] used by the
+    /// `Field<Vec2, Vec2>` impl, which has no notion of point index. Hashes
+    /// the input position's bit patterns instead, so the same position
+    /// always displaces the same way.
+    #[cfg(feature = "field")]
+    fn deform_point_at_position(&self, p: Vec2) -> Vec2 {
+        if self.amplitude <= 0.0 {
+            return p;
+        }
+        let hx = p.x.to_bits();
+        let hy = p.y.to_bits();
+        let h_angle = hash_to_unit(self.seed, hx, hy);
+        let h_mag = hash_to_unit(hx, hy, self.seed);
+        let angle = h_angle * std::f32::consts::TAU;
+        let mag = h_mag * self.amplitude;
+        p + Vec2::new(angle.cos(), angle.sin()) * mag
+    }
+
     /// Applies the roughening to a set of points.
     pub fn apply(&self, points: &[Vec2]) -> Vec<Vec2> {
         points
@@ -1034,14 +1149,33 @@ impl Roughen {
     }
 }
 
+#[cfg(feature = "field")]
+impl Field<Vec2, Vec2> for Roughen {
+    /// Uses position-based hashing (see [`Roughen::deform_point_at_position`]),
+    /// not the index-based hashing `apply` uses — a field has no index, only
+    /// a position to sample at.
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec2 {
+        self.deform_point_at_position(input)
+    }
+}
+
 // ============================================================================
 // PuckerBloat
 // ============================================================================
 
 /// Moves each point towards or away from the centroid of the input point set.
-/// The centroid is computed fresh from whatever points are passed to `apply`.
+/// `apply`/`apply_to_path` compute the centroid fresh from whatever points
+/// (or path anchors) are passed in — this makes `PuckerBloat` genuinely
+/// *not* a field in that mode: the output at a point depends on every other
+/// point in the set (global dependence), not just its own position.
 /// Positive `strength` bloats points outward from the centroid; negative
 /// `strength` puckers them inward.
+///
+/// The `Field<Vec2, Vec2>` impl can't recover a global centroid from a
+/// single sampled position, so it uses `centroid` as a fixed parameter
+/// instead of deriving it from input — turning the global dependence into
+/// an explicit, stored value. `apply`/`apply_to_path` ignore this field and
+/// keep computing their own centroid, so existing behavior is unchanged.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
@@ -1050,12 +1184,27 @@ pub struct PuckerBloat {
     /// Displacement factor along the centroid-to-point vector (negative =
     /// pucker inward, positive = bloat outward).
     pub strength: f32,
+    /// Centroid used by the `Field<Vec2, Vec2>` impl only; `apply` and
+    /// `apply_to_path` compute their own centroid from the input and ignore
+    /// this field. Defaults to the origin.
+    pub centroid: Vec2,
 }
 
 impl PuckerBloat {
-    /// Creates a new pucker/bloat.
+    /// Creates a new pucker/bloat. `centroid` (used only by the
+    /// `Field<Vec2, Vec2>` impl) defaults to the origin; set it with
+    /// [`Self::with_centroid`].
     pub fn new(strength: f32) -> Self {
-        Self { strength }
+        Self {
+            strength,
+            centroid: Vec2::ZERO,
+        }
+    }
+
+    /// Sets the fixed centroid used by the `Field<Vec2, Vec2>` impl.
+    pub fn with_centroid(mut self, centroid: Vec2) -> Self {
+        self.centroid = centroid;
+        self
     }
 
     fn deform_point(&self, centroid: Vec2, p: Vec2) -> Vec2 {
@@ -1086,6 +1235,15 @@ impl PuckerBloat {
         let mut result = path.clone();
         result.transform(|p| self.deform_point(centroid, p));
         result
+    }
+}
+
+#[cfg(feature = "field")]
+impl Field<Vec2, Vec2> for PuckerBloat {
+    /// Uses `self.centroid` as a fixed parameter — see the struct docs for
+    /// why this can't be the same global-centroid computation `apply` does.
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec2 {
+        self.deform_point(self.centroid, input)
     }
 }
 
@@ -1137,6 +1295,13 @@ impl FieldDisplace {
         let mut result = path.clone();
         result.transform(|p| self.deform_point(p));
         result
+    }
+}
+
+#[cfg(feature = "field")]
+impl Field<Vec2, Vec2> for FieldDisplace {
+    fn sample(&self, input: Vec2, _ctx: &EvalContext) -> Vec2 {
+        self.deform_point(input)
     }
 }
 

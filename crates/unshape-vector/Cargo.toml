@@ -9,6 +9,7 @@ description = "Core types and traits for unshape"
 default = []
 serde = ["dep:serde", "glam/serde"]
 dynop = ["dep:unshape-op", "dep:serde_json", "serde"]
+field = ["dep:unshape-field-ops"]
 invariant-tests = []
 
 [dependencies]
@@ -17,7 +18,11 @@ unshape-core = { workspace = true }
 unshape-color = { workspace = true }
 unshape-curve = { workspace = true }
 unshape-op = { workspace = true, optional = true }
+unshape-field-ops = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { version = "1", optional = true }
 thiserror.workspace = true
 ab_glyph = "0.2"
+
+[dev-dependencies]
+unshape-field-ops = { workspace = true }
