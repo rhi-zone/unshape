@@ -101,8 +101,8 @@ pub use text::{
     text_to_path_outlined, text_to_paths, text_to_paths_outlined,
 };
 pub use warp::{
-    Bend, Bulge, CageDeform, EnvelopeDeform, Falloff, LatticeDeform, PathDeform, PointPush, Taper,
-    Twist, Wave,
+    Bend, Bulge, CageDeform, EnvelopeDeform, Falloff, FieldDisplace, LatticeDeform, PathDeform,
+    PointPush, PuckerBloat, Roughen, Spherize, Taper, Twist, Wave,
 };
 
 /// Registers all vector operations with an [`OpRegistry`].
@@ -146,6 +146,10 @@ pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<Wave>("resin::Wave");
     registry.register_type::<EnvelopeDeform>("resin::EnvelopeDeform");
     registry.register_type::<PathDeform>("resin::PathDeform");
+    registry.register_type::<Spherize>("resin::Spherize");
+    registry.register_type::<Roughen>("resin::Roughen");
+    registry.register_type::<PuckerBloat>("resin::PuckerBloat");
+    registry.register_type::<FieldDisplace>("resin::FieldDisplace");
 }
 
 /// Invariant tests for vector operations.

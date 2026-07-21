@@ -3,8 +3,10 @@
 //! These ops displace points (and, via [`Path::transform`], whole paths) using
 //! spatial deformation techniques: lattice-based free-form deformation, cage
 //! (mean value coordinates) deformation, brush-style pushes, twists, tapers,
-//! arc bends, radial bulges, sinusoidal waves, envelope fitting, and
-//! spine-following path deform.
+//! arc bends, radial bulges, sinusoidal waves, envelope fitting,
+//! spine-following path deform, lens-style spherize/pincushion distortion,
+//! deterministic roughening, centroid-relative pucker/bloat, and noise-based
+//! field displacement.
 
 use crate::{Path, Rect};
 use glam::Vec2;
@@ -898,6 +900,296 @@ fn sample_polyline(polyline: &[Vec2], u: f32) -> Vec2 {
     polyline[i0].lerp(polyline[i1], local_t)
 }
 
+/// Collects the anchor (on-curve endpoint) positions of a path's commands,
+/// in order: `MoveTo`/`LineTo` points and the `to` endpoint of curve
+/// commands. Control points and `Close` are excluded. Used to compute an
+/// input-agnostic centroid for path-level warps like [`PuckerBloat`].
+fn path_anchor_points(path: &Path) -> Vec<Vec2> {
+    path.commands()
+        .iter()
+        .filter_map(|cmd| match *cmd {
+            crate::PathCommand::MoveTo(p) => Some(p),
+            crate::PathCommand::LineTo(p) => Some(p),
+            crate::PathCommand::QuadTo { to, .. } => Some(to),
+            crate::PathCommand::CubicTo { to, .. } => Some(to),
+            crate::PathCommand::Close => None,
+        })
+        .collect()
+}
+
+// ============================================================================
+// Spherize
+// ============================================================================
+
+/// Barrel/pincushion lens distortion: points within `radius` of `center` are
+/// radially remapped through a nonlinear projection, `displaced_dist = dist *
+/// (1 + strength * normalized_dist^2)` where `normalized_dist = dist /
+/// radius`. Positive `strength` bulges outward like a barrel lens (spherize);
+/// negative `strength` pulls inward like a pincushion lens.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = Vec<Vec2>, output = Vec<Vec2>))]
+pub struct Spherize {
+    /// Center of the lens effect.
+    pub center: Vec2,
+    /// Radius of effect; points beyond this distance are unaffected.
+    pub radius: f32,
+    /// Distortion strength (positive = barrel/spherize, negative = pincushion).
+    pub strength: f32,
+}
+
+impl Spherize {
+    /// Creates a new spherize.
+    pub fn new(center: Vec2, radius: f32, strength: f32) -> Self {
+        Self {
+            center,
+            radius,
+            strength,
+        }
+    }
+
+    fn deform_point(&self, p: Vec2) -> Vec2 {
+        if self.radius <= 0.0 {
+            return p;
+        }
+        let offset = p - self.center;
+        let dist = offset.length();
+        if dist >= self.radius || dist < EPS {
+            return p;
+        }
+        let normalized = dist / self.radius;
+        let displaced_dist = dist * (1.0 + self.strength * normalized * normalized);
+        let dir = offset / dist;
+        self.center + dir * displaced_dist
+    }
+
+    /// Applies the spherize to a set of points.
+    pub fn apply(&self, points: &[Vec2]) -> Vec<Vec2> {
+        points.iter().map(|&p| self.deform_point(p)).collect()
+    }
+
+    /// Applies the spherize to every point of a path.
+    pub fn apply_to_path(&self, path: &Path) -> Path {
+        let mut result = path.clone();
+        result.transform(|p| self.deform_point(p));
+        result
+    }
+}
+
+// ============================================================================
+// Roughen
+// ============================================================================
+
+/// Displaces each point by a deterministic pseudo-random offset, up to
+/// `amplitude` in magnitude, derived from the point's index and `seed`. Given
+/// the same seed and point count, the result is stable across runs.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = Vec<Vec2>, output = Vec<Vec2>))]
+pub struct Roughen {
+    /// Maximum displacement magnitude.
+    pub amplitude: f32,
+    /// Seed for the deterministic pseudo-random displacement.
+    pub seed: u32,
+}
+
+impl Roughen {
+    /// Creates a new roughen.
+    pub fn new(amplitude: f32, seed: u32) -> Self {
+        Self { amplitude, seed }
+    }
+
+    fn deform_point(&self, index: usize, p: Vec2) -> Vec2 {
+        if self.amplitude <= 0.0 {
+            return p;
+        }
+        let h_angle = hash_to_unit(self.seed, index as u32, 0);
+        let h_mag = hash_to_unit(self.seed, index as u32, 1);
+        let angle = h_angle * std::f32::consts::TAU;
+        let mag = h_mag * self.amplitude;
+        p + Vec2::new(angle.cos(), angle.sin()) * mag
+    }
+
+    /// Applies the roughening to a set of points.
+    pub fn apply(&self, points: &[Vec2]) -> Vec<Vec2> {
+        points
+            .iter()
+            .enumerate()
+            .map(|(i, &p)| self.deform_point(i, p))
+            .collect()
+    }
+
+    /// Applies the roughening to every point of a path.
+    pub fn apply_to_path(&self, path: &Path) -> Path {
+        let mut result = path.clone();
+        let index = std::cell::Cell::new(0usize);
+        result.transform(|p| {
+            let i = index.get();
+            index.set(i + 1);
+            self.deform_point(i, p)
+        });
+        result
+    }
+}
+
+// ============================================================================
+// PuckerBloat
+// ============================================================================
+
+/// Moves each point towards or away from the centroid of the input point set.
+/// The centroid is computed fresh from whatever points are passed to `apply`.
+/// Positive `strength` bloats points outward from the centroid; negative
+/// `strength` puckers them inward.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = Vec<Vec2>, output = Vec<Vec2>))]
+pub struct PuckerBloat {
+    /// Displacement factor along the centroid-to-point vector (negative =
+    /// pucker inward, positive = bloat outward).
+    pub strength: f32,
+}
+
+impl PuckerBloat {
+    /// Creates a new pucker/bloat.
+    pub fn new(strength: f32) -> Self {
+        Self { strength }
+    }
+
+    fn deform_point(&self, centroid: Vec2, p: Vec2) -> Vec2 {
+        let offset = p - centroid;
+        p + offset * self.strength
+    }
+
+    /// Applies the pucker/bloat to a set of points, using their own centroid.
+    pub fn apply(&self, points: &[Vec2]) -> Vec<Vec2> {
+        if points.is_empty() {
+            return Vec::new();
+        }
+        let centroid = points.iter().fold(Vec2::ZERO, |acc, &p| acc + p) / points.len() as f32;
+        points
+            .iter()
+            .map(|&p| self.deform_point(centroid, p))
+            .collect()
+    }
+
+    /// Applies the pucker/bloat to every point of a path, using the centroid
+    /// of the path's anchor points.
+    pub fn apply_to_path(&self, path: &Path) -> Path {
+        let anchors = path_anchor_points(path);
+        if anchors.is_empty() {
+            return path.clone();
+        }
+        let centroid = anchors.iter().fold(Vec2::ZERO, |acc, &p| acc + p) / anchors.len() as f32;
+        let mut result = path.clone();
+        result.transform(|p| self.deform_point(centroid, p));
+        result
+    }
+}
+
+// ============================================================================
+// FieldDisplace
+// ============================================================================
+
+/// Displaces points using deterministic value noise evaluated at
+/// `position * frequency`, scaled independently per axis by `scale`. Self-
+/// contained noise; composing with `unshape-field` for richer fields is a
+/// future extension.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "dynop", derive(unshape_op::Op))]
+#[cfg_attr(feature = "dynop", op(input = Vec<Vec2>, output = Vec<Vec2>))]
+pub struct FieldDisplace {
+    /// Per-axis displacement magnitude.
+    pub scale: Vec2,
+    /// Spatial frequency of the noise field.
+    pub frequency: f32,
+    /// Seed for the deterministic noise field.
+    pub seed: u32,
+}
+
+impl FieldDisplace {
+    /// Creates a new field displace.
+    pub fn new(scale: Vec2, frequency: f32, seed: u32) -> Self {
+        Self {
+            scale,
+            frequency,
+            seed,
+        }
+    }
+
+    fn deform_point(&self, p: Vec2) -> Vec2 {
+        let sample = p * self.frequency;
+        let nx = value_noise_2d(sample, self.seed, 0) * 2.0 - 1.0;
+        let ny = value_noise_2d(sample, self.seed, 1) * 2.0 - 1.0;
+        p + Vec2::new(nx * self.scale.x, ny * self.scale.y)
+    }
+
+    /// Applies the field displacement to a set of points.
+    pub fn apply(&self, points: &[Vec2]) -> Vec<Vec2> {
+        points.iter().map(|&p| self.deform_point(p)).collect()
+    }
+
+    /// Applies the field displacement to every point of a path.
+    pub fn apply_to_path(&self, path: &Path) -> Path {
+        let mut result = path.clone();
+        result.transform(|p| self.deform_point(p));
+        result
+    }
+}
+
+/// Hashes three `u32`s into a pseudo-random value in `[0, 1)`. Used for
+/// deterministic per-index randomness (e.g. [`Roughen`]).
+fn hash_to_unit(a: u32, b: u32, c: u32) -> f32 {
+    let mut h = a
+        .wrapping_mul(0x9e3779b1)
+        .wrapping_add(b.wrapping_mul(0x85ebca6b))
+        .wrapping_add(c.wrapping_mul(0xc2b2ae35));
+    h ^= h >> 16;
+    h = h.wrapping_mul(0x7feb352d);
+    h ^= h >> 15;
+    h = h.wrapping_mul(0x846ca68b);
+    h ^= h >> 16;
+    (h as f64 / u32::MAX as f64) as f32
+}
+
+/// Hashes an integer lattice coordinate `(x, y)` plus `seed` and `channel`
+/// into a pseudo-random value in `[0, 1)`. Used as the value-noise lattice
+/// generator for [`FieldDisplace`].
+fn hash_lattice(x: i32, y: i32, seed: u32, channel: u32) -> f32 {
+    hash_to_unit(
+        (x as u32).wrapping_mul(0x27d4eb2d) ^ seed,
+        (y as u32).wrapping_mul(0x165667b1),
+        channel.wrapping_mul(0x9e3779b9),
+    )
+}
+
+/// Smoothstep-interpolated 2D value noise at `p`, seeded by `seed` with an
+/// independent `channel` (so multiple channels can be sampled at the same
+/// position without correlating).
+fn value_noise_2d(p: Vec2, seed: u32, channel: u32) -> f32 {
+    let x0 = p.x.floor() as i32;
+    let y0 = p.y.floor() as i32;
+    let x1 = x0 + 1;
+    let y1 = y0 + 1;
+
+    let fx = p.x - x0 as f32;
+    let fy = p.y - y0 as f32;
+    let sx = fx * fx * (3.0 - 2.0 * fx);
+    let sy = fy * fy * (3.0 - 2.0 * fy);
+
+    let n00 = hash_lattice(x0, y0, seed, channel);
+    let n10 = hash_lattice(x1, y0, seed, channel);
+    let n01 = hash_lattice(x0, y1, seed, channel);
+    let n11 = hash_lattice(x1, y1, seed, channel);
+
+    let top = n00 + (n10 - n00) * sx;
+    let bottom = n01 + (n11 - n01) * sx;
+    top + (bottom - top) * sy
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1403,6 +1695,209 @@ mod tests {
         let deform = PathDeform::new(spine, Vec2::X, Vec2::ZERO);
         let path = line(Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0));
         let warped = deform.apply_to_path(&path);
+        assert_eq!(warped.commands().len(), path.commands().len());
+    }
+
+    // =========================================================================
+    // Spherize tests
+    // =========================================================================
+
+    #[test]
+    fn spherize_center_point_unaffected() {
+        let spherize = Spherize::new(Vec2::ZERO, 10.0, 1.0);
+        let deformed = spherize.apply(&[Vec2::ZERO])[0];
+        assert!(approx(deformed, Vec2::ZERO, TOL));
+    }
+
+    #[test]
+    fn spherize_positive_strength_bulges_outward() {
+        let spherize = Spherize::new(Vec2::ZERO, 10.0, 1.0);
+        let p = Vec2::new(5.0, 0.0);
+        // normalized = 0.5, displaced = 5 * (1 + 1*0.25) = 6.25
+        let deformed = spherize.apply(&[p])[0];
+        assert!(
+            approx(deformed, Vec2::new(6.25, 0.0), TOL),
+            "got {deformed:?}"
+        );
+    }
+
+    #[test]
+    fn spherize_negative_strength_pulls_inward() {
+        let spherize = Spherize::new(Vec2::ZERO, 10.0, -1.0);
+        let p = Vec2::new(5.0, 0.0);
+        // normalized = 0.5, displaced = 5 * (1 - 1*0.25) = 3.75
+        let deformed = spherize.apply(&[p])[0];
+        assert!(
+            approx(deformed, Vec2::new(3.75, 0.0), TOL),
+            "got {deformed:?}"
+        );
+    }
+
+    #[test]
+    fn spherize_no_effect_outside_radius() {
+        let spherize = Spherize::new(Vec2::ZERO, 5.0, 1.0);
+        let p = Vec2::new(10.0, 0.0);
+        assert!(approx(spherize.apply(&[p])[0], p, TOL));
+    }
+
+    #[test]
+    fn spherize_apply_to_path() {
+        let spherize = Spherize::new(Vec2::ZERO, 10.0, 1.0);
+        let path = rect(Vec2::new(-2.0, -2.0), Vec2::new(2.0, 2.0));
+        let warped = spherize.apply_to_path(&path);
+        assert_eq!(warped.commands().len(), path.commands().len());
+    }
+
+    // =========================================================================
+    // Roughen tests
+    // =========================================================================
+
+    #[test]
+    fn roughen_zero_amplitude_is_identity() {
+        let roughen = Roughen::new(0.0, 42);
+        let p = Vec2::new(3.0, 4.0);
+        assert!(approx(roughen.apply(&[p])[0], p, TOL));
+    }
+
+    #[test]
+    fn roughen_bounded_by_amplitude() {
+        let roughen = Roughen::new(2.0, 42);
+        let points: Vec<Vec2> = (0..20).map(|i| Vec2::new(i as f32, 0.0)).collect();
+        let deformed = roughen.apply(&points);
+        for (p, d) in points.iter().zip(deformed.iter()) {
+            assert!(
+                p.distance(*d) <= 2.0 + TOL,
+                "displacement exceeded amplitude"
+            );
+        }
+    }
+
+    #[test]
+    fn roughen_deterministic_for_same_seed() {
+        let roughen = Roughen::new(3.0, 7);
+        let points: Vec<Vec2> = (0..10).map(|i| Vec2::new(i as f32, i as f32)).collect();
+        let a = roughen.apply(&points);
+        let b = roughen.apply(&points);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn roughen_different_seeds_differ() {
+        let a = Roughen::new(3.0, 1).apply(&[Vec2::new(1.0, 1.0)])[0];
+        let b = Roughen::new(3.0, 2).apply(&[Vec2::new(1.0, 1.0)])[0];
+        assert!(a.distance(b) > TOL);
+    }
+
+    #[test]
+    fn roughen_apply_to_path() {
+        let roughen = Roughen::new(1.0, 5);
+        let path = rect(Vec2::new(0.0, 0.0), Vec2::new(4.0, 4.0));
+        let warped = roughen.apply_to_path(&path);
+        assert_eq!(warped.commands().len(), path.commands().len());
+    }
+
+    // =========================================================================
+    // PuckerBloat tests
+    // =========================================================================
+
+    #[test]
+    fn pucker_bloat_zero_strength_is_identity() {
+        let pucker = PuckerBloat::new(0.0);
+        let points = vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(4.0, 0.0),
+            Vec2::new(2.0, 4.0),
+        ];
+        let deformed = pucker.apply(&points);
+        for (p, d) in points.iter().zip(deformed.iter()) {
+            assert!(approx(*p, *d, TOL));
+        }
+    }
+
+    #[test]
+    fn pucker_bloat_positive_moves_away_from_centroid() {
+        let pucker = PuckerBloat::new(1.0);
+        let points = vec![Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0)];
+        // centroid = (5, 0); point (10, 0) offset = (5, 0); displaced by
+        // strength * offset => (10,0) + (5,0) = (15, 0)
+        let deformed = pucker.apply(&points);
+        assert!(approx(deformed[1], Vec2::new(15.0, 0.0), TOL));
+        assert!(approx(deformed[0], Vec2::new(-5.0, 0.0), TOL));
+    }
+
+    #[test]
+    fn pucker_bloat_negative_moves_toward_centroid() {
+        let pucker = PuckerBloat::new(-0.5);
+        let points = vec![Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0)];
+        // centroid = (5, 0); point (10, 0) offset = (5, 0); displaced by
+        // -0.5 * offset => (10, 0) + (-2.5, 0) = (7.5, 0)
+        let deformed = pucker.apply(&points);
+        assert!(approx(deformed[1], Vec2::new(7.5, 0.0), TOL));
+    }
+
+    #[test]
+    fn pucker_bloat_empty_input_is_empty() {
+        let pucker = PuckerBloat::new(1.0);
+        let deformed = pucker.apply(&[]);
+        assert!(deformed.is_empty());
+    }
+
+    #[test]
+    fn pucker_bloat_apply_to_path() {
+        let pucker = PuckerBloat::new(0.5);
+        let path = rect(Vec2::new(0.0, 0.0), Vec2::new(4.0, 4.0));
+        let warped = pucker.apply_to_path(&path);
+        assert_eq!(warped.commands().len(), path.commands().len());
+    }
+
+    // =========================================================================
+    // FieldDisplace tests
+    // =========================================================================
+
+    #[test]
+    fn field_displace_zero_scale_is_identity() {
+        let field = FieldDisplace::new(Vec2::ZERO, 1.0, 1);
+        let p = Vec2::new(3.0, 4.0);
+        assert!(approx(field.apply(&[p])[0], p, TOL));
+    }
+
+    #[test]
+    fn field_displace_bounded_by_scale() {
+        let scale = Vec2::new(2.0, 3.0);
+        let field = FieldDisplace::new(scale, 0.3, 9);
+        let points: Vec<Vec2> = (0..30).map(|i| Vec2::new(i as f32, -i as f32)).collect();
+        let deformed = field.apply(&points);
+        for (p, d) in points.iter().zip(deformed.iter()) {
+            let disp = *d - *p;
+            assert!(disp.x.abs() <= scale.x + TOL);
+            assert!(disp.y.abs() <= scale.y + TOL);
+        }
+    }
+
+    #[test]
+    fn field_displace_deterministic_for_same_seed() {
+        let field = FieldDisplace::new(Vec2::new(1.0, 1.0), 0.5, 3);
+        let points: Vec<Vec2> = (0..10)
+            .map(|i| Vec2::new(i as f32, i as f32 * 0.5))
+            .collect();
+        let a = field.apply(&points);
+        let b = field.apply(&points);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn field_displace_different_seeds_differ() {
+        let p = Vec2::new(1.0, 1.0);
+        let a = FieldDisplace::new(Vec2::new(1.0, 1.0), 0.5, 1).apply(&[p])[0];
+        let b = FieldDisplace::new(Vec2::new(1.0, 1.0), 0.5, 2).apply(&[p])[0];
+        assert!(a.distance(b) > TOL);
+    }
+
+    #[test]
+    fn field_displace_apply_to_path() {
+        let field = FieldDisplace::new(Vec2::new(0.5, 0.5), 0.4, 11);
+        let path = rect(Vec2::new(0.0, 0.0), Vec2::new(4.0, 4.0));
+        let warped = field.apply_to_path(&path);
         assert_eq!(warped.commands().len(), path.commands().len());
     }
 }
