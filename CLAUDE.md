@@ -150,7 +150,9 @@ impl Image {
 
 See `docs/design/ops-as-values.md` for full rationale.
 
-**Field as universal primitive.** Any operation that maps input coordinates to output values without neighborhood/global/state/topology dependence IS a `Field<I, O>`. This is the majority of operations. Named ops in this category (warp, distortion, color adjust, noise, SDF) should implement `Field<I, O>` directly — they are field constructors, not independent abstractions. Five reasons an op fails to be a field: neighborhood dependence, global dependence, causal recursion (`&mut self`), topology change, combinatorial construction. See `docs/design/ui-architecture.md` § "Field as universal primitive" for the full taxonomy.
+**Field as universal primitive.** Any operation that maps input coordinates to output values without neighborhood/global/state/topology dependence IS a `Field<I, O>`. This is the majority of operations. Five reasons an op fails to be a field: neighborhood dependence, global dependence, causal recursion (`&mut self`), topology change, combinatorial construction. See `docs/design/ui-architecture.md` § "Field as universal primitive" for the full taxonomy.
+
+**Expression-decomposable ops vs genuine primitives.** Ops that are closed-form formulas over a few parameters (Twist, Wave, Bulge, etc.) should implement both `Field<I, O>` and `to_dew_ast()` — the struct is a named constructor for a field expression, enabling GPU/JIT compilation. Ops that depend on variable-length authored data (LatticeDeform, CageDeform, EnvelopeDeform, PathDeform) are genuine primitives — they implement `Field<I, O>` but cannot decompose into a simple expression. Both categories are ops-as-values (serializable structs with parameters). In the UI, named ops show as inspectable parameters/sliders; editing the formula promotes to a free expression node (one-way).
 
 ## Conventions
 
