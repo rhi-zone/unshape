@@ -18,6 +18,7 @@ pub mod rasterize;
 mod stroke;
 pub mod svg;
 mod text;
+mod warp;
 
 // Re-export curve types for convenience
 pub use unshape_curve::{
@@ -99,6 +100,7 @@ pub use text::{
     Font, FontError, FontResult, TextConfig, TextLayout, TextMetrics, measure_text, text_to_path,
     text_to_path_outlined, text_to_paths, text_to_paths_outlined,
 };
+pub use warp::{CageDeform, Falloff, LatticeDeform, PointPush, Taper, Twist};
 
 /// Registers all vector operations with an [`OpRegistry`].
 ///
@@ -129,6 +131,13 @@ pub fn register_ops(registry: &mut unshape_op::OpRegistry) {
     registry.register_type::<PathBlend>("resin::PathBlend");
     registry.register_type::<PathArray>("resin::PathArray");
     registry.register_type::<DashPath>("resin::DashPath");
+
+    // Warp/deform ops
+    registry.register_type::<LatticeDeform>("resin::LatticeDeform");
+    registry.register_type::<CageDeform>("resin::CageDeform");
+    registry.register_type::<PointPush>("resin::PointPush");
+    registry.register_type::<Twist>("resin::Twist");
+    registry.register_type::<Taper>("resin::Taper");
 }
 
 /// Invariant tests for vector operations.
