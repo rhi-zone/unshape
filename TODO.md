@@ -158,20 +158,16 @@ Pyramid removed - use `Cone { segments: 4, .. }` instead.
 
 ### UI Design from First Principles
 
-The computation substrate (graph, fields, ops, timeline, table, live) is sketched. How should it be projected for humans?
+Design document at `docs/design/ui-architecture.md` with three threads (Projection Types, The Carving, Editor Architecture) plus concrete grounding work:
 
-**Running design document:** `docs/design/ui-architecture.md` — three threads framed: Projection Types, The Carving, Editor Architecture.
+- **Design principle**: minimize distance (steps) between intent and artifact
+- **Target surface**: infinite canvas vector+raster drawing app for PC — a missing niche. Core workflow: draw rough, refine with warp. Extends into 2D rigging/animation
+- **Input modalities**: CV-based posing (hand tracking, body tracking, armature + CV, face detection) as parallel input channels (not mode switches). Collision-based interaction over abstract parameter mapping
+- **Field as universal primitive**: majority of ops across all domains are `Field<I, O>`. Five failure modes identified (neighborhood, global, causal recursion, topology, combinatorial). Warp ops now implement Field<Vec2, Vec2> directly
+- **Expression-decomposable vs genuine primitives**: 8 warp ops decompose into wick expressions (have to_dew_ast()), 6 are genuine primitives (variable-length authored data). Forward projection exists; backward (expression → named op) does not
+- **Open questions remain**: the three original threads (projection types, carving, editor architecture) are still unresolved. CV capture patterns (snapshot vs recording vs iterative) depend on use case. The stroke canvas POC exists but is minimal
 
-**Multiple layout paradigms discussed but not designed:**
-- Graph/node editor (for the execution graph itself)
-- Freeform spatial canvas (for arranging projections of values — "Excel without the sin")
-- Tiled panes (constraint-based splitting)
-- Floating windows
-- These coexist — not mutually exclusive. Layout is editor config, not graph data.
-
-**Open questions:**
-- What is a "projection" exactly? Data + visual representation + optional write-back. The concept was named but not designed.
-- The distinction between "data + projections" and "regular programming" — no edit/run separation, direct manipulation, spatial organization as first-class. How does this inform the editor architecture?
+See also: `docs/design/domain-subsumption-2.md` (Procreate, Toon Boom, Blender analysis)
 
 ### Events / Interactivity
 
