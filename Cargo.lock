@@ -5753,6 +5753,7 @@ name = "unshape-examples"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "eframe",
  "glam",
  "serde_json",
  "unshape-audio",
@@ -5766,6 +5767,7 @@ dependencies = [
  "unshape-op",
  "unshape-rig",
  "unshape-vector",
+ "wgpu 29.0.3",
 ]
 
 [[package]]

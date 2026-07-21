@@ -126,6 +126,10 @@ unshape-lsystem = { workspace = true }
 unshape-op = { workspace = true, optional = true }
 glam = { workspace = true }
 serde_json = { version = "1", optional = true }
+eframe = { version = "0.34", default-features = false, features = ["wgpu", "default_fonts", "wayland", "x11"] }
+# Feature-unification only (we do not use wgpu directly here): see the same pin in
+# crates/unshape-editor/Cargo.toml for why this is required on Linux.
+wgpu = { version = "29", default-features = false, features = ["vulkan", "gles"] }
 
 [[example]]
 name = "bevy_mesh_demo"
@@ -155,6 +159,10 @@ required-features = ["dynop"]
 [[example]]
 name = "compute_backends"
 path = "examples/compute_backends.rs"
+
+[[example]]
+name = "stroke_canvas"
+path = "examples/stroke_canvas.rs"
 
 [profile.dev]
 debug = 0
