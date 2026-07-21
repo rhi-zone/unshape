@@ -150,6 +150,8 @@ impl Image {
 
 See `docs/design/ops-as-values.md` for full rationale.
 
+**Field as universal primitive.** Any operation that maps input coordinates to output values without neighborhood/global/state/topology dependence IS a `Field<I, O>`. This is the majority of operations. Named ops in this category (warp, distortion, color adjust, noise, SDF) should implement `Field<I, O>` directly — they are field constructors, not independent abstractions. Five reasons an op fails to be a field: neighborhood dependence, global dependence, causal recursion (`&mut self`), topology change, combinatorial construction. See `docs/design/ui-architecture.md` § "Field as universal primitive" for the full taxonomy.
+
 ## Conventions
 
 ### Rust

@@ -208,6 +208,32 @@ Extends into: 2D rigging, animation (Live2D/Toon Boom territory), image editing 
 
 Prior art: Infinite Painter, Procreate, ToonSquid, Live2D, Toon Boom Harmony.
 
+## Field as universal primitive
+
+Every operation that maps input points/coordinates to output values without depending on neighbors, global state, or topology is a `Field<I, O>`. This covers the majority of operations across all domains:
+
+- **Vector warp**: all 14 warp ops are `Field<Vec2, Vec2>` (per-point position remap)
+- **Image**: per-pixel color ops, distortion, compositing = `Field<Vec2, Color>` compositions
+- **Noise**: all 21 noise types = `Field<VecN, f32>`
+- **SDF**: all SDF primitives and combinators = `Field<Vec3, f32>`
+- **Audio oscillators**: pure phase→amplitude = `Field<f32, f32>`
+- **Mesh deformation**: morph targets, lattice deform = `Field<Vec3, Vec3>`
+- **Particle forces**: gravity, wind, attractor, vortex = `Field<Vec3, Vec3>`
+
+### Five reasons an op is NOT a field
+
+| # | Reason | Contract violation | Examples |
+|---|--------|--------------------|----------|
+| 1 | **Neighborhood** — output at p needs nearby points | Field only receives one input coordinate | Convolution, curvature, grid diffusion |
+| 2 | **Global** — output at p depends on ALL input | No local evaluation suffices | FFT, histogram eq, N-body, AO |
+| 3 | **Causal recursion** — output at n depends on prior outputs | Needs `&mut self`, breaks `&self` purity | IIR filters, delay lines, reverb, physics integration |
+| 4 | **Topology change** — adds/removes structure | Field maps existing points, can't insert new ones | Subdivision, bevel, decimate, boolean ops |
+| 5 | **Combinatorial construction** — discrete case analysis | Creates new structure via case tables | Marching cubes, BSP splitting, loft |
+
+### Architecture implication
+
+Domain crates define parallel traits (`Noise2D`, `Force`) and Field impls live in wrapper crates. Field works as a cross-domain integration layer. Warp ops should be refactored to implement `Field<Vec2, Vec2>` directly rather than standalone op structs with their own apply methods.
+
 ## Backlog (not yet threaded)
 
 - **Editing-through-a-definition** — bidirectional editing of formula-defined values. Repeatedly flagged as the hardest unsolved interaction problem. Scoped out pending constraint-solver substrate.
