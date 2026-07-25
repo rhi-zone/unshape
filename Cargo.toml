@@ -139,3 +139,6 @@ required-features = ["dynop"]
 [[example]]
 name = "compute_backends"
 path = "examples/compute_backends.rs"
+
+[profile.dev]
+debug = 0
