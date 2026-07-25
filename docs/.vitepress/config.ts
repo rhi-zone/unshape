@@ -31,16 +31,18 @@ export default withMermaid(
         include: ['mermaid'],
       },
     },
-    title: 'Unshape',
+    title: 'unshape',
     description: 'Constructive media generation and manipulation',
 
     base: '/unshape/',
+
+    srcExclude: ['**/CLAUDE.md'],
 
     themeConfig: {
       nav: [
         { text: 'Guide', link: '/introduction' },
         { text: 'Design', link: '/philosophy' },
-        { text: 'Rhizome', link: 'https://docs.rhi.zone/' },
+        { text: 'rhi', link: 'https://docs.rhi.zone/' },
       ],
 
       sidebar: {
